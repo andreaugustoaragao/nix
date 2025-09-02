@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/aragao/omarchy/themes/catppuccin/**)",
+      "Read(//home/aragao/omarchy/default/hypr/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Read(//home/aragao/.config/mako/**)",
+      "Read(//home/aragao/omarchy/**)",
+      "Bash(sudo ipcs:*)",
+      "Bash(nix flake check:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
