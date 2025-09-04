@@ -1,0 +1,66 @@
+configuration {
+    location:                       0;
+    drun-display-format:"{name}";
+
+ font : "Jetbrains Mono Nerd Font SemiBold 24";
+}
+
+* {
+    background:             #0011111B;
+    background-alt:         #1E1E2E;
+    foreground:             #EEEEEE;
+    selected:               #C4a7e7;
+    urgent:                 #CBA6F7;
+    on:                     #89B4FA;
+    off:                    #F5C2E7;
+   border:0;
+ margin:0;
+ padding:0;
+ spacing:0;
+}
+
+
+window {
+    background-color:               @background;
+    border:                         2px;
+    border-color:                   @selected;
+    border-radius:                  15px;
+    width:                          300px;
+    height:                         320px;
+    x-offset:                       0;
+    y-offset:                       0;
+}
+
+listview {
+    background-color:               @background;
+    columns:                        1;
+    lines:                          5;
+}
+
+mainbox {
+    background-color:               @background;
+    children:                       [ listview ];
+    padding:                        10px;
+}
+
+element {
+    background-color:               @background;
+    text-color:                     @off;
+    orientation:                    vertical;
+    border:                         0px;
+    border-radius:                  0%;
+    border-color:            @background;
+}
+
+element-text {
+    background-color:               @background;
+    text-color:                     @foreground;
+    vertical-align:                 0.5;
+}
+
+element selected {
+    background-color:               @selected;
+}
+
+/* vim:ft=css
+*/

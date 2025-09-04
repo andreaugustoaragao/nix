@@ -1,0 +1,59 @@
+Memory Investigation Analysis Report
+==================================================
+
+Investigation Duration: 3 minutes
+Collection Interval: 60 seconds
+Total Snapshots: 3
+
+UNEVICTABLE MEMORY TREND ANALYSIS:
+==================================================
+21:05:29: Unevictable=2548.3MB, Mlocked=15.7MB, SlabUnreclaim=114.9MB, PageTables=13.8MB, KernelStack=5.5MB
+21:06:29: Unevictable=3103.6MB, Mlocked=15.7MB, SlabUnreclaim=116.6MB, PageTables=15.2MB, KernelStack=5.7MB
+21:07:29: Unevictable=3397.2MB, Mlocked=15.7MB, SlabUnreclaim=117.3MB, PageTables=18.0MB, KernelStack=5.5MB
+
+Unevictable Memory Growth Analysis:
+----------------------------------------
+Total Unevictable Growth: 848.9 MB (33.3%)
+Mlocked Memory Growth: 0.0 MB
+Unreclaimable Slab Growth: 2.4 MB
+Page Tables Growth: 4.2 MB
+
+Biggest Contributors to Unevictable Memory Growth:
+--------------------------------------------------
+Page Tables: +4.2 MB
+Unreclaimable Slab: +2.4 MB
+
+Slab Cache Growth Analysis:
+----------------------------------------
+proc_inode_cache: +1.3 MB
+
+Processes with Mlocked Memory:
+----------------------------------------
+PID 95481 (greetd): Max=16.2MB, Avg=16.2MB
+PID 1483 (greetd): Max=3.9MB, Avg=3.9MB
+
+Overall Memory Usage Trend:
+------------------------------
+21:05:29: 11.1%
+21:06:29: 13.0%
+21:07:29: 14.0%
+
+Potential Memory Leaks (increasing memory usage):
+--------------------------------------------------
+
+System Memory Statistics:
+------------------------------
+Average usage: 12.7%
+Peak usage: 14.0%
+Minimum usage: 11.1%
+
+DIAGNOSTIC RECOMMENDATIONS:
+========================================
+⚠️  SIGNIFICANT UNEVICTABLE MEMORY GROWTH DETECTED!
+
+Additional Investigation Commands:
+• cat /proc/meminfo | grep -E '(Unevictable|Mlocked|Slab)'
+• sudo cat /proc/slabinfo | sort -k3 -n | tail -20
+• for pid in $(pgrep -f 'suspicious_process'); do grep VmLck /proc/$pid/status; done
+• dmesg | grep -i 'memory'
+• sudo sysctl vm.max_map_count

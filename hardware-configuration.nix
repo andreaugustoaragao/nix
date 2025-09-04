@@ -4,7 +4,7 @@
 { config, lib, pkgs, modulesPath, ... }:
 
 {
-  #imports = [(modulesPath+"/profiles/qemu-guest.nix" )];
+  imports = [ ];
 
   boot.initrd.availableKernelModules = [ "ehci_pci" "xhci_pci" "usbhid" "sr_mod" ];
   boot.initrd.kernelModules = [ ];
@@ -12,20 +12,19 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/653a8431-cf83-407d-a062-940ab85a471c";
-      fsType = "btrfs";
+    { device = "/dev/disk/by-uuid/769a806c-5334-4a42-bc9f-5a1868e4dbd2";
+      fsType = "ext4";
     };
 
   fileSystems."/boot" =
     { device = "/dev/disk/by-uuid/E182-4A67";
       fsType = "vfat";
-      options = [ "fmask=0077" "dmask=0077" ];
+      options = [ "fmask=0022" "dmask=0022" ];
     };
 
   swapDevices =
     [ { device = "/dev/disk/by-uuid/6e080e04-7682-499c-8a8f-de4ae335c30a"; }
     ];
-
 
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
@@ -35,6 +34,6 @@
   # networking.interfaces.enp0s5.useDHCP = lib.mkDefault true;
 
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
-  #hardware.parallels.enable = true;
+  hardware.parallels.enable = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];
 }

@@ -4,6 +4,7 @@
   # Import LazyVim configuration
   imports = [
     ./nvim-lazyvim.nix
+    ./polybar.nix
   ];
   
   home.username = "aragao";
@@ -16,23 +17,26 @@
   # Hyprland configuration
   wayland.windowManager.hyprland = {
     enable = true;
+    package = inputs.hyprland.packages.${pkgs.system}.hyprland;
     
     settings = {
       # Monitor configuration (Omarchy style)
       monitor = [
-        "Virtual-1,2560x1600@60,0x0,1.600000"
+        #"Virtual-1,2560x1600@60,0x0,1.600000"
+        #", preferred, auto, auto"
+        ",2560x1600@59.97,auto,1"
       ];
 
-      # Startup applications
+      # Startup applications (minimized for faster startup)
       exec-once = [
-        "uwsm app -- swayosd-server"
-        "uwsm app -- mako"
-        "uwsm app -- fcitx5"  # Input method framework (Omarchy style)
-        "uwsm app -- foot --server"  # Start foot in server mode
-        "uwsm app -- hyprpaper"  # Wallpaper daemon
+        # "uwsm app -- swayosd-server"  # DISABLED - OSD for volume/brightness (re-enable if you want visual feedback)
+        # "uwsm app -- mako"  # DISABLED - Notification daemon
+        # "uwsm app -- fcitx5"  # DISABLED - Input method (re-enable if you need non-English input)
+        # "uwsm app -- foot --server"  # DISABLED - Terminal server (terminals will start individually)
+        # "uwsm app -- hyprpaper"  # DISABLED - Wallpaper daemon (using solid color instead)
       ];
 
-      # Environment variables
+      # Environment variables (minimized - fcitx5 variables removed since it's disabled)
       env = [
         "XCURSOR_SIZE,24"
         "HYPRCURSOR_SIZE,24"  # Omarchy also sets this for Hyprland cursor support
@@ -40,13 +44,13 @@
         "QT_QPA_PLATFORM,wayland"
         "SDL_VIDEODRIVER,wayland"
         "XDG_SESSION_TYPE,wayland"
-        "NIXOS_OZONE_WL,1"  # Prefer Wayland for Electron/Chromium apps
+        # "NIXOS_OZONE_WL,1"  # Prefer Wayland for Electron/Chromium apps - DISABLED for X11/DWM compatibility
         "WLR_DRM_NO_MODIFIERS,1"  # Reduce DMABUF modifier usage (virtio/Parallels friendly)
-        # fcitx5 input method (Omarchy style)
-        "INPUT_METHOD,fcitx"
-        "QT_IM_MODULE,fcitx"
-        "XMODIFIERS,@im=fcitx"
-        "SDL_IM_MODULE,fcitx"
+        # fcitx5 input method variables (DISABLED since fcitx5 is disabled)
+        # "INPUT_METHOD,fcitx"
+        # "QT_IM_MODULE,fcitx"
+        # "XMODIFIERS,@im=fcitx"
+        # "SDL_IM_MODULE,fcitx"
       ];
 
       # Input configuration (Enhanced Omarchy style)
@@ -298,23 +302,23 @@
         "$mainMod, mouse_up, workspace, e-1"
       ];
       
-      # Media keys with SwayOSD (Omarchy style)
+      # Media keys (SIMPLIFIED - using direct commands instead of SwayOSD for minimal setup)
       bindel = [
-        # Volume controls with OSD
-        ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
-        ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower" 
-        ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
-        ", XF86AudioMicMute, exec, swayosd-client --input-volume mute-toggle"
+        # Volume controls (direct commands - no OSD)
+        ", XF86AudioRaiseVolume, exec, pamixer -i 5"
+        ", XF86AudioLowerVolume, exec, pamixer -d 5" 
+        ", XF86AudioMute, exec, pamixer -t"
+        ", XF86AudioMicMute, exec, pamixer --default-source -t"
         
-        # Brightness controls with OSD
-        ", XF86MonBrightnessUp, exec, swayosd-client --brightness raise"
-        ", XF86MonBrightnessDown, exec, swayosd-client --brightness lower"
+        # Brightness controls (direct commands - no OSD)
+        ", XF86MonBrightnessUp, exec, brightnessctl set +5%"
+        ", XF86MonBrightnessDown, exec, brightnessctl set 5%-"
         
         # Precise 1% adjustments with Alt
-        "ALT, XF86AudioRaiseVolume, exec, swayosd-client --output-volume +1"
-        "ALT, XF86AudioLowerVolume, exec, swayosd-client --output-volume -1"
-        "ALT, XF86MonBrightnessUp, exec, swayosd-client --brightness +1"
-        "ALT, XF86MonBrightnessDown, exec, swayosd-client --brightness -1"
+        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
+        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
+        "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
+        "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
       ];
       
       # Media control keys
@@ -333,9 +337,9 @@
     };
   };
 
-  # Sway configuration (matching Hyprland setup)
+  # Sway configuration (DISABLED - redundant with Hyprland)
   wayland.windowManager.sway = {
-    enable = true;
+    enable = false;
     package = null;
     wrapperFeatures.gtk = true;
     wrapperFeatures.base = true;
@@ -373,16 +377,16 @@
         };
       };
       
-      # Startup applications (waybar managed by systemd)
-      startup = [
-        { command = "swayosd-server"; }
-        { command = "mako"; }
-        { command = "fcitx5"; }
-        { command = "foot --server"; }
-        { command = "swaybg -i ${config.home.homeDirectory}/.local/share/wallpapers/1-kanagawa.jpg -m fill"; }
-        { command = "sway-transparency"; }
-        { command = "swaymsg workspace 1"; always = true; }
-      ];
+      # Startup applications (DISABLED since Sway is disabled)
+      # startup = [
+      #   { command = "swayosd-server"; }
+      #   { command = "mako"; }
+      #   { command = "fcitx5"; }
+      #   { command = "foot --server"; }
+      #   { command = "swaybg -i ${config.home.homeDirectory}/.local/share/wallpapers/1-kanagawa.jpg -m fill"; }
+      #   { command = "sway-transparency"; }
+      #   { command = "swaymsg workspace 1"; always = true; }
+      # ];
       
       # Window appearance
       window = {
@@ -522,17 +526,17 @@
         # Notifications
         "${modifier}+semicolon" = "exec makoctl restore";
         
-        # Media keys
-        "XF86AudioRaiseVolume" = "exec swayosd-client --output-volume raise";
-        "XF86AudioLowerVolume" = "exec swayosd-client --output-volume lower";
-        "XF86AudioMute" = "exec swayosd-client --output-volume mute-toggle";
-        "XF86AudioMicMute" = "exec swayosd-client --input-volume mute-toggle";
-        "XF86MonBrightnessUp" = "exec swayosd-client --brightness raise";
-        "XF86MonBrightnessDown" = "exec swayosd-client --brightness lower";
-        "Alt+XF86AudioRaiseVolume" = "exec swayosd-client --output-volume +1";
-        "Alt+XF86AudioLowerVolume" = "exec swayosd-client --output-volume -1";
-        "Alt+XF86MonBrightnessUp" = "exec swayosd-client --brightness +1";
-        "Alt+XF86MonBrightnessDown" = "exec swayosd-client --brightness -1";
+        # Media keys (simplified - no OSD)
+        "XF86AudioRaiseVolume" = "exec pamixer -i 5";
+        "XF86AudioLowerVolume" = "exec pamixer -d 5";
+        "XF86AudioMute" = "exec pamixer -t";
+        "XF86AudioMicMute" = "exec pamixer --default-source -t";
+        "XF86MonBrightnessUp" = "exec brightnessctl set +5%";
+        "XF86MonBrightnessDown" = "exec brightnessctl set 5%-";
+        "Alt+XF86AudioRaiseVolume" = "exec pamixer -i 1";
+        "Alt+XF86AudioLowerVolume" = "exec pamixer -d 1";
+        "Alt+XF86MonBrightnessUp" = "exec brightnessctl set +1%";
+        "Alt+XF86MonBrightnessDown" = "exec brightnessctl set 1%-";
         
         # Media control
         "XF86AudioNext" = "exec playerctl next";
@@ -624,35 +628,362 @@
     '';
   };
 
-  # Notification daemon - Mako (Omarchy Kanagawa style)
-  services.mako = {
+  # X11 i3 Window Manager Configuration
+  xsession.windowManager.i3 = {
     enable = true;
     
+    package = pkgs.i3-gaps;
+
+    config = rec {
+      modifier = "Mod4";
+      
+      # Terminal and basic applications (matching Hyprland bindings)
+      terminal = "st";
+      
+      # Keybindings matching Hyprland configuration
+      keybindings = {
+        # Applications (updated per user request)
+        "${modifier}+Return" = "exec ${terminal}";
+        "${modifier}+f" = "exec thunar";
+        "${modifier}+Shift+Return" = "exec brave";  # Changed from b to Shift+Return
+        "${modifier}+m" = "exec spotify";
+        "${modifier}+n" = "exec ${terminal} -e nvim";
+        "${modifier}+g" = "exec signal-desktop";
+        "${modifier}+slash" = "exec bitwarden";
+        "${modifier}+a" = "exec brave --app=https://grok.com";
+        "${modifier}+x" = "exec brave --app=https://x.com";
+        "${modifier}+s" = "exec ${terminal} -e btop";
+        
+        # Menus (matching Hyprland style)
+        "${modifier}+space" = "exec rofi -show drun";
+        "${modifier}+Alt+space" = "exec ${terminal}";
+        "${modifier}+Escape" = "exec i3lock";
+        
+        # Window management (matching Hyprland exactly)
+        "${modifier}+w" = "kill";
+        "${modifier}+Shift+q" = "exec i3-msg exit";
+        "Shift+F11" = "fullscreen toggle";
+        "${modifier}+j" = "split h";
+        
+        # Focus movement with arrow keys and vim keys (updated per user request)
+        "${modifier}+Left" = "focus left";
+        "${modifier}+Right" = "focus right";  
+        "${modifier}+Up" = "focus up";
+        "${modifier}+Down" = "focus down";
+        "${modifier}+h" = "focus left";
+        "${modifier}+b" = "focus left";    # User requested: cmd+b for focus left
+        "${modifier}+v" = "focus down";    # User requested: cmd+v for focus down  
+        "${modifier}+k" = "focus up";
+        "${modifier}+l" = "focus right";
+        
+        # Workspace switching (1-10, matching Hyprland)
+        "${modifier}+1" = "workspace number 1";
+        "${modifier}+2" = "workspace number 2";
+        "${modifier}+3" = "workspace number 3";
+        "${modifier}+4" = "workspace number 4";
+        "${modifier}+5" = "workspace number 5";
+        "${modifier}+6" = "workspace number 6";
+        "${modifier}+7" = "workspace number 7";
+        "${modifier}+8" = "workspace number 8";
+        "${modifier}+9" = "workspace number 9";
+        "${modifier}+0" = "workspace number 10";
+        
+        # Move window to workspace (matching Hyprland)
+        "${modifier}+Shift+1" = "move container to workspace number 1";
+        "${modifier}+Shift+2" = "move container to workspace number 2";
+        "${modifier}+Shift+3" = "move container to workspace number 3";
+        "${modifier}+Shift+4" = "move container to workspace number 4";
+        "${modifier}+Shift+5" = "move container to workspace number 5";
+        "${modifier}+Shift+6" = "move container to workspace number 6";
+        "${modifier}+Shift+7" = "move container to workspace number 7";
+        "${modifier}+Shift+8" = "move container to workspace number 8";
+        "${modifier}+Shift+9" = "move container to workspace number 9";
+        "${modifier}+Shift+0" = "move container to workspace number 10";
+        
+        # Tab between workspaces (matching Hyprland)
+        "${modifier}+Tab" = "workspace next";
+        "${modifier}+Shift+Tab" = "workspace prev";
+        
+        # Move windows with arrow keys and vim keys (updated to match focus keys)
+        "${modifier}+Shift+Left" = "move left";
+        "${modifier}+Shift+Right" = "move right";
+        "${modifier}+Shift+Up" = "move up";
+        "${modifier}+Shift+Down" = "move down";
+        "${modifier}+Shift+h" = "move left";
+        "${modifier}+Shift+b" = "move left";   # Matches cmd+b for focus left
+        "${modifier}+Shift+v" = "move down";   # Matches cmd+v for focus down
+        "${modifier}+Shift+k" = "move up";
+        "${modifier}+Shift+l" = "move right";
+        
+        # Resize windows (similar to Hyprland resize bindings)
+        "${modifier}+minus" = "resize shrink width 100px";
+        "${modifier}+equal" = "resize grow width 100px";
+        "${modifier}+Shift+minus" = "resize shrink height 100px";
+        "${modifier}+Shift+equal" = "resize grow height 100px";
+        
+        # Alt-Tab window cycling (matching Hyprland)
+        "Alt+Tab" = "focus right";
+        "Alt+Shift+Tab" = "focus left";
+        
+        # Screenshots (matching Hyprland style - using scrot for X11)
+        "${modifier}+Shift+s" = "exec scrot -s ~/Pictures/screenshot-%Y-%m-%d_%H-%M-%S.png";
+        "${modifier}+Shift+f" = "exec scrot ~/Pictures/screenshot-%Y-%m-%d_%H-%M-%S.png";
+        
+        # Media keys (matching Hyprland exactly)
+        "XF86AudioRaiseVolume" = "exec pamixer -i 5";
+        "XF86AudioLowerVolume" = "exec pamixer -d 5";
+        "XF86AudioMute" = "exec pamixer -t";
+        "XF86AudioMicMute" = "exec pamixer --default-source -t";
+        "XF86MonBrightnessUp" = "exec brightnessctl set +5%";
+        "XF86MonBrightnessDown" = "exec brightnessctl set 5%-";
+      };
+      
+      floating.criteria = [
+        {class = "pavucontrol";}
+        {class = "1Password";}
+        {class = "Bitwarden";}
+        {class = "qutebrowser_edit";}
+        {class = "Pinta";}
+        {class = "Xdaliclock";}
+      ];
+
+      floating.titlebar = false;
+
+      fonts = {
+        names = ["RobotoMono"];
+        style = "Medium";
+        size = 10.0;
+      };
+      
+      bars = [];
+      colors = {
+        focused = {
+          background = "#191724";
+          border = "#9ccfd8";
+          text = "#e0def4";
+          indicator = "#eb6f92";
+          childBorder = "#5b96b2";
+        };
+        "background" = "#191724";
+      };
+      
+      window.border = 4;
+      window.titlebar = false;
+      gaps = {
+        inner = 5;
+        outer = 5;
+        bottom = 5;
+        top = 5;
+        left = 5;
+        right = 5;
+      };
+
+      focus.followMouse = false;
+      defaultWorkspace = "workspace number 1";
+      
+      
+      assigns = {
+        "1" = [
+          {
+            class = "Alacritty";
+            instance = "default-tmux";
+          }
+        ];
+        "2" = [
+          {class = "^firefox$";}
+          {
+            instance = "chromium-browser";
+            class = "Chromium-browser";
+          }
+          {
+            instance = "brave-browser";
+            class = "Brave-browser";
+          }
+        ];
+        "3" = [
+          {
+            instance = "teams.microsoft.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "teams-for-linux";
+            class = "teams-for-linux";
+          }
+        ];
+        "4" = [
+          {
+            instance = "outlook.office.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "mail.google.com";
+            class = "Brave-browser";
+          }
+        ];
+        "5" = [{class = "jetbrains-goland";} {class = "jetbrains-idea";}];
+        "7" = [
+          {
+            instance = "music.youtube.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "youtube.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "www.amazon.com__gp_video_storefront";
+            class = "Brave-browser";
+          }
+        ];
+        "8" = [
+          {
+            instance = "chat.openai.com";
+            class = "Brave-browser";
+          }
+        ];
+        "10" = [
+          {
+            instance = "x.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "reddit.com";
+            class = "Brave-browser";
+          }
+          {
+            instance = "web.whatsapp.com";
+            class = "Brave-browser";
+          }
+        ];
+      };
+      focus.newWindow = "focus";
+      startup = [
+        {
+          command = "xset s 600 dpms 1800 1800 1800";
+          always = false;
+          notification = false;
+        }
+        {
+          command = "xrdb -merge ~/.Xresources";
+          always = false;
+          notification = false;
+        }
+        {
+          command = "unclutter";
+          always = true;
+          notification = false;
+        }
+
+        {
+          command = "xss-lock -n ${pkgs.xsecurelock}/libexec/xsecurelock/dimmer -l -- ${pkgs.xsecurelock}/bin/xsecurelock";
+          always = false;
+          notification = false;
+        }
+
+        {
+          command = "i3-msg workspace 1";
+          always = false;
+          notification = false;
+        }
+        {
+          command = "${pkgs.feh}/bin/feh --no-fehbg --bg-fill ~/.local/share/wallpapers/1-kanagawa.jpg";
+          always = true;
+          notification = false;
+        }
+      ];
+    };
+    extraConfig = ''
+      # Center a specific dialog horizontally and position it 45px from the top
+      for_window [class="^my-calendar-class$"] floating enable
+    '';
+  };
+
+  # Notification daemon - Mako (DISABLED for minimal system)
+  # services.mako = {
+  #   enable = true;
+  #   
+  #   settings = {
+  #     # Omarchy standard dimensions and positioning
+  #     width = 420;
+  #     height = 110;
+  #     padding = "10";
+  #     border-size = 2;
+  #     font = "Liberation Sans 11";
+  #     anchor = "top-right";
+  #     margin = "20";
+  #     
+  #     # Kanagawa theme colors (matching Omarchy exactly)
+  #     text-color = "#dcd7ba";       # Kanagawa foreground
+  #     border-color = "#dcd7ba";     # Same as text
+  #     background-color = "#1f1f28"; # Kanagawa background
+  #     
+  #     # Notification behavior
+  #     default-timeout = 5000;  # 5 seconds
+  #     max-icon-size = 32;
+  #   };
+  # };
+
+  # Notification daemon - Dunst (for X11 only)
+  services.dunst = {
+    enable = true;
     settings = {
-      # Omarchy standard dimensions and positioning
-      width = 420;
-      height = 110;
-      padding = "10";
-      border-size = 2;
-      font = "Liberation Sans 11";
-      anchor = "top-right";
-      margin = "20";
+      global = {
+        # Omarchy standard dimensions and positioning
+        width = 420;
+        height = 110;
+        origin = "top-right";
+        offset = "10x20";
+        padding = 10;
+        horizontal_padding = 10;
+        font = "Liberation Sans 11";
+        
+        # Notification behavior
+        timeout = 5;
+        icon_path = "/run/current-system/sw/share/icons/hicolor/scalable/apps:/run/current-system/sw/share/icons/hicolor/48x48/apps";
+        max_icon_size = 32;
+        
+        # Visual appearance
+        corner_radius = 5;
+        frame_width = 2;
+        separator_height = 2;
+        sort = true;
+        idle_threshold = 120;
+        
+        # Mouse interaction
+        mouse_left_click = "close_current";
+        mouse_middle_click = "do_action";
+        mouse_right_click = "close_all";
+      };
       
-      # Kanagawa theme colors (matching Omarchy exactly)
-      text-color = "#dcd7ba";       # Kanagawa foreground
-      border-color = "#dcd7ba";     # Same as text
-      background-color = "#1f1f28"; # Kanagawa background
+      urgency_low = {
+        # Kanagawa theme colors (matching Omarchy)
+        background = "#1f1f28";
+        foreground = "#dcd7ba";
+        frame_color = "#54546d";
+        timeout = 5;
+      };
       
-      # Notification behavior
-      default-timeout = 5000;  # 5 seconds
-      max-icon-size = 32;
+      urgency_normal = {
+        background = "#1f1f28";
+        foreground = "#dcd7ba";
+        frame_color = "#dcd7ba";
+        timeout = 5;
+      };
+      
+      urgency_critical = {
+        background = "#1f1f28";
+        foreground = "#c34043";
+        frame_color = "#c34043";
+        timeout = 0;
+      };
     };
   };
 
-  # Status bar - Waybar (Omarchy style)
+
+  # Status bar - Waybar (DISABLED for minimal system)
   programs.waybar = {
-    enable = true;
-    systemd.enable = true;
+    enable = false;
+    # systemd.enable = true;
     settings = {
       mainBar = {
         reload_style_on_change = true;
@@ -753,9 +1084,9 @@
         
         "network" = {
           format-icons = ["󰤯" "󰤟" "󰤢" "󰤥" "󰤨"];
-          format = "{icon} {ifname} ⇣{bandwidthDownBytes} ⇡{bandwidthUpBytes}";
-          format-wifi = "{icon} {ifname} ⇣{bandwidthDownBytes} ⇡{bandwidthUpBytes}";
-          format-ethernet = "󰀂 {ifname} ⇣{bandwidthDownBytes} ⇡{bandwidthUpBytes}";
+          format = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
+          format-wifi = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
+          format-ethernet = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
           format-disconnected = "󰖪 Disconnected";
           tooltip-format-wifi = "{essid} ({frequency} GHz)\n⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}";
           tooltip-format-ethernet = "⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}";
@@ -765,10 +1096,12 @@
         };
         
         "battery" = {
+          bat = "BAT0";
+          adapter = "ADP0";
           format = "{icon} {capacity}%";
           format-discharging = "{icon} {capacity}%";
           format-charging = "{icon} {capacity}%";
-          format-plugged = " {capacity}%";
+          format-plugged = "󰚥 {capacity}%";
           format-icons = {
             charging = ["󰢜" "󰂆" "󰂇" "󰂈" "󰢝" "󰂉" "󰢞" "󰂊" "󰂋" "󰂅"];
             default = ["󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹"];
@@ -859,6 +1192,7 @@
         color: #dcd7ba;
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #tray {
@@ -866,6 +1200,7 @@
         color: #dcd7ba;
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       .tray-group-item {
@@ -873,6 +1208,7 @@
         color: #dcd7ba;
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #network {
@@ -880,6 +1216,8 @@
         color: #1f1f28;  /* Dark text on cyan background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
+        min-width: 220px; /* stabilize width for DL/UL */
       }
       
       #pulseaudio {
@@ -887,6 +1225,7 @@
         color: #1f1f28;  /* Dark text on yellow background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #cpu {
@@ -894,6 +1233,7 @@
         color: #dcd7ba;  /* Light text on red background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #memory {
@@ -901,6 +1241,7 @@
         color: #1f1f28;  /* Dark text on green background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #disk {
@@ -908,6 +1249,7 @@
         color: #1f1f28;  /* Dark text on blue background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       #battery {
@@ -915,6 +1257,7 @@
         color: #dcd7ba;  /* Light text on magenta background */
         padding: 4px 8px;
         margin: 2px 3px;
+        border-radius: 10px;
       }
       
       /* Special battery states */
@@ -1532,8 +1875,9 @@
   programs.brave = {
     enable = true;
     commandLineArgs = [
-      "--enable-features=UseOzonePlatform"
-      "--ozone-platform=wayland"
+      # Wayland flags disabled for X11/DWM compatibility
+      # "--enable-features=UseOzonePlatform"
+      # "--ozone-platform=wayland"
       "--disable-features=BraveRewards"  # Disable Brave Rewards
       "--disable-brave-ads"              # Disable Brave Ads
       "--disable-background-mode"        # Prevent running in background
@@ -1956,7 +2300,8 @@
     playerctl  # Media player control
     eza  # Modern replacement for ls (used in Omarchy aliases)
     libnotify  # For desktop notifications (notify-send)
-    mako  # Notification daemon
+    mako  # Notification daemon (Wayland)
+    dunst  # Notification daemon (X11/Wayland)
     btop  # Modern system monitor
     
     # Input method framework (Omarchy style)
@@ -1966,6 +2311,12 @@
     
     # Media
     mpv
+    
+    # Audio tools
+    pulseaudio  # Provides pactl and other PulseAudio utilities for PipeWire compatibility
+    
+    # Status bars
+    polybar  # Customizable status bar for X11
     
     # Screenshots (Omarchy style)
     hyprshot  # Screenshot tool for Hyprland
@@ -1988,6 +2339,15 @@
   # Install all Nerd Fonts
   ] ++ (builtins.filter pkgs.lib.attrsets.isDerivation (builtins.attrValues pkgs.nerd-fonts));
 
+  # Cursor configuration (system-wide)
+  home.pointerCursor = {
+    package = pkgs.bibata-cursors;
+    name = "Bibata-Modern-Classic";
+    size = 24;
+    gtk.enable = true;
+    x11.enable = true;
+  };
+
   # GTK theme configuration
   gtk = {
     enable = true;
@@ -2000,8 +2360,8 @@
       package = pkgs.yaru-theme;
     };
     cursorTheme = {
-      name = "Adwaita";
-      package = pkgs.adwaita-icon-theme;
+      name = "Bibata-Modern-Classic";
+      package = pkgs.bibata-cursors;
       size = 24;
     };
     gtk3.extraConfig = {
@@ -2024,8 +2384,21 @@
     "org/gnome/desktop/interface" = {
       gtk-theme = "Adwaita-dark";
       icon-theme = "Yaru-blue";
-      cursor-theme = "Adwaita";
+      cursor-theme = "Bibata-Modern-Classic";
       color-scheme = "prefer-dark";
+    };
+    
+    "org/gtk/settings/file-chooser" = {
+      show-type-column = true;
+      sidebar-width = 152;
+      date-format = "with-time";
+      location-mode = "path-bar";
+      show-hidden = true;
+      show-size-column = true;
+      sort-column = "modified";
+      sort-directories-first = true;
+      sort-order = "ascending";
+      type-format = "category";
     };
   };
 
@@ -2055,7 +2428,7 @@
 
    
 
-  # Systemd services
+  # Systemd services - auto-rebuild enabled
   systemd.user.services.nixos-auto-rebuild = {
     Unit = {
       Description = "NixOS Auto-Rebuild Monitor";
@@ -2074,6 +2447,244 @@
         "WAYLAND_DISPLAY=wayland-1"
         "HOME=/home/aragao"
       ];
+    };
+    
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  # Override dunst service to only run in X11 sessions
+  systemd.user.services.dunst = {
+    Unit = {
+      Description = lib.mkForce "Dunst notification daemon (X11 only)";
+      After = [ "graphical-session.target" ];
+      ConditionPathExists = lib.mkForce "/tmp/.X11-unix/X0";  # Only start if X11 is running
+    };
+    
+    Service = {
+      Type = lib.mkForce "dbus";
+      BusName = lib.mkForce "org.freedesktop.Notifications";
+      ExecStart = lib.mkForce "${pkgs.dunst}/bin/dunst";
+      Restart = lib.mkForce "always";
+      Environment = lib.mkForce ["DISPLAY=:0"];
+    };
+    
+    Install = {
+      WantedBy = lib.mkForce [ "default.target" ];
+    };
+  };
+
+  # Picom compositor service for X11 only
+  systemd.user.services.picom = {
+    Unit = {
+      Description = "Picom X11 compositor";
+      After = [ "graphical-session.target" ];
+      ConditionPathExists = "/tmp/.X11-unix/X0";  # Only start if X11 is running
+    };
+    
+    Service = {
+      Type = "forking";
+      ExecStart = "${pkgs.picom}/bin/picom --config /etc/xdg/picom.conf --daemon";
+      Restart = "always";
+      RestartSec = "3";
+      Environment = ["DISPLAY=:0"];
+    };
+    
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  # Wallpaper service for X11 only
+  systemd.user.services.wallpaper = {
+    Unit = {
+      Description = "Set X11 wallpaper with feh";
+      After = [ "graphical-session.target" "picom.service" ];
+      ConditionPathExists = "/tmp/.X11-unix/X0";  # Only start if X11 is running
+    };
+    
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bash}/bin/bash -c 'if [ -f \"$HOME/.local/share/wallpapers/1-kanagawa.jpg\" ]; then ${pkgs.feh}/bin/feh --bg-fill \"$HOME/.local/share/wallpapers/1-kanagawa.jpg\"; else ${pkgs.xorg.xsetroot}/bin/xsetroot -solid \"#1f1f28\"; fi'";
+      Environment = ["DISPLAY=:0"];
+    };
+    
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+  
+  # Custom Polybar service using polybar-dwm-module
+  systemd.user.services.polybar-dwm = {
+    Unit = {
+      Description = "Polybar status bar with DWM integration (X11 only)";
+      After = [ "graphical-session.target" "wallpaper.service" ];
+      ConditionPathExists = "/tmp/.X11-unix/X0";  # Only start if X11 is running
+    };
+    
+    Service = {
+      Type = "simple";
+      ExecStart = "${pkgs.writeShellScript "polybar-dwm-start" ''
+        # Only start in X11 sessions
+        if [ -z "$DISPLAY" ]; then
+          echo "Not running in X11, skipping polybar"
+          exit 0
+        fi
+        
+        # Start polybar with dwm module using nix store config
+        ${pkgs.polybar-dwm-module}/bin/polybar --config=${pkgs.writeText "polybar-config.ini" ''
+[bar/main]
+monitor=
+width=100%
+height=30
+radius=0
+fixed-center=true
+
+background=#1f1f28
+foreground=#dcd7ba
+
+line-size=2
+line-color=#7e9cd8
+
+border-size=0
+border-color=#54546d
+
+padding-left=2
+padding-right=2
+
+module-margin-left=1
+module-margin-right=1
+
+font-0=CaskaydiaMono Nerd Font:style=Regular:size=10;2
+font-1=CaskaydiaMono Nerd Font:style=Regular:size=12;3
+font-2=Noto Color Emoji:scale=10:style=Regular;2
+
+modules-left=dwm
+modules-center=date
+modules-right=alsa memory cpu tray
+
+cursor-click=pointer
+cursor-scroll=ns-resize
+
+enable-ipc=true
+override-redirect=false
+
+[module/dwm]
+type=internal/dwm
+format=<label-tags> <label-layout> <label-floating> <label-title>
+
+label-focused=%name%
+label-focused-background=#7e9cd8
+label-focused-foreground=#1f1f28
+label-focused-padding=1
+
+label-unfocused=%name%
+label-unfocused-padding=1
+label-unfocused-foreground=#dcd7ba
+
+label-visible=%name%
+label-visible-background=#2a2a37
+label-visible-foreground=#dcd7ba
+label-visible-padding=1
+
+label-urgent=%name%
+label-urgent-background=#ff5d62
+label-urgent-foreground=#1f1f28
+label-urgent-padding=1
+
+label-empty=%name%
+label-empty-foreground=#54546d
+label-empty-padding=1
+
+label-layout=%symbol%
+label-layout-padding=1
+label-layout-foreground=#7e9cd8
+
+label-floating=F
+label-floating-foreground=#e6c384
+
+label-title=%title%
+label-title-padding=1
+label-title-foreground=#dcd7ba
+label-title-maxlen=30
+
+socket-path=/tmp/dwm.sock
+enable-tags-click=true
+enable-layout-click=true
+
+[module/date]
+type=internal/date
+interval=5
+
+date=
+date-alt= %Y-%m-%d
+
+time=%H:%M
+time-alt=%H:%M:%S
+
+format-prefix= 
+format-prefix-foreground=#7e9cd8
+format-prefix-font=2
+format-foreground=#dcd7ba
+
+label=%date% %time%
+
+[module/alsa]
+type=internal/alsa
+
+format-volume=<label-volume> <bar-volume>
+label-volume= %percentage%%
+label-volume-foreground=#dcd7ba
+label-volume-font=2
+
+label-muted= muted
+label-muted-foreground=#54546d
+label-muted-font=2
+
+bar-volume-width=8
+bar-volume-foreground-0=#7e9cd8
+bar-volume-foreground-1=#7e9cd8
+bar-volume-foreground-2=#7e9cd8
+bar-volume-foreground-3=#7e9cd8
+bar-volume-foreground-4=#e6c384
+bar-volume-foreground-5=#e6c384
+bar-volume-foreground-6=#ff5d62
+bar-volume-gradient=false
+bar-volume-indicator=▐
+bar-volume-indicator-font=1
+bar-volume-fill=▌
+bar-volume-fill-font=1
+bar-volume-empty=▌
+bar-volume-empty-font=1
+bar-volume-empty-foreground=#54546d
+
+[module/memory]
+type=internal/memory
+interval=2
+format-prefix= 
+format-prefix-foreground=#7e9cd8
+format-prefix-font=2
+label=%percentage_used%%
+
+[module/cpu]
+type=internal/cpu
+interval=2
+format-prefix= 
+format-prefix-foreground=#7e9cd8
+format-prefix-font=2
+label=%percentage:2%%
+
+[module/tray]
+type=internal/tray
+format-margin=8
+tray-spacing=8
+tray-background=#1f1f28
+        ''} main 2>&1 >> /tmp/polybar-dwm.log
+      ''}";
+      Environment = [ "DISPLAY=:0" "PATH=${config.home.profileDirectory}/bin" ];
+      Restart = "on-failure";
+      RestartSec = "3s";
     };
     
     Install = {
@@ -2468,4 +3079,50 @@
       ]
     }
   '';
+
+  # Xresources configuration with Kanagawa colors and centralized DPI
+  xresources = {
+    properties = {
+      "*.foreground" = "#dcd7ba";
+      "*.background" = "#1f1f28";
+      "*.cursorColor" = "#dcd7ba";
+
+      "*.color0" = "#16161d";
+      "*.color8" = "#727169";
+
+      "*.color1" = "#c34043";
+      "*.color9" = "#e82424";
+
+      "*.color2" = "#76946a";
+      "*.color10" = "#98bb6c";
+
+      "*.color3" = "#c0a36e";
+      "*.color11" = "#e6c384";
+
+      "*.color4" = "#7e9cd8";
+      "*.color12" = "#7fb4ca";
+
+      "*.color5" = "#957fb8";
+      "*.color13" = "#938aa9";
+
+      "*.color6" = "#6a9589";
+      "*.color14" = "#7aa89f";
+
+      "*.color7" = "#c8c093";
+      "*.color15" = "#dcd7ba";
+
+      "XTerm*font" = "xft:JetbrainsMono Nerd Font:size=10";
+      "XTerm*saveLines" = "100000";
+      "XTerm*scrollBar" = "false";
+      "XTerm*termName" = "xterm-256color";
+      "XTerm*backarrowKey" = "false";
+      "XTerm*selectToClipboard" = "true";
+      "Xterm.ttyModes" = "erase ^?";
+      "Xterm*cursorTheme" = "Bibata-Modern-Classic";
+      "XTerm*pointerShape" = "left_ptr";
+      "Xft.dpi" = 144;
+      "Cairo.dpi" = 144;
+      "*.dpi" = 144;
+    };
+  };
 }

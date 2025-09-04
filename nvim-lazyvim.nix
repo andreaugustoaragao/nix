@@ -296,6 +296,7 @@
               local capabilities = require("cmp_nvim_lsp").default_capabilities()
               
               -- Enable file watching capabilities (important for project-wide changes)
+              capabilities.workspace = capabilities.workspace or {}
               capabilities.workspace.didChangeWatchedFiles = {
                 dynamicRegistration = true,
                 relativePatternSupport = true,

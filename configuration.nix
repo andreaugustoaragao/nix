@@ -1,29 +1,41 @@
-{ config, pkgs, inputs, ... }:
+{ config, pkgs, lib, inputs, ... }:
 #
 
 {
   imports = [
     ./hardware-configuration.nix
     ./nvim-system.nix
+    ./x11-dwm.nix
+    ./st.nix
   ];
+
+  # Centralized DPI configuration
+  options.machine.dpi = lib.mkOption {
+    type = lib.types.int;
+    default = 144;
+    description = "Default DPI to be used system-wide for X11 and applications";
+  };
+
+  config = {
 
   # Boot configuration for Parallels VM
   boot.loader.systemd-boot.enable = true;
+  boot.loader.systemd-boot.configurationLimit = 5;  # Limit boot entries to save space
   boot.loader.efi.canTouchEfiVariables = true;
   
-  # Use Linux latest stable kernel
+  # Use latest Linux kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
   
-  # Plymouth boot splash screen with custom theme
-  boot.plymouth = {
-    enable = true;
-    theme = "rings";
-    themePackages = with pkgs; [
-      (adi1090x-plymouth-themes.override {
-        selected_themes = [ "rings" ];
-      })
-    ];
-  };
+  # Plymouth boot splash screen with custom theme (DISABLED - visual only, saves startup time)
+  # boot.plymouth = {
+  #   enable = true;
+  #   theme = "rings";
+  #   themePackages = with pkgs; [
+  #     (adi1090x-plymouth-themes.override {
+  #       selected_themes = [ "rings" ];
+  #     })
+  #   ];
+  # };
   
   # Silent boot configuration for cleaner boot experience
   boot.consoleLogLevel = 3;
@@ -36,20 +48,18 @@
     "rd.systemd.show_status=auto"
   ];
 
-  # Parallels specific configurations
-  hardware.parallels.enable = false;
 
   # Enable experimental features for flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
-  # Automatic garbage collection
+  # Automatic garbage collection - enabled for system maintenance
   nix.gc = {
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 30d";
   };
   
-  # Automatic system updates every other day
+  # Automatic system updates every other day - enabled for system maintenance
   systemd.timers.auto-upgrade = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
@@ -61,8 +71,8 @@
   systemd.services.auto-upgrade = {
     serviceConfig.Type = "oneshot";
     script = ''
-      cd /home/aragao/nix
-      ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#parallels-vm --upgrade-all
+      cd /home/aragao/projects/personal/nix
+      ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#parallels-nixos --upgrade-all
     '';
   };
   
@@ -84,6 +94,8 @@
     nettools  # Provides netstat, ifconfig, route, etc.
     smem  # Memory usage reporting tool
     procps  # Provides vmstat, slabtop, and other system utilities
+    lsof  # List open files and network connections
+    bc  # Basic calculator for command line calculations
     
     # LSP servers and development tools (needed for both user and root Neovim)
     nil  # Nix LSP
@@ -126,40 +138,48 @@
     choose       # cut replacement
     hexyl        # hex viewer
     grex         # regex generator from examples
+    
+    # Audio/Video control tools (needed for simplified media keys)
+    pamixer      # PulseAudio/PipeWire mixer
+    brightnessctl # Brightness control
+    
+    # X11 packages moved to x11-dwm.nix module
   ];
 
-  # Enable Hyprland with UWSM
+  # Enable Hyprland from flake with UWSM
   programs.hyprland = {
     enable = true;
+    package = inputs.hyprland.packages.${pkgs.system}.hyprland;
+    portalPackage = inputs.hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
     withUWSM = true;  # Use Universal Wayland Session Manager
     xwayland.enable = true;
   };
 
-  # Enable Sway
-  programs.sway = {
-    enable = true;
-    package = pkgs.sway;
-    wrapperFeatures.gtk = true;
-    xwayland.enable = false;
-    extraPackages = with pkgs; [
-      swaylock
-      swayidle
-      swaybg
-      wl-clipboard
-      wlogout
-      wofi
-    ];
-  };
+  # Enable Sway (DISABLED - redundant with Hyprland, only one compositor needed)
+  # programs.sway = {
+  #   enable = true;
+  #   package = pkgs.sway;
+  #   wrapperFeatures.gtk = true;
+  #   xwayland.enable = false;
+  #   extraPackages = with pkgs; [
+  #     swaylock
+  #     swayidle
+  #     swaybg
+  #     wl-clipboard
+  #     wlogout
+  #     wofi
+  #   ];
+  # };
 
   xdg.portal = {
     enable = true;
     config.common.default = "*";
   };
 
-  # Docker
-  virtualisation.docker.enable = true;
+  # Docker (DISABLED - only enable if you need containers)
+  # virtualisation.docker.enable = true;
   
-  # Audio
+  # Audio with PipeWire
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -168,6 +188,9 @@
     pulse.enable = true;
     jack.enable = true;
   };
+  
+  # Disable conflicting audio services
+  services.pulseaudio.enable = false;  # Explicitly disable PulseAudio (conflicts with PipeWire)
 
   # Use greetd as the display manager with session selection
   services.greetd = {
@@ -179,20 +202,32 @@
       };
     };
   };
+  
+  # Set default session for X11
 
-  # Enable display manager for session data
-  services.displayManager.enable = true;
+  # X11 server and input configuration moved to x11-dwm.nix module
+
+  # Picom configuration moved to x11-dwm.nix module
+
+
+  # Greetd is already configured as display manager above
+  # services.displayManager.enable = true;  # Commented out - conflicts with greetd
 
   # User configuration
   users.users.aragao = {
     isNormalUser = true;
     description = "Andre Aragao";
-    extraGroups = [ "wheel" "networkmanager" "audio" "video" "docker" ];
+    extraGroups = [ "wheel" "networkmanager" "audio" "video" ];  # Removed "docker" since it's disabled
     shell = pkgs.zsh;
   };
 
   # Enable zsh system-wide
   programs.zsh.enable = true;
+
+  # Virtualization support - Parallels and QEMU guest modules
+  services.qemuGuest.enable = true;
+  services.spice-vdagentd.enable = true;  # Enhanced clipboard and display for VMs
+  services.upower.enable = true;
 
   # Network configuration
   networking.hostName = "parallels-nixos";
@@ -202,14 +237,14 @@
   time.timeZone = "America/Denver";  # Denver timezone
   i18n.defaultLocale = "en_US.UTF-8";
 
-  # SSH (optional, for remote access)
-  services.openssh = {
-    enable = true;
-    settings = {
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-    };
-  };
+  # SSH (DISABLED - only enable if you need remote access)
+  # services.openssh = {
+  #   enable = true;
+  #   settings = {
+  #     PasswordAuthentication = false;
+  #     KbdInteractiveAuthentication = false;
+  #   };
+  # };
 
   # Sudo configuration
   security.sudo = {
@@ -244,11 +279,11 @@
   boot.tmp.useTmpfs = false;  # Disable tmpfs for /tmp
   boot.tmp.cleanOnBoot = true;  # Clean /tmp on boot
 
-  # System-level log rotation for auto-rebuild logs (backup measure)
+  # System-level log rotation for auto-rebuild logs - enabled for system maintenance
   services.logrotate = {
     enable = true;
     settings = {
-      "/home/aragao/nix/auto-rebuild.log" = {
+      "/home/aragao/projects/personal/nix/auto-rebuild.log" = {
         frequency = "weekly";
         rotate = 8;  # Keep 8 weeks of logs
         compress = true;
@@ -262,4 +297,5 @@
   };
 
   system.stateVersion = "24.11";
+  }; # End of config block
 }

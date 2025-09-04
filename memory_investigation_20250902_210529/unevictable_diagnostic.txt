@@ -1,0 +1,89 @@
+UNEVICTABLE MEMORY DIAGNOSTIC REPORT
+==================================================
+
+Current Unevictable Memory Breakdown:
+----------------------------------------
+Total Unevictable: 3397.2 MB
+├─ Mlocked Pages: 15.7 MB (0.5%)
+├─ Kernel Stack: 5.5 MB (0.2%)
+├─ Page Tables: 18.0 MB (0.5%)
+├─ NFS Unstable: 0.0 MB
+├─ Bounce: 0.0 MB
+└─ Writeback Tmp: 0.0 MB
+
+Related Slab Memory:
+--------------------
+Unreclaimable Slab: 117.3 MB
+Reclaimable Slab: 50.5 MB
+
+Top 10 Slab Caches (by size):
+------------------------------
+ 1. radix_tree_node               18.1 MB (   32508 objects)
+ 2. btrfs_inode                   16.0 MB (   16480 objects)
+ 3. kmalloc-rnd-12-512            12.9 MB (   26432 objects)
+ 4. dentry                         8.1 MB (   44352 objects)
+ 5. kernfs_node_cache              6.0 MB (   46320 objects)
+ 6. kmalloc-rnd-12-1k              5.3 MB (    5440 objects)
+ 7. shmem_inode_cache              3.4 MB (    4683 objects)
+ 8. proc_inode_cache               3.2 MB (    4830 objects)
+ 9. kmalloc-rnd-12-2k              3.1 MB (    1584 objects)
+10. task_struct                    2.1 MB (     420 objects)
+
+Processes with Mlocked Memory:
+-----------------------------------
+PID  95481 (greetd              ):     16.2 MB
+PID   1483 (greetd              ):      3.9 MB
+
+DIAGNOSTIC CHECKLIST:
+==============================
+□ Check for processes with high mlocked memory:
+  grep -H VmLck /proc/*/status | grep -v '0 kB' | sort -k2 -n
+
+□ Examine slab allocator usage:
+  sudo cat /proc/slabinfo | sort -k3 -nr | head -20
+
+□ Check for memory fragmentation:
+  cat /proc/buddyinfo
+  cat /proc/pagetypeinfo
+
+□ Look for kernel memory leaks:
+  dmesg | grep -i 'memory\|oom\|alloc'
+
+□ Check transparent hugepages settings:
+  cat /sys/kernel/mm/transparent_hugepage/enabled
+  cat /sys/kernel/mm/transparent_hugepage/defrag
+
+□ Examine per-process memory locks:
+  for pid in $(ps -eo pid --no-headers); do
+    echo "PID $pid:"; grep -E '(VmLck|VmPin)' /proc/$pid/status 2>/dev/null
+  done | grep -B1 -A1 -v '0 kB'
+
+□ Check for NUMA-related issues:
+  numactl --hardware
+  cat /proc/zoneinfo | grep -A5 unevictable
+
+□ Monitor real-time applications:
+  ps -eo pid,comm,pri,ni,rtprio,sched | grep -v '-'
+
+COMMON CAUSES OF UNEVICTABLE MEMORY GROWTH:
+==================================================
+1. Real-time applications using mlock()
+   - Audio/video processing software
+   - Real-time databases
+   - High-frequency trading applications
+
+2. Kernel module memory leaks
+   - Network drivers
+   - Graphics drivers (especially proprietary)
+   - Filesystem modules
+
+3. Slab allocator issues
+   - Dentries and inodes accumulation
+   - Network buffer leaks
+   - Security module allocations
+
+4. Memory fragmentation
+   - Long-running systems
+   - Applications with irregular allocation patterns
+   - Insufficient memory compaction
+

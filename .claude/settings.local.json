@@ -11,7 +11,12 @@
       "Read(//home/aragao/.config/mako/**)",
       "Read(//home/aragao/omarchy/**)",
       "Bash(sudo ipcs:*)",
-      "Bash(nix flake check:*)"
+      "Bash(nix flake check:*)",
+      "Bash(git add:*)",
+      "Bash(sudo nixos-rebuild switch:*)",
+      "Read(/home/aragao/projects/personal/nix-config/system/nixos/st/**)",
+      "Read(/home/aragao/projects/personal/nix-config/**)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
