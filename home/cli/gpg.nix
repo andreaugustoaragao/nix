@@ -41,8 +41,7 @@
     # Configure SSH keys from GPG authentication subkeys
     sshKeys = [
       "13128BA224F28F0BF32C4015BB454EA017882BE4"  # Authentication subkey for aragao@avaya.com
-      # Note: andrearag@gmail.com key doesn't have an authentication subkey yet
-      # You may need to add an authentication subkey to that GPG key
+      "40185914523897FAE34BCE186C76425E6FC5391F"  # Authentication subkey for andrearag@gmail.com
     ];
     # Pin entry program for GUI password prompts
     pinentry.package = pkgs.pinentry-gtk2;
