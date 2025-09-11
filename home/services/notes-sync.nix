@@ -77,8 +77,8 @@
           exit 0
         fi
         
-        # Notify that we're starting to sync
-        notify "📝 Notes Sync" "Syncing notes with remote repository..."
+        # Only notify when there are actual changes to sync
+        notify "📝 Notes Sync" "Syncing notes changes with remote repository..."
         
         # Commit changes with timestamp
         COMMIT_MSG="Auto-sync notes: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -101,7 +101,7 @@
               # Try to merge, but handle conflicts gracefully
               if ${pkgs.git}/bin/git merge origin/main --no-edit; then
                 echo "Successfully merged remote changes"
-                notify "🔄 Notes Sync" "Successfully merged remote changes"
+                notify "🔄 Notes Sync" "Merged remote changes with your local notes"
               else
                 echo "Merge conflict detected. Auto-resolving by combining all changes..."
                 
@@ -167,11 +167,11 @@
             notify "❌ Notes Sync Failed" "Failed to push to remote repository. Check network connection." "critical"
             exit 1
           else
-            notify "✅ Notes Sync Complete" "Successfully synced notes to GitHub" "low"
+            notify "✅ Notes Sync Complete" "Successfully synced changes to GitHub" "low"
           fi
         else
           # Local commit successful but no remote
-          notify "✅ Notes Sync Complete" "Notes committed locally (no remote configured)" "low"
+          notify "✅ Notes Sync Complete" "Changes committed locally (no remote configured)" "low"
         fi
         
         echo "Notes sync completed successfully"
