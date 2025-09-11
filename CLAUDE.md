@@ -17,3 +17,4 @@ This is a NixOS configuration project for a laptop setup.
 - you can use the appropriate nix packages search tool to determine if a certain package exists before actually adding it
 - please check the log file for auto_rebuild.sh and fix any issues you found automatically
 - I want you to remember that the omarchy source code is available in the projects/personal/omarchy source code
+- please remeber that every new file added to nix config must be added to the git repo

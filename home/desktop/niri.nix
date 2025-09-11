@@ -1,0 +1,262 @@
+{ config, pkgs, lib, inputs, ... }:
+
+{
+  # Niri configuration with Hyprland-like keybindings
+  xdg.configFile."niri/config.kdl".text = ''
+    // Niri configuration with Hyprland-like keybindings
+    
+    // Monitor/Output configuration (matching Hyprland 2.0 scale)
+    output "Virtual-1" {
+        // Default configuration for all outputs
+        scale 2.0
+    }
+    
+    // Spawn programs on startup (Waybar only; others managed by systemd user services)
+    spawn-at-startup "prlcc"
+
+    // Environment variables
+    environment {
+        QT_QPA_PLATFORM "wayland"
+        QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
+        GDK_BACKEND "wayland,x11"
+        NIXOS_OZONE_WL "1"
+        MOZ_ENABLE_WAYLAND "1"
+        XCURSOR_SIZE "24"
+    }
+
+    cursor {
+        xcursor-size 24
+        hide-when-typing
+        hide-after-inactive-ms 1000
+    }
+
+    // Input configuration (similar to Hyprland input)
+    input {
+        focus-follows-mouse
+        keyboard {
+            xkb {
+                layout "us"
+                variant "mac"
+                options "compose:caps"
+            }
+            repeat-delay 600
+            repeat-rate 40
+        }
+        
+        mouse {
+            // natural-scroll
+            scroll-factor 0.4
+        }
+    }
+
+    // Layout configuration (similar to Hyprland dwindle)
+    layout {
+        gaps 10
+        
+        default-column-width { proportion 0.5; }
+        
+        focus-ring {
+            width 4
+            active-color "#dcd7ba"  // Kanagawa foreground
+            inactive-color "#595959"
+        }
+        
+        border {
+            off  // Using focus ring instead
+        }
+        
+        // Disable struts (reserved spaces) for cleaner look
+        struts {
+            left 0
+            right 0
+            top 0
+            bottom 0
+        }
+        // Tab indicator at the top of windows within columns
+        tab-indicator {
+            position "top"
+            place-within-column
+            width 8
+            gap 8
+            length total-proportion=1.0
+        }
+    }
+
+    // Window rules (similar to Hyprland windowrule)
+    // Global rounded corners for all windows
+    window-rule {
+        geometry-corner-radius 12
+        clip-to-geometry true
+    }
+
+    // Transparency: focused slightly more transparent than unfocused
+    window-rule {
+        match is-active=true
+        opacity 0.97
+    }
+
+    window-rule {
+        match is-active=false
+        opacity 0.92
+    }
+
+    window-rule {
+        match app-id="pavucontrol"
+        open-floating true
+        default-column-width { fixed 800; }
+        open-on-output "current"
+    }
+
+    window-rule {
+        match app-id="bitwarden"
+        open-floating true
+        default-column-width { fixed 800; }
+        open-on-output "current"
+    }
+
+    // Prefer no server-side decorations (clean look like Hyprland)
+    prefer-no-csd
+
+    // Screenshot path
+    screenshot-path "~/pictures/screenshots/screenshot-%Y-%m-%d_%H-%M-%S.png"
+
+    // Animations (simplified like Hyprland config)
+    animations {
+        slowdown 1.0
+        
+        window-open {
+            duration-ms 150
+            curve "ease-out-quad"
+        }
+        window-close {
+            duration-ms 100
+            curve "ease-out-quad"
+        }
+        workspace-switch {
+            duration-ms 200
+            curve "ease-out-quad"
+        }
+    }
+
+    hotkey-overlay{
+       skip-at-startup
+       hide-not-bound 
+    }
+
+    // Key bindings (matching Hyprland as closely as possible)
+    binds {
+        // Applications (matching Hyprland exactly)
+        Mod+Return { spawn "alacritty" "msg" "create-window"; }
+        Mod+F { spawn "thunar"; }
+        Mod+B { spawn "brave"; }
+        Mod+M { spawn "spotify"; }
+        Mod+N { spawn "alacritty" "msg" "create-window" "-e" "nvim"; }
+        Mod+G { spawn "brave" "--app=https://web.whatsapp.com"; }
+        Mod+T { spawn "brave" "--app=https://teams.microsoft.com"; }
+        Mod+Slash { spawn "bitwarden"; }
+        Mod+A { spawn "brave" "--app=https://grok.com"; }
+        Mod+X { spawn "brave" "--app=https://x.com"; }
+        Mod+O { spawn "brave" "--app=https://outlook.office365.com"; }
+        Mod+S { spawn "alacritty" "msg" "create-window" "-e" "btop"; }
+
+        // Menu and launcher
+        Mod+Space { spawn "wofi" "--show" "drun"; }
+        Mod+Alt+Space { spawn "alacritty" "msg" "create-window"; }
+        Mod+Escape { spawn "wlogout"; }
+
+        // Window management
+        Mod+W { close-window; }
+        Mod+Shift+Q { quit; }
+        Shift+F9 { fullscreen-window; }
+        Shift+F10 { maximize-column; }
+        Mod+V { toggle-window-floating; }
+
+        // Focus movement (arrow keys and vim keys)
+        Mod+Left { focus-column-left; }
+        Mod+Right { focus-column-right; }
+        Mod+Up { focus-window-up; }
+        Mod+Down { focus-window-down; }
+        Mod+h { focus-column-left; }
+        Mod+l { focus-column-right; }
+        Mod+k { focus-window-up; }
+        Mod+j { focus-window-down; }
+
+        Mod+c {toggle-column-tabbed-display; }
+
+        // Window movement (vim keys and arrows)
+        Mod+Shift+Left { move-column-left; }
+        Mod+Shift+Right { move-column-right; }
+        Mod+Shift+Up { move-window-up; }
+        Mod+Shift+Down { move-window-down; }
+        Mod+Shift+H { move-column-left; }
+        Mod+Shift+L { move-column-right; }
+        Mod+Shift+K { move-window-up; }
+        Mod+Shift+J { move-window-down; }
+
+        // Consume or expel window (bracket keys)
+        Mod+BracketLeft { consume-or-expel-window-left; }
+        Mod+BracketRight { consume-or-expel-window-right; }
+
+        // Workspace switching (using number keys)
+        Mod+1 { focus-workspace 1; }
+        Mod+2 { focus-workspace 2; }
+        Mod+3 { focus-workspace 3; }
+        Mod+4 { focus-workspace 4; }
+        Mod+5 { focus-workspace 5; }
+        Mod+6 { focus-workspace 6; }
+        Mod+7 { focus-workspace 7; }
+        Mod+8 { focus-workspace 8; }
+        Mod+9 { focus-workspace 9; }
+        Mod+0 { focus-workspace 10; }
+
+        // Move window to workspace
+        Mod+Shift+1 { move-column-to-workspace 1; }
+        Mod+Shift+2 { move-column-to-workspace 2; }
+        Mod+Shift+3 { move-column-to-workspace 3; }
+        Mod+Shift+4 { move-column-to-workspace 4; }
+        Mod+Shift+5 { move-column-to-workspace 5; }
+        Mod+Shift+6 { move-column-to-workspace 6; }
+        Mod+Shift+7 { move-column-to-workspace 7; }
+        Mod+Shift+8 { move-column-to-workspace 8; }
+        Mod+Shift+9 { move-column-to-workspace 9; }
+        Mod+Shift+0 { move-column-to-workspace 10; }
+
+        // Tab between workspaces  
+        Mod+Tab { focus-workspace-down; }
+        Mod+Shift+Tab { focus-workspace-up; }
+
+        // Column width adjustment (similar to Hyprland resize)
+        Mod+Minus { set-column-width "-100"; }
+        Mod+Equal { set-column-width "+100"; }
+        Mod+Shift+Minus { set-window-height "-100"; }
+        Mod+Shift+Equal { set-window-height "+100"; }
+
+        // Screenshots (Hyprland-style via script)
+        Mod+Shift+S { spawn "screenshot"; }
+        Mod+Shift+F { spawn "screenshot" "output"; }
+
+        // Notification control
+        Mod+Semicolon { spawn "makoctl" "restore"; }
+
+        // Media keys
+        XF86AudioRaiseVolume { spawn "pamixer" "-i" "5"; }
+        XF86AudioLowerVolume { spawn "pamixer" "-d" "5"; }
+        XF86AudioMute { spawn "pamixer" "-t"; }
+        XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
+        XF86MonBrightnessUp { spawn "brightnessctl" "set" "+5%"; }
+        XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+
+        // Precise media adjustments with Alt
+        Alt+XF86AudioRaiseVolume { spawn "pamixer" "-i" "1"; }
+        Alt+XF86AudioLowerVolume { spawn "pamixer" "-d" "1"; }
+        Alt+XF86MonBrightnessUp { spawn "brightnessctl" "set" "+1%"; }
+        Alt+XF86MonBrightnessDown { spawn "brightnessctl" "set" "1%-"; }
+
+        // Media control
+        XF86AudioNext { spawn "playerctl" "next"; }
+        XF86AudioPlay { spawn "playerctl" "play-pause"; }
+        XF86AudioPause { spawn "playerctl" "play-pause"; }
+        XF86AudioPrev { spawn "playerctl" "previous"; }
+    }
+  '';
+}

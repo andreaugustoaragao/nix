@@ -16,7 +16,9 @@
       "Bash(sudo nixos-rebuild switch:*)",
       "Read(/home/aragao/projects/personal/nix-config/system/nixos/st/**)",
       "Read(/home/aragao/projects/personal/nix-config/**)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(systemctl status:*)",
+      "Read(//etc/xdg/niri/**)"
     ],
     "deny": [],
     "ask": []

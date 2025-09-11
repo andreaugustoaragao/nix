@@ -1,0 +1,85 @@
+==37049== Memcheck, a memory error detector
+==37049== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==37049== Using Valgrind-3.25.1-4441567fbe-20250520 and LibVEX; rerun with -h for copyright info
+==37049== Command: /etc/profiles/per-user/aragao/bin/Hyprland
+==37049== Parent PID: 32336
+==37049== 
+--37049-- 
+--37049-- Valgrind options:
+--37049--    --tool=memcheck
+--37049--    --leak-check=full
+--37049--    --show-leak-kinds=all
+--37049--    --track-origins=yes
+--37049--    --verbose
+--37049--    --num-callers=50
+--37049--    --keep-stacktraces=alloc-and-free
+--37049--    --freelist-vol=20000000
+--37049--    --freelist-big-blocks=1000000
+--37049--    --error-limit=no
+--37049--    --gen-suppressions=all
+--37049--    --log-file=/home/aragao/projects/personal/nix/hyprland_valgrind_20250905_190438.log
+--37049-- Contents of /proc/version:
+--37049--   Linux version 5.15.190 (nixbld@localhost) (gcc (GCC) 14.3.0, GNU ld (GNU Binutils) 2.44) #1-NixOS SMP Thu Aug 28 14:24:39 UTC 2025
+--37049-- 
+--37049-- Arch and hwcaps: ARM64, LittleEndian, v8-fhm-dpbcvadp-sha3-rdm-atomics-fp16-vfp16
+--37049-- Page sizes: currently 4096, max supported 65536
+--37049-- Valgrind library directory: /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind
+--37049-- Reading syms from /nix/store/5z7w1hywa0i56d4a90fs77dj6im21jkf-bash-5.3p3/bin/bash
+--37049-- Reading syms from /nix/store/2hcy8bvfswxsvsxq5s9bwibhivs25aif-glibc-2.40-66/lib/ld-linux-aarch64.so.1
+--37049-- Reading syms from /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/memcheck-arm64-linux
+--37049--    object doesn't have a dynamic symbol table
+--37049-- Scheduler: using generic scheduler lock implementation.
+--37049-- Reading suppressions file: /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/default.supp
+==37049== embedded gdbserver: reading from /tmp/vgdb-pipe-from-vgdb-to-37049-by-aragao-on-???
+==37049== embedded gdbserver: writing to   /tmp/vgdb-pipe-to-vgdb-from-37049-by-aragao-on-???
+==37049== embedded gdbserver: shared mem   /tmp/vgdb-pipe-shared-mem-vgdb-37049-by-aragao-on-???
+==37049== 
+==37049== TO CONTROL THIS PROCESS USING vgdb (which you probably
+==37049== don't want to do, unless you know exactly what you're doing,
+==37049== or are doing some strange experiment):
+==37049==   /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/../../bin/vgdb --pid=37049 ...command...
+==37049== 
+==37049== TO DEBUG THIS PROCESS USING GDB: start GDB like this
+==37049==   /path/to/gdb /etc/profiles/per-user/aragao/bin/Hyprland
+==37049== and then give GDB the following command
+==37049==   target remote | /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/../../bin/vgdb --pid=37049
+==37049== --pid is optional if only one valgrind process is running
+==37049== 
+--37049-- REDIR: 0x401f480 (ld-linux-aarch64.so.1:strlen) redirected to 0x580cab8c (vgPlain_arm64_linux_REDIR_FOR_strlen)
+--37049-- REDIR: 0x401ea00 (ld-linux-aarch64.so.1:strcmp) redirected to 0x580cabe0 (vgPlain_arm64_linux_REDIR_FOR_strcmp)
+--37049-- REDIR: 0x401e940 (ld-linux-aarch64.so.1:index) redirected to 0x580cabb4 (vgPlain_arm64_linux_REDIR_FOR_index)
+--37049-- Reading syms from /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/vgpreload_core-arm64-linux.so
+--37049-- Reading syms from /nix/store/lwyvrqsx42bj7c3jasr0zlrs6r4p20hm-valgrind-3.25.1/libexec/valgrind/vgpreload_memcheck-arm64-linux.so
+--37049-- Reading syms from /nix/store/2hcy8bvfswxsvsxq5s9bwibhivs25aif-glibc-2.40-66/lib/libdl.so.2
+--37049-- Reading syms from /nix/store/2hcy8bvfswxsvsxq5s9bwibhivs25aif-glibc-2.40-66/lib/libc.so.6
+--37049-- REDIR: 0x4996aa0 (libc.so.6:memchr) redirected to 0x48507a4 (_vgnU_ifunc_wrapper)
+--37049-- REDIR: 0x499ab20 (libc.so.6:strlen) redirected to 0x48507a4 (_vgnU_ifunc_wrapper)
+--37049-- REDIR: 0x4996ce0 (libc.so.6:memcpy) redirected to 0x48507a4 (_vgnU_ifunc_wrapper)
+--37049-- REDIR: 0x4997560 (libc.so.6:memmove) redirected to 0x48507a4 (_vgnU_ifunc_wrapper)
+--37049-- REDIR: 0x4997780 (libc.so.6:memset) redirected to 0x48507a4 (_vgnU_ifunc_wrapper)
+--37049-- REDIR: 0x499b180 (libc.so.6:rindex) redirected to 0x488efa8 (rindex)
+--37049-- REDIR: 0x4998840 (libc.so.6:strcmp) redirected to 0x48915b0 (strcmp)
+--37049-- REDIR: 0x49a03c0 (libc.so.6:__GI_strlen) redirected to 0x488faf0 (__GI_strlen)
+--37049-- REDIR: 0x499ada4 (libc.so.6:strncmp) redirected to 0x48907e0 (strncmp)
+--37049-- REDIR: 0x49986c0 (libc.so.6:index) redirected to 0x488f2a0 (index)
+--37049-- REDIR: 0x499e200 (libc.so.6:__GI_memchr) redirected to 0x489184c (__GI_memchr)
+--37049-- REDIR: 0x4998780 (libc.so.6:strchrnul) redirected to 0x48958f0 (strchrnul)
+--37049-- REDIR: 0x49924c0 (libc.so.6:malloc) redirected to 0x4885cb4 (malloc)
+--37049-- REDIR: 0x499e780 (libc.so.6:__GI_memcpy) redirected to 0x4892540 (__GI_memcpy)
+--37049-- REDIR: 0x4992be0 (libc.so.6:free) redirected to 0x4889148 (free)
+--37049-- REDIR: 0x49ff220 (libc.so.6:__memcpy_chk) redirected to 0x4896280 (__memcpy_chk)
+--37049-- REDIR: 0x49a0280 (libc.so.6:__strlen_asimd) redirected to 0x488faa0 (strlen)
+--37049-- REDIR: 0x4999840 (libc.so.6:strcpy) redirected to 0x488fcd0 (strcpy)
+--37049-- REDIR: 0x499362c (libc.so.6:calloc) redirected to 0x488d57c (calloc)
+--37049-- REDIR: 0x499b460 (libc.so.6:strspn) redirected to 0x4896840 (strspn)
+--37049-- REDIR: 0x4999980 (libc.so.6:strcspn) redirected to 0x48966e0 (strcspn)
+--37049-- REDIR: 0x49979c0 (libc.so.6:stpcpy) redirected to 0x4894340 (stpcpy)
+--37049-- REDIR: 0x499baa4 (libc.so.6:strstr) redirected to 0x48963c0 (strstr)
+--37049-- REDIR: 0x499b080 (libc.so.6:strnlen) redirected to 0x488fa00 (strnlen)
+--37049-- REDIR: 0x49a0140 (libc.so.6:__memset_zva64) redirected to 0x4894c24 (memset)
+--37049-- REDIR: 0x49ffc00 (libc.so.6:__strcpy_chk) redirected to 0x48959a0 (__strcpy_chk)
+--37049-- REDIR: 0x4992ea8 (libc.so.6:realloc) redirected to 0x488d7dc (realloc)
+--37049-- REDIR: 0x4997c40 (libc.so.6:strcasecmp_l) redirected to 0x4890fe0 (strcasecmp_l)
+--37049-- REDIR: 0x49a3880 (libc.so.6:wcslen) redirected to 0x4896a60 (wcslen)
+--37049-- REDIR: 0x49a4320 (libc.so.6:wcsnlen) redirected to 0x4896ab0 (wcsnlen)
+--37049-- REDIR: 0x499b140 (libc.so.6:strpbrk) redirected to 0x4896668 (strpbrk)
