@@ -8,6 +8,7 @@
     ./starship.nix
     ./zoxide.nix
     ./git.nix
+    ./gpg.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix
