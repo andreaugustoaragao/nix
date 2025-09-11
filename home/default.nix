@@ -5,6 +5,7 @@
   imports = [
     ./desktop
     ./cli
+    ./services
     ./fonts.nix
   ];
   

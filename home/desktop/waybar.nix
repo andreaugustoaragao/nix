@@ -14,7 +14,7 @@
         height = 26;
         margin-top = 8;
         modules-left = [ "niri/workspaces" "hyprland/workspaces" ];
-        modules-center = [ "clock" ];
+        modules-center = [ ];
         modules-right = [
           "network"
           "pulseaudio"
@@ -23,6 +23,7 @@
           "disk"
           "group/tray-expander"
           "battery"
+          "clock"
         ];
         
         "niri/workspaces" = {
@@ -107,9 +108,9 @@
         
         "network" = {
           format-icons = ["󰤯" "󰤟" "󰤢" "󰤥" "󰤨"];
-          format = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
-          format-wifi = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
-          format-ethernet = "󰀂 {ifname} ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
+          format = "󰀂 ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
+          format-wifi = "󰀂 ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
+          format-ethernet = "󰀂 ⇣{bandwidthDownBytes:>6} ⇡{bandwidthUpBytes:>6}";
           format-disconnected = "󰖪 Disconnected";
           tooltip-format-wifi = "{essid} ({frequency} GHz)\n⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}";
           tooltip-format-ethernet = "⇣{bandwidthDownBytes}  ⇡{bandwidthUpBytes}";
@@ -196,7 +197,7 @@
       }
       
       .modules-center {
-        background-color: #1f1f28;
+        background-color: transparent;
         border-radius: 8px;
         padding: 2px 8px;
       }
@@ -307,7 +308,11 @@
       }
       
       #clock {
-        margin-left: 8.75px;
+        background-color: #7fb4ca;
+        color: #1f1f28;
+        margin-right: 8px;
+        border-radius: 6px;
+        padding: 2px 8px;
       }
       
       tooltip {
