@@ -7,7 +7,7 @@
   # Mako notification daemon configuration (Wayland) - manual config file
   xdg.configFile."mako/config".text = ''
     # Kanagawa theme colors
-    background-color=#1f1f28
+    background-color=#1f1f28e6
     text-color=#dcd7ba
     border-color=#54546d
     
@@ -21,6 +21,6 @@
     border-radius=8
     
     # Basic settings
-    default-timeout=5000
+    default-timeout=10000
   '';
 }

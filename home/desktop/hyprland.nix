@@ -194,7 +194,7 @@
         "$mainMod, F, exec, thunar"                                 # File manager  
         "$mainMod, B, exec, brave"                                  # Browser
         "$mainMod, M, exec, spotify"                                # Music
-        "$mainMod, N, exec, alacritty msg create-window -e nvim"   # Neovim
+        "$mainMod, N, exec, notes"                              # Notes manager
         "$mainMod, G, exec, brave --app=https://web.whatsapp.com"  # WhatsApp
         "$mainMod, T, exec, brave --app=https://teams.microsoft.com" # Microsoft Teams
         "$mainMod, slash, exec, bitwarden"                          # Password manager

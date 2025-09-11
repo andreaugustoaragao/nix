@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # Starship prompt (from nix-config)
@@ -6,20 +12,22 @@
     enable = true;
     enableFishIntegration = true;
     enableZshIntegration = true;
-    
+
     settings = {
       add_newline = false;
       command_timeout = 1200;
       scan_timeout = 10;
       format = ''
-        [](bold cyan) $directory$cmd_duration$all$kubernetes$azure$docker_context$time
+        [](bold cyan)$directory$cmd_duration$all$kubernetes$azure$docker_context$time
         $character'';
-      directory = {home_symbol = " ";};
+      directory = {
+        home_symbol = "";
+      };
       golang = {
         #style = "bg:#79d4fd fg:#000000";
         style = "fg:#79d4fd";
         format = "[$symbol($version)]($style)";
-        symbol = " ";
+        symbol = "";
       };
       git_status = {
         disabled = true;
@@ -52,7 +60,9 @@
         #style = "fg:#1d63ed";
         format = "[ 󰡨 ($context) ]($style)";
       };
-      gcloud = {disabled = true;};
+      gcloud = {
+        disabled = true;
+      };
       hostname = {
         ssh_only = true;
         format = "<[$hostname]($style)";
@@ -60,7 +70,9 @@
         style = "bold dimmed fg:white";
         disabled = true;
       };
-      line_break = {disabled = true;};
+      line_break = {
+        disabled = true;
+      };
       username = {
         style_user = "bold dimmed fg:blue";
         show_always = false;
@@ -68,4 +80,5 @@
       };
     };
   };
-} 
+}
+

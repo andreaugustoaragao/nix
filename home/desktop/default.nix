@@ -18,6 +18,7 @@
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    ./zen-browser.nix
     ./vscode.nix
     ./waybar.nix
     ./wallpapers.nix
@@ -25,6 +26,7 @@
     ./thunar.nix
     ./xresources.nix
     ./cursors.nix
+    ./notes.nix
   ];
 
   home.packages = with pkgs; [

@@ -1,9 +1,16 @@
 { config, pkgs, lib, inputs, ... }:
 
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    system = pkgs.system;
+    config.allowUnfree = true;
+  };
+in
 {
-  # Brave Browser configuration
+  # Brave Browser configuration using unstable version
   programs.brave = {
     enable = true;
+    package = pkgs-unstable.brave;
     commandLineArgs = [
       # Wayland flags for proper Wayland support
       "--enable-features=UseOzonePlatform"

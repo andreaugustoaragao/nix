@@ -150,7 +150,7 @@
         Mod+F { spawn "thunar"; }
         Mod+B { spawn "brave"; }
         Mod+M { spawn "spotify"; }
-        Mod+N { spawn "alacritty" "msg" "create-window" "-e" "nvim"; }
+        Mod+N { spawn "notes"; }
         Mod+G { spawn "brave" "--app=https://web.whatsapp.com"; }
         Mod+T { spawn "brave" "--app=https://teams.microsoft.com"; }
         Mod+Slash { spawn "bitwarden"; }

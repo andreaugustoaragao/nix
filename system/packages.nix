@@ -23,21 +23,8 @@
     elfutils
     glib
 
-    nil
-    nixfmt-rfc-style
-    bash-language-server
-    marksman
-    pyright
-    gopls
-    nodePackages.typescript-language-server
-    nodePackages.vscode-langservers-extracted
-    jdt-language-server
-
-    python3
-    uv
-    go
-    nodejs_22
-    openjdk21
+    # Development tools moved to home/cli/development.nix for better security
+    # Only keeping essential system-level packages here
 
     ripgrep
     fd
@@ -67,10 +54,6 @@
 
     nautilus
 
-    # Added Go/Java developer tools
-    delve
-    golangci-lint
-    maven
-    gradle
+    # Development tools moved to home configuration
   ];
 } 

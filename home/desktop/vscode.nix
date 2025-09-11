@@ -89,7 +89,7 @@
         "editor.rulers" = [80 120];
         
         # Python Configuration
-        "python.defaultInterpreterPath" = "/run/current-system/sw/bin/python3";
+        "python.defaultInterpreterPath" = "${pkgs.python3}/bin/python3";
         "python.terminal.activateEnvInCurrentTerminal" = true;
         
         # Go Configuration
@@ -102,23 +102,23 @@
         "typescript.updateImportsOnFileMove.enabled" = "always";
         
         # Java Configuration
-        "java.home" = "/run/current-system/sw/lib/openjdk";
+        "java.home" = "${pkgs.openjdk21}/lib/openjdk";
         "java.configuration.runtimes" = [
           {
             "name" = "JavaSE-21";
-            "path" = "/run/current-system/sw/lib/openjdk";
+            "path" = "${pkgs.openjdk21}/lib/openjdk";
             "default" = true;
           }
         ];
         
         # Nix Configuration
         "nix.enableLanguageServer" = true;
-        "nix.serverPath" = "/run/current-system/sw/bin/nil";
-        "nix.formatterPath" = "/run/current-system/sw/bin/nixfmt-rfc-style";
+        "nix.serverPath" = "${pkgs.nil}/bin/nil";
+        "nix.formatterPath" = "${pkgs.nixfmt-rfc-style}/bin/nixfmt-rfc-style";
         "nix.serverSettings" = {
           "nil" = {
             "formatting" = {
-              "command" = [ "/run/current-system/sw/bin/nixfmt-rfc-style" ];
+              "command" = [ "${pkgs.nixfmt-rfc-style}/bin/nixfmt-rfc-style" ];
             };
           };
         };

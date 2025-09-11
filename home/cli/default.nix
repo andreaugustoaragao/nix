@@ -11,51 +11,17 @@
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix
+    ./development.nix
   ];
 
 
  home.packages = with pkgs; [
-    # Existing packages
+    # System utilities
     libnotify  # provides notify-send
     fzf
+
+    # Cloud packages  
     azure-cli
-
-    # Development packages
-    gcc
-    gdb
-    lldb
-    valgrind
-    strace
-    ltrace
-    cmake
-    meson
-    ninja
-    pkg-config
-    rustc
-    cargo
-    rust-analyzer
-    rustfmt
-    clippy
-    python311
-    python311Packages.pip
-    python311Packages.virtualenv
-    python311Packages.black
-    python311Packages.isort
-    python311Packages.flake8
-    python311Packages.mypy
-    nodePackages.npm
-    nodePackages.yarn
-    nodePackages.pnpm
-    typescript
-    nodePackages.prettier
-    shellcheck
-    shfmt
-    jq
-    yq
-    yamllint
-    hadolint
-
-    # Cloud packages
     awscli2
     google-cloud-sdk
     kubectl
@@ -66,11 +32,9 @@
     terragrunt
     ansible
     packer
-    docker-compose
     podman-compose
 
     # General tools
-    httpie
     curlie
     xh
     wget
@@ -113,11 +77,10 @@
     entr
     watchman
     inotify-tools
-    direnv
     lorri
     cachix
 
-    # Rust-based coreutils and modern replacements
+    # Rust-based coreutils and modern replacements  
     ripgrep
     fd
     bat
@@ -143,16 +106,6 @@
     starship
     just
     watchexec
-    cargo-edit
-    cargo-watch
-    cargo-expand
-    cargo-outdated
-    cargo-udeps
-    cargo-tarpaulin
-    cargo-audit
-    cargo-deny
-    bacon
-    gitui
     onefetch
     difftastic
     jless
@@ -163,5 +116,10 @@
     ouch
     zellij
     helix
+    
+    # Development tools that moved to development.nix:
+    # - All language servers, compilers, and dev tools
+    # - cargo-*, gitui, jq, httpie moved to development.nix
+    # - direnv moved to development.nix as a program
   ];
 } 

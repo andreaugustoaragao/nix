@@ -1,7 +1,7 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  home.packages = [ pkgs.fastfetch pkgs.fortune pkgs.lolcat ];
+  home.packages = [ inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.fastfetch pkgs.fortune pkgs.lolcat ];
 
   # Fastfetch configuration (Omarchy style adapted for NixOS)
   xdg.configFile."fastfetch/config.jsonc".text = ''
@@ -21,7 +21,7 @@
         "break",
         {
           "type": "custom",
-          "format": "\u001b[90m┌──────────────────────Hardware──────────────────────┐"
+          "format": "\u001b[90m──────────── Hardware ────────────"
         },
         {
           "type": "host",
@@ -30,44 +30,40 @@
         },
         {
           "type": "cpu",
-          "key": "│ ├󰍛",
+          "key": "󰍛 CPU",
           "showPeCoreCount": true,
           "keyColor": "green"
         },
         {
           "type": "gpu",
-          "key": "│ ├󰢮",
+          "key": "󰢮 GPU",
           "detectionMethod": "pci",
           "keyColor": "green"
         },
         {
           "type": "display",
-          "key": "│ ├󰍹",
+          "key": "󰍹 Display",
           "keyColor": "green"
         },
         {
           "type": "disk",
-          "key": "│ ├󰋊",
+          "key": "󰋊 Disk",
           "keyColor": "green"
         },
         {
           "type": "memory",
-          "key": "│ ├󰑭",
+          "key": "󰑭 Memory",
           "keyColor": "green"
         },
         {
           "type": "swap",
-          "key": "└ └󰾵",
+          "key": "󰾵 Swap",
           "keyColor": "green"
-        },
-        {
-          "type": "custom",
-          "format": "\u001b[90m└────────────────────────────────────────────────────┘"
         },
         "break",
         {
           "type": "custom",
-          "format": "\u001b[90m┌──────────────────────Software──────────────────────┐"
+          "format": "\u001b[90m──────────── Software ────────────"
         },
         {
           "type": "os",
@@ -76,12 +72,12 @@
         },
         {
           "type": "kernel",
-          "key": "│ ├󰌽",
+          "key": "󰌽 Kernel",
           "keyColor": "blue"
         },
         {
           "type": "wm",
-          "key": "│ ├󰨇",
+          "key": "󰨇 WM",
           "keyColor": "blue"
         },
         {
@@ -91,53 +87,45 @@
         },
         {
           "type": "terminal",
-          "key": "│ ├󰆍",
+          "key": "󰆍 Terminal",
           "keyColor": "blue"
         },
         {
           "type": "packages",
-          "key": "│ ├󰏖",
+          "key": "󰏖 Packages",
           "keyColor": "blue"
         },
         {
           "type": "wmtheme",
-          "key": "│ ├󰉼",
+          "key": "󰉼 Theme",
           "keyColor": "blue"
         },
         {
           "type": "custom",
-          "key": "│ ├󰸌",
+          "key": "󰸌 Icons",
           "keyColor": "blue",
-          "format": "Kanagawa 󰮯"
+          "format": "Kanagawa"
         },
         {
           "type": "terminalfont",
-          "key": "└ └󰛖",
+          "key": "󰛖 Font",
           "keyColor": "blue"
         },
+         "break",
         {
           "type": "custom",
-          "format": "\u001b[90m└────────────────────────────────────────────────────┘"
-        },
-        "break",
-        {
-          "type": "custom",
-          "format": "\u001b[90m┌────────────────────Uptime / Age────────────────────┐"
+          "format": "\u001b[90m──────────── Status ────────────"
         },
         {
           "type": "command",
-          "key": "  OS Age ",
+          "key": "󰅐 OS Age",
           "keyColor": "magenta",
           "text": "birth_install=$(stat -c %W /); current=$(date +%s); time_progression=$((current - birth_install)); days_difference=$((time_progression / 86400)); echo $days_difference days"
         },
         {
           "type": "uptime",
-          "key": "  Uptime ",
+          "key": "󰔛 Uptime",
           "keyColor": "magenta"
-        },
-        {
-          "type": "custom",
-          "format": "\u001b[90m└────────────────────────────────────────────────────┘"
         },
         "break"
       ]
