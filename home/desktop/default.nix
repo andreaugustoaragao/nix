@@ -36,5 +36,6 @@
     teams-for-linux
     bitwarden
     qutebrowser
+    neovide
   ];
 }
