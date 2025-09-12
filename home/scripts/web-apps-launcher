@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+# Web Applications Launcher using wofi
+# Usage: web-apps-launcher [config-file]
+
+set -euo pipefail
+
+# Default configuration file
+CONFIG_FILE="${1:-$HOME/.config/web-apps.conf}"
+
+# Check if config file exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    notify-send "Web Apps" "Configuration file not found: $CONFIG_FILE" --urgency=critical
+    exit 1
+fi
+
+# Read configuration and build wofi menu
+declare -A apps_urls
+declare -A apps_profiles
+wofi_input=""
+
+while IFS='|' read -r name icon url profile; do
+    # Skip empty lines and comments
+    [[ -z "$name" || "$name" =~ ^[[:space:]]*# ]] && continue
+    
+    # Store URL and profile for later use
+    apps_urls["$name"]="$url"
+    apps_profiles["$name"]="$profile"
+    
+    # Build wofi input with icon and name
+    if [[ -n "$wofi_input" ]]; then
+        wofi_input+="\n"
+    fi
+    wofi_input+="$icon $name"
+done < "$CONFIG_FILE"
+
+# Show wofi menu and get selection
+selection=$(echo -e "$wofi_input" | wofi \
+    --dmenu \
+    --prompt "Launch Web App" \
+    --width 400 \
+    --height 300 \
+    --allow-markup \
+    --insensitive \
+    --cache-file /dev/null)
+
+# Exit if no selection made
+[[ -z "$selection" ]] && exit 0
+
+# Extract app name (remove icon)
+app_name="${selection#* }"
+
+# Get URL and profile for selected app
+url="${apps_urls[$app_name]}"
+profile="${apps_profiles[$app_name]}"
+
+if [[ -z "$url" ]]; then
+    notify-send "Web Apps" "No URL found for: $app_name" --urgency=critical
+    exit 1
+fi
+
+# Launch the web application
+case "$profile" in
+    "app")
+        firefox -P app --new-window "$url"
+        ;;
+    "default")
+        firefox -P default --new-window "$url"
+        ;;
+    "brave")
+        brave --new-window "$url"
+        ;;
+    *)
+        # Default to Firefox default profile
+        firefox -P default --new-window "$url"
+        ;;
+esac
+
+# Optional: Send notification
+notify-send "Web Apps" "Launched: $app_name" --expire-time=2000
