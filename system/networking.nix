@@ -19,4 +19,7 @@
       RouteMetric = 1024;
     };
   };
+
+  # Disable network-wait-online for faster boot
+  systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
 } 
