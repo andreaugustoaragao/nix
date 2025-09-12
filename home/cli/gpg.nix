@@ -40,8 +40,8 @@
     enableSshSupport = true;
     # Configure SSH keys from GPG authentication subkeys
     sshKeys = [
-      "13128BA224F28F0BF32C4015BB454EA017882BE4"  # Authentication subkey for aragao@avaya.com
-      "40185914523897FAE34BCE186C76425E6FC5391F"  # Authentication subkey for andrearag@gmail.com
+      "13128BA224F28F0BF32C4015BB454EA017882BE4"  # Authentication subkey for aragao@avaya.com (work)
+      "40185914523897FAE34BCE186C76425E6FC5391F"  # Authentication subkey for andrearag@gmail.com (personal)
     ];
     # Pin entry program for GUI password prompts
     pinentry.package = pkgs.pinentry-gtk2;
@@ -54,20 +54,24 @@
     '';
   };
 
-  # SSH configuration to work with GPG agent
+  # SSH configuration - use different approaches for different hosts
   programs.ssh = {
     enable = true;
     
-    # Use GPG agent for SSH authentication
     extraConfig = ''
-      # Use GPG agent for SSH authentication
-      IdentityAgent "''${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh"
-      
-      # GitHub configuration
-      Host github.com
+      # GitHub work account - use GPG agent (default)
+      Host github.com github.com-work
         HostName github.com
         User git
         PreferredAuthentications publickey
+        IdentityAgent "''${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh"
+        
+      # GitHub personal account - use GPG agent, let SSH try both keys
+      Host github.com-personal
+        HostName github.com
+        User git  
+        PreferredAuthentications publickey
+        IdentityAgent "''${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh"
     '';
     
     # Default SSH settings

@@ -18,6 +18,7 @@
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    ./firefox.nix
     ./zen-browser.nix
     ./vscode.nix
     ./waybar.nix
@@ -27,6 +28,7 @@
     ./xresources.nix
     ./cursors.nix
     ./notes.nix
+    ./web-apps-launcher.nix
   ];
 
   home.packages = with pkgs; [

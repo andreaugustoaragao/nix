@@ -148,11 +148,11 @@
         // Applications (matching Hyprland exactly)
         Mod+Return { spawn "alacritty" "msg" "create-window"; }
         Mod+F { spawn "thunar"; }
-        Mod+B { spawn "brave"; }
+        Mod+B { spawn "firefox" "-P" "default" "--new-window"; }
         Mod+M { spawn "spotify"; }
         Mod+N { spawn "notes"; }
         Mod+G { spawn "brave" "--app=https://web.whatsapp.com"; }
-        Mod+T { spawn "brave" "--app=https://teams.microsoft.com"; }
+        Mod+T { spawn "firefox" "-P" "app" "--new-window" "https://teams.microsoft.com"; }
         Mod+Slash { spawn "bitwarden"; }
         Mod+A { spawn "brave" "--app=https://grok.com"; }
         Mod+X { spawn "brave" "--app=https://x.com"; }

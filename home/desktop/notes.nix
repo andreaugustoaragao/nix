@@ -17,7 +17,6 @@
 
         # Configuration
         NOTES_DIR="''${HOME}/projects/work/notes"
-        EDITOR="alacritty msg create-window -e nvim"
 
         # Colors for wofi (Kanagawa theme)
         WOFI_CONFIG=(--width=600 --height=400 --prompt="Notes" --insensitive --cache-file=/dev/null)
@@ -90,7 +89,7 @@
             
             if [[ -f "$note_file" ]]; then
                 # Open existing note
-                $EDITOR "$note_file"
+                alacritty msg create-window -e bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
             else
                 # Create new note with the typed input as the name
                 echo "Creating new note: $note_name"
@@ -106,7 +105,7 @@
                 create_note_template "$note_file" "$note_name"
                 
                 # Open in editor
-                $EDITOR "$note_file"
+                alacritty msg create-window -e bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
             fi
         }
 

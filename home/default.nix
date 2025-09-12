@@ -50,4 +50,5 @@
     # Remove stale Home Manager backup files that can block activation
     rm -f "$HOME/.gtkrc-2.0.hm-backup"* || true
   '';
+
 }

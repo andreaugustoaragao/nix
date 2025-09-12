@@ -192,11 +192,11 @@
         # Applications (matching Omarchy exactly)
         "$mainMod, Return, exec, alacritty msg create-window --working-directory ~"  # Terminal (new window via daemon)
         "$mainMod, F, exec, thunar"                                 # File manager  
-        "$mainMod, B, exec, brave"                                  # Browser
+        "$mainMod, B, exec, firefox -P default --new-window"            # Firefox default profile new window
         "$mainMod, M, exec, spotify"                                # Music
         "$mainMod, N, exec, notes"                              # Notes manager
         "$mainMod, G, exec, brave --app=https://web.whatsapp.com"  # WhatsApp
-        "$mainMod, T, exec, brave --app=https://teams.microsoft.com" # Microsoft Teams
+        "$mainMod, T, exec, firefox -P app --new-window https://teams.microsoft.com" # Microsoft Teams
         "$mainMod, slash, exec, bitwarden"                          # Password manager
         "$mainMod, A, exec, brave --app=https://grok.com"          # Grok AI
         "$mainMod, X, exec, brave --app=https://x.com"             # X.com

@@ -1471,8 +1471,8 @@
           vim.opt_local.spell = true
           vim.opt_local.spelllang = "en_us"
           
-          -- Better text width for markdown
-          vim.opt_local.textwidth = 80
+          -- Better text width for markdown (disabled auto-breaking)
+          vim.opt_local.textwidth = 0  -- Disable automatic line breaking
           vim.opt_local.colorcolumn = "80"
           
           -- Markdown-specific keybindings
