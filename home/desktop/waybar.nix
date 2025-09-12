@@ -13,7 +13,7 @@
         spacing = 0;
         height = 26;
         margin-top = 8;
-        modules-left = [ "niri/workspaces" "hyprland/workspaces" ];
+        modules-left = [ "niri/workspaces" "hyprland/workspaces" "hyprland/window" "niri/window" ];
         modules-center = [ ];
         modules-right = [
           "network"
@@ -77,6 +77,16 @@
           };
         };
         
+        "hyprland/window" = {
+          format = "{}";
+          max-length = 50;
+          separate-outputs = true;
+        };
+        
+        "niri/window" = {
+          format = "{}";
+          max-length = 50;
+        };
         
         "cpu" = {
           interval = 5;
@@ -191,6 +201,9 @@
       
       .modules-left {
         margin-left: 8px;
+      }
+      
+      .modules-left > :first-child {
         background-color: #1f1f28;
         border-radius: 8px;
         padding: 2px 8px;
@@ -228,6 +241,17 @@
       
       #workspaces button.urgent {
         color: #c34043;
+      }
+      
+      #window {
+        margin-left: 12px;
+        padding: 4px 12px;
+        background-color: #16161d;
+        color: #dcd7ba;
+        border-radius: 8px;
+        font-weight: normal;
+        border: 1px solid #54546d;
+        min-width: 200px;
       }
       
       #tray,

@@ -32,7 +32,7 @@
       "*.color7" = "#c8c093";
       "*.color15" = "#dcd7ba";
 
-      "XTerm*font" = "xft:JetbrainsMono Nerd Font:size=10";
+      "XTerm*font" = "xft:CaskaydiaMono Nerd Font:size=10";
       "XTerm*saveLines" = "100000";
       "XTerm*scrollBar" = "false";
       "XTerm*termName" = "xterm-256color";

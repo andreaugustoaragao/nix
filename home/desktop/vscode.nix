@@ -82,7 +82,7 @@
         "editor.cursorSurroundingLines" = 8;
         "editor.scrollBeyondLastLine" = false;
         "editor.wordWrap" = "on";
-        "editor.fontFamily" = "JetBrains Mono, 'JetBrainsMono Nerd Font', monospace";
+        "editor.fontFamily" = "CaskaydiaMono Nerd Font, 'JetBrains Mono', monospace";
         "editor.fontSize" = 14;
         "editor.fontLigatures" = true;
         "editor.renderWhitespace" = "boundary";
@@ -125,7 +125,7 @@
         
         # Terminal Configuration
         "terminal.integrated.shell.linux" = "/run/current-system/sw/bin/fish";
-        "terminal.integrated.fontFamily" = "JetBrains Mono, 'JetBrainsMono Nerd Font'";
+        "terminal.integrated.fontFamily" = "CaskaydiaMono Nerd Font, 'JetBrains Mono'";
         
         # File Explorer
         "explorer.confirmDelete" = false;
