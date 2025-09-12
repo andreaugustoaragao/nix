@@ -48,6 +48,16 @@
       vim.opt.smartindent = true
       vim.opt.autoindent = true
       vim.opt.wrap = false
+      
+      -- GUI font configuration for Neovide
+      if vim.g.neovide then
+        vim.opt.guifont = "CaskaydiaMono Nerd Font:h12"
+        -- Neovide-specific settings
+        vim.g.neovide_scale_factor = 1.0
+        vim.g.neovide_opacity = 0.0  -- For unified transparency
+        vim.g.transparency = 0.95    -- Set transparency level
+        vim.g.neovide_background_color = "#1f1f28" .. string.format("%x", math.floor(255 * (vim.g.transparency or 0.95)))
+      end
       vim.opt.ignorecase = true
       vim.opt.smartcase = true
       vim.opt.hlsearch = false
