@@ -1520,6 +1520,39 @@
           vim.keymap.set("n", "[[", "?^#\\+\\s<CR>", vim.tbl_extend("force", opts, { desc = "Previous header" }))
         end,
       })
+      
+      -- Configure LTeX Language Server for Grammar and Spell Checking
+      -- This will be picked up by LazyVim's LSP configuration
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = { "markdown", "tex", "latex", "rst", "org", "text", "gitcommit" },
+        callback = function()
+          -- Configure LTeX when these filetypes are opened
+          local lspconfig = require("lspconfig")
+          if lspconfig.ltex then
+            lspconfig.ltex.setup({
+              settings = {
+                ltex = {
+                  language = "en-US",
+                  additionalRules = {
+                    enablePickyRules = true,
+                    motherTongue = "pt-BR",
+                  },
+                  checkFrequency = "save",
+                  dictionary = {
+                    ["en-US"] = {},
+                    ["pt-BR"] = {},
+                  },
+                  disabledRules = {
+                    ["en-US"] = {},
+                    ["pt-BR"] = {},
+                  },
+                },
+              },
+            })
+          end
+        end,
+        once = true,
+      })
     '';
   };
 }

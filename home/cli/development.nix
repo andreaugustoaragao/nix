@@ -12,6 +12,7 @@
     nodePackages.typescript-language-server # TypeScript LSP
     nodePackages.vscode-langservers-extracted # CSS/HTML/JSON LSP
     jdt-language-server                  # Java LSP
+    ltex-ls                              # Grammar/Spell checker for EN/PT-BR
 
     # Node.js/TypeScript Development
     nodejs_22                            # Node.js runtime
