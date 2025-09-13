@@ -23,7 +23,7 @@
         "uwsm app -- swayosd-server"  # OSD for volume/brightness
         "uwsm app -- alacritty --daemon"  # Terminal daemon for faster startup
         "uwsm app -- hyprpaper"  # Wallpaper daemon
-        # Waybar is managed by systemd (programs.waybar.systemd.enable = true)
+        "uwsm app -- waybar -c ~/.config/waybar/hyprland-config.json -s ~/.config/waybar/style.css"  # Waybar with Hyprland config
       ];
 
       # Environment variables (optimized for memory)
@@ -173,14 +173,28 @@
         "opacity 1 1, class:steam"
         "size 1100 700, class:steam, title:Steam"
         "size 460 800, class:steam, title:Friends List"
+        
+        # Bitwarden standalone app
+        "float, class:Bitwarden"
+        "center, class:Bitwarden"
+        "size 1000 700, class:Bitwarden"
+        
+        # Hide Parallels Shared Clipboard window
+        "workspace special:hidden, title:Parallels Shared Clipboard"
       ];
       
       windowrulev2 = [
+        # Float+center Firefox Bitwarden extension window by title
+        "float, title:^(Extension: \(Bitwarden Password Manager\) - Bitwarden — Mozilla Firefox)$"
+        "center, title:^(Extension: \(Bitwarden Password Manager\) - Bitwarden — Mozilla Firefox)$"
+        # Float MainPicker window
+        "float, title:^(MainPicker)$"
+        "center, title:^(MainPicker)$"
         # Tag assignments
         "tag +floating-window, class:(blueberry.py|Impala|Wiremix|org.gnome.NautilusPreviewer|com.gabm.satty|Omarchy|About|TUI.float)"
         "tag +floating-window, class:(xdg-desktop-portal-gtk|sublime_text|DesktopEditors), title:^(Open.*Files?|Save.*Files?|Save.*As|All Files|Save)"
         "tag +chromium-based-browser, class:([cC]hrom(e|ium)|[bB]rave-browser|Microsoft-edge|Vivaldi-stable)"
-        "tag +firefox-based-browser, class:(Firefox|zen|librewolf)"
+        "tag +firefox-based-browser, class:(Firefox|librewolf)"
         
         # Original rules
         "float, class:^(pavucontrol)$"
@@ -192,15 +206,15 @@
         # Applications (matching Omarchy exactly)
         "$mainMod, Return, exec, alacritty msg create-window --working-directory ~"  # Terminal (new window via daemon)
         "$mainMod, F, exec, thunar"                                 # File manager  
-        "$mainMod, B, exec, firefox -P default --new-window"            # Firefox default profile new window
+        "$mainMod, B, exec, qutebrowser"                                # Qutebrowser
         "$mainMod, M, exec, spotify"                                # Music
         "$mainMod, N, exec, notes"                              # Notes manager
         "$mainMod, G, exec, brave --app=https://web.whatsapp.com"  # WhatsApp
         "$mainMod, T, exec, firefox -P app --new-window https://teams.microsoft.com" # Microsoft Teams
-        "$mainMod, slash, exec, bitwarden"                          # Password manager
+        "$mainMod, backslash, exec, bitwarden"                      # Password manager
         "$mainMod, A, exec, brave --app=https://grok.com"          # Grok AI
         "$mainMod, X, exec, brave --app=https://x.com"             # X.com
-        "$mainMod, O, exec, brave --app=https://outlook.office365.com" # Outlook 365
+        "$mainMod, O, exec, web-apps-launcher"                         # Web Apps Launcher
         "$mainMod, S, exec, alacritty msg create-window -e btop"   # System monitor
         
         # Menus (Omarchy style)

@@ -70,6 +70,7 @@
     sl
     tree
     ncdu
+    gdu
     duf
     dfc
     progress

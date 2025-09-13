@@ -42,10 +42,5 @@ in
 
   services.upower.enable = true;
 
-  # Enable Flatpak and auto-install Flathub + Zen Browser (system-wide)
-  services.flatpak.enable = true;
-  system.activationScripts.flatpakFlathubZen.text = ''
-    ${pkgs.flatpak}/bin/flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-    ${pkgs.flatpak}/bin/flatpak --system install -y flathub app.zen_browser.zen || true
-  '';
+  services.flatpak.enable = lib.mkForce false;
 } 

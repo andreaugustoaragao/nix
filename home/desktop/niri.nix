@@ -11,7 +11,8 @@
         scale 2.0
     }
     
-    // Spawn programs on startup (Waybar only; others managed by systemd user services)
+    // Spawn programs on startup (Waybar with niri config; others managed by systemd user services)
+    spawn-at-startup "waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css"
     spawn-at-startup "prlcc"
 
     // Environment variables
@@ -114,6 +115,26 @@
         open-on-output "current"
     }
 
+    window-rule {
+        match title="Extension: (Bitwarden Password Manager) - Bitwarden — Mozilla Firefox"
+        open-floating true
+        open-on-output "current"
+    }
+
+    window-rule {
+        match title="Parallels Shared Clipboard"
+        open-floating true
+        opacity 0.0
+        default-column-width { fixed 1; }
+    }
+
+    window-rule {
+        match title="MainPicker"
+        open-floating true
+        default-column-width { fixed 621; }
+        open-on-output "current"
+    }
+
     // Prefer no server-side decorations (clean look like Hyprland)
     prefer-no-csd
 
@@ -148,15 +169,15 @@
         // Applications (matching Hyprland exactly)
         Mod+Return { spawn "alacritty" "msg" "create-window"; }
         Mod+F { spawn "thunar"; }
-        Mod+B { spawn "firefox" "-P" "default" "--new-window"; }
+        Mod+B { spawn "qutebrowser"; }
         Mod+M { spawn "spotify"; }
         Mod+N { spawn "notes"; }
         Mod+G { spawn "brave" "--app=https://web.whatsapp.com"; }
         Mod+T { spawn "firefox" "-P" "app" "--new-window" "https://teams.microsoft.com"; }
-        Mod+Slash { spawn "bitwarden"; }
+        Mod+Backslash { spawn "bitwarden"; }
         Mod+A { spawn "brave" "--app=https://grok.com"; }
         Mod+X { spawn "brave" "--app=https://x.com"; }
-        Mod+O { spawn "brave" "--app=https://outlook.office365.com"; }
+        Mod+O { spawn "web-apps-launcher"; }
         Mod+S { spawn "alacritty" "msg" "create-window" "-e" "btop"; }
 
         // Menu and launcher

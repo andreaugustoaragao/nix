@@ -1,7 +1,15 @@
-{ config, pkgs, lib, inputs, ... }:
+# test change
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # Application launcher with Kanagawa theming
+
   programs.wofi = {
     enable = true;
     settings = {
@@ -25,7 +33,7 @@
       term = "alacritty msg create-window";
       sort_order = "alphabetical";
     };
-    
+
     style = ''
       window {
         margin: 0px;
@@ -33,7 +41,7 @@
         background-color: rgba(31, 31, 40, 0.95);
         border-radius: 8px;
       }
-      
+
       #input {
         margin: 8px;
         padding: 8px;
@@ -44,27 +52,27 @@
         border-radius: 6px;
         font-weight: 600;
       }
-      
+
       #inner-box {
         margin: 8px;
         padding: 0px;
         border: none;
         background-color: transparent;
       }
-      
+
       #outer-box {
         margin: 0px;
         padding: 0px;
         border: none;
         background-color: transparent;
       }
-      
+
       #scroll {
         margin: 0px;
         border: none;
         background-color: transparent;
       }
-      
+
       #entry {
         padding: 8px;
         margin: 2px;
@@ -73,16 +81,23 @@
         color: #dcd7ba;
         border-radius: 6px;
       }
-      
+
       #entry:selected {
         background-color: rgba(220, 215, 186, 0.2);
         color: #dcd7ba;
         font-weight: 600;
+        border: none;
+        outline: none;
+        box-shadow: none;
       }
+
       #entry img {
-        margin-right: 10px;
+        margin-right: 48px;
         border-radius: 6px;
+        padding: 4px;
       }
     '';
   };
 }
+
+

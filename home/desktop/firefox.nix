@@ -120,7 +120,7 @@ in
           
           # Disable first-run configuration prompts
           "browser.startup.homepage_override.mstone" = "ignore";
-          "startup.homepage_welcome_url" = "";
+          "startup.homepage_welcome_url" = "https://search.brave.com";
           "startup.homepage_welcome_url.additional" = "";
           "browser.aboutwelcome.enabled" = false;
           
@@ -150,6 +150,7 @@ in
           # Set Brave Search as default search engine and homepage
           "browser.startup.homepage" = "https://search.brave.com";
           "browser.newtabpage.enabled" = false; # Use custom homepage instead of new tab page
+          "browser.startup.page" = 1; # 0=blank, 1=home, 3=restore
         };
         
         userChrome = ''
@@ -197,6 +198,7 @@ in
           /* Smooth transitions for better UX */
           #navigator-toolbox {
             transition: all 0.3s ease !important;
+            padding-top: 3px !important;
           }
           
           /* Fix potential z-index issues */
@@ -344,6 +346,7 @@ in
           /* Smooth transitions for better UX */
           #navigator-toolbox {
             transition: all 0.3s ease !important;
+            padding-top: 12px !important;
           }
           
           /* Fix potential z-index issues */
@@ -367,28 +370,4 @@ in
     MOZ_USE_XINPUT2 = "1";
   };
 
-  # Firefox preload service for faster startup
-  systemd.user.services.firefox-preload = {
-    Unit = {
-      Description = "Firefox preload service for faster startup";
-      After = [ "graphical-session-pre.target" ];
-      PartOf = [ "graphical-session.target" ];
-    };
-    
-    Service = {
-      Type = "forking";
-      ExecStart = "${pkgs-unstable.firefox}/bin/firefox --headless --profile /tmp/firefox-preload-dummy";
-      ExecStop = "${pkgs.procps}/bin/pkill -f 'firefox.*headless.*preload-dummy'";
-      Restart = "no";
-      TimeoutStartSec = "30s";
-      
-      # Resource limits to minimize impact
-      MemoryMax = "200M";
-      CPUQuota = "10%";
-    };
-    
-    Install = {
-      WantedBy = [ "graphical-session.target" ];
-    };
-  };
 }

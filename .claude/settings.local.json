@@ -18,7 +18,10 @@
       "Read(/home/aragao/projects/personal/nix-config/**)",
       "WebSearch",
       "Bash(systemctl status:*)",
-      "Read(//etc/xdg/niri/**)"
+      "Read(//etc/xdg/niri/**)",
+      "Bash(journalctl:*)",
+      "Bash(nix-prefetch-url:*)",
+      "Bash(nix hash:*)"
     ],
     "deny": [],
     "ask": []

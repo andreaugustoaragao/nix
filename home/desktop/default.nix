@@ -19,7 +19,7 @@
     ./screenshot.nix
     ./brave.nix
     ./firefox.nix
-    ./zen-browser.nix
+    ./qutebrowser.nix
     ./vscode.nix
     ./waybar.nix
     ./wallpapers.nix
@@ -37,7 +37,6 @@
     xdg-desktop-portal-gtk
     teams-for-linux
     bitwarden
-    qutebrowser
     neovide
   ];
 }

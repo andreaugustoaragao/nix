@@ -10,10 +10,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    zen-browser = {
-      url = "github:MarceColl/zen-browser-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
 
     firefox-addons = {
       url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
@@ -28,7 +24,6 @@
       nixpkgs,
       nixpkgs-unstable,
       home-manager,
-      zen-browser,
       firefox-addons,
       ...
     }@inputs:

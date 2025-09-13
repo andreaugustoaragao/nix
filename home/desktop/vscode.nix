@@ -7,16 +7,11 @@
     package = pkgs.code-cursor.overrideAttrs (oldAttrs: {
       # Configure for Wayland and system decorations
       postInstall = (oldAttrs.postInstall or "") + ''
-        # Create wrapper script for Wayland mode
+        # Create wrapper script for Wayland mode without noisy unsupported flags
         wrapProgram "$out/bin/cursor" \
-          --add-flags "--enable-wayland-ime" \
-          --add-flags "--ozone-platform-hint=auto" \
-          --add-flags "--enable-features=UseOzonePlatform,WaylandWindowDecorations" \
-          --add-flags "--disable-gpu-sandbox" \
-          --add-flags "--disable-gpu-memory-buffer-compositor-resources" \
-          --add-flags "--disable-one-copy-rasterizer" \
-          --add-flags "--disable-features=UseSkiaRenderer,HardwareMediaKeyHandling,CalculateNativeWinOcclusion,BackForwardCache" \
-          --add-flags "--enable-features=UseOzonePlatform,WaylandWindowDecorations,TurnOffStreamingMediaCachingOnBattery"
+          --unset NODE_OPTIONS \
+          --set NIXOS_OZONE_WL 1 \
+          --set ELECTRON_OZONE_PLATFORM_HINT auto
       '';
     });
     
