@@ -26,7 +26,7 @@
       content_halign = "fill";
       insensitive = true;
       allow_images = true;
-      image_size = 40;
+      image_size = 24;
       hide_scroll = true;
       print_command = true;
       layer = "overlay";
@@ -92,12 +92,16 @@
       }
 
       #entry img {
-        margin-right: 48px;
+        margin-right: 16px;
         border-radius: 6px;
         padding: 4px;
       }
+
+
+      #entry #text {
+        margin-left: 8px;
+      }
+
     '';
   };
 }
-
-
