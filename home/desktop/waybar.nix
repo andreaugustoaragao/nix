@@ -35,6 +35,9 @@
           "cpu"
           "memory"
           "disk"
+          "idle_inhibitor"
+          "privacy"
+          "systemd-failed-units"
           "group/tray-expander"
           "battery"
         ];
@@ -181,6 +184,47 @@
           icon-size = 12;
           spacing = 12;
           show-passive-items = false;
+        };
+
+        "idle_inhibitor" = {
+          format = "{icon}";
+          format-icons = {
+            activated = "󰒳";
+            deactivated = "󰒲";
+          };
+          tooltip-format-activated = "Idle inhibitor: ON";
+          tooltip-format-deactivated = "Idle inhibitor: OFF";
+        };
+
+        "privacy" = {
+          icon-spacing = 4;
+          icon-size = 12;
+          transition-duration = 250;
+          modules = [
+            {
+              type = "screenshare";
+              tooltip = true;
+              tooltip-icon-size = 24;
+            }
+            {
+              type = "audio-out";
+              tooltip = true;
+              tooltip-icon-size = 24;
+            }
+            {
+              type = "audio-in";
+              tooltip = true;
+              tooltip-icon-size = 24;
+            }
+          ];
+        };
+
+        "systemd-failed-units" = {
+          hide-on-ok = false;
+          format = "✗ {nr_failed}";
+          format-ok = "✓";
+          system = true;
+          user = true;
         };
     };
 
@@ -465,14 +509,14 @@
       }
 
       #window {
-        margin-left: 12px;
+        margin: 0 4px;
         padding: 4px 12px;
-        background-color: #16161d;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
         color: #dcd7ba;
         border-radius: 8px;
         font-weight: normal;
-        border: 1px solid #54546d;
         min-width: 200px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #tray,
@@ -482,82 +526,132 @@
       #disk,
       #network,
       #pulseaudio,
+      #idle_inhibitor,
+      #privacy,
+      #systemd-failed-units,
       #custom-media {
         min-width: 12px;
-        margin: 0 7.5px;
+        margin: 0 4px;
         padding: 2px 8px;
-        border-radius: 6px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #dcd7ba;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #network {
-        background-color: #76946a;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #76946a;
+        font-weight: 600;
       }
 
       #pulseaudio {
-        background-color: #ffa066;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #ffa066;
+        font-weight: 600;
       }
 
       #cpu {
-        background-color: #7e9cd8;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #7e9cd8;
+        font-weight: 600;
       }
 
       #memory {
-        background-color: #957fb8;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #957fb8;
+        font-weight: 600;
       }
 
       #disk {
-        background-color: #c0a36e;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #c0a36e;
+        font-weight: 600;
       }
 
       #battery {
-        background-color: #98bb6c;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #98bb6c;
+        font-weight: 600;
       }
 
       #battery.warning {
-        background-color: #e6c384;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #e6c384;
+        font-weight: 600;
       }
 
       #battery.critical {
-        background-color: #c34043;
-        color: #dcd7ba;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #c34043;
+        font-weight: 600;
       }
 
       #network.disconnected {
-        background-color: #c34043;
-        color: #dcd7ba;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #c34043;
+        font-weight: 600;
       }
 
       #pulseaudio.muted {
-        background-color: #727169;
-        color: #dcd7ba;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #727169;
+        font-weight: 600;
       }
 
       #custom-expand-icon {
-        margin-right: 7px;
+        margin-right: 4px;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
         color: #dcd7ba;
-        background-color: #54546d;
         padding: 2px 8px;
-        border-radius: 6px;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #tray {
-        background-color: #54546d;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
         color: #dcd7ba;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #clock {
-        background-color: #7fb4ca;
-        color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #7fb4ca;
+        font-weight: 600;
         margin-right: 8px;
-        border-radius: 6px;
+        border-radius: 8px;
         padding: 2px 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      #idle_inhibitor {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #e6c384;
+        font-weight: 600;
+      }
+
+      #idle_inhibitor.activated {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #98bb6c;
+        font-weight: 600;
+      }
+
+      #privacy {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #c34043;
+        font-weight: 600;
+      }
+
+      #systemd-failed-units {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #98bb6c;
+        font-weight: 600;
+      }
+
+      #systemd-failed-units.degraded {
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        color: #c34043;
+        font-weight: 600;
       }
 
       tooltip {
