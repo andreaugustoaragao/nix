@@ -304,7 +304,7 @@
         new_position.related = "next";
         position = "top";
         select_on_remove = "next";
-        show = "multiple";
+        show = "never";
         title.format = "{audio}{index}: {current_title}";
         title.format_pinned = "{audio}{index}";
         wrap = true;

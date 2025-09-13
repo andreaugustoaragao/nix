@@ -23,10 +23,12 @@
         height = 26;
         margin-top = 8;
         modules-left = [
-          "hyprland/workspaces"
+          "clock"
           "hyprland/window"
         ];
-        modules-center = [ ];
+        modules-center = [
+          "hyprland/workspaces"
+        ];
         modules-right = [
           "network"
           "pulseaudio"
@@ -35,24 +37,14 @@
           "disk"
           "group/tray-expander"
           "battery"
-          "clock"
         ];
 
         "hyprland/workspaces" = {
           on-click = "activate";
-          format = "{icon}";
+          format = "{name}";
           format-icons = {
             default = "";
-            "1" = "1";
-            "2" = "2";
-            "3" = "3";
-            "4" = "4";
-            "5" = "5";
-            "6" = "6";
-            "7" = "7";
-            "8" = "8";
-            "9" = "9";
-            active = "󱓻";
+            active = "{name}";
           };
           persistent-workspaces = {
             "1" = [ ];
@@ -384,15 +376,17 @@
       }
 
       #workspaces {
-        background-color: #1f1f28;
+        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
         border-radius: 8px;
-        padding: 2px 8px;
+        padding: 2px 4px;
+        margin: 1px 0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       .modules-center {
         background-color: transparent;
         border-radius: 8px;
-        padding: 2px 8px;
+        padding: 1px 4px;
       }
 
       .modules-right {
@@ -401,26 +395,73 @@
 
       #workspaces button {
         all: initial;
-        padding: 0 6px;
-        margin: 0 1.5px;
-        min-width: 9px;
-        color: #dcd7ba;
+        padding: 2px;
+        margin: 0 1px;
+        min-width: 12px;
+        min-height: 12px;
+        color: #2a2a2a;
+        background-color: #2a2a2a;
+        border-radius: 50%;
+        transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+        border: none;
+        font-size: 9px;
+        font-weight: 500;
       }
 
       #workspaces button.empty {
-        opacity: 0.5;
+        opacity: 0.4;
+        background-color: #1f1f1f;
+        color: #1f1f1f;
+        padding: 2px;
+        min-width: 8px;
+        min-height: 8px;
+        border-radius: 50%;
+        font-size: 9px;
       }
 
       #workspaces button.active {
-        color: #dcd7ba;
+        color: #1f1f28;
+        background: linear-gradient(135deg, #7fb4ca 0%, #658594 100%);
+        border-radius: 5px;
+        font-weight: 600;
+        padding: 3px 10px;
+        min-width: 24px;
+        min-height: 14px;
+        box-shadow: 0 2px 6px rgba(127, 180, 202, 0.3);
+        font-size: 9px;
       }
 
       #workspaces button.focused {
-        color: #dcd7ba;
+        color: #ffffff;
+        background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%);
+        border-radius: 6px;
+        padding: 4px 10px;
+        min-width: 24px;
+        min-height: 16px;
+        box-shadow: 0 2px 6px rgba(129, 199, 132, 0.3);
+        font-size: 9px;
       }
 
       #workspaces button.urgent {
-        color: #c34043;
+        color: #ffffff;
+        background: linear-gradient(135deg, #ef5350 0%, #f44336 100%);
+        border-radius: 6px;
+        padding: 4px 10px;
+        min-width: 24px;
+        min-height: 16px;
+        box-shadow: 0 3px 12px rgba(239, 83, 80, 0.6);
+        font-size: 9px;
+      }
+
+      #workspaces button:hover {
+        background: linear-gradient(135deg, #424242 0%, #303030 100%);
+        color: #ffffff;
+        padding: 3px 8px;
+        min-width: 20px;
+        min-height: 14px;
+        border-radius: 7px;
+        box-shadow: 0 1px 4px rgba(255, 255, 255, 0.1);
+        font-size: 9px;
       }
 
       #window {
