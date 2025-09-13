@@ -73,7 +73,7 @@
         border_size = 2;
         "col.active_border" = "rgb(dcd7ba)";  # Kanagawa foreground
         "col.inactive_border" = "rgba(595959aa)";
-        layout = "dwindle";
+        layout = "master";
         allow_tearing = true;
         resize_on_border = false;
       };
@@ -298,6 +298,9 @@
         
         # Notification control
         "$mainMod, semicolon, exec, makoctl restore --count 3"    # Show last 3 notifications
+        
+        # Waybar toggle
+        "$mainMod, Y, exec, pkill waybar || waybar -c ~/.config/waybar/hyprland-config.json -s ~/.config/waybar/style.css"  # Toggle waybar
         
         # Scroll through workspaces with mouse
         "$mainMod, mouse_down, workspace, e+1"

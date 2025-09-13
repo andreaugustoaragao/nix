@@ -12,8 +12,8 @@ in
     enable = true;
     settings = {
       default_session = {
-        # command = "${pkgs-unstable.niri}/bin/niri-session"; # previous default
-        command = "${pkgs.hyprland}/bin/Hyprland";
+        command = "${pkgs-unstable.niri}/bin/niri-session";
+        # command = "${pkgs.hyprland}/bin/Hyprland";
         user = "aragao";
       };
     };

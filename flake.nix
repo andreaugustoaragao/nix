@@ -10,7 +10,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-
     firefox-addons = {
       url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -32,7 +31,7 @@
         system = "aarch64-linux"; # Change to x86_64-linux if using Intel Mac
         specialArgs = { inherit inputs; };
         modules = [
-          ./configuration.nix
+          ./system
           home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;

@@ -1,8 +1,14 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   imports = [
-    ../hardware-configuration.nix
+    ./hardware-configuration.nix
     ./boot.nix
     ./nix.nix
     ./packages.nix
@@ -19,6 +25,18 @@
     ./nvim.nix
   ];
 
-  time.timeZone = "America/Denver";
-  i18n.defaultLocale = "en_US.UTF-8";
+  config.time.timeZone = "America/Denver";
+  config.i18n.defaultLocale = "en_US.UTF-8";
+
+  # Centralized DPI configuration
+  options.machine.dpi = lib.mkOption {
+    type = lib.types.int;
+    default = 144;
+    description = "Default DPI to be used system-wide for X11 and applications";
+  };
+
+  config = {
+    system.stateVersion = "24.11";
+  }; # All other system config moved under ./system
+
 }

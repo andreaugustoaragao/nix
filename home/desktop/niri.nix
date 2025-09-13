@@ -1,19 +1,28 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
     // Niri configuration with Hyprland-like keybindings
-    
+
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {
         // Default configuration for all outputs
         scale 2.0
     }
-    
+
+    // Define workspaces with numbers
+
     // Spawn programs on startup (Waybar with niri config; others managed by systemd user services)
-    spawn-at-startup "waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css"
+    spawn-at-startup "waybar" "-c" "~/.config/waybar/niri-config.json" "-s" "~/.config/waybar/style.css"
     spawn-at-startup "prlcc"
+
 
     // Environment variables
     environment {
@@ -231,6 +240,8 @@
         Mod+0 { focus-workspace 10; }
 
         // Move window to workspace
+
+
         Mod+Shift+1 { move-column-to-workspace 1; }
         Mod+Shift+2 { move-column-to-workspace 2; }
         Mod+Shift+3 { move-column-to-workspace 3; }
@@ -258,6 +269,9 @@
 
         // Notification control
         Mod+Semicolon { spawn "makoctl" "restore"; }
+
+        // Waybar toggle
+        Mod+Y { spawn "sh" "-c" "pkill waybar || waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css"; }
 
         // Media keys
         XF86AudioRaiseVolume { spawn "pamixer" "-i" "5"; }
