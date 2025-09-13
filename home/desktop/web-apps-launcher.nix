@@ -62,8 +62,8 @@ let
       sha256 = "sha256-IXEiZv0BxEfja0Rh/4YSRzXEg8iSElLAEfCkNUcDFVI=";
     };
     m1finance = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/m1-finance.png";
-      sha256 = lib.fakeSha256;
+      url = "https://cdn.iconscout.com/icon/premium/png-512-thumb/money-management-icon-svg-download-png-10229961.png";
+      sha256 = "sha256-NMaI88xHjSqZ2TIriyAb1/9xDZblRarhiVRvg26nudQ=";
     };
     reddit = pkgs.fetchurl {
       url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/reddit.png";
@@ -108,7 +108,7 @@ in
       ChatGPT|${webAppIcons.chatgpt}|https://chat.openai.com|app
       Claude|${webAppIcons.claude}|https://claude.ai|app
       YouTube|${webAppIcons.youtube}|https://youtube.com|app
-      M1 Finance|💰|https://m1.com|app
+      M1 Finance|${webAppIcons.m1finance}|https://m1.com|app
       Reddit|${webAppIcons.reddit}|https://reddit.com|app
       WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app"
 

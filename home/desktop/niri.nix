@@ -102,7 +102,7 @@
     }
 
     window-rule {
-        match app-id="pavucontrol"
+        match app-id="org.pulseaudio.pavucontrol"
         open-floating true
         default-column-width { fixed 800; }
         open-on-output "current"

@@ -420,11 +420,10 @@
       }
 
       #workspaces {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        background-color: #1f1f28;
         border-radius: 8px;
         padding: 2px 4px;
         margin: 1px 0;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       .modules-center {
@@ -471,7 +470,7 @@
         padding: 3px 10px;
         min-width: 24px;
         min-height: 14px;
-        box-shadow: 0 2px 6px rgba(127, 180, 202, 0.3);
+        box-shadow: 0 2px 6px rgba(127, 180, 202, 0.4);
         font-size: 9px;
       }
 
@@ -511,12 +510,12 @@
       #window {
         margin: 0 4px;
         padding: 4px 12px;
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        background-color: #16161d;
         color: #dcd7ba;
         border-radius: 8px;
         font-weight: normal;
         min-width: 200px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        border: 1px solid #54546d;
       }
 
       #tray,
@@ -534,124 +533,105 @@
         margin: 0 4px;
         padding: 2px 8px;
         border-radius: 8px;
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        background-color: #1f1f28;
         color: #dcd7ba;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        font-weight: 500;
       }
 
       #network {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #76946a;
-        font-weight: 600;
-      }
-
-      #pulseaudio {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #ffa066;
-        font-weight: 600;
-      }
-
-      #cpu {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #7e9cd8;
-        font-weight: 600;
-      }
-
-      #memory {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #957fb8;
-        font-weight: 600;
-      }
-
-      #disk {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #c0a36e;
-        font-weight: 600;
-      }
-
-      #battery {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #98bb6c;
-        font-weight: 600;
-      }
-
-      #battery.warning {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #e6c384;
-        font-weight: 600;
-      }
-
-      #battery.critical {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #c34043;
-        font-weight: 600;
+        background-color: #76946a;
+        color: #1f1f28;
       }
 
       #network.disconnected {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #c34043;
-        font-weight: 600;
+        background-color: #c34043;
+        color: #dcd7ba;
+      }
+
+      #pulseaudio {
+        background-color: #ffa066;
+        color: #1f1f28;
       }
 
       #pulseaudio.muted {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #727169;
-        font-weight: 600;
+        background-color: #727169;
+        color: #dcd7ba;
+      }
+
+      #cpu {
+        background-color: #7e9cd8;
+        color: #1f1f28;
+      }
+
+      #memory {
+        background-color: #957fb8;
+        color: #1f1f28;
+      }
+
+      #disk {
+        background-color: #c0a36e;
+        color: #1f1f28;
+      }
+
+      #battery {
+        background-color: #98bb6c;
+        color: #1f1f28;
+      }
+
+      #battery.warning {
+        background-color: #e6c384;
+        color: #1f1f28;
+      }
+
+      #battery.critical {
+        background-color: #c34043;
+        color: #dcd7ba;
+      }
+
+      #idle_inhibitor {
+        background-color: #e6c384;
+        color: #1f1f28;
+      }
+
+      #idle_inhibitor.activated {
+        background-color: #98bb6c;
+        color: #1f1f28;
+      }
+
+      #privacy {
+        background-color: #c34043;
+        color: #dcd7ba;
+      }
+
+      #systemd-failed-units {
+        background-color: #98bb6c;
+        color: #1f1f28;
+      }
+
+      #systemd-failed-units.degraded {
+        background-color: #c34043;
+        color: #dcd7ba;
       }
 
       #custom-expand-icon {
         margin-right: 4px;
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        background-color: #54546d;
         color: #dcd7ba;
         padding: 2px 8px;
         border-radius: 8px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #tray {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+        background-color: #54546d;
         color: #dcd7ba;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       #clock {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #7fb4ca;
-        font-weight: 600;
+        background-color: #7fb4ca;
+        color: #1f1f28;
         margin-right: 8px;
         border-radius: 8px;
         padding: 2px 8px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      }
-
-      #idle_inhibitor {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #e6c384;
-        font-weight: 600;
-      }
-
-      #idle_inhibitor.activated {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #98bb6c;
-        font-weight: 600;
-      }
-
-      #privacy {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #c34043;
-        font-weight: 600;
-      }
-
-      #systemd-failed-units {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #98bb6c;
-        font-weight: 600;
-      }
-
-      #systemd-failed-units.degraded {
-        background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
-        color: #c34043;
-        font-weight: 600;
       }
 
       tooltip {

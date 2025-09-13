@@ -196,8 +196,10 @@
         "tag +chromium-based-browser, class:([cC]hrom(e|ium)|[bB]rave-browser|Microsoft-edge|Vivaldi-stable)"
         "tag +firefox-based-browser, class:(Firefox|librewolf)"
         
-        # Original rules
-        "float, class:^(pavucontrol)$"
+        # Audio controls
+        "float, class:^(org.pulseaudio.pavucontrol)$"
+        "center, class:^(org.pulseaudio.pavucontrol)$"
+        "size 800 600, class:^(org.pulseaudio.pavucontrol)$"
       ];
 
       # Key bindings (Omarchy style)
