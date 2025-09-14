@@ -1,11 +1,6 @@
 [user]
 name = "aragao"
-fullName = "Aragao"
-email = "aragao@example.com"
-authorizedKeys = [
-    # Add your SSH public keys here
-]
-initialPassword = "changeme"
+fullName = "Andre Aragao"
 
 [machines.workstation]
 hostName = "workstation"
