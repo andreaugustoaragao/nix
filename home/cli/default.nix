@@ -118,6 +118,7 @@
     ouch
     zellij
     helix
+    yazi
     
     # Development tools that moved to development.nix:
     # - All language servers, compilers, and dev tools

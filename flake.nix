@@ -26,22 +26,72 @@
       firefox-addons,
       ...
     }@inputs:
+    let
+      metadata = builtins.fromTOML (builtins.readFile ./machines.toml);
+      lib = nixpkgs.lib;
+
+      # Get username for the platform
+      getUserName = name: host:
+        let
+          fullName = lib.splitString " " (lib.toLower metadata.users.${name}.fullName);
+        in
+        lib.head fullName;
+
+      # Set special args for each machine
+      setSpecialArgs = host: {
+        isWorkstation = (host.profile == "workstation");
+        isLaptop = (host.profile == "laptop");
+        isVm = (host.profile == "vm");
+        owner = metadata.users.${metadata.owner.name} // {
+          name = getUserName metadata.owner.name host;
+        };
+        inherit (host) hostName stateVersion profile;
+        inherit inputs;
+      };
+
+      # Set Home Manager template
+      setHomeManagerTemplate = host: {
+        home-manager = {
+          useUserPackages = true;
+          useGlobalPkgs = true;
+          extraSpecialArgs = setSpecialArgs host;
+          users.${getUserName metadata.owner.name host} = import ./home;
+          backupFileExtension = "hm-backup-$(date +%Y%m%d-%H%M%S)";
+        };
+      };
+    in
     {
-      nixosConfigurations.parallels-nixos = nixpkgs.lib.nixosSystem {
-        system = "aarch64-linux"; # Change to x86_64-linux if using Intel Mac
-        specialArgs = { inherit inputs; };
-        modules = [
-          ./system
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.users.aragao = import ./home;
-            home-manager.extraSpecialArgs = { inherit inputs; };
-            # Use timestamp-based backup extension to avoid conflicts
-            home-manager.backupFileExtension = "hm-backup-$(date +%Y%m%d-%H%M%S)";
-          }
-        ];
+      # NixOS configurations for all machines
+      nixosConfigurations = (builtins.mapAttrs (
+        machineName: host:
+        nixpkgs.lib.nixosSystem {
+          system = host.platform;
+          specialArgs = setSpecialArgs host;
+          modules = [
+            # Hardware configuration
+            (./hardware + "/${machineName}" + /hardware-configuration.nix)
+            # System configuration
+            ./system
+            # Home Manager configuration
+            home-manager.nixosModules.home-manager
+            (setHomeManagerTemplate host)
+          ];
+        }
+      ) metadata.machines) // {
+        # Temporary backward compatibility alias for current hostname
+        "parallels-nixos" = nixpkgs.lib.nixosSystem {
+          system = metadata.machines.parallels-vm.platform;
+          specialArgs = setSpecialArgs metadata.machines.parallels-vm;
+          modules = [
+            # Hardware configuration  
+            (./hardware + "/parallels-vm" + /hardware-configuration.nix)
+            # System configuration
+            ./system
+            # Home Manager configuration
+            home-manager.nixosModules.home-manager
+            (setHomeManagerTemplate metadata.machines.parallels-vm)
+          ];
+        };
       };
     };
 }

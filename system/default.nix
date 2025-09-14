@@ -3,12 +3,18 @@
   pkgs,
   lib,
   inputs,
+  isWorkstation,
+  isLaptop, 
+  isVm,
+  owner,
+  hostName,
+  stateVersion,
+  profile,
   ...
 }:
 
 {
   imports = [
-    ./hardware-configuration.nix
     ./boot.nix
     ./nix.nix
     ./packages.nix
@@ -25,9 +31,6 @@
     ./nvim.nix
   ];
 
-  config.time.timeZone = "America/Denver";
-  config.i18n.defaultLocale = "en_US.UTF-8";
-
   # Centralized DPI configuration
   options.machine.dpi = lib.mkOption {
     type = lib.types.int;
@@ -36,7 +39,13 @@
   };
 
   config = {
-    system.stateVersion = "24.11";
-  }; # All other system config moved under ./system
+    # Set hostname and state version from metadata
+    networking.hostName = hostName;
+    system.stateVersion = stateVersion;
+    
+    # Common configuration
+    time.timeZone = "America/Denver";
+    i18n.defaultLocale = "en_US.UTF-8";
+  };
 
 }

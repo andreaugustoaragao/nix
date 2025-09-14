@@ -1,7 +1,7 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  networking.hostName = "parallels-nixos";
+  # hostname is now set in system/default.nix from metadata
   systemd.network.enable = true;
   networking.useNetworkd = true;
   networking.useDHCP = false;

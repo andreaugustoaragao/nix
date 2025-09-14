@@ -60,6 +60,7 @@
       # Common shortcuts
       c = "clear";
       h = "history";
+      y = "yazi";
       grep = "grep --color=auto";
       cat = "cat -v";
       mkdir = "mkdir -p";

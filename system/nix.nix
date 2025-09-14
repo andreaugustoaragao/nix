@@ -33,7 +33,9 @@
     serviceConfig.Type = "oneshot";
     script = ''
       cd /home/aragao/projects/personal/nix
-      ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#parallels-nixos --upgrade-all
+      HOSTNAME=$(hostname)
+      echo "Auto-upgrading machine: $HOSTNAME"
+      ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#$HOSTNAME --upgrade-all
     '';
   };
 
@@ -43,7 +45,7 @@
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    path = [ pkgs.inotifyTools pkgs.libnotify pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.gawk pkgs.git ];
+    path = [ pkgs.inotifyTools pkgs.libnotify pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.gawk pkgs.git pkgs.nixos-rebuild pkgs.nettools ];
     serviceConfig = {
       Type = "simple";
       Restart = "always";
@@ -55,7 +57,7 @@
       set -euo pipefail
 
       CONFIG_DIR="/home/aragao/projects/personal/nix"
-      FLAKE_NAME="parallels-nixos"
+      FLAKE_NAME=$(hostname)
 
       log() {
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -86,7 +88,7 @@
       while read -r _; do
         log "Change detected. Rebuilding..."
         start=$(date +%s)
-        if ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake "$CONFIG_DIR#$FLAKE_NAME" 2>&1; then
+        if nixos-rebuild switch --flake "$CONFIG_DIR#$FLAKE_NAME" 2>&1; then
           dur=$(( $(date +%s) - start ))
           log "Rebuild complete in ''${dur}s"
           send_notification "✅ NixOS Rebuild Complete" "Updated successfully in ''${dur}s" normal
