@@ -220,7 +220,7 @@
       };
 
       "systemd-failed-units" = {
-        hide-on-ok = false;
+        hide-on-ok = true;
         format = "✗ {nr_failed}";
         format-ok = "✓";
         system = true;
@@ -257,16 +257,12 @@
 
       "niri/workspaces" = {
         on-click = "activate";
-        format = "{name}";
+        current-only = true;
+        format = "{index}";
+        expand = true;
         format-icons = {
           default = "";
           active = "{name}";
-        };
-        persistent-workspaces = {
-          "1" = [ ];
-          "2" = [ ];
-          "3" = [ ];
-          "4" = [ ];
         };
       };
 
@@ -667,6 +663,7 @@
         margin-right: 6px;
         border-radius: 6px;
         padding: 1px 6px;
+        font-weight: bold;
       }
 
       tooltip {
