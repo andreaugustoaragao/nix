@@ -5,16 +5,19 @@
   systemd.user.services.notes-sync = {
     Unit = {
       Description = "Sync notes directory with GitHub";
-      After = [ "network-online.target" ];
-      Wants = [ "network-online.target" ];
+      After = [ "network-online.target" "ssh-agent.service" "ssh-add-keys.service" ];
+      Wants = [ "network-online.target" "ssh-agent.service" ];
+      Requires = [ "ssh-add-keys.service" ];
     };
     
     Service = {
       Type = "oneshot";
       WorkingDirectory = "%h/projects/work/notes";
       Environment = [
-        "SSH_AUTH_SOCK=%t/gnupg/S.gpg-agent.ssh"
-        "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new"
+        "SSH_AUTH_SOCK=%t/ssh-agent"
+        "SSH_ASKPASS=${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
+        "DISPLAY=:0"
+        "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new -i %h/.ssh/id_rsa_work"
       ];
       
       # Script to sync notes with git
@@ -39,34 +42,69 @@
         trap handle_error ERR
         
         NOTES_DIR="$HOME/projects/work/notes"
+        REMOTE_URL="git@github-work:andrearagao/notes.git"
         
-        # Ensure notes directory exists
-        mkdir -p "$NOTES_DIR"
-        cd "$NOTES_DIR"
-        
-        # Initialize git repo if it doesn't exist
-        if [[ ! -d .git ]]; then
-          echo "Initializing git repository..."
-          ${pkgs.git}/bin/git init
-          ${pkgs.git}/bin/git config user.name "Notes Sync Service"
-          ${pkgs.git}/bin/git config user.email "aragao@avaya.com"
+        # Clone or configure the repository
+        if [[ ! -d "$NOTES_DIR/.git" ]]; then
+          echo "Notes directory doesn't exist or is not a git repository"
           
-          # Add a README if the repo is empty
-          if [[ ! -f README.md ]]; then
+          # If directory exists but is not a git repo, back it up
+          if [[ -d "$NOTES_DIR" ]] && [[ ! -d "$NOTES_DIR/.git" ]]; then
+            echo "Backing up existing notes directory..."
+            BACKUP_DIR="$HOME/projects/work/notes.backup.$(date +%Y%m%d-%H%M%S)"
+            mv "$NOTES_DIR" "$BACKUP_DIR"
+            notify "📝 Notes Sync" "Backed up existing notes to: $BACKUP_DIR"
+          fi
+          
+          # Ensure parent directory exists
+          mkdir -p "$(dirname "$NOTES_DIR")"
+          
+          echo "Attempting to clone existing repository..."
+          if ${pkgs.git}/bin/git clone "$REMOTE_URL" "$NOTES_DIR"; then
+            echo "Successfully cloned existing repository"
+            notify "📝 Notes Sync" "Cloned existing notes repository from GitHub"
+          else
+            echo "Clone failed (repository might not exist), creating new repository..."
+            mkdir -p "$NOTES_DIR"
+            cd "$NOTES_DIR"
+            ${pkgs.git}/bin/git init
+            
+            # Add a README for new repository
             cat > README.md <<EOF
-        # Work Notes
+# Work Notes
 
-        This repository contains my work notes, automatically synced via systemd service.
+This repository contains my work notes, automatically synced via systemd service.
 
-        ## Structure
-        - Notes are stored as Markdown files (.md)
-        - Subdirectories are supported for organization
-        - Auto-synced every 30 minutes
+## Structure
+- Notes are stored as Markdown files (.md)
+- Subdirectories are supported for organization
+- Auto-synced every 15 minutes
 
-        Created: $(date '+%Y-%m-%d %H:%M:%S')
-        EOF
+Created: $(date '+%Y-%m-%d %H:%M:%S')
+EOF
+            ${pkgs.git}/bin/git add README.md
+            ${pkgs.git}/bin/git commit -m "Initial commit: Add README"
+            
+            # Set up remote and push
+            ${pkgs.git}/bin/git remote add origin "$REMOTE_URL"
+            echo "Pushing initial commit to remote..."
+            if ! ${pkgs.git}/bin/git push -u origin main; then
+              echo "Failed to push initial commit - repository might not exist on GitHub"
+              notify "⚠️ Notes Sync Warning" "Created local repository but couldn't push to GitHub. Please create the repository on GitHub." "normal"
+            else
+              notify "📝 Notes Sync" "Created and pushed new notes repository to GitHub"
+            fi
           fi
         fi
+        
+        # Ensure we're in the correct directory
+        cd "$NOTES_DIR"
+        
+        # Configure git settings (in case they're not set)
+        ${pkgs.git}/bin/git config user.name "andrearagao"
+        ${pkgs.git}/bin/git config user.email "aragao@avaya.com"
+        ${pkgs.git}/bin/git config user.signingkey "D8BAA25EFB1D5C5F"
+        ${pkgs.git}/bin/git config commit.gpgsign true
         
         # Add all changes
         ${pkgs.git}/bin/git add .

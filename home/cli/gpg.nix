@@ -54,6 +54,32 @@
     enable = true;
   };
 
+  # Systemd user service to add SSH keys after agent starts
+  systemd.user.services.ssh-add-keys = {
+    Unit = {
+      Description = "Add SSH keys to agent";
+      After = [ "ssh-agent.service" "graphical-session.target" ];
+      Wants = [ "ssh-agent.service" ];
+      ConditionPathExists = [
+        "%h/.ssh/id_rsa_personal"
+        "%h/.ssh/id_rsa_work"
+      ];
+    };
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.openssh}/bin/ssh-add %h/.ssh/id_rsa_personal %h/.ssh/id_rsa_work";
+      Environment = [ 
+        "SSH_AUTH_SOCK=%t/ssh-agent"
+        "SSH_ASKPASS=${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
+        "DISPLAY=:0"
+      ];
+      RemainAfterExit = true;
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
   # SSH configuration with sops-sourced identity files
   programs.ssh = {
     enable = true;
@@ -87,22 +113,26 @@
   # Environment setup for SOPS age key and SSH agent
   home.sessionVariables = {
     SOPS_AGE_KEY_FILE = "/home/aragao/.ssh/id_ed25519_nixos-agenix";
+    SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
     # Let SSH agent service handle SSH_AUTH_SOCK
   };
   
-  # Shell initialization to ensure SOPS age key is available
+  # Shell initialization to ensure SOPS age key and SSH askpass are available
   programs.bash.initExtra = ''
     export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
   
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
   
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
 
@@ -111,6 +141,7 @@
     gnupg
     pinentry-gtk2
     paperkey  # For backing up GPG keys to paper
+    kdePackages.ksshaskpass  # For SSH passphrase prompts in GUI
   ];
 
   # Auto-import GPG keys from sops-managed secrets (if available)
