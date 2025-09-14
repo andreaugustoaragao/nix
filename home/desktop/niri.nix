@@ -9,7 +9,9 @@
 {
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
-    // Niri configuration with Hyprland-like keybindings
+    workspace "1" 
+    workspace "2" 
+    workspace "3"
 
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {

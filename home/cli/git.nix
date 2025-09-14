@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  owner,
   ...
 }:
 
@@ -26,7 +27,7 @@
     # Conditional includes for different directories
     includes = [
       {
-        condition = "gitdir:/home/aragao/projects/personal/";
+        condition = "gitdir:/home/${owner.name}/projects/personal/";
         contents = {
           user = {
             name = "andreaugustoaragao";
@@ -36,7 +37,7 @@
         };
       }
       {
-        condition = "gitdir:/home/aragao/projects/work/";
+        condition = "gitdir:/home/${owner.name}/projects/work/";
         contents = {
           user = {
             name = "andrearagao";

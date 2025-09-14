@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, owner, ... }:
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
@@ -14,7 +14,7 @@ in
       default_session = {
         command = "${pkgs-unstable.niri}/bin/niri-session";
         # command = "${pkgs.hyprland}/bin/Hyprland";
-        user = "aragao";
+        user = owner.name;
       };
     };
   };

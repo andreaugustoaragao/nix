@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, owner, ... }:
 
 {
 
@@ -16,7 +16,7 @@
   programs.git = {
     enable = true;
     config = {
-      safe = { directory = [ "/home/aragao/projects/personal/nix" ]; };
+      safe = { directory = [ "/home/${owner.name}/projects/personal/nix" ]; };
     };
   };
 
@@ -32,7 +32,7 @@
   systemd.services.auto-upgrade = {
     serviceConfig.Type = "oneshot";
     script = ''
-      cd /home/aragao/projects/personal/nix
+      cd /home/${owner.name}/projects/personal/nix
       HOSTNAME=$(hostname)
       echo "Auto-upgrading machine: $HOSTNAME"
       ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#$HOSTNAME --upgrade-all
@@ -56,7 +56,7 @@
     script = ''
       set -euo pipefail
 
-      CONFIG_DIR="/home/aragao/projects/personal/nix"
+      CONFIG_DIR="/home/${owner.name}/projects/personal/nix"
       FLAKE_NAME=$(hostname)
 
       log() {
@@ -69,7 +69,7 @@
         local message="$2"
         local urgency="''${3:-normal}"
 
-        user="aragao"
+        user="${owner.name}"
         uid=$(id -u "$user")
         user_bus="unix:path=/run/user/''${uid}/bus"
 

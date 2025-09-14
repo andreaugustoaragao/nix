@@ -1,9 +1,9 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, owner, ... }:
 
 {
-  users.users.aragao = {
+  users.users.${owner.name} = {
     isNormalUser = true;
-    description = "Andre Aragao";
+    description = owner.fullName;
     extraGroups = [ "wheel" "audio" "video" "docker" "input" ];
     shell = pkgs.zsh;
   };
@@ -21,8 +21,8 @@
     enable = true;
     extraConfig = ''
       Defaults timestamp_timeout=60
-      # Allow aragao to run nixos-rebuild without password for auto-rebuild service
-      aragao ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/nixos-rebuild
+      # Allow ${owner.name} to run nixos-rebuild without password for auto-rebuild service
+      ${owner.name} ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/nixos-rebuild
     '';
   };
 } 

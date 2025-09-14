@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, owner, ... }:
 
 {
   # Import LazyVim configuration
@@ -9,8 +9,8 @@
     ./fonts.nix
   ];
   
-  home.username = "aragao";
-  home.homeDirectory = "/home/aragao";
+  home.username = owner.name;
+  home.homeDirectory = "/home/${owner.name}";
   home.stateVersion = "24.11";  # Auto-rebuild test
 
   # Let Home Manager manage itself

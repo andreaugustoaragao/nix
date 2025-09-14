@@ -5,9 +5,8 @@
   systemd.user.services.notes-sync = {
     Unit = {
       Description = "Sync notes directory with GitHub";
-      After = [ "network-online.target" "ssh-agent.service" "ssh-add-keys.service" ];
+      After = [ "network-online.target" "ssh-agent.service" ];
       Wants = [ "network-online.target" "ssh-agent.service" ];
-      Requires = [ "ssh-add-keys.service" ];
     };
     
     Service = {
@@ -17,6 +16,9 @@
         "SSH_AUTH_SOCK=%t/ssh-agent"
         "SSH_ASKPASS=${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
         "DISPLAY=:0"
+        "QT_QPA_PLATFORM=wayland"
+        "GPG_TTY=/dev/null"
+        "PINENTRY_USER_DATA=qt"
         "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new -i %h/.ssh/id_rsa_work"
       ];
       
