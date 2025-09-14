@@ -32,13 +32,6 @@
     ./sops.nix
   ];
 
-  # Centralized DPI configuration
-  options.machine.dpi = lib.mkOption {
-    type = lib.types.int;
-    default = 144;
-    description = "Default DPI to be used system-wide for X11 and applications";
-  };
-
   config = {
     # Set hostname and state version from metadata
     networking.hostName = hostName;
