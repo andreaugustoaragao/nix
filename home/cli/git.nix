@@ -18,7 +18,10 @@
       push.autoSetupRemote = true;
       commit.gpgsign = true;
       tag.gpgsign = true;
-      # GPG program will be set automatically by programs.gpg
+      # Automatically select GPG key based on email address
+      gpg.program = "${pkgs.gnupg}/bin/gpg";
+      # Use default key selection based on email
+      user.signingkey = "";
     };
 
     # Conditional includes for different directories
@@ -29,7 +32,7 @@
           user = {
             name = "andreaugustoaragao";
             email = "andrearag@gmail.com";
-            signingkey = "74CCE1A4F133BE6F";
+            # GPG key will be automatically selected based on email
           };
         };
       }
@@ -39,7 +42,7 @@
           user = {
             name = "andrearagao";
             email = "aragao@avaya.com";
-            signingkey = "792E9235301AC862";
+            # GPG key will be automatically selected based on email
           };
         };
       }

@@ -257,7 +257,7 @@
 
       "niri/workspaces" = {
         on-click = "activate";
-        format = "{index}";
+        format = "{name}";
         format-icons = {
           default = "";
           active = "{name}";
@@ -447,7 +447,7 @@
         border-radius: 0;
         min-height: 0;
         font-family: CaskaydiaMono Nerd Font;
-        font-size: 12px;
+        font-size: 11px;
       }
 
       .modules-left {
@@ -456,15 +456,15 @@
 
       #workspaces {
         background-color: #1f1f28;
-        border-radius: 8px;
-        padding: 2px 4px;
-        margin: 1px 0;
+        border-radius: 6px;
+        padding: 1px 3px;
+        margin: 0;
       }
 
       .modules-center {
         background-color: transparent;
-        border-radius: 8px;
-        padding: 1px 4px;
+        border-radius: 6px;
+        padding: 0 2px;
       }
 
       .modules-right {
@@ -564,10 +564,10 @@
       #privacy,
       #systemd-failed-units,
       #custom-media {
-        min-width: 12px;
-        margin: 0 4px;
-        padding: 2px 8px;
-        border-radius: 8px;
+        min-width: 10px;
+        margin: 0 2px;
+        padding: 1px 6px;
+        border-radius: 6px;
         background-color: #1f1f28;
         color: #dcd7ba;
         font-weight: 500;
@@ -664,9 +664,9 @@
       #clock {
         background-color: #98bb6c;
         color: #1f1f28;
-        margin-right: 8px;
-        border-radius: 8px;
-        padding: 2px 8px;
+        margin-right: 6px;
+        border-radius: 6px;
+        padding: 1px 6px;
       }
 
       tooltip {

@@ -15,6 +15,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =
@@ -24,6 +29,7 @@
       nixpkgs-unstable,
       home-manager,
       firefox-addons,
+      sops-nix,
       ...
     }@inputs:
     let
@@ -72,6 +78,8 @@
             (./hardware + "/${machineName}" + /hardware-configuration.nix)
             # System configuration
             ./system
+            # Secrets management
+            sops-nix.nixosModules.sops
             # Home Manager configuration
             home-manager.nixosModules.home-manager
             (setHomeManagerTemplate host)
@@ -87,6 +95,8 @@
             (./hardware + "/parallels-vm" + /hardware-configuration.nix)
             # System configuration
             ./system
+            # Secrets management
+            sops-nix.nixosModules.sops
             # Home Manager configuration
             home-manager.nixosModules.home-manager
             (setHomeManagerTemplate metadata.machines.parallels-vm)

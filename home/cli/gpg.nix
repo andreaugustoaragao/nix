@@ -30,19 +30,14 @@
     };
   };
 
-  # GPG Agent configuration with SSH support
+  # GPG Agent configuration (for signing only, not SSH)
   services.gpg-agent = {
     enable = true;
     # Cache timeout settings
     defaultCacheTtl = 1800;      # 30 minutes
     maxCacheTtl = 7200;          # 2 hours
-    # Enable SSH support for GitHub authentication
-    enableSshSupport = true;
-    # Configure SSH keys from GPG authentication subkeys
-    sshKeys = [
-      "13128BA224F28F0BF32C4015BB454EA017882BE4"  # Authentication subkey for aragao@avaya.com (work)
-      "40185914523897FAE34BCE186C76425E6FC5391F"  # Authentication subkey for andrearag@gmail.com (personal)
-    ];
+    # Disable SSH support - we're using regular SSH keys
+    enableSshSupport = false;
     # Pin entry program for GUI password prompts
     pinentry.package = pkgs.pinentry-gtk2;
     # Extra configuration
@@ -54,25 +49,29 @@
     '';
   };
 
-  # SSH configuration - use different approaches for different hosts
+  # SSH configuration with sops-sourced identity files
   programs.ssh = {
     enable = true;
     
-    extraConfig = ''
-      # GitHub work account - use GPG agent (default)
-      Host github.com github.com-work
-        HostName github.com
-        User git
-        PreferredAuthentications publickey
-        IdentityAgent "''${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh"
-        
-      # GitHub personal account - use GPG agent, let SSH try both keys
-      Host github.com-personal
-        HostName github.com
-        User git  
-        PreferredAuthentications publickey
-        IdentityAgent "''${XDG_RUNTIME_DIR}/gnupg/S.gpg-agent.ssh"
-    '';
+    # GitHub configurations using sops-managed SSH keys
+    matchBlocks = {
+      "github-personal" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/id_rsa_personal";  # From sops
+        identitiesOnly = true;
+      };
+      
+      "github-work" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/id_rsa_work";     # From sops
+        identitiesOnly = true;
+      };
+    };
+    
+    # Add keys to SSH agent (regular SSH agent, not GPG agent)
+    addKeysToAgent = "yes";
     
     # Default SSH settings
     compression = true;
@@ -80,22 +79,22 @@
     serverAliveCountMax = 3;
   };
 
-  # Environment setup for SSH with GPG agent
+  # Environment setup for SOPS age key
   home.sessionVariables = {
-    SSH_AUTH_SOCK = "$(gpgconf --list-dirs agent-ssh-socket)";
+    SOPS_AGE_KEY_FILE = "/home/aragao/.ssh/id_ed25519_nixos-agenix";
   };
   
-  # Shell initialization to ensure SSH_AUTH_SOCK is set properly
+  # Shell initialization to ensure SOPS age key is available
   programs.bash.initExtra = ''
-    export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+    export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
   '';
   
   programs.fish.interactiveShellInit = ''
-    set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
+    set -gx SOPS_AGE_KEY_FILE "/home/aragao/.ssh/id_ed25519_nixos-agenix"
   '';
   
   programs.zsh.initContent = lib.mkBefore ''
-    export SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+    export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
   '';
 
   # Install GPG-related packages
@@ -104,4 +103,29 @@
     pinentry-gtk2
     paperkey  # For backing up GPG keys to paper
   ];
+
+  # Auto-import GPG keys from sops-managed secrets (if available)
+  home.activation.importGPG = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    # Import personal GPG key if it exists and is not a placeholder
+    GPG_PERSONAL="/run/secrets/gpg_key_personal"
+    if [[ -f "$GPG_PERSONAL" ]] && [[ "$(cat $GPG_PERSONAL)" != "placeholder" ]]; then
+      ${pkgs.gnupg}/bin/gpg --batch --import "$GPG_PERSONAL" 2>/dev/null || true
+      # Set ultimate trust for imported personal key
+      PERSONAL_KEYID=$(${pkgs.gnupg}/bin/gpg --list-keys --with-colons andrearag@gmail.com | ${pkgs.gawk}/bin/awk -F: '/^pub:/ {print $5}' | ${pkgs.coreutils}/bin/head -1)
+      if [[ -n "$PERSONAL_KEYID" ]]; then
+        echo "$PERSONAL_KEYID:6:" | ${pkgs.gnupg}/bin/gpg --batch --import-ownertrust 2>/dev/null || true
+      fi
+    fi
+    
+    # Import work GPG key if it exists and is not a placeholder  
+    GPG_WORK="/run/secrets/gpg_key_work"
+    if [[ -f "$GPG_WORK" ]] && [[ "$(cat $GPG_WORK)" != "placeholder" ]]; then
+      ${pkgs.gnupg}/bin/gpg --batch --import "$GPG_WORK" 2>/dev/null || true
+      # Set ultimate trust for imported work key
+      WORK_KEYID=$(${pkgs.gnupg}/bin/gpg --list-keys --with-colons aragao@avaya.com | ${pkgs.gawk}/bin/awk -F: '/^pub:/ {print $5}' | ${pkgs.coreutils}/bin/head -1)
+      if [[ -n "$WORK_KEYID" ]]; then
+        echo "$WORK_KEYID:6:" | ${pkgs.gnupg}/bin/gpg --batch --import-ownertrust 2>/dev/null || true
+      fi
+    fi
+  '';
 }
