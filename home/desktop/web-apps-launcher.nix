@@ -63,7 +63,7 @@ let
     };
     m1finance = pkgs.fetchurl {
       url = "https://cdn.iconscout.com/icon/premium/png-512-thumb/money-management-icon-svg-download-png-10229961.png";
-      sha256 = "sha256-NMaI88xHjSqZ2TIriyAb1/9xDZblRarhiVRvg26nudQ=";
+      sha256 = "sha256-WARq9Xar0POF7wnzyseTE1K2ZFVahjkUT4b91kgDKh8=";
     };
     reddit = pkgs.fetchurl {
       url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/reddit.png";
