@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, owner, ... }:
 
 {
   services.openssh = {
@@ -8,5 +8,9 @@
       KbdInteractiveAuthentication = true;
       PermitRootLogin = "no";  # Keep root login disabled for security
     };
+    # Enable SSH key authentication between machines
+    authorizedKeysFiles = [
+      "/home/${owner.name}/.ssh/id_rsa_personal.pub"
+    ];
   };
 } 

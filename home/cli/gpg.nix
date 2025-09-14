@@ -85,6 +85,14 @@
   programs.ssh = {
     enable = true;
     
+    # Default configuration for personal machines
+    extraConfig = ''
+      # Use personal key as default for machine-to-machine communication
+      IdentityFile ~/.ssh/id_rsa_personal
+      # Enable SSH agent forwarding
+      ForwardAgent yes
+    '';
+    
     # GitHub configurations using sops-managed SSH keys
     matchBlocks = {
       "github-personal" = {
