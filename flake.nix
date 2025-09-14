@@ -37,11 +37,7 @@
       lib = nixpkgs.lib;
 
       # Get username for the platform
-      getUserName = user: host:
-        let
-          fullName = lib.splitString " " (lib.toLower user.fullName);
-        in
-        lib.head fullName;
+      getUserName = user: host: user.name;
 
       # Set special args for each machine
       setSpecialArgs = host: {
