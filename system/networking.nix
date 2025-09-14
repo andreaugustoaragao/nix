@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, hasWireless, wirelessInterface, ... }:
+{ config, pkgs, lib, inputs, wirelessInterface, ... }:
 
 {
   # hostname is now set in system/default.nix from metadata
@@ -21,7 +21,7 @@
   };
 
   # Conditional wireless configuration
-  networking.wireless = lib.mkIf hasWireless {
+  networking.wireless = lib.mkIf (wirelessInterface != null) {
     enable = true;
     interfaces = [ wirelessInterface ];
     # Networks should be configured via wpa_supplicant configuration or secrets
@@ -34,7 +34,7 @@
   };
 
   # Wireless network configuration for systemd-networkd
-  systemd.network.networks."20-wireless" = lib.mkIf hasWireless {
+  systemd.network.networks."20-wireless" = lib.mkIf (wirelessInterface != null) {
     matchConfig.Name = wirelessInterface;
     networkConfig = {
       DHCP = "yes";

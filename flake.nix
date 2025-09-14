@@ -37,9 +37,9 @@
       lib = nixpkgs.lib;
 
       # Get username for the platform
-      getUserName = name: host:
+      getUserName = user: host:
         let
-          fullName = lib.splitString " " (lib.toLower metadata.users.${name}.fullName);
+          fullName = lib.splitString " " (lib.toLower user.fullName);
         in
         lib.head fullName;
 
@@ -48,12 +48,11 @@
         isWorkstation = (host.profile == "workstation");
         isLaptop = (host.profile == "laptop");
         isVm = (host.profile == "vm");
-        owner = metadata.users.${metadata.owner.name} // {
-          name = getUserName metadata.owner.name host;
+        owner = metadata.user // {
+          name = getUserName metadata.user host;
         };
         inherit (host) hostName stateVersion profile;
         # Optional wireless configuration
-        hasWireless = host.hasWireless or false;
         wirelessInterface = host.wirelessInterface or null;
         inherit inputs;
       };
@@ -64,7 +63,7 @@
           useUserPackages = true;
           useGlobalPkgs = true;
           extraSpecialArgs = setSpecialArgs host;
-          users.${getUserName metadata.owner.name host} = import ./home;
+          users.${getUserName metadata.user host} = import ./home;
           backupFileExtension = "hm-backup-$(date +%Y%m%d-%H%M%S)";
         };
       };
