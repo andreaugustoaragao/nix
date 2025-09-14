@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, hasWireless, wirelessInterface, ... }:
 
 {
   # hostname is now set in system/default.nix from metadata
@@ -17,6 +17,34 @@
     };
     ipv6AcceptRAConfig = {
       RouteMetric = 1024;
+    };
+  };
+
+  # Conditional wireless configuration
+  networking.wireless = lib.mkIf hasWireless {
+    enable = true;
+    interfaces = [ wirelessInterface ];
+    # Networks should be configured via wpa_supplicant configuration or secrets
+    # Example:
+    # networks = {
+    #   "MyWiFiNetwork" = {
+    #     psk = "password";
+    #   };
+    # };
+  };
+
+  # Wireless network configuration for systemd-networkd
+  systemd.network.networks."20-wireless" = lib.mkIf hasWireless {
+    matchConfig.Name = wirelessInterface;
+    networkConfig = {
+      DHCP = "yes";
+      IPv6AcceptRA = true;
+    };
+    dhcpV4Config = {
+      RouteMetric = 2048; # Higher metric than ethernet (prefers ethernet when both available)
+    };
+    ipv6AcceptRAConfig = {
+      RouteMetric = 2048;
     };
   };
 

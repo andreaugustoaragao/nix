@@ -14,15 +14,19 @@ hostName = "workstation"
 platform = "x86_64-linux"
 profile = "workstation"
 stateVersion = "25.05"
+hasWireless = false
 
 [machines.hp-laptop]
 hostName = "hp-laptop"
 platform = "x86_64-linux" 
 profile = "laptop"
 stateVersion = "25.05"
+hasWireless = true
+wirelessInterface = "wlp2s0"
 
 [machines.parallels-vm]
 hostName = "parallels-vm"
 platform = "aarch64-linux"
 profile = "vm"
 stateVersion = "25.05"
+hasWireless = false

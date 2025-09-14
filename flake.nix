@@ -52,6 +52,9 @@
           name = getUserName metadata.owner.name host;
         };
         inherit (host) hostName stateVersion profile;
+        # Optional wireless configuration
+        hasWireless = host.hasWireless or false;
+        wirelessInterface = host.wirelessInterface or null;
         inherit inputs;
       };
 
