@@ -49,6 +49,11 @@
     '';
   };
 
+  # SSH agent configuration
+  services.ssh-agent = {
+    enable = true;
+  };
+
   # SSH configuration with sops-sourced identity files
   programs.ssh = {
     enable = true;
@@ -70,7 +75,7 @@
       };
     };
     
-    # Add keys to SSH agent (regular SSH agent, not GPG agent)
+    # Add keys to SSH agent automatically
     addKeysToAgent = "yes";
     
     # Default SSH settings
@@ -79,22 +84,26 @@
     serverAliveCountMax = 3;
   };
 
-  # Environment setup for SOPS age key
+  # Environment setup for SOPS age key and SSH agent
   home.sessionVariables = {
     SOPS_AGE_KEY_FILE = "/home/aragao/.ssh/id_ed25519_nixos-agenix";
+    # Let SSH agent service handle SSH_AUTH_SOCK
   };
   
   # Shell initialization to ensure SOPS age key is available
   programs.bash.initExtra = ''
     export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
   
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
   
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/aragao/.ssh/id_ed25519_nixos-agenix"
+    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
   '';
 
   # Install GPG-related packages
