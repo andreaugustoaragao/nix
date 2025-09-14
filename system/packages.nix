@@ -8,6 +8,7 @@
     git
     curl
     wget
+    age
     htop
     tree
     uwsm

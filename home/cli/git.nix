@@ -16,12 +16,11 @@
       init.defaultBranch = "main";
       pull.rebase = false;
       push.autoSetupRemote = true;
+      # Re-enable GPG signing with proper keys configured
       commit.gpgsign = true;
       tag.gpgsign = true;
-      # Automatically select GPG key based on email address
+      # GPG program path
       gpg.program = "${pkgs.gnupg}/bin/gpg";
-      # Use default key selection based on email
-      user.signingkey = "";
     };
 
     # Conditional includes for different directories
@@ -32,7 +31,7 @@
           user = {
             name = "andreaugustoaragao";
             email = "andrearag@gmail.com";
-            # GPG key will be automatically selected based on email
+            signingkey = "E42EDF7958831F08";
           };
         };
       }
@@ -42,7 +41,7 @@
           user = {
             name = "andrearagao";
             email = "aragao@avaya.com";
-            # GPG key will be automatically selected based on email
+            signingkey = "D8BAA25EFB1D5C5F";
           };
         };
       }

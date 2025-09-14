@@ -4,7 +4,7 @@
   users.users.aragao = {
     isNormalUser = true;
     description = "Andre Aragao";
-    extraGroups = [ "wheel" "audio" "video" "docker" ];
+    extraGroups = [ "wheel" "audio" "video" "docker" "input" ];
     shell = pkgs.zsh;
   };
 

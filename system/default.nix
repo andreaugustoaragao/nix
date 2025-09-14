@@ -29,6 +29,7 @@
     ./env.nix
     ./fonts.nix
     ./nvim.nix
+    ./sops.nix
   ];
 
   # Centralized DPI configuration

@@ -1,4 +1,11 @@
-{ config, pkgs, lib, inputs, owner, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  owner,
+  ...
+}:
 
 {
   # Install sops package system-wide
@@ -8,9 +15,9 @@
   sops = {
     # Default sops file location
     defaultSopsFile = ../secrets/secrets.yaml;
-    
+
     # Validate sops files at build time
-    validateSopsFiles = false; # Set to true once you have secrets file
+    validateSopsFiles = true; # Set to true once you have secrets file
 
     # Age key configuration
     age = {
@@ -28,10 +35,10 @@
         group = "users";
         mode = "0400";
       };
-      
+
       "root_password" = {
         owner = "root";
-        group = "root";  
+        group = "root";
         mode = "0400";
       };
 
@@ -42,7 +49,7 @@
         mode = "0400";
         path = "/home/${owner.name}/.ssh/id_rsa_work";
       };
-      
+
       "ssh_key_github_personal" = {
         owner = owner.name;
         group = "users";
@@ -57,26 +64,36 @@
         mode = "0444";
         path = "/home/${owner.name}/.ssh/id_rsa_work.pub";
       };
-      
+
       "ssh_pubkey_github_personal" = {
         owner = owner.name;
         group = "users";
-        mode = "0444"; 
+        mode = "0444";
         path = "/home/${owner.name}/.ssh/id_rsa_personal.pub";
+      };
+
+      # GPG keys for signing/encryption
+      "gpg_key_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "gpg_key_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
       };
     };
   };
 
-  # Configure users to use sops-managed passwords (commented out for initial setup)
-  # users.users.${owner.name} = {
-  #   # Password will be set from sops secret
-  #   hashedPasswordFile = config.sops.secrets.user_password.path;
-  # };
+  users.users.${owner.name} = {
+    hashedPasswordFile = config.sops.secrets.user_password.path;
+  };
 
-  # users.users.root = {
-  #   # Root password will be set from sops secret
-  #   hashedPasswordFile = config.sops.secrets.root_password.path;
-  # };
+  users.users.root = {
+    hashedPasswordFile = config.sops.secrets.root_password.path;
+  };
 
   # Ensure SSH directory exists with proper permissions
   system.activationScripts.sops-ssh-setup = lib.stringAfter [ "users" ] ''
