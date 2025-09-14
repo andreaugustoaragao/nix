@@ -42,6 +42,7 @@ in
 
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
+  services.fwupd.enable = true;
 
   services.flatpak.enable = lib.mkForce false;
 } 

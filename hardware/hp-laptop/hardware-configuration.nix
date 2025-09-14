@@ -13,24 +13,27 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  # TODO: Generate with nixos-generate-config on actual hardware
-  
-  # Placeholder configuration - replace with actual hardware config
-  boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" "rtsx_pci_sdmmc" ];
+  # Hardware configuration from actual HP laptop
+  boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "usb_storage" "sd_mod" "rtsx_pci_sdmmc" ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" ]; # Adjust if AMD
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
 
-  # Placeholder filesystem configuration
+  # Actual filesystem configuration from HP laptop
   fileSystems."/" = {
-    device = "/dev/disk/by-label/nixos";
+    device = "/dev/disk/by-uuid/db8305bf-3643-4c31-9d63-df347361f2df";
     fsType = "ext4";
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-label/boot";
+    device = "/dev/disk/by-uuid/3010-B95B";
     fsType = "vfat";
+    options = [ "fmask=0077" "dmask=0077" ];
   };
+
+  swapDevices = [
+    { device = "/dev/disk/by-uuid/91e1997b-0b89-4ac8-b6e4-5d01b96bf783"; }
+  ];
 
   # Laptop-specific optimizations
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
