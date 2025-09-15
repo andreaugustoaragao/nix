@@ -32,6 +32,7 @@
     Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
+
   systemd.user.services.wl-hyprpaper = {
     Unit = {
       Description = "Wayland: hyprpaper wallpaper daemon";

@@ -1,6 +1,11 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
+  # Install SwayOSD package
+  home.packages = with pkgs; [
+    swayosd
+  ];
+
   # SwayOSD configuration (Omarchy style with Kanagawa theme)
   xdg.configFile."swayosd/config.toml".text = ''
     [server]

@@ -40,5 +40,6 @@
     bitwarden
     neovide
     swayimg
+    obsidian
   ];
 }

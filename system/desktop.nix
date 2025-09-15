@@ -45,4 +45,23 @@ in
   services.fwupd.enable = true;
 
   services.flatpak.enable = lib.mkForce false;
+
+  # SwayOSD D-Bus policy (required for libinput backend)
+  services.dbus.packages = [ pkgs.swayosd ];
+
+  # SwayOSD LibInput backend needs to run as system service for proper D-Bus access
+  systemd.services.swayosd-libinput-backend = {
+    description = "SwayOSD LibInput backend for input device events";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "dbus.service" ];
+    requires = [ "dbus.service" ];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
+      Restart = "on-failure";
+      RestartSec = 2;
+      User = "root";
+      Group = "input";
+    };
+  };
 } 
