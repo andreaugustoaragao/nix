@@ -237,10 +237,10 @@
       margin-top = 8;
       modules-left = [
         "clock"
+        "niri/workspaces"
         "niri/window"
       ];
       modules-center = [
-        "niri/workspaces"
       ];
       modules-right = [
         "network"
@@ -257,7 +257,7 @@
 
       "niri/workspaces" = {
         on-click = "activate";
-        current-only = true;
+        current-only = false;
         format = "{index}";
         expand = true;
         format-icons = {

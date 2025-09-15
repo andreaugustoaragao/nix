@@ -12,19 +12,19 @@
       "x-scheme-handler/about" = "org.qutebrowser.qutebrowser.desktop";
       "x-scheme-handler/unknown" = "org.qutebrowser.qutebrowser.desktop";
       
-      # Image viewer - loupe
-      "image/jpeg" = "org.gnome.Loupe.desktop";
-      "image/jpg" = "org.gnome.Loupe.desktop";
-      "image/png" = "org.gnome.Loupe.desktop";
-      "image/gif" = "org.gnome.Loupe.desktop";
-      "image/bmp" = "org.gnome.Loupe.desktop";
-      "image/tiff" = "org.gnome.Loupe.desktop";
-      "image/webp" = "org.gnome.Loupe.desktop";
-      "image/svg+xml" = "org.gnome.Loupe.desktop";
-      "image/x-portable-pixmap" = "org.gnome.Loupe.desktop";
-      "image/x-portable-graymap" = "org.gnome.Loupe.desktop";
-      "image/x-portable-bitmap" = "org.gnome.Loupe.desktop";
-      "image/x-portable-anymap" = "org.gnome.Loupe.desktop";
+      # Image viewer - imv (Wayland-native)
+      "image/jpeg" = "imv.desktop";
+      "image/jpg" = "imv.desktop";
+      "image/png" = "imv.desktop";
+      "image/gif" = "imv.desktop";
+      "image/bmp" = "imv.desktop";
+      "image/tiff" = "imv.desktop";
+      "image/webp" = "imv.desktop";
+      "image/svg+xml" = "imv.desktop";
+      "image/x-portable-pixmap" = "imv.desktop";
+      "image/x-portable-graymap" = "imv.desktop";
+      "image/x-portable-bitmap" = "imv.desktop";
+      "image/x-portable-anymap" = "imv.desktop";
     };
   };
 }
