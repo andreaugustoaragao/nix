@@ -20,7 +20,7 @@
       layer = "top";
       position = "top";
       spacing = 0;
-      height = 26;
+      height = 22;
       margin-top = 8;
       modules-left = [
         "clock"
@@ -233,7 +233,7 @@
       layer = "top";
       position = "top";
       spacing = 0;
-      height = 26;
+      height = 22;
       margin-top = 8;
       modules-left = [
         "clock"
@@ -442,8 +442,8 @@
         border: none;
         border-radius: 0;
         min-height: 0;
-        font-family: CaskaydiaMono Nerd Font;
-        font-size: 11px;
+        font-family: Cantarell;
+        font-size: 13px;
       }
 
       .modules-left {
@@ -658,12 +658,12 @@
       }
 
       #clock {
-        background-color: #98bb6c;
-        color: #1f1f28;
+        background-color: #16161d;
+        color: #dcd7ba;
         margin-right: 6px;
         border-radius: 6px;
         padding: 1px 6px;
-        font-weight: bold;
+        font-weight: 600;
       }
 
       tooltip {

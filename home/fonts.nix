@@ -8,6 +8,7 @@
     noto-fonts-emoji
     font-awesome
     noto-fonts-color-emoji
+    cantarell-fonts
   ] ++ (with pkgs.nerd-fonts; [
     cascadia-code
     caskaydia-mono
