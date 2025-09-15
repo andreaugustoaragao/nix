@@ -47,20 +47,20 @@
     Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
-  systemd.user.services.wl-alacritty-daemon = {
-    Unit = {
-      Description = "Wayland: alacritty daemon";
-      After = [ "graphical-session.target" ];
-      PartOf = [ "graphical-session.target" ];
-      ConditionEnvironment = "WAYLAND_DISPLAY";
-    };
-    Service = {
-      ExecStart = "${pkgs.alacritty}/bin/alacritty --daemon";
-      Restart = "on-failure";
-      RestartSec = 2;
-    };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
-  };
+  # systemd.user.services.wl-alacritty-daemon = {
+  #   Unit = {
+  #     Description = "Wayland: alacritty daemon";
+  #     After = [ "graphical-session.target" ];
+  #     PartOf = [ "graphical-session.target" ];
+  #     ConditionEnvironment = "WAYLAND_DISPLAY";
+  #   };
+  #   Service = {
+  #     ExecStart = "${pkgs.alacritty}/bin/alacritty --daemon";
+  #     Restart = "on-failure";
+  #     RestartSec = 2;
+  #   };
+  #   Install = { WantedBy = [ "graphical-session.target" ]; };
+  # };
 
   systemd.user.services.wl-foot-server = {
     Unit = {
