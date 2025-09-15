@@ -97,8 +97,6 @@
     
     # Default configuration for personal machines
     extraConfig = ''
-      # Use personal key as default for machine-to-machine communication
-      IdentityFile ~/.ssh/id_rsa_personal
       # Enable SSH agent forwarding
       ForwardAgent yes
     '';
@@ -132,26 +130,52 @@
   # Environment setup for SOPS age key and SSH agent
   home.sessionVariables = {
     SOPS_AGE_KEY_FILE = "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix";
-    SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
+    SSH_ASKPASS = "$HOME/.local/bin/ssh-askpass-sops";
     SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/ssh-agent";
   };
   
   # Shell initialization to ensure SOPS age key and SSH askpass are available
   programs.bash.initExtra = ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
-    export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
+    export SSH_ASKPASS="$HOME/.local/bin/ssh-askpass-sops"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
   
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
-    set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
+    set -gx SSH_ASKPASS "$HOME/.local/bin/ssh-askpass-sops"
     set -gx SSH_AUTH_SOCK "$XDG_RUNTIME_DIR/ssh-agent"
+    
+    # Auto-load SSH keys if they're not already in the agent
+    if test -S "$SSH_AUTH_SOCK"
+      # Check if we have any keys loaded
+      if not ssh-add -l &>/dev/null
+        # No keys loaded, try to add them silently
+        # Set DISPLAY to empty to force using SSH_ASKPASS instead of terminal prompt
+        set -l old_display $DISPLAY
+        set -gx DISPLAY ""
+        
+        # Try to add personal and work keys if they exist
+        if test -f ~/.ssh/id_rsa_personal
+          ssh-add ~/.ssh/id_rsa_personal 2>/dev/null
+        end
+        if test -f ~/.ssh/id_rsa_work  
+          ssh-add ~/.ssh/id_rsa_work 2>/dev/null
+        end
+        
+        # Restore DISPLAY
+        if test -n "$old_display"
+          set -gx DISPLAY $old_display
+        else
+          set -e DISPLAY
+        end
+      end
+    end
   '';
   
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
-    export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
+    export SSH_ASKPASS="$HOME/.local/bin/ssh-askpass-sops"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
 

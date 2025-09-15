@@ -85,6 +85,19 @@
         mode = "0400";
       };
 
+      # SSH key passphrases for automatic loading
+      "ssh_passphrase_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "ssh_passphrase_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
       # WiFi environment file for wpa_supplicant
       "wifi_env" = {
         owner = "root";
