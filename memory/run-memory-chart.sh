@@ -7,8 +7,7 @@ echo "Starting Unevictable Memory Chart TUI..."
 echo "Press Ctrl+C to exit"
 echo ""
 
-# Force UV to use system Python and disable downloads
-export UV_PYTHON_DOWNLOADS=never
-export UV_PYTHON=/etc/profiles/per-user/aragao/bin/python3
+# Let UV auto-detect Python and manage dependencies
+export UV_PYTHON_DOWNLOADS=automatic
 
 exec uv run ./unevictable-memory-chart.py "$@"
