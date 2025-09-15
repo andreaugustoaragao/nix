@@ -87,8 +87,8 @@
       };
 
       "clock" = {
-        format = "󰅐 {:%a %b %d %I:%M %p}";
-        format-alt = "󰅐 {:%A %B %d, %Y %I:%M:%S %p}";
+        format = "{:%a %b %d %I:%M %p}";
+        format-alt = "{:%A %B %d, %Y %I:%M:%S %p}";
         tooltip = false;
       };
 
@@ -273,29 +273,29 @@
 
       "cpu" = {
         interval = 5;
-        format = "󰻠 {usage}%";
+        format = "󰻠  {usage}%";
         tooltip-format = "CPU Usage: {usage}%";
-        on-click = "alacritty msg create-window -e btop";
+        on-click = "alacritty -e btm";
       };
 
       "memory" = {
         interval = 5;
-        format = "󰍛 {used:0.1f}G ({percentage}%)";
+        format = "󰍛  {used:0.1f}G ({percentage}%)";
         tooltip-format = "Memory: {used:0.1f}G / {total:0.1f}G ({percentage}%)";
-        on-click = "alacritty msg create-window -e btop";
+        on-click = "alacritty -e btop";
       };
 
       "disk" = {
         interval = 30;
-        format = "󰋊 {used} ({percentage_used}%)";
+        format = "󰋊  {used} ({percentage_used}%)";
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
-        on-click = "alacritty msg create-window -e btop";
+        on-click = "alacritty -e btop";
       };
 
       "clock" = {
-        format = "󰅐 {:%a %b %d %I:%M %p}";
-        format-alt = "󰅐 {:%A %B %d, %Y %I:%M:%S %p}";
+        format = "{:%a %b %d %I:%M %p}";
+        format-alt = "{:%A %B %d, %Y %I:%M:%S %p}";
         tooltip = false;
       };
 
@@ -327,7 +327,7 @@
           warning = 30;
           critical = 20;
         };
-        format = "{icon} {capacity}%";
+        format = "{icon}  {capacity}%";
         format-charging = "󰂄 {capacity}%";
         format-plugged = "󰂄 {capacity}%";
         format-alt = "{time} {icon}";
@@ -359,9 +359,9 @@
           portable = "";
           car = "";
           default = [
-            "󰕿"
-            "󰖀"
-            "󰕾"
+            "󰕿 "
+            "󰖀 "
+            "󰕾 "
           ];
         };
         on-click = "pamixer -t";
