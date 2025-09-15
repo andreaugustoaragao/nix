@@ -75,6 +75,23 @@
       vim.opt.cursorline = true
       vim.opt.undofile = true
       
+      -- Folding configuration
+      vim.opt.foldmethod = "expr"
+      vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+      vim.opt.foldenable = true
+      vim.opt.foldlevel = 99  -- Start with all folds open
+      vim.opt.foldlevelstart = 99
+      vim.opt.foldcolumn = "1"  -- Show fold column
+      
+      -- Folding keymaps
+      vim.keymap.set("n", "zR", "zR", { desc = "Open all folds" })
+      vim.keymap.set("n", "zM", "zM", { desc = "Close all folds" })
+      vim.keymap.set("n", "zr", "zr", { desc = "Reduce fold level" })
+      vim.keymap.set("n", "zm", "zm", { desc = "Increase fold level" })
+      vim.keymap.set("n", "za", "za", { desc = "Toggle fold" })
+      vim.keymap.set("n", "zo", "zo", { desc = "Open fold" })
+      vim.keymap.set("n", "zc", "zc", { desc = "Close fold" })
+      
       -- Setup lazy.nvim
       require("lazy").setup({
         rocks = {
@@ -814,13 +831,30 @@
           -- Treesitter (lazy-loaded based on filetype)
           {
             "nvim-treesitter/nvim-treesitter",
-            opts = {
-              ensure_installed = {
-                "nix", "bash", "markdown", "markdown_inline", "lua", "vim", "vimdoc",
-                "python", "go", "javascript", "typescript", "tsx", "json", "yaml", 
-                "java", "dockerfile", "terraform"
-              },
-            },
+            build = ":TSUpdate",
+            event = { "BufReadPost", "BufNewFile" },
+            config = function()
+              require("nvim-treesitter.configs").setup({
+                ensure_installed = {
+                  "nix", "bash", "markdown", "markdown_inline", "lua", "vim", "vimdoc",
+                  "python", "go", "javascript", "typescript", "tsx", "json", "yaml", 
+                  "java", "dockerfile", "terraform"
+                },
+                sync_install = false,
+                auto_install = true,
+                highlight = {
+                  enable = true,
+                  additional_vim_regex_highlighting = false,
+                },
+                indent = {
+                  enable = true,
+                },
+                -- Enable folding based on treesitter
+                fold = {
+                  enable = true,
+                },
+              })
+            end,
           },
           
           -- Git integration (lazy-loaded when in git repo)
