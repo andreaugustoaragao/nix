@@ -1,6 +1,10 @@
 { config, pkgs, lib, inputs, wirelessInterface, ... }:
 
 {
+  # Install wpa_gui when wireless is enabled
+  environment.systemPackages = lib.mkIf (wirelessInterface != null) [
+    pkgs.wpa_supplicant_gui
+  ];
   # hostname is now set in system/default.nix from metadata
   systemd.network.enable = true;
   networking.useNetworkd = true;
