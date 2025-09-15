@@ -39,6 +39,6 @@
     teams-for-linux
     bitwarden
     neovide
-    imv
+    swayimg
   ];
 }

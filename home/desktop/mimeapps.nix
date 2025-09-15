@@ -12,19 +12,19 @@
       "x-scheme-handler/about" = "org.qutebrowser.qutebrowser.desktop";
       "x-scheme-handler/unknown" = "org.qutebrowser.qutebrowser.desktop";
       
-      # Image viewer - imv (Wayland-native)
-      "image/jpeg" = "imv.desktop";
-      "image/jpg" = "imv.desktop";
-      "image/png" = "imv.desktop";
-      "image/gif" = "imv.desktop";
-      "image/bmp" = "imv.desktop";
-      "image/tiff" = "imv.desktop";
-      "image/webp" = "imv.desktop";
-      "image/svg+xml" = "imv.desktop";
-      "image/x-portable-pixmap" = "imv.desktop";
-      "image/x-portable-graymap" = "imv.desktop";
-      "image/x-portable-bitmap" = "imv.desktop";
-      "image/x-portable-anymap" = "imv.desktop";
+      # Image viewer - swayimg (Wayland-native)
+      "image/jpeg" = "swayimg.desktop";
+      "image/jpg" = "swayimg.desktop";
+      "image/png" = "swayimg.desktop";
+      "image/gif" = "swayimg.desktop";
+      "image/bmp" = "swayimg.desktop";
+      "image/tiff" = "swayimg.desktop";
+      "image/webp" = "swayimg.desktop";
+      "image/svg+xml" = "swayimg.desktop";
+      "image/x-portable-pixmap" = "swayimg.desktop";
+      "image/x-portable-graymap" = "swayimg.desktop";
+      "image/x-portable-bitmap" = "swayimg.desktop";
+      "image/x-portable-anymap" = "swayimg.desktop";
     };
   };
 }
