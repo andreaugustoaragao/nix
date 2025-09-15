@@ -49,9 +49,18 @@
     '';
   };
 
-  # SSH agent configuration
+  # SSH agent configuration with extended timeout
   services.ssh-agent = {
     enable = true;
+  };
+  
+  # Override SSH agent service to add timeout configuration
+  systemd.user.services.ssh-agent = {
+    Service = {
+      # Override the default ssh-agent command to set 8 hour timeout
+      # -t sets default timeout (28800 = 8 hours), 0 = no timeout
+      ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 28800";
+    };
   };
 
   # Systemd user service to add SSH keys after agent starts
