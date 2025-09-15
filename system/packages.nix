@@ -16,7 +16,8 @@
     inotify-tools
     psmisc
     nettools
-    inetutils  # provides telnet
+    inetutils  # provides telnet and hostname
+    hostname   # explicit hostname package for scripts
     smem
     procps
     lsof
