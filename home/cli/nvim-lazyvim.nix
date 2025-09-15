@@ -483,8 +483,8 @@
             config = function()
               require("cmp_dictionary").setup({
                 paths = {
-                  "/usr/share/hunspell/en_US-large.dic",
-                  "/usr/share/hunspell/en_GB-large.dic"
+                  "/run/current-system/sw/share/hunspell/en_US.dic",
+                  "/run/current-system/sw/share/hunspell/en_GB.dic"
                 },
                 exact_length = 2,
                 first_case_insensitive = true,
