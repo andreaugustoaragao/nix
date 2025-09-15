@@ -5,7 +5,7 @@
   home.packages = [
     (pkgs.writeShellApplication {
       name = "notes";
-      runtimeInputs = with pkgs; [ wofi findutils coreutils gnused neovim alacritty ];
+      runtimeInputs = with pkgs; [ wofi findutils coreutils gnused neovim foot ];
       text = ''
         #!/usr/bin/env bash
 
@@ -89,7 +89,12 @@
             
             if [[ -f "$note_file" ]]; then
                 # Open existing note
-                alacritty msg create-window -e bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
+                if footclient bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\"" 2>/dev/null; then
+                    echo "Opened existing note: $note_name"
+                else
+                    # Fallback to new foot instance if server not available
+                    foot bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
+                fi
             else
                 # Create new note with the typed input as the name
                 echo "Creating new note: $note_name"
@@ -105,7 +110,12 @@
                 create_note_template "$note_file" "$note_name"
                 
                 # Open in editor
-                alacritty msg create-window -e bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
+                if footclient bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\"" 2>/dev/null; then
+                    echo "Opened new note: $note_name"
+                else
+                    # Fallback to new foot instance if server not available
+                    foot bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
+                fi
             fi
         }
 
