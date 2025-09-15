@@ -50,6 +50,8 @@
         inherit (host) hostName stateVersion profile;
         # Optional wireless configuration
         wirelessInterface = host.wirelessInterface or null;
+        # Optional bluetooth configuration
+        bluetooth = host.bluetooth or false;
         inherit inputs;
       };
 

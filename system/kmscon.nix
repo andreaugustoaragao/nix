@@ -3,11 +3,18 @@
 {
   services.kmscon = {
     enable = true;
+    fonts = [
+      {
+        name = "CaskaydiaMono Nerd Font Mono";
+        package = pkgs.nerd-fonts.caskaydia-mono;
+      }
+    ];
+    extraOptions = ''
+    '';
     hwRender = true;
-    fonts = [{ name = "JetBrains Mono"; package = pkgs.jetbrains-mono; }];
     extraConfig = ''
       font-size=12
-      xkb-layout=us
+      font-dpi=144
     '';
   };
 } 

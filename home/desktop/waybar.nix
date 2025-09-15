@@ -544,7 +544,7 @@
         background-color: #16161d;
         color: #dcd7ba;
         border-radius: 8px;
-        font-weight: normal;
+        font-weight: 600;
         min-width: 200px;
         border: 1px solid #54546d;
       }

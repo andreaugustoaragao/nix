@@ -10,6 +10,7 @@
   hostName,
   stateVersion,
   profile,
+  bluetooth ? false,
   ...
 }:
 
@@ -30,6 +31,7 @@
     ./fonts.nix
     ./nvim.nix
     ./sops.nix
+    ./bluetooth.nix
   ];
 
   config = {
