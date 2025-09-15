@@ -75,13 +75,27 @@
       vim.opt.cursorline = true
       vim.opt.undofile = true
       
-      -- Folding configuration
+      -- Folding configuration (prefer LSP, fallback to treesitter)
       vim.opt.foldmethod = "expr"
-      vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+      vim.opt.foldexpr = "v:lua.vim.lsp.foldexpr()"
       vim.opt.foldenable = true
       vim.opt.foldlevel = 99  -- Start with all folds open
       vim.opt.foldlevelstart = 99
       vim.opt.foldcolumn = "1"  -- Show fold column
+      
+      -- Fallback to treesitter folding if LSP folding is not available
+      vim.api.nvim_create_autocmd("LspAttach", {
+        callback = function(args)
+          local client = vim.lsp.get_client_by_id(args.data.client_id)
+          if client and client.server_capabilities.foldingRangeProvider then
+            -- LSP supports folding, keep LSP folding
+            vim.opt_local.foldexpr = "v:lua.vim.lsp.foldexpr()"
+          else
+            -- LSP doesn't support folding, use treesitter
+            vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
+          end
+        end,
+      })
       
       -- Folding keymaps
       vim.keymap.set("n", "zR", "zR", { desc = "Open all folds" })
