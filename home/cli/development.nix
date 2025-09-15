@@ -32,6 +32,10 @@
     # Python Development
     python3                             # Python runtime
     uv                                  # Ultra-fast Python package manager
+    python3Packages.pylint              # Python linter
+    python3Packages.black               # Python code formatter
+    python3Packages.isort               # Python import sorter
+    python3Packages.flake8              # Python style checker
     
     # Go Development  
     go                                  # Go runtime
