@@ -8,9 +8,9 @@
       KbdInteractiveAuthentication = true;
       PermitRootLogin = "no";  # Keep root login disabled for security
     };
-    # Enable SSH key authentication between machines
-    authorizedKeysFiles = [
-      "/home/${owner.name}/.ssh/id_rsa_personal.pub"
-    ];
+    # Use extraConfig to allow authorized_keys from SOPS-managed files
+    extraConfig = ''
+      AuthorizedKeysFile /home/${owner.name}/.ssh/authorized_keys /home/${owner.name}/.ssh/id_rsa_personal.pub
+    '';
   };
 } 

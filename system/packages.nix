@@ -16,6 +16,7 @@
     inotify-tools
     psmisc
     nettools
+    inetutils  # provides telnet
     smem
     procps
     lsof
