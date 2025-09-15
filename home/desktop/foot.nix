@@ -5,9 +5,11 @@
     enable = true;
     settings = {
       main = {
-        font = "CaskaydiaMono Nerd Font:size=11";  # Updated font size
+        font = "CaskaydiaMono Nerd Font:size=9";  # Match Alacritty font size
+        font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=9";
+        font-italic = "CaskaydiaMono Nerd Font:style=Italic:size=9";
         dpi-aware = "no";
-        pad = "10x10";  # Match Omarchy padding
+        pad = "14x14";  # Match Alacritty padding
         shell = "fish";  # Use Fish shell in foot terminal
       };
       

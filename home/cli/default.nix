@@ -81,6 +81,7 @@
     inotify-tools
     lorri
     cachix
+    mesa-demos  # provides glxinfo for OpenGL debugging
 
     # Rust-based coreutils and modern replacements  
     ripgrep
