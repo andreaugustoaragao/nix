@@ -307,19 +307,19 @@
         "$mainMod, mouse_up, workspace, e-1"
       ];
       
-      # Media keys (SIMPLIFIED - using direct commands instead of SwayOSD for minimal setup)
+      # Media keys (using SwayOSD for OSD notifications)
       bindel = [
-        # Volume controls (direct commands - no OSD)
-        ", XF86AudioRaiseVolume, exec, pamixer -i 5"
-        ", XF86AudioLowerVolume, exec, pamixer -d 5" 
-        ", XF86AudioMute, exec, pamixer -t"
+        # Volume controls (with SwayOSD)
+        ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
+        ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower" 
+        ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
         ", XF86AudioMicMute, exec, pamixer --default-source -t"
         
-        # Brightness controls (direct commands - no OSD)
-        ", XF86MonBrightnessUp, exec, brightnessctl set +5%"
-        ", XF86MonBrightnessDown, exec, brightnessctl set 5%-"
+        # Brightness controls (with SwayOSD)
+        ", XF86MonBrightnessUp, exec, swayosd-client --brightness raise"
+        ", XF86MonBrightnessDown, exec, swayosd-client --brightness lower"
         
-        # Precise 1% adjustments with Alt
+        # Precise adjustments with Alt (still direct commands for fine control)
         "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
         "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
         "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"

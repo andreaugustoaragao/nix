@@ -275,13 +275,13 @@
         // Waybar toggle
         Mod+Y { spawn "sh" "-c" "pkill waybar || waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css"; }
 
-        // Media keys
-        XF86AudioRaiseVolume { spawn "pamixer" "-i" "5"; }
-        XF86AudioLowerVolume { spawn "pamixer" "-d" "5"; }
-        XF86AudioMute { spawn "pamixer" "-t"; }
+        // Media keys (using SwayOSD)
+        XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }
+        XF86AudioLowerVolume { spawn "swayosd-client" "--output-volume" "lower"; }
+        XF86AudioMute { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
         XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
-        XF86MonBrightnessUp { spawn "brightnessctl" "set" "+5%"; }
-        XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+        XF86MonBrightnessUp { spawn "swayosd-client" "--brightness" "raise"; }
+        XF86MonBrightnessDown { spawn "swayosd-client" "--brightness" "lower"; }
 
         // Precise media adjustments with Alt
         Alt+XF86AudioRaiseVolume { spawn "pamixer" "-i" "1"; }
