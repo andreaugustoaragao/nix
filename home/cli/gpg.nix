@@ -54,12 +54,13 @@
     enable = true;
   };
   
-  # Override SSH agent service to add timeout configuration
+  # Override SSH agent service to add timeout configuration and consistent socket path
   systemd.user.services.ssh-agent = {
     Service = {
       # Override the default ssh-agent command to set 8 hour timeout
       # -t sets default timeout (28800 = 8 hours), 0 = no timeout
-      ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 28800";
+      # -a sets the socket path to a consistent location
+      ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 28800 -a %t/ssh-agent";
     };
   };
 
@@ -132,26 +133,26 @@
   home.sessionVariables = {
     SOPS_AGE_KEY_FILE = "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix";
     SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
-    # Let SSH agent service handle SSH_AUTH_SOCK
+    SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/ssh-agent";
   };
   
   # Shell initialization to ensure SOPS age key and SSH askpass are available
   programs.bash.initExtra = ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
-    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
+    export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
   
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
-    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
+    set -gx SSH_AUTH_SOCK "$XDG_RUNTIME_DIR/ssh-agent"
   '';
   
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
-    # SSH_AUTH_SOCK will be set automatically by ssh-agent service
+    export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
 
   # Install GPG-related packages
