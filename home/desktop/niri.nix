@@ -177,8 +177,8 @@
 
     // Key bindings (matching Hyprland as closely as possible)
     binds {
-        // Applications (matching Hyprland exactly)
-        Mod+Return { spawn "alacritty" "msg" "create-window"; }
+        // Applications (using foot as default terminal)
+        Mod+Return { spawn "footclient"; }
         Mod+F { spawn "thunar"; }
         Mod+B { spawn "qutebrowser"; }
         Mod+M { spawn "spotify"; }
@@ -189,11 +189,11 @@
         Mod+A { spawn "brave" "--app=https://grok.com"; }
         Mod+X { spawn "brave" "--app=https://x.com"; }
         Mod+O { spawn "web-apps-launcher"; }
-        Mod+S { spawn "alacritty" "msg" "create-window" "-e" "btop"; }
+        Mod+S { spawn "footclient" "btop"; }
 
         // Menu and launcher
         Mod+Space { spawn "wofi" "--show" "drun"; }
-        Mod+Alt+Space { spawn "alacritty" "msg" "create-window"; }
+        Mod+Alt+Space { spawn "footclient"; }
         Mod+Escape { spawn "wlogout"; }
 
         // Window management

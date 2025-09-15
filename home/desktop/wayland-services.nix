@@ -62,6 +62,21 @@
     Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
+  systemd.user.services.wl-foot-server = {
+    Unit = {
+      Description = "Wayland: foot terminal server";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      ExecStart = "${pkgs.foot}/bin/foot --server";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
+  };
+
   systemd.user.services.wl-fcitx5 = {
     Unit = {
       Description = "Wayland: fcitx5 input method";

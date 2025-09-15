@@ -427,7 +427,7 @@
       };
 
       "systemd-failed-units" = {
-        hide-on-ok = false;
+        hide-on-ok = true;
         format = "✗ {nr_failed}";
         format-ok = "✓";
         system = true;

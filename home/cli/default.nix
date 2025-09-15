@@ -118,7 +118,6 @@
     pastel
     ouch
     zellij
-    helix
     yazi
     
     # Development tools that moved to development.nix:

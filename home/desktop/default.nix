@@ -27,6 +27,7 @@
     ./thunar.nix
     ./xresources.nix
     ./cursors.nix
+    ./mimeapps.nix
     ./notes.nix
     ./web-apps-launcher.nix
   ];
@@ -38,5 +39,6 @@
     teams-for-linux
     bitwarden
     neovide
+    loupe
   ];
 }
