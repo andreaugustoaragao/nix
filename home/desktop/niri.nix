@@ -12,6 +12,7 @@
     workspace "1" 
     workspace "2" 
     workspace "3"
+    workspace "4"
 
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {

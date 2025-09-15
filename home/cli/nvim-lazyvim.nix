@@ -370,6 +370,7 @@
                       path = "[Path]",
                       calc = "[Calc]",
                       spell = "[Spell]",
+                      dictionary = "[Dict]",
                       emoji = "[Emoji]",
                     })[entry.source.name]
                     return vim_item
@@ -431,6 +432,7 @@
                   { name = "buffer", priority = 500, keyword_length = 3 },
                   { name = "calc", priority = 150 },
                   { name = "spell", priority = 100 },
+                  { name = "dictionary", priority = 100, keyword_length = 2 },
                   { name = "emoji", priority = 100 },
                 }),
                 
@@ -471,6 +473,25 @@
               })
               
               setup_cmp_highlights()
+            end,
+          },
+          
+          -- Dictionary completion plugin
+          {
+            "uga-rosa/cmp-dictionary",
+            ft = { "markdown", "text", "tex", "latex" },
+            config = function()
+              require("cmp_dictionary").setup({
+                paths = {
+                  "/usr/share/hunspell/en_US-large.dic",
+                  "/usr/share/hunspell/en_GB-large.dic"
+                },
+                exact_length = 2,
+                first_case_insensitive = true,
+                document = {
+                  enable = false,
+                },
+              })
             end,
           },
 

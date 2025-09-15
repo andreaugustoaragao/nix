@@ -57,6 +57,11 @@
 
     nautilus
 
+    # Spell checking dictionaries
+    hunspell
+    hunspellDicts.en_US-large
+    hunspellDicts.en_GB-large
+
     # Development tools moved to home configuration
   ];
 } 
