@@ -25,14 +25,21 @@
     enable = true;
     interfaces = [ wirelessInterface ];
     userControlled.enable = true; # Allow user-space configuration
-    networks = {}; # Empty networks to prevent config file errors
-    # Networks can be configured via wpa_supplicant_gui or manually
-    # Example:
-    # networks = {
-    #   "MyWiFiNetwork" = {
-    #     psk = "password";
-    #   };
-    # };
+    networks = {
+      # Example network configurations
+      # "YourWiFiName" = {
+      #   psk = "YourPassword";
+      # };
+      # "OpenNetwork" = {};
+      # "WPA-Enterprise" = {
+      #   auth = ''
+      #     key_mgmt=WPA-EAP
+      #     eap=PEAP
+      #     identity="username"
+      #     password="password"
+      #   '';
+      # };
+    };
   };
 
   # Wireless network configuration for systemd-networkd
