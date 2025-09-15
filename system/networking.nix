@@ -24,7 +24,9 @@
   networking.wireless = lib.mkIf (wirelessInterface != null) {
     enable = true;
     interfaces = [ wirelessInterface ];
-    # Networks should be configured via wpa_supplicant configuration or secrets
+    userControlled.enable = true; # Allow user-space configuration
+    networks = {}; # Empty networks to prevent config file errors
+    # Networks can be configured via wpa_supplicant_gui or manually
     # Example:
     # networks = {
     #   "MyWiFiNetwork" = {
