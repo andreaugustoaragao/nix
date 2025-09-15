@@ -84,6 +84,14 @@
         group = "users";
         mode = "0400";
       };
+
+      # WiFi environment file for wpa_supplicant
+      "wifi_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0600";
+        path = "/run/secrets/wifi_env";
+      };
     };
   };
 

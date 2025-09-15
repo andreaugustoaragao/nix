@@ -25,21 +25,22 @@
     enable = true;
     interfaces = [ wirelessInterface ];
     userControlled.enable = true; # Allow user-space configuration
+    
+    # Networks configured via SOPS secrets
     networks = {
-      # Example network configurations
-      # "YourWiFiName" = {
-      #   psk = "YourPassword";
-      # };
-      # "OpenNetwork" = {};
-      # "WPA-Enterprise" = {
-      #   auth = ''
-      #     key_mgmt=WPA-EAP
-      #     eap=PEAP
-      #     identity="username"
-      #     password="password"
-      #   '';
-      # };
+      # Home network - using SOPS secret
+      "FARAGAO" = {
+        pskRaw = "ext:wifi_password_home";
+      };
+      
+      # Work network - using SOPS secret  
+      "FARAGAO_WORK" = {
+        pskRaw = "ext:wifi_password_work";
+      };
     };
+    
+    # Secrets file containing SOPS secrets for wpa_supplicant
+    secretsFile = "/run/secrets/wifi_env";
   };
 
   # Wireless network configuration for systemd-networkd
