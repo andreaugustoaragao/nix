@@ -44,6 +44,23 @@
           echo "Warning: ssh-add-keys command not found, proceeding without key loading"
         fi
         
+        # Preload GPG keys automatically using SOPS-encrypted passphrases  
+        echo "Preloading GPG keys..."
+        if command -v gpg-add-keys >/dev/null 2>&1; then
+          # Temporarily disable errexit for GPG key loading
+          set +e
+          gpg-add-keys
+          gpg_load_result=$?
+          set -e
+          
+          if [[ $gpg_load_result -ne 0 ]]; then
+            echo "Warning: gpg-add-keys failed, but continuing with sync"
+            echo "GPG keys may need to be loaded manually or passphrases may be missing from SOPS"
+          fi
+        else
+          echo "Warning: gpg-add-keys command not found, proceeding without GPG key preloading"
+        fi
+        
         # Function to send desktop notification
         notify() {
           local title="$1"

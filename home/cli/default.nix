@@ -10,6 +10,7 @@
     ./git.nix
     ./gpg.nix
     ./ssh-add-keys.nix
+    ./gpg-add-keys.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix

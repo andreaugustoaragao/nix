@@ -98,6 +98,19 @@
         mode = "0400";
       };
 
+      # GPG key passphrases for automatic unlocking
+      "gpg_passphrase_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "gpg_passphrase_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
       # WiFi environment file for wpa_supplicant
       "wifi_env" = {
         owner = "root";
