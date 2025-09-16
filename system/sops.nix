@@ -22,7 +22,7 @@
     # Age key configuration
     age = {
       # Path to age key for decryption - use metadata owner name
-      keyFile = "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix";
+      keyFile = "/var/lib/sops-nix/key.txt";
       # Generate host key automatically if it doesn't exist
       generateKey = true;
     };
@@ -31,15 +31,17 @@
     secrets = {
       # User passwords (commented out for initial setup)
       "user_password" = {
-        owner = owner.name;
-        group = "users";
+        owner = "root";
+        group = "root";
         mode = "0400";
+        neededForUsers = true;
       };
 
       "root_password" = {
         owner = "root";
         group = "root";
         mode = "0400";
+        neededForUsers = true;
       };
 
       # SSH keys for GitHub
@@ -129,13 +131,13 @@
       "bitwarden/server_url" = {
         owner = owner.name;
         group = "users";
-        mode = "0444";  # Read-only, less sensitive than password
+        mode = "0400";
       };
 
       "bitwarden/email" = {
         owner = owner.name;
         group = "users";
-        mode = "0444";  # Read-only, less sensitive than password
+        mode = "0400";
       };
     };
   };
