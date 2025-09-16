@@ -84,9 +84,19 @@
       trap 'log "Stopping auto-rebuild"; exit 0' INT TERM
 
       log "Starting auto-rebuild monitor for $CONFIG_DIR"
-      inotifywait -m -r -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" |
-      while read -r _; do
-        log "Change detected. Rebuilding..."
+      while true; do
+        # Wait for first change (blocking)
+        log "Waiting for file changes..."
+        inotifywait -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1
+        
+        # Now batch any additional changes with 2-second timeout
+        log "Change detected, waiting for quiet period..."
+        while timeout 2 inotifywait -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1; do
+          : # Keep resetting timeout while more changes come
+        done
+        
+        # 2s quiet period reached, rebuild now
+        log "Rebuilding after 2s quiet period..."
         start=$(date +%s)
         if nixos-rebuild switch --flake "$CONFIG_DIR#$FLAKE_NAME" 2>&1; then
           dur=$(( $(date +%s) - start ))
@@ -97,8 +107,6 @@
           log "Rebuild failed after ''${dur}s"
           send_notification "❌ NixOS Rebuild Failed" "Check journalctl -u nixos-auto-rebuild" critical
         fi
-        # Debounce rapid changes
-        sleep 2
       done
     '';
   };

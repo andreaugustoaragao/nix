@@ -1,6 +1,5 @@
 {
   description = "NixOS configuration for Parallels VM with Hyprland";
-  #
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -52,7 +51,7 @@
         wirelessInterface = host.wirelessInterface or null;
         # Optional bluetooth configuration
         bluetooth = host.bluetooth or false;
-        # Optional lock screen configuration  
+        # Optional lock screen configuration
         lockScreen = host.lockScreen or false;
         inherit inputs;
       };
@@ -70,40 +69,42 @@
     in
     {
       # NixOS configurations for all machines
-      nixosConfigurations = (builtins.mapAttrs (
-        machineName: host:
-        nixpkgs.lib.nixosSystem {
-          system = host.platform;
-          specialArgs = setSpecialArgs host;
-          modules = [
-            # Hardware configuration
-            (./hardware + "/${machineName}" + /hardware-configuration.nix)
-            # System configuration
-            ./system
-            # Secrets management
-            sops-nix.nixosModules.sops
-            # Home Manager configuration
-            home-manager.nixosModules.home-manager
-            (setHomeManagerTemplate host)
-          ];
-        }
-      ) metadata.machines) // {
-        # Temporary backward compatibility alias for current hostname
-        "parallels-nixos" = nixpkgs.lib.nixosSystem {
-          system = metadata.machines.parallels-vm.platform;
-          specialArgs = setSpecialArgs metadata.machines.parallels-vm;
-          modules = [
-            # Hardware configuration  
-            (./hardware + "/parallels-vm" + /hardware-configuration.nix)
-            # System configuration
-            ./system
-            # Secrets management
-            sops-nix.nixosModules.sops
-            # Home Manager configuration
-            home-manager.nixosModules.home-manager
-            (setHomeManagerTemplate metadata.machines.parallels-vm)
-          ];
+      nixosConfigurations =
+        (builtins.mapAttrs (
+          machineName: host:
+          nixpkgs.lib.nixosSystem {
+            system = host.platform;
+            specialArgs = setSpecialArgs host;
+            modules = [
+              # Hardware configuration
+              (./hardware + "/${machineName}" + /hardware-configuration.nix)
+              # System configuration
+              ./system
+              # Secrets management
+              sops-nix.nixosModules.sops
+              # Home Manager configuration
+              home-manager.nixosModules.home-manager
+              (setHomeManagerTemplate host)
+            ];
+          }
+        ) metadata.machines)
+        // {
+          # Temporary backward compatibility alias for current hostname
+          "parallels-nixos" = nixpkgs.lib.nixosSystem {
+            system = metadata.machines.parallels-vm.platform;
+            specialArgs = setSpecialArgs metadata.machines.parallels-vm;
+            modules = [
+              # Hardware configuration
+              (./hardware + "/parallels-vm" + /hardware-configuration.nix)
+              # System configuration
+              ./system
+              # Secrets management
+              sops-nix.nixosModules.sops
+              # Home Manager configuration
+              home-manager.nixosModules.home-manager
+              (setHomeManagerTemplate metadata.machines.parallels-vm)
+            ];
+          };
         };
-      };
     };
 }
