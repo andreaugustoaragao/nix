@@ -9,12 +9,13 @@ lib.mkIf lockScreen {
 
   # Swaylock configuration with Kanagawa theme
   xdg.configFile."swaylock/config".text = ''
-    # Kanagawa-themed lock screen
-    color=1f1f28
+    # Kanagawa-themed lock screen with screenshot background
+    screenshots
+    clock
     font=CaskaydiaCove Nerd Font
     font-size=14
     
-    # Effects
+    # Visual effects (screenshot + blur for modern look)
     effect-blur=7x5
     effect-vignette=0.5:0.5
     fade-in=0.2
