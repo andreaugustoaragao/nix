@@ -118,6 +118,25 @@
         mode = "0600";
         path = "/run/secrets/wifi_env";
       };
+
+      # Bitwarden secrets
+      "bitwarden/master_password" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "bitwarden/server_url" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0444";  # Read-only, less sensitive than password
+      };
+
+      "bitwarden/email" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0444";  # Read-only, less sensitive than password
+      };
     };
   };
 

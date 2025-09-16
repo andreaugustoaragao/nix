@@ -6,6 +6,7 @@
     ./desktop
     ./cli
     ./services
+    ./scripts
     ./fonts.nix
   ];
   

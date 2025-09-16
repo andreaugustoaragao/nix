@@ -1,6 +1,13 @@
 { config, pkgs, lib, inputs, ... }:
-
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    system = pkgs.system;
+    config.allowUnfree = true;
+  };
+in
 {
+  # Install ghostty from unstable packages
+  home.packages = [ pkgs-unstable.ghostty ];
   xdg.configFile."ghostty/config".text = ''
     # Font configuration
     font-family = CaskaydiaMono Nerd Font

@@ -38,6 +38,8 @@
     podman-compose
 
     # General tools
+    code2prompt  # CLI tool with token counting functionality
+    bitwarden-cli
     curlie
     xh
     wget

@@ -87,11 +87,11 @@
       while true; do
         # Wait for first change (blocking)
         log "Waiting for file changes..."
-        inotifywait -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1
+        inotifywait -r -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1
         
         # Now batch any additional changes with 2-second timeout
         log "Change detected, waiting for quiet period..."
-        while timeout 2 inotifywait -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1; do
+        while timeout 2 inotifywait -r -q -e modify,create,delete,move --include='.*\.nix$' "$CONFIG_DIR" >/dev/null 2>&1; do
           : # Keep resetting timeout while more changes come
         done
         
