@@ -272,8 +272,8 @@
         Mod+Shift+F { spawn "screenshot" "output"; }
         
         ${lib.optionalString lockScreen ''
-        // Lock screen (only on desktop machines)
-        Mod+Shift+L { spawn "swaylock" "-f"; }
+        // Lock screen (only on desktop machines)  
+        Mod+Ctrl+L { spawn "swaylock" "-f"; }
         ''}
 
         // Notification control
