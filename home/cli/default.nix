@@ -9,7 +9,7 @@
     ./zoxide.nix
     ./git.nix
     ./gpg.nix
-    ./ssh-askpass-sops.nix
+    ./ssh-add-keys.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix

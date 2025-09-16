@@ -20,11 +20,29 @@
         "GPG_TTY=/dev/null"
         "PINENTRY_USER_DATA=qt"
         "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new -i %h/.ssh/id_rsa_work"
+        "PATH=${config.home.profileDirectory}/bin:/run/current-system/sw/bin"
       ];
       
       # Script to sync notes with git
       ExecStart = pkgs.writeShellScript "notes-sync" ''
         set -eu
+        
+        # Load SSH keys automatically using SOPS-encrypted passphrases
+        echo "Loading SSH keys..."
+        if command -v ssh-add-keys >/dev/null 2>&1; then
+          # Temporarily disable errexit for SSH key loading
+          set +e
+          ssh-add-keys
+          key_load_result=$?
+          set -e
+          
+          if [[ $key_load_result -ne 0 ]]; then
+            echo "Warning: ssh-add-keys failed, but continuing with sync"
+            echo "SSH keys may need to be loaded manually or passphrases may be missing from SOPS"
+          fi
+        else
+          echo "Warning: ssh-add-keys command not found, proceeding without key loading"
+        fi
         
         # Function to send desktop notification
         notify() {
