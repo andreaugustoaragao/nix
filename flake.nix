@@ -52,6 +52,8 @@
         wirelessInterface = host.wirelessInterface or null;
         # Optional bluetooth configuration
         bluetooth = host.bluetooth or false;
+        # Optional lock screen configuration  
+        lockScreen = host.lockScreen or false;
         inherit inputs;
       };
 

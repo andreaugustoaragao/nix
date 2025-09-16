@@ -7,6 +7,7 @@
     ./wayland-services.nix
     ./wofi.nix
     ./wlogout.nix
+    ./lockscreen.nix
     ./mako.nix
     ./gtk.nix
     ./qt.nix

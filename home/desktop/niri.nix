@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  lockScreen ? false,
   ...
 }:
 
@@ -269,6 +270,11 @@
         // Screenshots (Hyprland-style via script)
         Mod+Shift+S { spawn "screenshot"; }
         Mod+Shift+F { spawn "screenshot" "output"; }
+        
+        ${lib.optionalString lockScreen ''
+        // Lock screen (only on desktop machines)
+        Mod+Shift+L { spawn "swaylock" "-f"; }
+        ''}
 
         // Notification control
         Mod+Semicolon { spawn "makoctl" "restore"; }
