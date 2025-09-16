@@ -21,7 +21,9 @@
       "Read(//etc/xdg/niri/**)",
       "Bash(journalctl:*)",
       "Bash(nix-prefetch-url:*)",
-      "Bash(nix hash:*)"
+      "Bash(nix hash:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

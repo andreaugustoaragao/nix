@@ -11,6 +11,7 @@
   stateVersion,
   profile,
   bluetooth ? false,
+  lockScreen ? false,
   ...
 }:
 
@@ -32,6 +33,7 @@
     ./nvim.nix
     ./sops.nix
     ./bluetooth.nix
+    ./lockscreen.nix
   ];
 
   config = {
