@@ -13,16 +13,21 @@
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  boot.plymouth = {
-    enable = true;
-    theme = "rings";
-    themePackages = with pkgs; [
-      (adi1090x-plymouth-themes.override { selected_themes = [ "rings" ]; })
-    ];
-  };
+  boot.plymouth.enable = false;
 
   boot.consoleLogLevel = 3;
   boot.initrd.verbose = false;
+  boot.kernelParams = [
+    "quiet"
+    "loglevel=3"
+    "splash" 
+    "console=tty7"
+    "udev.log_priority=3"
+    "rd.udev.log_level=3"
+    "systemd.show_status=auto"
+    "vt.global_cursor_default=0"
+    "logo.nologo"
+  ];
 
   boot.tmp.useTmpfs = true;
   boot.tmp.cleanOnBoot = true;

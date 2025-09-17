@@ -26,7 +26,6 @@
   boot.extraModulePackages = [ ];
 
   boot.kernelParams = [
-    "console=tty7" # make the boot really silent
   ];
   # Actual filesystem configuration from HP laptop
   fileSystems."/" = {

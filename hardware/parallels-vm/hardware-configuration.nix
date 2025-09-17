@@ -36,13 +36,7 @@ in
   boot.kernelModules = [ "prl_fs" ];
   boot.extraModulePackages = [ ];
   boot.kernelParams = [
-    "console=tty4"
     "xhci_hcd.quirks=0x40"
-    "quiet"
-    "splash"
-    "boot.shell_on_fail"
-    "udev.log_priority=3"
-    "rd.systemd.show_status=auto"
     "devices.pci_balloon=0"
   ];
 
