@@ -23,8 +23,7 @@
 
     // Define workspaces with numbers
 
-    // Spawn programs on startup (Waybar with niri config; others managed by systemd user services)
-    spawn-at-startup "waybar" "-c" "~/.config/waybar/niri-config.json" "-s" "~/.config/waybar/style.css"
+    // Spawn programs on startup (others managed by systemd user services)
     spawn-at-startup "prlcc"
 
 

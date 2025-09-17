@@ -99,6 +99,24 @@
     Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
+  systemd.user.services.wl-waybar = {
+    Unit = {
+      Description = "Wayland: waybar status bar";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      ExecStart = "${pkgs.bash}/bin/bash -c 'if [[ \"$XDG_CURRENT_DESKTOP\" == *\"niri\"* ]]; then ${pkgs.waybar}/bin/waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css; else ${pkgs.waybar}/bin/waybar -c ~/.config/waybar/hyprland-config.json -s ~/.config/waybar/style.css; fi'";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Environment = [
+        "XDG_CONFIG_HOME=%h/.config"
+      ];
+    };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
+  };
+
   # Start polkit authentication agent in user session (needed outside GNOME)
   systemd.user.services.polkit-gnome-authentication-agent-1 = {
     Unit = {

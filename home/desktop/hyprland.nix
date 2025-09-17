@@ -17,13 +17,10 @@
         #",2560x1600@59.97,auto,1"
       ];
 
-      # Startup applications
+      # Startup applications (others handled by systemd user services)
       exec-once = [
         "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
-        "uwsm app -- swayosd-server"  # OSD for volume/brightness
         "uwsm app -- alacritty --daemon"  # Terminal daemon for faster startup
-        "uwsm app -- hyprpaper"  # Wallpaper daemon
-        "uwsm app -- waybar -c ~/.config/waybar/hyprland-config.json -s ~/.config/waybar/style.css"  # Waybar with Hyprland config
       ];
 
       # Environment variables (optimized for memory)
