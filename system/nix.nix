@@ -31,11 +31,41 @@
 
   systemd.services.auto-upgrade = {
     serviceConfig.Type = "oneshot";
+    path = [ pkgs.nettools pkgs.coreutils pkgs.libnotify pkgs.util-linux ];
     script = ''
       cd /home/${owner.name}/projects/personal/nix
       HOSTNAME=$(hostname)
+      
+      # Send desktop notification function
+      send_notification() {
+        local title="$1"
+        local message="$2"
+        local urgency="''${3:-normal}"
+
+        user="${owner.name}"
+        uid=$(id -u "$user")
+        user_bus="unix:path=/run/user/''${uid}/bus"
+
+        if [ -S "/run/user/''${uid}/bus" ]; then
+          runuser -u "$user" -- ${pkgs.coreutils}/bin/env DBUS_SESSION_BUS_ADDRESS="$user_bus" ${pkgs.libnotify}/bin/notify-send \
+            --app-name="NixOS Auto-Upgrade" \
+            --urgency="$urgency" \
+            "$title" "$message" || true
+        fi
+      }
+      
       echo "Auto-upgrading machine: $HOSTNAME"
-      ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#$HOSTNAME --upgrade-all
+      start=$(date +%s)
+      if ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake .#$HOSTNAME --upgrade-all; then
+        dur=$(( $(date +%s) - start ))
+        echo "Auto-upgrade complete in ''${dur}s"
+        send_notification "✅ NixOS Auto-Upgrade Complete" "Updated successfully in ''${dur}s" normal
+      else
+        dur=$(( $(date +%s) - start ))
+        echo "Auto-upgrade failed after ''${dur}s"
+        send_notification "❌ NixOS Auto-Upgrade Failed" "Check journalctl -u auto-upgrade" critical
+        exit 1
+      fi
     '';
   };
 

@@ -22,6 +22,7 @@
     procps
     lsof
     bc
+    yq
     valgrind
     elfutils
     glib
