@@ -88,13 +88,9 @@
             note_file="$NOTES_DIR/''${note_name}.md"
             
             if [[ -f "$note_file" ]]; then
-                # Open existing note
-                if footclient bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\"" 2>/dev/null; then
-                    echo "Opened existing note: $note_name"
-                else
-                    # Fallback to new foot instance if server not available
-                    foot bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
-                fi
+                # Open existing note - use footclient directly
+                cd "$NOTES_DIR"
+                exec footclient nvim "$note_file"
             else
                 # Create new note with the typed input as the name
                 echo "Creating new note: $note_name"
@@ -109,13 +105,9 @@
                 # Create note template
                 create_note_template "$note_file" "$note_name"
                 
-                # Open in editor
-                if footclient bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\"" 2>/dev/null; then
-                    echo "Opened new note: $note_name"
-                else
-                    # Fallback to new foot instance if server not available
-                    foot bash -c "cd \"$NOTES_DIR\" && nvim \"$note_file\""
-                fi
+                # Open in editor - use footclient directly
+                cd "$NOTES_DIR"
+                exec footclient nvim "$note_file"
             fi
         }
 
