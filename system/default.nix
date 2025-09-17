@@ -23,7 +23,7 @@
     ./desktop.nix
     ./virtualization.nix
     ./audio.nix
-    ./greetd.nix
+    ./display-manager.nix
     ./users.nix
     ./networking.nix
     ./ssh.nix

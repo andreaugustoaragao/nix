@@ -9,6 +9,7 @@ profile = "workstation"
 stateVersion = "25.05"
 bluetooth = true
 lockScreen = true
+autoLogin = false
 
 [machines.hp-laptop]
 hostName = "hp-laptop"
@@ -18,6 +19,7 @@ stateVersion = "25.05"
 wirelessInterface = "wlp2s0"
 bluetooth = true
 lockScreen = true
+autoLogin = false
 
 [machines.parallels-vm]
 hostName = "parallels-vm"
@@ -26,3 +28,4 @@ profile = "vm"
 stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
+autoLogin = true

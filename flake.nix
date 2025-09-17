@@ -54,6 +54,8 @@
         bluetooth = host.bluetooth or false;
         # Optional lock screen configuration
         lockScreen = host.lockScreen or false;
+        # Optional auto login configuration
+        autoLogin = host.autoLogin or false;
         inherit inputs;
       };
 
