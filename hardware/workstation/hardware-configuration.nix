@@ -11,6 +11,7 @@
 {
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
+    ./amd-gpu.nix
   ];
 
   boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "ahci" "thunderbolt" "usbhid" "usb_storage" "sd_mod" ];
@@ -51,12 +52,6 @@
 
   # AMD-specific optimizations
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
-  
-  # Enable AMD GPU support
-  hardware.graphics = {
-    enable = true;
-    enable32Bit = true;
-  };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }
