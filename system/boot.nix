@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   boot.loader.systemd-boot.enable = true;
@@ -18,6 +24,6 @@
   boot.consoleLogLevel = 3;
   boot.initrd.verbose = false;
 
-  boot.tmp.useTmpfs = false;
+  boot.tmp.useTmpfs = true;
   boot.tmp.cleanOnBoot = true;
-} 
+}
