@@ -7,59 +7,29 @@ let
   };
 in
 {
-  # Display manager configuration based on autoLogin setting
-  services = lib.mkMerge [
-    # Common services
-    {
-      gnome.gnome-keyring.enable = true;
-    }
-    
-    # Conditional display manager services
-    (if autoLogin then {
-      # Auto-login configuration using greetd - goes straight to desktop
-      greetd = {
-        enable = true;
-        settings = {
-          default_session = {
-            command = "${pkgs-unstable.niri}/bin/niri-session";
-            # command = "${pkgs.hyprland}/bin/Hyprland";
-            user = owner.name;
-          };
-        };
+  # Greetd configuration with conditional auto-login
+  services.greetd = {
+    enable = true;
+    settings = if autoLogin then {
+      # Auto-login configuration - goes straight to desktop
+      default_session = {
+        command = "${pkgs-unstable.niri}/bin/niri-session";
+        # command = "${pkgs.hyprland}/bin/Hyprland";
+        user = owner.name;
       };
     } else {
-      # Interactive login configuration using LightDM
-      xserver = {
-        enable = true;
-        displayManager.lightdm = {
-          enable = true;
-          greeters.gtk = {
-            enable = true;
-            theme = {
-              package = pkgs.arc-theme;
-              name = "Arc-Dark";
-            };
-            iconTheme = {
-              package = pkgs.arc-icon-theme;
-              name = "Arc";
-            };
-          };
-        };
-        windowManager.session = lib.singleton {
-          name = "niri";
-          start = "${pkgs-unstable.niri}/bin/niri-session";
-        };
+      # Interactive login configuration - shows login prompt
+      default_session = {
+        command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --cmd ${pkgs-unstable.niri}/bin/niri-session";
+        user = "greeter";
       };
-      displayManager.defaultSession = "niri";
-    })
-  ];
+    };
+  };
+
+  services.gnome.gnome-keyring.enable = true;
 
   security.polkit.enable = true;
   
-  # Update PAM services for display managers
-  security.pam.services = if autoLogin then {
-    greetd.enableGnomeKeyring = true;
-  } else {
-    lightdm.enableGnomeKeyring = true;
-  };
+  # Update PAM services for greetd
+  security.pam.services.greetd.enableGnomeKeyring = true;
 } 
