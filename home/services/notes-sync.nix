@@ -19,7 +19,7 @@
         "QT_QPA_PLATFORM=wayland"
         "GPG_TTY=/dev/null"
         "PINENTRY_USER_DATA=qt"
-        "GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=accept-new -i %h/.ssh/id_rsa_work"
+        "GIT_SSH_COMMAND=\"ssh -o StrictHostKeyChecking=accept-new -i %h/.ssh/id_rsa_work\""
         "PATH=${config.home.profileDirectory}/bin:/run/current-system/sw/bin"
       ];
       
