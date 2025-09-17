@@ -6,8 +6,16 @@
   lib,
   pkgs,
   modulesPath,
+  inputs,
   ...
 }:
+
+let
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.system;
+    config.allowUnfree = true;
+  };
+in
 
 {
   imports = [
@@ -25,7 +33,7 @@
     "prl_tg"
   ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ ];
+  boot.kernelModules = [ "prl_fs" ];
   boot.extraModulePackages = [ ];
   boot.kernelParams = [
     "xhci_hcd.quirks=0x40"
@@ -66,14 +74,7 @@
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
   hardware.parallels = {
     enable = true;
-    #    package = config.boot.kernelPackages.prl-tools.overrideAttrs (
-    #     finalAttrs: previousAttrs: {
-    #       version = "26.0.0-57238";
-    #       src = previousAttrs.src.overrideAttrs {
-    #         outputHash = "sha256-UuQGW1qYLGVLqAzApPKBqfOZdS23mCPsID4D0HATHNw=";
-    #       };
-    #     }
-    #   );
+    package = unstable-pkgs.linuxPackages_latest.prl-tools;
   };
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];
