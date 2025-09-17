@@ -18,7 +18,7 @@
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {
         // Default configuration for all outputs
-        scale 2.0
+        scale 2.0 
     }
 
     // Define workspaces with numbers
@@ -271,8 +271,8 @@
         Mod+Shift+F { spawn "screenshot" "output"; }
         
         ${lib.optionalString lockScreen ''
-        // Lock screen (only on desktop machines)  
-        Mod+Ctrl+L { spawn "swaylock" "-f"; }
+          // Lock screen (only on desktop machines)  
+          Mod+Ctrl+L { spawn "swaylock" "-f"; }
         ''}
 
         // Notification control
