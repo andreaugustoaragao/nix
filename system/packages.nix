@@ -70,5 +70,11 @@
     hunspellDicts.en_GB-large
 
     # Development tools moved to home configuration
+  ] 
+  # Office suite - OnlyOffice for x86_64, LibreOffice for ARM
+  ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
+    onlyoffice-bin
+  ] ++ lib.optionals (pkgs.stdenv.system == "aarch64-linux") [
+    libreoffice
   ];
 } 
