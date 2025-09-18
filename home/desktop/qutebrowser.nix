@@ -42,7 +42,37 @@ in
         headers.user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
         javascript.enabled = true;
         javascript.clipboard = "access"; # Allow clipboard access
-        notifications.enabled = "ask";
+        
+        # Notifications - auto-accept for web apps
+        notifications.enabled = {
+          "*" = "ask"; # Default ask
+          "https://web.whatsapp.com" = true;
+          "https://teams.microsoft.com" = true;
+          "https://grok.com" = true;
+        };
+        
+        # Media permissions - auto-accept for video conferencing
+        media = {
+          audio_capture = {
+            "*" = "ask"; # Default ask
+            "https://teams.microsoft.com" = true;
+            "https://meet.google.com" = true;
+            "https://zoom.us" = true;
+          };
+          video_capture = {
+            "*" = "ask"; # Default ask
+            "https://teams.microsoft.com" = true;
+            "https://meet.google.com" = true;
+            "https://zoom.us" = true;
+          };
+          audio_video_capture = {
+            "*" = "ask"; # Default ask
+            "https://teams.microsoft.com" = true;
+            "https://meet.google.com" = true;
+            "https://zoom.us" = true;
+          };
+        };
+        
         register_protocol_handler = "ask";
         tls.certificate_errors = "ask";
       };

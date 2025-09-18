@@ -4,9 +4,7 @@
   lib,
   inputs,
   ...
-}:
-
-let
+}: let
   # Download web app icons from the internet
   webAppIcons = {
     teams = pkgs.fetchurl {
@@ -63,7 +61,7 @@ let
     };
     m1finance = pkgs.fetchurl {
       url = "https://cdn.iconscout.com/icon/premium/png-512-thumb/money-management-icon-svg-download-png-10229961.png";
-      sha256 = "sha256-WARq9Xar0POF7wnzyseTE1K2ZFVahjkUT4b91kgDKh8=";
+      sha256 = "sha256-NMaI88xHjSqZ2TIriyAb1/9xDZblRarhiVRvg26nudQ=";
     };
     reddit = pkgs.fetchurl {
       url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/reddit.png";
@@ -74,8 +72,7 @@ let
       sha256 = "sha256-onbglLXom+IuTMduXAIAtujJSghEmtwW/PEd0dSe4Pw=";
     };
   };
-in
-{
+in {
   # Web Applications Launcher using wofi
   home.packages = [
     (pkgs.writeShellScriptBin "web-apps-launcher" ''
@@ -90,8 +87,8 @@ in
 
       # Qutebrowser configuration
       BROWSER_CMD="${pkgs.qutebrowser}/bin/qutebrowser"
-      BROWSER_ARGS_APP="-B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
-      BROWSER_ARGS_DEFAULT="-B ~/.config/qutebrowser-app -C ~/.config/qutebrowser --desktop-file-name \$app_name_clean -R --target window"
+      BROWSER_ARGS_APP="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
+      BROWSER_ARGS_DEFAULT="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
 
       # Web applications list (name|icon|url|profile)
       # Note: Some icons use emoji fallbacks due to icon availability issues
