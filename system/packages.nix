@@ -56,6 +56,12 @@
     pamixer
     brightnessctl
 
+    # Audio diagnostic tools
+    pciutils  # provides lspci
+    usbutils  # provides lsusb
+    alsa-utils  # provides aplay, arecord, amixer
+    pulseaudio  # provides pactl for PulseAudio compatibility diagnostics
+
     nautilus
 
     # Spell checking dictionaries

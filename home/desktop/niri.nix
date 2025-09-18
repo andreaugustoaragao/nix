@@ -191,11 +191,11 @@
         Mod+B { spawn "qutebrowser"; }
         Mod+M { spawn "spotify"; }
         Mod+N { spawn "notes"; }
-        Mod+G { spawn "brave" "--app=https://web.whatsapp.com"; }
-        Mod+T { spawn "firefox" "-P" "app" "--new-window" "https://teams.microsoft.com"; }
+        Mod+G { spawn "qutebrowser" "-B" "~/.config/qutebrowser-app" "-C" "~/.config/qutebrowser/config.py" "--desktop-file-name" "WhatsApp" "-R" "--target" "window" "https://web.whatsapp.com"; }
+        Mod+T { spawn "qutebrowser" "-B" "~/.config/qutebrowser-app" "-C" "~/.config/qutebrowser/config.py" "--desktop-file-name" "Teams" "-R" "--target" "window" "https://teams.microsoft.com"; }
         Mod+Backslash { spawn "bitwarden"; }
-        Mod+A { spawn "brave" "--app=https://grok.com"; }
-        Mod+X { spawn "brave" "--app=https://x.com"; }
+        Mod+A { spawn "qutebrowser" "-B" "~/.config/qutebrowser-app" "-C" "~/.config/qutebrowser/config.py" "--desktop-file-name" "Grok_AI" "-R" "--target" "window" "https://grok.com"; }
+        Mod+X { spawn "qutebrowser" "-B" "~/.config/qutebrowser-app" "-C" "~/.config/qutebrowser/config.py" "--desktop-file-name" "X_Twitter" "-R" "--target" "window" "https://x.com"; }
         Mod+O { spawn "web-apps-launcher"; }
         Mod+S { spawn "footclient" "btop"; }
 

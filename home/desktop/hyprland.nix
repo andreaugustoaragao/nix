@@ -214,11 +214,11 @@
         "$mainMod, B, exec, qutebrowser" # Qutebrowser
         "$mainMod, M, exec, spotify" # Music
         "$mainMod, N, exec, notes" # Notes manager
-        "$mainMod, G, exec, brave --app=https://web.whatsapp.com" # WhatsApp
-        "$mainMod, T, exec, firefox -P app --new-window https://teams.microsoft.com" # Microsoft Teams
+        "$mainMod, G, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name WhatsApp -R --target window https://web.whatsapp.com" # WhatsApp
+        "$mainMod, T, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name Teams -R --target window https://teams.microsoft.com" # Microsoft Teams
         "$mainMod, backslash, exec, bitwarden" # Password manager
-        "$mainMod, A, exec, brave --app=https://grok.com" # Grok AI
-        "$mainMod, X, exec, brave --app=https://x.com" # X.com
+        "$mainMod, A, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name Grok_AI -R --target window https://grok.com" # Grok AI
+        "$mainMod, X, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name X_Twitter -R --target window https://x.com" # X.com
         "$mainMod, O, exec, web-apps-launcher" # Web Apps Launcher
         "$mainMod, S, exec, alacritty msg create-window -e btop" # System monitor
 
