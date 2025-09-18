@@ -43,35 +43,7 @@ in
         javascript.enabled = true;
         javascript.clipboard = "access"; # Allow clipboard access
         
-        # Notifications - auto-accept for web apps
-        notifications.enabled = {
-          "*" = "ask"; # Default ask
-          "https://web.whatsapp.com" = true;
-          "https://teams.microsoft.com" = true;
-          "https://grok.com" = true;
-        };
-        
-        # Media permissions - auto-accept for video conferencing
-        media = {
-          audio_capture = {
-            "*" = "ask"; # Default ask
-            "https://teams.microsoft.com" = true;
-            "https://meet.google.com" = true;
-            "https://zoom.us" = true;
-          };
-          video_capture = {
-            "*" = "ask"; # Default ask
-            "https://teams.microsoft.com" = true;
-            "https://meet.google.com" = true;
-            "https://zoom.us" = true;
-          };
-          audio_video_capture = {
-            "*" = "ask"; # Default ask
-            "https://teams.microsoft.com" = true;
-            "https://meet.google.com" = true;
-            "https://zoom.us" = true;
-          };
-        };
+        # Note: Site-specific permissions are configured in extraConfig section below
         
         register_protocol_handler = "ask";
         tls.certificate_errors = "ask";
@@ -452,6 +424,33 @@ in
       "wq" = "quit --save";
       "wqa" = "quit --save";
     };
+
+    # Extra config for URL-based patterns that can't be handled in settings
+    extraConfig = ''
+      # Set default permissions for all sites
+      config.set('content.notifications.enabled', 'ask', '*')
+      config.set('content.media.audio_capture', 'ask', '*')
+      config.set('content.media.video_capture', 'ask', '*')
+      config.set('content.media.audio_video_capture', 'ask', '*')
+      
+      # Site-specific notifications permissions
+      config.set('content.notifications.enabled', True, 'https://web.whatsapp.com')
+      config.set('content.notifications.enabled', True, 'https://teams.microsoft.com')
+      config.set('content.notifications.enabled', True, 'https://grok.com')
+      
+      # Site-specific media permissions for video conferencing
+      config.set('content.media.audio_capture', True, 'https://teams.microsoft.com')
+      config.set('content.media.audio_capture', True, 'https://meet.google.com')
+      config.set('content.media.audio_capture', True, 'https://zoom.us')
+      
+      config.set('content.media.video_capture', True, 'https://teams.microsoft.com')
+      config.set('content.media.video_capture', True, 'https://meet.google.com')
+      config.set('content.media.video_capture', True, 'https://zoom.us')
+      
+      config.set('content.media.audio_video_capture', True, 'https://teams.microsoft.com')
+      config.set('content.media.audio_video_capture', True, 'https://meet.google.com')
+      config.set('content.media.audio_video_capture', True, 'https://zoom.us')
+    '';
   };
 
 }
