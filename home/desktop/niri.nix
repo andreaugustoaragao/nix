@@ -21,6 +21,13 @@
         scale 2.0 
     }
 
+
+    output "DP-1" {
+        // Default configuration for all outputs
+        mode "3840x2160@144.000"
+        scale 1.75 
+    }
+
     // Define workspaces with numbers
 
     // Spawn programs on startup (others managed by systemd user services)
@@ -121,7 +128,7 @@
     }
 
     window-rule {
-        match app-id="bitwarden"
+        match app-id="Bitwarden"
         open-floating true
         default-column-width { fixed 800; }
         open-on-output "current"

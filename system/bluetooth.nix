@@ -22,6 +22,7 @@
       bluez
       bluez-tools
       blueman
+      broadcom-bt-firmware
     ];
 
     # Enable PulseAudio/PipeWire Bluetooth support

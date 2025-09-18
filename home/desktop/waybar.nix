@@ -38,7 +38,7 @@
         "idle_inhibitor"
         "privacy"
         "systemd-failed-units"
-        "group/tray-expander"
+        "tray"
         "battery"
       ];
 
@@ -162,23 +162,6 @@
         scroll-step = 5;
       };
 
-      "group/tray-expander" = {
-        orientation = "horizontal";
-        modules = [
-          "custom/expand-icon"
-          "tray"
-        ];
-        drawer = {
-          transition-duration = 500;
-          children-class = "tray-drawer";
-          transition-left-to-right = true;
-        };
-      };
-
-      "custom/expand-icon" = {
-        format = "▶️";
-        tooltip = false;
-      };
 
       "tray" = {
         icon-size = 12;
@@ -251,7 +234,7 @@
         "idle_inhibitor"
         "privacy"
         "systemd-failed-units"
-        "group/tray-expander"
+        "tray"
         "battery"
       ];
 
@@ -369,23 +352,6 @@
         scroll-step = 5;
       };
 
-      "group/tray-expander" = {
-        orientation = "horizontal";
-        modules = [
-          "custom/expand-icon"
-          "tray"
-        ];
-        drawer = {
-          transition-duration = 500;
-          children-class = "tray-drawer";
-          transition-left-to-right = true;
-        };
-      };
-
-      "custom/expand-icon" = {
-        format = "▶️";
-        tooltip = false;
-      };
 
       "tray" = {
         icon-size = 12;
