@@ -49,7 +49,7 @@
 
   # Wireless network configuration for systemd-networkd
   systemd.network.networks."20-wireless" = lib.mkIf (wirelessInterface != null) {
-    matchConfig.Name = wirelessInterface;
+    # matchConfig.Name = wirelessInterface;
     networkConfig = {
       DHCP = "yes";
       IPv6AcceptRA = true;
