@@ -253,7 +253,7 @@ EOF
 log "Updating machines configuration"
 
 # Check if hostname already exists in machines.toml, if not add it
-if ! grep -q "\\[$HOSTNAME\\]" /mnt/etc/nixos/machines.toml; then
+if ! grep -q "\\[machines\\.$HOSTNAME\\]" /mnt/etc/nixos/machines.toml; then
     sudo tee -a /mnt/etc/nixos/machines.toml > /dev/null <<EOF
 
 [machines.$HOSTNAME]
