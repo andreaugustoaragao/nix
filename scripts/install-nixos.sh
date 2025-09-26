@@ -81,6 +81,10 @@ sudo cryptsetup luksFormat ${DISK}2
 echo "Enter the passphrase again to unlock the encrypted partition:"
 sudo cryptsetup luksOpen ${DISK}2 cryptroot
 
+# Set LUKS partition label for boot configuration
+log "Setting LUKS partition label to nixos-crypt"
+sudo cryptsetup config --label=nixos-crypt ${DISK}2
+
 # Format root partition with btrfs
 log "Creating btrfs filesystem"
 sudo mkfs.btrfs -L nixos /dev/mapper/cryptroot
@@ -137,11 +141,17 @@ sudo nixos-generate-config --root /mnt
 # Step 5: Download and setup flake configuration
 log "Downloading flake configuration from $FLAKE_REPO"
 
-# Clone the configuration repository
-cd /mnt/etc/nixos
-sudo rm -rf ./*  # Remove default generated files
-sudo git clone $FLAKE_REPO .
-sudo chown -R root:root .
+# Create the user's projects directory structure
+sudo mkdir -p /mnt/home/$USERNAME/projects/personal
+sudo chown -R 1000:100 /mnt/home/$USERNAME/projects
+
+# Clone the configuration repository to user's home
+cd /mnt/home/$USERNAME/projects/personal
+sudo -u "#1000" git clone $FLAKE_REPO nix
+sudo chown -R 1000:100 /mnt/home/$USERNAME/projects/personal/nix
+
+# Create symlink from /etc/nixos to the user's nix config for nixos-install
+sudo ln -sf /mnt/home/$USERNAME/projects/personal/nix /mnt/etc/nixos
 
 # Using partition labels instead of UUIDs for cleaner configuration
 log "Using partition labels: nixos-crypt (encrypted) and nixos-boot (EFI)"
@@ -149,7 +159,7 @@ log "Using partition labels: nixos-crypt (encrypted) and nixos-boot (EFI)"
 # Step 6: Check if machine exists in machines.toml
 log "Checking if machine $HOSTNAME exists in configuration"
 
-if ! grep -q "\\[machines\\.$HOSTNAME\\]" /mnt/etc/nixos/machines.toml; then
+if ! grep -q "\\[machines\\.$HOSTNAME\\]" /mnt/home/$USERNAME/projects/personal/nix/machines.toml; then
     error "Machine '$HOSTNAME' not found in machines.toml. Please add it to the configuration first."
 fi
 
@@ -157,7 +167,7 @@ log "Machine $HOSTNAME found in configuration, proceeding with installation"
 
 # Step 7: Install NixOS
 log "Installing NixOS with flake configuration"
-sudo nixos-install --root /mnt --flake "/mnt/etc/nixos#$HOSTNAME"
+sudo nixos-install --root /mnt --flake "/mnt/home/$USERNAME/projects/personal/nix#$HOSTNAME"
 
 log "Installation completed successfully!"
 
@@ -172,6 +182,7 @@ Your NixOS system has been installed with:
   • Full disk encryption (LUKS)
   • Btrfs with optimized subvolumes
   • Your flake configuration from: $FLAKE_REPO
+  • Flake location: /home/$USERNAME/projects/personal/nix
   • Hostname: $HOSTNAME
   • Username: $USERNAME
 

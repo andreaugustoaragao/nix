@@ -21,7 +21,7 @@
     "quiet"
     "loglevel=3"
     "splash" 
-    "console=tty7"
+    # Removed "console=tty7" to keep LUKS password prompt visible on tty1
     "udev.log_priority=3"
     "rd.udev.log_level=3"
     "systemd.show_status=auto"
