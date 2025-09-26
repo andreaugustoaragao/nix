@@ -62,6 +62,10 @@
     alsa-utils  # provides aplay, arecord, amixer
     pulseaudio  # provides pactl for PulseAudio compatibility diagnostics
 
+    # Filesystem and encryption tools
+    btrfs-progs
+    cryptsetup
+
     nautilus
 
     # Spell checking dictionaries
