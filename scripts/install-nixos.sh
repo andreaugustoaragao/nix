@@ -249,6 +249,11 @@ sudo tee "$HARDWARE_DIR/hardware-configuration.nix" > /dev/null <<EOF
 }
 EOF
 
+# Add the new hardware configuration to git staging
+log "Adding hardware configuration to git"
+cd /mnt/etc/nixos
+sudo git add "$HARDWARE_DIR/hardware-configuration.nix"
+
 # Step 7: Update machines.toml to include this machine
 log "Updating machines configuration"
 
