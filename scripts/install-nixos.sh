@@ -267,14 +267,9 @@ autoLogin = false
 EOF
 fi
 
-# Step 8: Set root password
-log "Setting up root password"
-echo "Enter root password for the new system:"
-sudo nixos-enter --root /mnt -c "passwd root"
-
-# Step 9: Install NixOS
+# Step 8: Install NixOS
 log "Installing NixOS with flake configuration"
-sudo nixos-install --root /mnt --flake "/mnt/etc/nixos#$HOSTNAME" --no-root-passwd
+sudo nixos-install --root /mnt --flake "/mnt/etc/nixos#$HOSTNAME"
 
 log "Installation completed successfully!"
 
@@ -295,9 +290,10 @@ Your NixOS system has been installed with:
 Next steps:
 1. Reboot: sudo reboot
 2. Enter your disk encryption password at boot
-3. Login with username: $USERNAME
-4. Set your user password: passwd
-5. Your Home Manager configuration will be applied automatically
+3. Login with your configured credentials
+4. Your Home Manager configuration will be applied automatically
+
+Note: User accounts and passwords are managed by your flake configuration.
 
 BTRFS Subvolumes created:
   • @root      -> /
