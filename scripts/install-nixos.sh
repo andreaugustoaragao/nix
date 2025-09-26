@@ -93,7 +93,6 @@ sudo mount /dev/mapper/cryptroot /mnt
 # Create subvolumes
 log "Creating btrfs subvolumes"
 sudo btrfs subvolume create /mnt/@root
-sudo btrfs subvolume create /mnt/@home
 sudo btrfs subvolume create /mnt/@nix
 sudo btrfs subvolume create /mnt/@tmp
 sudo btrfs subvolume create /mnt/@swap
@@ -116,14 +115,9 @@ sudo mount -o subvol=@root,$BTRFS_OPTS /dev/mapper/cryptroot /mnt
 
 # Create mount points
 sudo mkdir -p /mnt/{home,nix,tmp,swap,boot,.snapshots}
-
-# Mount home subvolume first
-sudo mount -o subvol=@home,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home
-
-# Create user directory after mounting /home
 sudo mkdir -p /mnt/home/$USERNAME
 
-# Mount user-specific subvolume
+# Mount user-specific home subvolume directly
 sudo mount -o subvol=@home-$USERNAME,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home/$USERNAME
 sudo mount -o subvol=@nix,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/nix
 sudo mount -o subvol=@tmp,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/tmp
@@ -193,12 +187,6 @@ sudo tee "$HARDWARE_DIR/hardware-configuration.nix" > /dev/null <<EOF
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
     options = [ "subvol=@root" "compress=zstd:1" "noatime" "space_cache=v2" ];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/mapper/cryptroot";
-    fsType = "btrfs";
-    options = [ "subvol=@home" "compress=zstd:1" "noatime" "space_cache=v2" ];
   };
 
   fileSystems."/home/$USERNAME" = {
@@ -302,7 +290,6 @@ Note: User accounts and passwords are managed by your flake configuration.
 
 BTRFS Subvolumes created:
   • @root      -> /
-  • @home      -> /home
   • @home-$USERNAME -> /home/$USERNAME
   • @nix       -> /nix
   • @tmp       -> /tmp
