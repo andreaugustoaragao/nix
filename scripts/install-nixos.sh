@@ -240,7 +240,7 @@ sudo tee "$HARDWARE_DIR/hardware-configuration.nix" > /dev/null <<EOF
   networking.useDHCP = lib.mkDefault true;
   
   # Hardware acceleration
-  hardware.opengl.enable = true;
+  hardware.graphics.enable = true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
