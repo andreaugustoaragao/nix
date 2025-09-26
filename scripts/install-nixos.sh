@@ -7,8 +7,8 @@ set -euo pipefail
 
 # Configuration
 DISK="${DISK:-/dev/sda}"  # Override with DISK=/dev/nvme0n1 ./install-nixos.sh
-HOSTNAME="${HOSTNAME:-workstation}"  # Override with HOSTNAME=laptop ./install-nixos.sh
-FLAKE_REPO="${FLAKE_REPO:-https://github.com/your-username/nix-config.git}"
+HOSTNAME="${HOSTNAME:-parallels-vm}"  # Override with HOSTNAME=laptop ./install-nixos.sh
+FLAKE_REPO="${FLAKE_REPO:-https://github.com/andreaugustoaragao/nix.git}"
 USERNAME="${USERNAME:-aragao}"
 USER_FULLNAME="${USER_FULLNAME:-Andre Aragao}"
 
@@ -116,10 +116,14 @@ sudo mount -o subvol=@root,$BTRFS_OPTS /dev/mapper/cryptroot /mnt
 
 # Create mount points
 sudo mkdir -p /mnt/{home,nix,tmp,swap,boot,.snapshots}
+
+# Mount home subvolume first
+sudo mount -o subvol=@home,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home
+
+# Create user directory after mounting /home
 sudo mkdir -p /mnt/home/$USERNAME
 
-# Mount other subvolumes
-sudo mount -o subvol=@home,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home
+# Mount user-specific subvolume
 sudo mount -o subvol=@home-$USERNAME,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home/$USERNAME
 sudo mount -o subvol=@nix,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/nix
 sudo mount -o subvol=@tmp,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/tmp
