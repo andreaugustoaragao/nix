@@ -53,12 +53,11 @@ export FLAKE_REPO="https://github.com/my-user/my-nix-config.git"
 
 4. **Configuration**:
    - Downloads your flake configuration from GitHub
-   - Generates hardware configuration
-   - Updates machines.toml with new machine
+   - Checks that the specified hostname exists in machines.toml
 
 5. **Installation**:
-   - Installs NixOS using your flake
-   - Sets up user and root passwords
+   - Installs NixOS using your existing flake configuration
+   - Uses pre-configured hardware settings for the machine
 
 ## Features
 
@@ -74,6 +73,8 @@ export FLAKE_REPO="https://github.com/my-user/my-nix-config.git"
 - NixOS ISO environment
 - Internet connection for downloading configuration
 - Git repository with your flake configuration
+- Machine hostname must exist in machines.toml
+- Corresponding hardware configuration file must exist
 
 ## Security Features
 
