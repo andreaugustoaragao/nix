@@ -65,12 +65,13 @@ sudo parted $DISK --script -- mklabel gpt
 sudo parted $DISK --script -- mkpart ESP fat32 1MiB 513MiB
 sudo parted $DISK --script -- set 1 esp on
 
-# Create root partition (rest of disk)
+# Create root partition (rest of disk) with label
 sudo parted $DISK --script -- mkpart primary 513MiB 100%
+sudo parted $DISK --script -- name 2 nixos-crypt
 
 # Format EFI partition
 log "Formatting EFI partition"
-sudo mkfs.fat -F 32 -n boot ${DISK}1
+sudo mkfs.fat -F 32 -n nixos-boot ${DISK}1
 
 # Setup LUKS encryption
 log "Setting up LUKS encryption on ${DISK}2"
@@ -142,12 +143,8 @@ sudo rm -rf ./*  # Remove default generated files
 sudo git clone $FLAKE_REPO .
 sudo chown -R root:root .
 
-# Get the UUID of the encrypted partition for configuration
-CRYPT_UUID=$(sudo blkid -s UUID -o value ${DISK}2)
-EFI_UUID=$(sudo blkid -s UUID -o value ${DISK}1)
-
-log "Encrypted partition UUID: $CRYPT_UUID"
-log "EFI partition UUID: $EFI_UUID"
+# Using partition labels instead of UUIDs for cleaner configuration
+log "Using partition labels: nixos-crypt (encrypted) and nixos-boot (EFI)"
 
 # Step 6: Update hardware configuration for our setup
 log "Updating hardware configuration"
@@ -172,7 +169,7 @@ sudo tee "$HARDWARE_DIR/hardware-configuration.nix" > /dev/null <<EOF
 
   # LUKS configuration
   boot.initrd.luks.devices."cryptroot" = {
-    device = "/dev/disk/by-uuid/$CRYPT_UUID";
+    device = "/dev/disk/by-label/nixos-crypt";
     preLVM = true;
   };
 
@@ -214,7 +211,7 @@ sudo tee "$HARDWARE_DIR/hardware-configuration.nix" > /dev/null <<EOF
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/$EFI_UUID";
+    device = "/dev/disk/by-label/nixos-boot";
     fsType = "vfat";
   };
 
