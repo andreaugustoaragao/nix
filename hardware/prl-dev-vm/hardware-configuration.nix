@@ -89,8 +89,19 @@ in
     fsType = "vfat";
   };
 
+  fileSystems."/swap" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=@swap" "compress=zstd:1" "noatime" "space_cache=v2" ];
+  };
+
   # Swap configuration (using btrfs subvolume)
-  swapDevices = [ ];
+  swapDevices = [
+    {
+      device = "/swap/swapfile";
+      size = 16384; # 16GB swap file
+    }
+  ];
 
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
