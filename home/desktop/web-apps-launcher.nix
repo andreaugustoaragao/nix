@@ -32,16 +32,9 @@ in {
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # Browser configuration - change this variable to switch browsers
-      # Firefox (commented out - can be restored if needed)
-      # BROWSER_CMD="${pkgs.firefox}/bin/firefox"
-      # BROWSER_ARGS_APP="-P app --new-window"
-      # BROWSER_ARGS_DEFAULT="-P default --new-window"
-
-      # Qutebrowser configuration
-      BROWSER_CMD="${pkgs.qutebrowser}/bin/qutebrowser"
-      BROWSER_ARGS_APP="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
-      BROWSER_ARGS_DEFAULT="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
+      # Browser configuration - using Firefox scripts
+      BROWSER_APP_CMD="browser-app"
+      BROWSER_DEFAULT_CMD="browser-default"
 
       # Web applications list (name|icon|url|profile)
       # Note: Some icons use emoji fallbacks due to icon availability issues
@@ -107,10 +100,10 @@ in {
 
       case "$profile" in
           "app")
-              eval "$BROWSER_CMD $BROWSER_ARGS_APP \"$url\""
+              $BROWSER_APP_CMD "$url"
               ;;
           *)
-              eval "$BROWSER_CMD $BROWSER_ARGS_DEFAULT \"$url\""
+              $BROWSER_DEFAULT_CMD "$url"
               ;;
       esac
 

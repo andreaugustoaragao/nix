@@ -113,7 +113,7 @@ in
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
   hardware.parallels = {
     enable = true;
-    package = unstable-pkgs.linuxPackages_latest.prl-tools;
+    package = pkgs.linuxPackages.prl-tools;
   };
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];

@@ -11,7 +11,7 @@
   boot.loader.systemd-boot.configurationLimit = 10;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_zen;
 
   boot.plymouth.enable = false;
 
@@ -20,7 +20,7 @@
   boot.kernelParams = [
     "quiet"
     "loglevel=3"
-    "splash" 
+    "splash"
     # Removed "console=tty7" to keep LUKS password prompt visible on tty1
     "udev.log_priority=3"
     "rd.udev.log_level=3"

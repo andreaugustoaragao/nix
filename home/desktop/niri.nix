@@ -188,14 +188,14 @@
         // Applications (using foot as default terminal)
         Mod+Return { spawn "footclient"; }
         Mod+F { spawn "thunar"; }
-        Mod+B { spawn "qutebrowser"; }
+        Mod+B { spawn "browser-default"; }
         Mod+M { spawn "spotify"; }
         Mod+N { spawn "notes"; }
-        Mod+G { spawn "qutebrowser" "-B" "${config.home.homeDirectory}/.config/qutebrowser-app" "-C" "${config.home.homeDirectory}/.config/qutebrowser/config.py" "--desktop-file-name" "WhatsApp" "-R" "--target" "window" "https://web.whatsapp.com"; }
-        Mod+T { spawn "qutebrowser" "-B" "${config.home.homeDirectory}/.config/qutebrowser-app" "-C" "${config.home.homeDirectory}/.config/qutebrowser/config.py" "--desktop-file-name" "Teams" "-R" "--target" "window" "https://teams.microsoft.com"; }
+        Mod+G { spawn "browser-app" "https://web.whatsapp.com"; }
+        Mod+T { spawn "browser-app" "https://teams.microsoft.com"; }
         Mod+Backslash { spawn "bitwarden"; }
-        Mod+A { spawn "qutebrowser" "-B" "${config.home.homeDirectory}/.config/qutebrowser-app" "-C" "${config.home.homeDirectory}/.config/qutebrowser/config.py" "--desktop-file-name" "Grok_AI" "-R" "--target" "window" "https://grok.com"; }
-        Mod+X { spawn "qutebrowser" "-B" "${config.home.homeDirectory}/.config/qutebrowser-app" "-C" "${config.home.homeDirectory}/.config/qutebrowser/config.py" "--desktop-file-name" "X_Twitter" "-R" "--target" "window" "https://x.com"; }
+        Mod+A { spawn "browser-app" "https://grok.com"; }
+        Mod+X { spawn "browser-app" "https://x.com"; }
         Mod+O { spawn "web-apps-launcher"; }
         Mod+S { spawn "footclient" "btop"; }
 
