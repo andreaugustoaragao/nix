@@ -23,6 +23,7 @@
     ./qutebrowser.nix
     ./vscode.nix
     ./waybar.nix
+    ./eww.nix
     ./wallpapers.nix
     ./fcitx.nix
     ./thunar.nix
@@ -31,6 +32,7 @@
     ./mimeapps.nix
     ./notes.nix
     ./web-apps-launcher.nix
+    ./quickshell.nix
   ];
 
   home.packages = with pkgs; [
@@ -42,5 +44,8 @@
     neovide
     swayimg
     obsidian
+    qt6.qttools
+  ] ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
+    zoom-us
   ];
 }

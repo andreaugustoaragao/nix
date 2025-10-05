@@ -1,4 +1,11 @@
-{ config, pkgs, lib, inputs, wirelessInterface, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  wirelessInterface,
+  ...
+}:
 
 {
   # Install wpa_gui when wireless is enabled
@@ -29,27 +36,27 @@
     enable = true;
     interfaces = [ wirelessInterface ];
     userControlled.enable = true; # Allow user-space configuration
-    
+
     # Networks configured via SOPS secrets
     networks = {
       # Home network - using SOPS secret
       "FARAGAO" = {
         pskRaw = "ext:wifi_password_home";
       };
-      
-      # Work network - using SOPS secret  
+
+      # Work network - using SOPS secret
       "FARAGAO_WORK" = {
         pskRaw = "ext:wifi_password_work";
       };
     };
-    
+
     # Secrets file containing SOPS secrets for wpa_supplicant
     secretsFile = "/run/secrets/wifi_env";
   };
 
   # Wireless network configuration for systemd-networkd
   systemd.network.networks."20-wireless" = lib.mkIf (wirelessInterface != null) {
-    # matchConfig.Name = wirelessInterface;
+    matchConfig.Name = wirelessInterface;
     networkConfig = {
       DHCP = "yes";
       IPv6AcceptRA = true;
@@ -64,4 +71,5 @@
 
   # Disable network-wait-online for faster boot
   systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
-} 
+}
+

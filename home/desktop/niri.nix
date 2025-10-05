@@ -237,24 +237,24 @@
         // Focus movement (arrow keys and vim keys)
         Mod+Left { focus-column-left; }
         Mod+Right { focus-column-right; }
-        Mod+Up { focus-window-up; }
-        Mod+Down { focus-window-down; }
+        Mod+Up { focus-window-or-workspace-up; }
+        Mod+Down { focus-window-or-workspace-down; }
         Mod+h { focus-column-left; }
         Mod+l { focus-column-right; }
-        Mod+k { focus-window-up; }
-        Mod+j { focus-window-down; }
+        Mod+k { focus-window-or-workspace-up; }
+        Mod+j { focus-window-or-workspace-down; }
 
         Mod+c {toggle-column-tabbed-display; }
 
         // Window movement (vim keys and arrows)
         Mod+Shift+Left { move-column-left; }
         Mod+Shift+Right { move-column-right; }
-        Mod+Shift+Up { move-window-up; }
-        Mod+Shift+Down { move-window-down; }
+        Mod+Shift+Up { move-window-up-or-to-workspace-up; }
+        Mod+Shift+Down { move-window-down-or-to-workspace-down; }
         Mod+Shift+H { move-column-left; }
         Mod+Shift+L { move-column-right; }
-        Mod+Shift+K { move-window-up; }
-        Mod+Shift+J { move-window-down; }
+        Mod+Shift+K { move-window-up-or-to-workspace-up; }
+        Mod+Shift+J { move-window-down-or-to-workspace-down; }
 
         // Consume or expel window (bracket keys)
         Mod+BracketLeft { consume-or-expel-window-left; }
@@ -289,6 +289,10 @@
         // Tab between workspaces  
         Mod+Tab { focus-workspace-down; }
         Mod+Shift+Tab { focus-workspace-up; }
+
+        // Jump to first/last column in current workspace
+        Mod+Home { focus-column-first; }
+        Mod+End { focus-column-last; }
 
         // Column width adjustment (similar to Hyprland resize)
         Mod+Minus { set-column-width "-100"; }

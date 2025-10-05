@@ -3,13 +3,40 @@
   pkgs,
   lib,
   inputs,
+  isWorkstation,
   ...
 }:
 
 {
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.systemd-boot.configurationLimit = 10;
-  boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader = lib.mkMerge [
+    # Default systemd-boot configuration for non-workstation machines
+    (lib.mkIf (!isWorkstation) {
+      systemd-boot.enable = true;
+      systemd-boot.configurationLimit = 10;
+      efi.canTouchEfiVariables = true;
+    })
+    
+    # GRUB configuration for workstation
+    (lib.mkIf isWorkstation {
+      systemd-boot.enable = false;
+      efi.canTouchEfiVariables = true;
+      efi.efiSysMountPoint = "/boot";
+      
+      grub = {
+        enable = true;
+        efiSupport = true;
+        efiInstallAsRemovable = false;
+        devices = ["nodev"];
+        useOSProber = true;
+        backgroundColor = "#24273a";
+        splashImage = ../hardware/workstation/grub-background.png;
+        gfxmodeEfi = "2560x1440";
+        gfxpayloadEfi = "keep";
+        configurationLimit = 20;
+        extraEntries = "";
+      };
+    })
+  ];
 
   #boot.kernelPackages = pkgs.linuxPackages_zen;
 
