@@ -154,6 +154,29 @@
         open-on-output "current"
     }
 
+    window-rule {
+        match is-window-cast-target=true
+
+        focus-ring {
+            active-color "#f38ba8"
+            inactive-color "#7d0d2d"
+        }
+
+        shadow {
+            on
+            softness 0
+            offset x=0 y=0
+            spread 4
+
+            color "#7d0d2dff"
+        }
+
+        tab-indicator {
+            active-color "#f38ba8"
+            inactive-color "#7d0d2d"
+        }
+    }
+
     // Prefer no server-side decorations (clean look like Hyprland)
     prefer-no-csd
 

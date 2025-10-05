@@ -36,5 +36,5 @@ platform = "aarch64-linux"
 profile = "vm"
 stateVersion = "25.05"
 bluetooth = false
-lockScreen = true 
+lockScreen = false
 autoLogin = true 
