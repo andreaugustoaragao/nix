@@ -1,5 +1,22 @@
 { config, pkgs, lib, inputs, ... }:
 
+let
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.system;
+    config.allowUnfree = true;
+  };
+  
+  # Script to install qwen-code via npm
+  install-qwen-code = pkgs.writeShellScriptBin "install-qwen-code" ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+    ${pkgs.nodejs_22}/bin/npm install -g @qwen-code/qwen-code
+    echo "qwen-code installed successfully!"
+    echo "Make sure $HOME/.npm-global/bin is in your PATH"
+  '';
+in
+
 {
   home.packages = with pkgs; [
     # Language Servers
@@ -71,6 +88,11 @@
     # API development
     httpie                           # Modern HTTP client
     jq                               # JSON processor
+    
+    # AI/ML Development
+    install-qwen-code                # Script to install Qwen Code CLI tool
+  ] ++ [
+    unstable-pkgs.ollama             # Local AI model runner (from unstable)
   ];
   
   # Development-related programs
@@ -99,8 +121,13 @@
     # Python
     PYTHONDONTWRITEBYTECODE = "1";
     
+    # Qwen Code configuration for local Ollama
+    OPENAI_API_KEY = "dummy_key";  # Any value works for local
+    OPENAI_BASE_URL = "http://localhost:11434/v1";
+    OPENAI_MODEL = "qwen3-coder:latest";
+    
     # Development paths
-    PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin";
+    PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
   };
   
   # XDG configuration for development tools

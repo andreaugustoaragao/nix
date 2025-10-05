@@ -142,13 +142,29 @@
     };
   };
 
-  users.users.${owner.name} = {
-    hashedPasswordFile = config.sops.secrets.user_password.path;
-  };
+  users.users.${owner.name} = lib.mkMerge [
+    # Default configuration with fallback password for initial installation
+    {
+      initialPassword = "changeme"; # Change after first boot and sops setup
+    }
+    # Override with sops password file when available
+    (lib.mkIf (builtins.pathExists config.sops.secrets.user_password.path) {
+      hashedPasswordFile = config.sops.secrets.user_password.path;
+      initialPassword = lib.mkForce null;
+    })
+  ];
 
-  users.users.root = {
-    hashedPasswordFile = config.sops.secrets.root_password.path;
-  };
+  users.users.root = lib.mkMerge [
+    # Default configuration with fallback password for initial installation  
+    {
+      initialPassword = "changeme"; # Change after first boot and sops setup
+    }
+    # Override with sops password file when available
+    (lib.mkIf (builtins.pathExists config.sops.secrets.root_password.path) {
+      hashedPasswordFile = config.sops.secrets.root_password.path;
+      initialPassword = lib.mkForce null;
+    })
+  ];
 
   # Ensure SSH directory exists with proper permissions
   system.activationScripts.sops-ssh-setup = lib.stringAfter [ "users" ] ''

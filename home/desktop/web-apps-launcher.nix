@@ -5,72 +5,25 @@
   inputs,
   ...
 }: let
-  # Download web app icons from the internet
+  # Local web app icons from assets/icons directory
+  # Copy local icon files to the Nix store
   webAppIcons = {
-    teams = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/microsoft-teams.png";
-      sha256 = "sha256-70V4lZhNPwQqHGqL6bwgWW3dyHS90pp5rJaLC0euE5M=";
-    };
-    outlook = pkgs.fetchurl {
-      url = "https://cdn0.iconfinder.com/data/icons/logos-microsoft-office-365/128/Microsoft_Office-07-1024.png";
-      sha256 = "sha256-E4w/1c7KYEu76yjTT/dJKoAcLtTuxG/9k6RUivnxRlQ=";
-    };
-    protonmail = pkgs.fetchurl {
-      url = "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/proton-icon.png";
-      sha256 = "sha256-hXxZqTUhzn/DSMMYz/epW+qE9zpDQAihwk58l5kcJCk=";
-    };
-    gmail = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gmail.png";
-      sha256 = "sha256-ABl4wcL3X/jXcQNIKO/nqTlGNAj8a2RnrpUGMcduGdE=";
-    };
-    protondrive = pkgs.fetchurl {
-      url = "https://account.proton.me/assets/host.png";
-      sha256 = "sha256-7xlVrnV8i5ZsgySDUDMb06MPZYztEfOH+OvwWrM2hik=";
-    };
-    googledrive = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-drive.png";
-      sha256 = "sha256-X7uk7VaC4Ub0xNe3UIPfBWHSHYcxXWuTRj7V1BUAhkQ=";
-    };
-    github = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/github.png";
-      sha256 = "sha256-GtY0iSG5kjXTYLIVOzPmjgdzIrooo0WQ/en3k9QHGiU=";
-    };
-    youtubemusic = pkgs.fetchurl {
-      url = "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/youtube-music-icon.png";
-      sha256 = "sha256-dyhrD6ngKbpsgEKlnYO7JnTRdSZ4PcpFKWBAV6DLpWs=";
-    };
-    x = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/x.png";
-      sha256 = "sha256-Lsk9lpwFiHMerIf07kHsEJSVlUhOBRoRdKvdB4YjWPc=";
-    };
-    grok = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/grok.png";
-      sha256 = "sha256-MKkCPpw4sUHY18oXBvkvLtGS6dNGwQ8YxYrNvWDHTqU=";
-    };
-    chatgpt = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/chatgpt.png";
-      sha256 = "sha256-TogafwFxgWgUOHSNJAkkChBOF2SGCEe0nolK+sAy9a0=";
-    };
-    claude = pkgs.fetchurl {
-      url = "https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png";
-      sha256 = "sha256-6R+Vs1Rw1Rg6zqLRMKIT8XUmD7kX2dOrrOUxymtuGkY=";
-    };
-    youtube = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/youtube.png";
-      sha256 = "sha256-IXEiZv0BxEfja0Rh/4YSRzXEg8iSElLAEfCkNUcDFVI=";
-    };
-    m1finance = pkgs.fetchurl {
-      url = "https://cdn.iconscout.com/icon/premium/png-512-thumb/money-management-icon-svg-download-png-10229961.png";
-      sha256 = "sha256-NMaI88xHjSqZ2TIriyAb1/9xDZblRarhiVRvg26nudQ=";
-    };
-    reddit = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/reddit.png";
-      sha256 = "sha256-0e2mFk1lnxnr+TlkWJpokiSjyybfczHuoQqRBUREfvU=";
-    };
-    whatsapp = pkgs.fetchurl {
-      url = "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/whatsapp.png";
-      sha256 = "sha256-onbglLXom+IuTMduXAIAtujJSghEmtwW/PEd0dSe4Pw=";
-    };
+    teams = pkgs.copyPathToStore ./../../assets/icons/teams.png;
+    outlook = pkgs.copyPathToStore ./../../assets/icons/outlook.png;
+    protonmail = pkgs.copyPathToStore ./../../assets/icons/protonmail.png;
+    gmail = pkgs.copyPathToStore ./../../assets/icons/gmail.png;
+    protondrive = pkgs.copyPathToStore ./../../assets/icons/protondrive.png;
+    googledrive = pkgs.copyPathToStore ./../../assets/icons/googledrive.png;
+    github = pkgs.copyPathToStore ./../../assets/icons/github.png;
+    youtubemusic = pkgs.copyPathToStore ./../../assets/icons/youtubemusic.png;
+    x = pkgs.copyPathToStore ./../../assets/icons/x.png;
+    grok = pkgs.copyPathToStore ./../../assets/icons/grok.png;
+    chatgpt = pkgs.copyPathToStore ./../../assets/icons/chatgpt.png;
+    claude = pkgs.copyPathToStore ./../../assets/icons/claude.png;
+    youtube = pkgs.copyPathToStore ./../../assets/icons/youtube.png;
+    m1finance = pkgs.copyPathToStore ./../../assets/icons/m1finance.png;
+    reddit = pkgs.copyPathToStore ./../../assets/icons/reddit.png;
+    whatsapp = pkgs.copyPathToStore ./../../assets/icons/whatsapp.png;
   };
 in {
   # Web Applications Launcher using wofi
@@ -79,16 +32,9 @@ in {
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # Browser configuration - change this variable to switch browsers
-      # Firefox (commented out - can be restored if needed)
-      # BROWSER_CMD="${pkgs.firefox}/bin/firefox"
-      # BROWSER_ARGS_APP="-P app --new-window"
-      # BROWSER_ARGS_DEFAULT="-P default --new-window"
-
-      # Qutebrowser configuration
-      BROWSER_CMD="${pkgs.qutebrowser}/bin/qutebrowser"
-      BROWSER_ARGS_APP="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
-      BROWSER_ARGS_DEFAULT="-B ${config.home.homeDirectory}/.config/qutebrowser-app -C ${config.home.homeDirectory}/.config/qutebrowser/config.py --desktop-file-name \$app_name_clean -R --target window"
+      # Browser configuration - using Firefox scripts
+      BROWSER_APP_CMD="browser-app"
+      BROWSER_DEFAULT_CMD="browser-default"
 
       # Web applications list (name|icon|url|profile)
       # Note: Some icons use emoji fallbacks due to icon availability issues
@@ -154,10 +100,10 @@ in {
 
       case "$profile" in
           "app")
-              eval "$BROWSER_CMD $BROWSER_ARGS_APP \"$url\""
+              $BROWSER_APP_CMD "$url"
               ;;
           *)
-              eval "$BROWSER_CMD $BROWSER_ARGS_DEFAULT \"$url\""
+              $BROWSER_DEFAULT_CMD "$url"
               ;;
       esac
 

@@ -23,11 +23,11 @@
       height = 22;
       margin-top = 8;
       modules-left = [
-        "clock"
         "hyprland/workspaces"
         "hyprland/window"
       ];
       modules-center = [
+        "clock"
       ];
       modules-right = [
         "network"
@@ -162,7 +162,6 @@
         scroll-step = 5;
       };
 
-
       "tray" = {
         icon-size = 12;
         spacing = 12;
@@ -219,11 +218,11 @@
       height = 22;
       margin-top = 8;
       modules-left = [
-        "clock"
         "niri/workspaces"
         "niri/window"
       ];
       modules-center = [
+        "clock"
       ];
       modules-right = [
         "network"
@@ -352,7 +351,6 @@
         scroll-step = 5;
       };
 
-
       "tray" = {
         icon-size = 12;
         spacing = 12;
@@ -462,6 +460,7 @@
       #workspaces button.active {
         color: #1f1f28;
         background: linear-gradient(135deg, #7fb4ca 0%, #658594 100%);
+        transition: all 0.3s ease-in-out;
         border-radius: 5px;
         font-weight: 600;
         padding: 3px 10px;

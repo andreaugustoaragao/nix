@@ -3,5 +3,6 @@
 {
   imports = [
     ./notes-sync.nix
+    ./ollama.nix
   ];
 }
