@@ -23,6 +23,7 @@
     youtube = pkgs.copyPathToStore ./../../assets/icons/youtube.png;
     m1finance = pkgs.copyPathToStore ./../../assets/icons/m1finance.png;
     fidelity = pkgs.copyPathToStore ./../../assets/icons/fidelity.png;
+    powerpoint = pkgs.copyPathToStore ./../../assets/icons/powerpoint.png;
     reddit = pkgs.copyPathToStore ./../../assets/icons/reddit.png;
     whatsapp = pkgs.copyPathToStore ./../../assets/icons/whatsapp.png;
   };
@@ -41,6 +42,7 @@ in {
       # Note: Some icons use emoji fallbacks due to icon availability issues
       apps_config="Teams|${webAppIcons.teams}|https://teams.microsoft.com|app
       Outlook|${webAppIcons.outlook}|https://outlook.office365.com|app
+      PowerPoint|${webAppIcons.powerpoint}|https://office.live.com/start/PowerPoint.aspx|app
       Proton Mail|${webAppIcons.protonmail}|https://mail.proton.me|app
       Gmail|${webAppIcons.gmail}|https://mail.google.com|app
       Proton Drive|${webAppIcons.protondrive}|https://drive.proton.me|app
