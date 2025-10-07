@@ -474,22 +474,23 @@
                 },
               })
               
-              -- Command line completion
-              cmp.setup.cmdline({ '/', '?' }, {
-                mapping = cmp.mapping.preset.cmdline(),
-                sources = {
-                  { name = 'buffer' }
-                }
-              })
-              
-              cmp.setup.cmdline(':', {
-                mapping = cmp.mapping.preset.cmdline(),
-                sources = cmp.config.sources({
-                  { name = 'path' }
-                }, {
-                  { name = 'cmdline' }
-                })
-              })
+              -- Command line completion (disabled for cleaner Telescope experience)
+              -- Uncomment these if you want cmdline completion in Vim's command mode
+              -- cmp.setup.cmdline({ '/', '?' }, {
+              --   mapping = cmp.mapping.preset.cmdline(),
+              --   sources = {
+              --     { name = 'buffer' }
+              --   }
+              -- })
+              -- 
+              -- cmp.setup.cmdline(':', {
+              --   mapping = cmp.mapping.preset.cmdline(),
+              --   sources = cmp.config.sources({
+              --     { name = 'path' }
+              --   }, {
+              --     { name = 'cmdline' }
+              --   })
+              -- })
               
               -- Set up custom highlight groups
               local function setup_cmp_highlights()
