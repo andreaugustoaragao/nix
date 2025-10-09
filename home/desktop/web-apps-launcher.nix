@@ -24,6 +24,7 @@
     m1finance = pkgs.copyPathToStore ./../../assets/icons/m1finance.png;
     fidelity = pkgs.copyPathToStore ./../../assets/icons/fidelity.png;
     powerpoint = pkgs.copyPathToStore ./../../assets/icons/powerpoint.png;
+    patreon = pkgs.copyPathToStore ./../../assets/icons/patreon.png;
     reddit = pkgs.copyPathToStore ./../../assets/icons/reddit.png;
     whatsapp = pkgs.copyPathToStore ./../../assets/icons/whatsapp.png;
   };
@@ -56,6 +57,7 @@ in {
       YouTube|${webAppIcons.youtube}|https://youtube.com|app
       M1 Finance|${webAppIcons.m1finance}|https://m1.com|app
       Fidelity Trader|${webAppIcons.fidelity}|https://digital.fidelity.com/ftgw/digital/trader-dashboard|app
+      Patreon|${webAppIcons.patreon}|https://patreon.com|app
       Reddit|${webAppIcons.reddit}|https://reddit.com|app
       WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app"
 
