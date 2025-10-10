@@ -58,6 +58,9 @@
       kdel = "kubectl delete";
       kex = "kubectl exec -it";
       
+      # Databricks shortcuts
+      db = "databricks";
+      
       # Common shortcuts
       c = "clear";
       h = "history";
