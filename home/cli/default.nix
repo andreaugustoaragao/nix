@@ -26,6 +26,7 @@
     # Cloud packages  
     azure-cli
     awscli2
+    databricks-cli
     google-cloud-sdk
     kubectl
     kubernetes-helm
