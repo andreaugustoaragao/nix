@@ -1,10 +1,15 @@
 { config, pkgs, lib, inputs, ... }:
-
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    inherit (pkgs) system;
+    config.allowUnfree = true;
+  };
+in
 {
   # Cursor IDE configuration (using vscode home manager module with cursor package)
   programs.vscode = {
     enable = true;
-    package = pkgs.code-cursor.overrideAttrs (oldAttrs: {
+    package = pkgs-unstable.code-cursor.overrideAttrs (oldAttrs: {
       # Configure for Wayland and system decorations
       postInstall = (oldAttrs.postInstall or "") + ''
         # Create wrapper script for Wayland mode without noisy unsupported flags

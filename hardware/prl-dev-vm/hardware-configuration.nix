@@ -57,31 +57,56 @@ in
   fileSystems."/" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@root" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@root"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   fileSystems."/home/aragao" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@home-aragao" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@home-aragao"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   fileSystems."/nix" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@nix" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@nix"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   fileSystems."/tmp" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@tmp" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@tmp"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   fileSystems."/.snapshots" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@snapshots" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@snapshots"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   fileSystems."/boot" = {
@@ -92,7 +117,12 @@ in
   fileSystems."/swap" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@swap" "compress=zstd:1" "noatime" "space_cache=v2" ];
+    options = [
+      "subvol=@swap"
+      "compress=zstd:1"
+      "noatime"
+      "space_cache=v2"
+    ];
   };
 
   # Swap configuration (using btrfs subvolume)
@@ -113,7 +143,7 @@ in
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
   hardware.parallels = {
     enable = true;
-    package = pkgs.linuxPackages.prl-tools;
+    #package = pkgs.linuxPackages.prl-tools;
   };
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];

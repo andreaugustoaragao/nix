@@ -23,7 +23,9 @@
       "Bash(nix-prefetch-url:*)",
       "Bash(nix hash:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:grok.com)",
+      "WebFetch(domain:lobehub.com)"
     ],
     "deny": [],
     "ask": []

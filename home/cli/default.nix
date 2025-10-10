@@ -121,8 +121,11 @@
     viu
     pastel
     ouch
+    unzip
     zellij
     yazi
+    inkscape
+    imagemagick  # provides convert command
     
     # Development tools that moved to development.nix:
     # - All language servers, compilers, and dev tools

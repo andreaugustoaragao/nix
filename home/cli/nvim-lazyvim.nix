@@ -535,7 +535,6 @@
               "hrsh7th/nvim-cmp",
             },
             config = function()
-              local lspconfig = require("lspconfig")
               local capabilities = require("cmp_nvim_lsp").default_capabilities()
               
               -- Enable file watching capabilities (important for project-wide changes)
@@ -545,23 +544,25 @@
                 relativePatternSupport = true,
               }
               
+              -- Configure LSP servers using the new vim.lsp.config API (Neovim 0.11+)
+              
               -- Nix LSP
-              lspconfig.nil_ls.setup({
+              vim.lsp.config('nil_ls', {
                 capabilities = capabilities,
               })
               
               -- Bash LSP  
-              lspconfig.bashls.setup({
+              vim.lsp.config('bashls', {
                 capabilities = capabilities,
               })
               
               -- Markdown LSP
-              lspconfig.marksman.setup({
+              vim.lsp.config('marksman', {
                 capabilities = capabilities,
               })
               
               -- Python LSP
-              lspconfig.pyright.setup({
+              vim.lsp.config('pyright', {
                 capabilities = capabilities,
                 settings = {
                   python = {
@@ -575,7 +576,7 @@
               })
               
               -- Go LSP
-              lspconfig.gopls.setup({
+              vim.lsp.config('gopls', {
                 capabilities = capabilities,
                 settings = {
                   gopls = {
@@ -610,7 +611,7 @@
               })
               
               -- TypeScript/JavaScript LSP with enhanced configuration
-              lspconfig.ts_ls.setup({
+              vim.lsp.config('ts_ls', {
                 capabilities = capabilities,
                 init_options = {
                   preferences = {
@@ -661,8 +662,58 @@
               })
               
               -- Java LSP  
-              lspconfig.jdtls.setup({
+              vim.lsp.config('jdtls', {
                 capabilities = capabilities,
+              })
+              
+              -- Enable LSP servers for appropriate filetypes
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "nix" },
+                callback = function()
+                  vim.lsp.enable('nil_ls')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "sh", "bash" },
+                callback = function()
+                  vim.lsp.enable('bashls')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "markdown" },
+                callback = function()
+                  vim.lsp.enable('marksman')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "python" },
+                callback = function()
+                  vim.lsp.enable('pyright')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "go" },
+                callback = function()
+                  vim.lsp.enable('gopls')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+                callback = function()
+                  vim.lsp.enable('ts_ls')
+                end,
+              })
+              
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "java" },
+                callback = function()
+                  vim.lsp.enable('jdtls')
+                end,
               })
               
               -- LSP keybindings
@@ -1592,36 +1643,33 @@
       })
       
       -- Configure LTeX Language Server for Grammar and Spell Checking
-      -- This will be picked up by LazyVim's LSP configuration
+      vim.lsp.config('ltex', {
+        settings = {
+          ltex = {
+            language = "en-US",
+            additionalRules = {
+              enablePickyRules = true,
+              motherTongue = "pt-BR",
+            },
+            checkFrequency = "save",
+            dictionary = {
+              ["en-US"] = {},
+              ["pt-BR"] = {},
+            },
+            disabledRules = {
+              ["en-US"] = {},
+              ["pt-BR"] = {},
+            },
+          },
+        },
+      })
+      
+      -- Enable LTeX for appropriate filetypes
       vim.api.nvim_create_autocmd("FileType", {
         pattern = { "markdown", "tex", "latex", "rst", "org", "text", "gitcommit" },
         callback = function()
-          -- Configure LTeX when these filetypes are opened
-          local lspconfig = require("lspconfig")
-          if lspconfig.ltex then
-            lspconfig.ltex.setup({
-              settings = {
-                ltex = {
-                  language = "en-US",
-                  additionalRules = {
-                    enablePickyRules = true,
-                    motherTongue = "pt-BR",
-                  },
-                  checkFrequency = "save",
-                  dictionary = {
-                    ["en-US"] = {},
-                    ["pt-BR"] = {},
-                  },
-                  disabledRules = {
-                    ["en-US"] = {},
-                    ["pt-BR"] = {},
-                  },
-                },
-              },
-            })
-          end
+          vim.lsp.enable('ltex')
         end,
-        once = true,
       })
     '';
   };

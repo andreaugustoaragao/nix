@@ -8,6 +8,9 @@
 
 
 {
+  # Enable nix-ld for running unpatched dynamic binaries (needed for VSCode/Cursor server)
+  programs.nix-ld.enable = true;
+
   environment.enableDebugInfo = false;
 
   environment.systemPackages =

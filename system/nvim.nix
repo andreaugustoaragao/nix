@@ -152,9 +152,6 @@
         vim.keymap.set('n', '<leader>fb', builtin.buffers, {})
         vim.keymap.set('n', '<leader>fh', builtin.help_tags, {})
         
-        -- LSP configuration
-        local lspconfig = require('lspconfig')
-        
         -- Setup Mason (but don't auto-install on NixOS)
         require('mason').setup({
           PATH = "skip",  -- Skip PATH modification on NixOS
@@ -189,23 +186,25 @@
         -- LSP capabilities
         local capabilities = require('cmp_nvim_lsp').default_capabilities()
         
+        -- Configure LSP servers using the new vim.lsp.config API (Neovim 0.11+)
+        
         -- Nix LSP
-        lspconfig.nil_ls.setup({
+        vim.lsp.config('nil_ls', {
           capabilities = capabilities,
         })
         
         -- Bash LSP
-        lspconfig.bashls.setup({
+        vim.lsp.config('bashls', {
           capabilities = capabilities,
         })
         
         -- Markdown LSP
-        lspconfig.marksman.setup({
+        vim.lsp.config('marksman', {
           capabilities = capabilities,
         })
         
         -- Python LSP (Pyright)
-        lspconfig.pyright.setup({
+        vim.lsp.config('pyright', {
           capabilities = capabilities,
           settings = {
             python = {
@@ -219,7 +218,7 @@
         })
         
         -- Go LSP
-        lspconfig.gopls.setup({
+        vim.lsp.config('gopls', {
           capabilities = capabilities,
           settings = {
             gopls = {
@@ -255,13 +254,63 @@
         })
         
         -- TypeScript LSP
-        lspconfig.ts_ls.setup({
+        vim.lsp.config('ts_ls', {
           capabilities = capabilities,
         })
         
         -- Java LSP
-        lspconfig.jdtls.setup({
+        vim.lsp.config('jdtls', {
           capabilities = capabilities,
+        })
+        
+        -- Enable LSP servers for appropriate filetypes
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "nix" },
+          callback = function()
+            vim.lsp.enable('nil_ls')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "sh", "bash" },
+          callback = function()
+            vim.lsp.enable('bashls')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "markdown" },
+          callback = function()
+            vim.lsp.enable('marksman')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "python" },
+          callback = function()
+            vim.lsp.enable('pyright')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "go" },
+          callback = function()
+            vim.lsp.enable('gopls')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+          callback = function()
+            vim.lsp.enable('ts_ls')
+          end,
+        })
+        
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = { "java" },
+          callback = function()
+            vim.lsp.enable('jdtls')
+          end,
         })
         
         -- LSP keybindings

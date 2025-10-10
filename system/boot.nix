@@ -15,18 +15,18 @@
       systemd-boot.configurationLimit = 10;
       efi.canTouchEfiVariables = true;
     })
-    
+
     # GRUB configuration for workstation
     (lib.mkIf isWorkstation {
       systemd-boot.enable = false;
       efi.canTouchEfiVariables = true;
       efi.efiSysMountPoint = "/boot";
-      
+
       grub = {
         enable = true;
         efiSupport = true;
         efiInstallAsRemovable = false;
-        devices = ["nodev"];
+        devices = [ "nodev" ];
         useOSProber = true;
         backgroundColor = "#24273a";
         splashImage = ../hardware/workstation/grub-background.png;
@@ -38,7 +38,7 @@
     })
   ];
 
-  #boot.kernelPackages = pkgs.linuxPackages_zen;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   boot.plymouth.enable = false;
 
