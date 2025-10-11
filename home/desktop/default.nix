@@ -45,6 +45,12 @@
     swayimg
     obsidian
     qt6.qttools
+    
+    # Video-related packages
+    mpv
+    obs-studio
+    obs-studio-plugins.advanced-scene-switcher
+    kdePackages.kdenlive
   ] ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
     zoom-us
   ];
