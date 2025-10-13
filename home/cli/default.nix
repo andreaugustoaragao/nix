@@ -32,6 +32,7 @@
     kubernetes-helm
     k9s
     kubectx
+    stern
     terraform
     terragrunt
     ansible

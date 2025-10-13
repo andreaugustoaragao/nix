@@ -220,7 +220,7 @@
         Mod+A { spawn "browser-app" "https://grok.com"; }
         Mod+X { spawn "browser-app" "https://x.com"; }
         Mod+O { spawn "web-apps-launcher"; }
-        Mod+S { spawn "footclient" "btop"; }
+        Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
         Mod+Space { spawn "wofi" "--show" "drun"; }

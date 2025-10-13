@@ -31,6 +31,7 @@
     ./cursors.nix
     ./mimeapps.nix
     ./notes.nix
+    ./window-switcher.nix
     ./web-apps-launcher.nix
     ./quickshell.nix
   ];

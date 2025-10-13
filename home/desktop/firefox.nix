@@ -204,7 +204,7 @@ in
           /* Smooth transitions for better UX */
           #navigator-toolbox {
             transition: all 0.3s ease !important;
-            padding-top: 3px !important;
+            padding-top: 0px !important;
           }
 
           /* Fix potential z-index issues */
@@ -354,7 +354,7 @@ in
           /* Smooth transitions for better UX */
           #navigator-toolbox {
             transition: all 0.3s ease !important;
-            padding-top: 3px !important;
+            padding-top: -1px !important;
           }
 
 
@@ -380,4 +380,3 @@ in
   };
 
 }
-

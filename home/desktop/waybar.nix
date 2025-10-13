@@ -37,7 +37,7 @@
         "disk"
         "idle_inhibitor"
         "privacy"
-        "systemd-failed-units"
+        #        "systemd-failed-units"
         "tray"
         "battery"
       ];
@@ -232,7 +232,7 @@
         "disk"
         "idle_inhibitor"
         "privacy"
-        "systemd-failed-units"
+        #  "systemd-failed-units"
         "tray"
         "battery"
       ];
