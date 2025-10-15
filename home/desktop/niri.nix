@@ -230,8 +230,8 @@
         // Window management
         Mod+W { close-window; }
         Mod+Shift+Q { quit; }
-        Shift+F9 { fullscreen-window; }
-        Shift+F10 { maximize-column; }
+        Mod+F9 { fullscreen-window; }
+        Mod+F10 { maximize-column; }
         Mod+V { toggle-window-floating; }
 
         // Focus movement (arrow keys and vim keys)
