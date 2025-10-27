@@ -210,28 +210,26 @@
     binds {
         // Applications (using foot as default terminal)
         Mod+Return { spawn "footclient"; }
-        Mod+F { spawn "thunar"; }
-        Mod+B { spawn "browser-default"; }
-        Mod+M { spawn "spotify"; }
-        Mod+N { spawn "notes"; }
-        Mod+G { spawn "browser-app" "https://web.whatsapp.com"; }
-        Mod+T { spawn "browser-app" "https://teams.microsoft.com"; }
+        Mod+Shift+T { spawn "thunar"; }
+        Mod+Shift+B { spawn "browser-default"; }
+        Mod+Shift+N { spawn "notes"; }
         Mod+Backslash { spawn "bitwarden"; }
-        Mod+A { spawn "browser-app" "https://grok.com"; }
-        Mod+X { spawn "browser-app" "https://x.com"; }
+        Mod+Shift+A { spawn "browser-app" "https://grok.com"; }
+        Mod+Shift+X { spawn "browser-app" "https://x.com"; }
         Mod+O { spawn "web-apps-launcher"; }
         Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
         Mod+Space { spawn "wofi" "--show" "drun"; }
-        Mod+Alt+Space { spawn "footclient"; }
+        Mod+D { spawn "wofi" "--show" "drun"; } 
         Mod+Escape { spawn "wlogout"; }
 
         // Window management
         Mod+W { close-window; }
         Mod+Shift+Q { quit; }
         Mod+F9 { fullscreen-window; }
-        Mod+F10 { maximize-column; }
+        Mod+Ctrl+F {fullscreen-window; }
+        Mod+F { maximize-column; }
         Mod+V { toggle-window-floating; }
 
         // Focus movement (arrow keys and vim keys)

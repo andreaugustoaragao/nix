@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # Ensure mako is installed
@@ -10,7 +16,7 @@
     background-color=#1f1f28e6
     text-color=#dcd7ba
     border-color=#54546d
-    
+
     # Layout and positioning
     anchor=top-right
     width=400
@@ -19,8 +25,12 @@
     padding=15
     border-size=2
     border-radius=8
-    
+
     # Basic settings
     default-timeout=10000
+
+    [mode=do-not-disturb]
+    invisible=1
   '';
 }
+

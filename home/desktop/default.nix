@@ -33,6 +33,7 @@
     ./notes.nix
     ./window-switcher.nix
     ./web-apps-launcher.nix
+    ./do-not-disturb.nix
     ./quickshell.nix
   ];
 
