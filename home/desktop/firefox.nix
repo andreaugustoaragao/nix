@@ -8,7 +8,7 @@
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.system;
+    system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
 in
@@ -83,7 +83,7 @@ in
         name = "default";
         isDefault = true;
 
-        extensions.packages = with inputs.firefox-addons.packages.${pkgs.system}; [
+        extensions.packages = with inputs.firefox-addons.packages.${pkgs.stdenv.hostPlatform.system}; [
           bitwarden
           ublock-origin
           vimium
@@ -225,7 +225,7 @@ in
         name = "app";
         isDefault = false;
 
-        extensions.packages = with inputs.firefox-addons.packages.${pkgs.system}; [
+        extensions.packages = with inputs.firefox-addons.packages.${pkgs.stdenv.hostPlatform.system}; [
           bitwarden
           ublock-origin
           vimium

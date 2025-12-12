@@ -2,7 +2,7 @@
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.system;
+    system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
 in
@@ -20,7 +20,7 @@ in
     } else {
       # Interactive login configuration - shows login prompt
       default_session = {
-        command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --cmd ${pkgs-unstable.niri}/bin/niri-session";
+        command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd ${pkgs-unstable.niri}/bin/niri-session";
         user = "greeter";
       };
     };

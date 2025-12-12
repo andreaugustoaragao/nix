@@ -36,7 +36,7 @@ in
           "https://easylist.to/easylist/fanboy-annoyance.txt"
           "https://www.i-dont-care-about-cookies.eu/abp/"
         ];
-        cookies.accept = "no-3rdparty";
+        cookies.accept = "all";
         default_encoding = "utf-8";
         geolocation = "ask";
         headers.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";

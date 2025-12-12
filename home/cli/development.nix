@@ -2,7 +2,7 @@
 
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
-    system = pkgs.system;
+    system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
   
@@ -32,13 +32,11 @@ in
     ltex-ls                              # Grammar/Spell checker for EN/PT-BR
 
     # Node.js/TypeScript Development
-    nodejs_22                            # Node.js runtime
-    nodePackages.npm                     # Node package manager
+    nodejs_22                            # Node.js runtime (includes npm)
     nodePackages.pnpm                    # Fast package manager
     yarn                                 # Alternative package manager
     bun                                  # Ultra-fast JS runtime & package manager
     nodePackages.typescript             # TypeScript compiler
-    nodePackages.ts-node                # TypeScript execution engine
     nodePackages.nodemon                # Development server with auto-restart
     
     # Formatting & Linting

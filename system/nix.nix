@@ -75,7 +75,7 @@
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    path = [ pkgs.inotifyTools pkgs.libnotify pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.gawk pkgs.git pkgs.nixos-rebuild pkgs.nettools ];
+    path = [ pkgs.inotify-tools pkgs.libnotify pkgs.coreutils pkgs.util-linux pkgs.gnugrep pkgs.gawk pkgs.git pkgs.nixos-rebuild pkgs.nettools ];
     serviceConfig = {
       Type = "simple";
       Restart = "always";

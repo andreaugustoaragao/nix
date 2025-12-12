@@ -42,7 +42,7 @@
     xdg-desktop-portal-gnome
     xdg-desktop-portal-gtk
     teams-for-linux
-    bitwarden
+    bitwarden-desktop
     neovide
     swayimg
     obsidian

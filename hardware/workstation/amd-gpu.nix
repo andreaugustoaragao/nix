@@ -25,7 +25,7 @@
     extraPackages = with pkgs; [
       # Video acceleration
       libvdpau-va-gl # VDPAU to VA-API translation
-      vaapiVdpau # VA-API VDPAU driver
+      libva-vdpau-driver # VA-API VDPAU driver
 
       # ROCm and OpenCL for compute workloads
       rocmPackages.clr.icd # OpenCL support
@@ -34,7 +34,7 @@
     ];
     extraPackages32 = with pkgs.driversi686Linux; [
       libvdpau-va-gl
-      #vaapiVdpau
+      #libva-vdpau-driver
     ];
   };
 

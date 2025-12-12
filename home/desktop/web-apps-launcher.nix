@@ -27,6 +27,12 @@
     patreon = pkgs.copyPathToStore ./../../assets/icons/patreon.png;
     reddit = pkgs.copyPathToStore ./../../assets/icons/reddit.png;
     whatsapp = pkgs.copyPathToStore ./../../assets/icons/whatsapp.png;
+    googlecalendar = pkgs.copyPathToStore ./../../assets/icons/googlecalendar.png;
+    googlechat = pkgs.copyPathToStore ./../../assets/icons/googlechat.png;
+    googlemeet = pkgs.copyPathToStore ./../../assets/icons/googlemeet.png;
+    googledocs = pkgs.copyPathToStore ./../../assets/icons/googledocs.png;
+    googlesheets = pkgs.copyPathToStore ./../../assets/icons/googlesheets.png;
+    googleslides = pkgs.copyPathToStore ./../../assets/icons/googleslides.png;
   };
 in {
   # Web Applications Launcher using wofi
@@ -46,6 +52,12 @@ in {
       PowerPoint|${webAppIcons.powerpoint}|https://office.live.com/start/PowerPoint.aspx|app
       Proton Mail|${webAppIcons.protonmail}|https://mail.proton.me|app
       Gmail|${webAppIcons.gmail}|https://mail.google.com|app
+      Google Calendar|${webAppIcons.googlecalendar}|https://calendar.google.com|app
+      Google Chat|${webAppIcons.googlechat}|https://chat.google.com|app
+      Google Meet|${webAppIcons.googlemeet}|https://meet.google.com|app
+      Google Docs|${webAppIcons.googledocs}|https://docs.google.com|app
+      Google Sheets|${webAppIcons.googlesheets}|https://sheets.google.com|app
+      Google Slides|${webAppIcons.googleslides}|https://slides.google.com|app
       Proton Drive|${webAppIcons.protondrive}|https://drive.proton.me|app
       Google Drive|${webAppIcons.googledrive}|https://drive.google.com|app
       GitHub|${webAppIcons.github}|https://github.com|app

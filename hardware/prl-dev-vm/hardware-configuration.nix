@@ -12,7 +12,7 @@
 
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
-    system = pkgs.system;
+    system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
 in
@@ -30,10 +30,9 @@ in
     "virtio_balloon"
     "virtio_mmio"
     "virtio_net"
-    "prl_tg"
   ];
   boot.initrd.kernelModules = [ "dm-crypt" ];
-  boot.kernelModules = [ "prl_fs" ];
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
   boot.kernelParams = [
     "xhci_hcd.quirks=0x40"
@@ -143,7 +142,7 @@ in
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
   hardware.parallels = {
     enable = true;
-    #package = pkgs.linuxPackages.prl-tools;
+    package = pkgs.prl-tools;
   };
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];

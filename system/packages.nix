@@ -89,10 +89,10 @@
       # Development tools moved to home configuration
     ]
     # Office suite - OnlyOffice for x86_64, LibreOffice for ARM
-    ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
-      onlyoffice-bin
+    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
+      onlyoffice-desktopeditors
     ]
-    ++ lib.optionals (pkgs.stdenv.system == "aarch64-linux") [
+    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-linux") [
       libreoffice
     ];
 }

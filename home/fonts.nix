@@ -5,7 +5,6 @@
   home.packages = with pkgs; [
     jetbrains-mono
     liberation_ttf
-    noto-fonts-emoji
     font-awesome
     noto-fonts-color-emoji
     cantarell-fonts

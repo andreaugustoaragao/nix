@@ -6,7 +6,7 @@
     xfce.thunar
     xfce.tumbler  # Thumbnail service for Thunar
     ffmpegthumbnailer  # Video thumbnails
-    poppler_utils  # PDF thumbnails
+    poppler-utils  # PDF thumbnails
   ];
 
   # GTK bookmarks for Thunar sidebar

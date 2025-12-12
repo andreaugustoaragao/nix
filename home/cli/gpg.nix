@@ -94,6 +94,7 @@
   # SSH configuration with sops-sourced identity files
   programs.ssh = {
     enable = true;
+    enableDefaultConfig = false;
     
     # Default configuration for personal machines
     extraConfig = ''
@@ -103,6 +104,14 @@
     
     # GitHub configurations using sops-managed SSH keys
     matchBlocks = {
+      "*" = {
+        # Default SSH settings for all hosts
+        addKeysToAgent = "yes";
+        compression = true;
+        serverAliveInterval = 60;
+        serverAliveCountMax = 3;
+      };
+      
       "github-personal" = {
         hostname = "github.com";
         user = "git";
@@ -117,14 +126,6 @@
         identitiesOnly = true;
       };
     };
-    
-    # Add keys to SSH agent automatically
-    addKeysToAgent = "yes";
-    
-    # Default SSH settings
-    compression = true;
-    serverAliveInterval = 60;
-    serverAliveCountMax = 3;
   };
 
   # Environment setup for SOPS age key and SSH agent

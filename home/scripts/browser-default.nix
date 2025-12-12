@@ -5,9 +5,12 @@
     (pkgs.writeShellScriptBin "browser-default" ''
       #!/usr/bin/env bash
       set -euo pipefail
-      
-      # Launch Firefox with the default profile
-      exec firefox -P default --new-window "$@"
+
+      # Launch Brave with default profile
+      exec brave --new-window "$@"
+
+      # Launch Firefox with the default profile (uncomment to use Firefox)
+      # exec firefox -P default --new-window "$@"
     '')
   ];
 }

@@ -10,10 +10,13 @@
 {
   programs.git = {
     enable = true;
-    userName = "andrearagao";
-    userEmail = "aragao@avaya.com"; # Default to work email
 
-    extraConfig = {
+    settings = {
+      user = {
+        name = "andrearagao";
+        email = "aragao@avaya.com"; # Default to work email
+      };
+      
       init.defaultBranch = "main";
       pull.rebase = false;
       push.autoSetupRemote = true;
@@ -22,6 +25,16 @@
       tag.gpgsign = true;
       # GPG program path
       gpg.program = "${pkgs.gnupg}/bin/gpg";
+      
+      alias = {
+        st = "status";
+        co = "checkout";
+        br = "branch";
+        ci = "commit";
+        unstage = "reset HEAD --";
+        last = "log -1 HEAD";
+        visual = "!gitk";
+      };
     };
 
     # Conditional includes for different directories
@@ -47,16 +60,6 @@
         };
       }
     ];
-
-    aliases = {
-      st = "status";
-      co = "checkout";
-      br = "branch";
-      ci = "commit";
-      unstage = "reset HEAD --";
-      last = "log -1 HEAD";
-      visual = "!gitk";
-    };
   };
 }
 
