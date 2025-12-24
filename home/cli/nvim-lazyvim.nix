@@ -661,11 +661,71 @@
                 },
               })
               
-              -- Java LSP  
+              -- Java LSP
               vim.lsp.config('jdtls', {
                 capabilities = capabilities,
               })
-              
+
+              -- Rust LSP
+              vim.lsp.config('rust_analyzer', {
+                capabilities = capabilities,
+                settings = {
+                  ["rust-analyzer"] = {
+                    cargo = {
+                      allFeatures = true,
+                      loadOutDirsFromCheck = true,
+                      buildScripts = {
+                        enable = true,
+                      },
+                    },
+                    checkOnSave = {
+                      command = "clippy",
+                      extraArgs = { "--all", "--", "-W", "clippy::all" },
+                    },
+                    procMacro = {
+                      enable = true,
+                      ignored = {
+                        ["async-trait"] = { "async_trait" },
+                        ["napi-derive"] = { "napi" },
+                        ["async-recursion"] = { "async_recursion" },
+                      },
+                    },
+                    inlayHints = {
+                      bindingModeHints = {
+                        enable = false,
+                      },
+                      chainingHints = {
+                        enable = true,
+                      },
+                      closingBraceHints = {
+                        enable = true,
+                        minLines = 25,
+                      },
+                      closureReturnTypeHints = {
+                        enable = "never",
+                      },
+                      lifetimeElisionHints = {
+                        enable = "never",
+                        useParameterNames = false,
+                      },
+                      maxLength = 25,
+                      parameterHints = {
+                        enable = true,
+                      },
+                      reborrowHints = {
+                        enable = "never",
+                      },
+                      renderColons = true,
+                      typeHints = {
+                        enable = true,
+                        hideClosureInitialization = false,
+                        hideNamedConstructor = false,
+                      },
+                    },
+                  },
+                },
+              })
+
               -- Enable LSP servers for appropriate filetypes
               vim.api.nvim_create_autocmd("FileType", {
                 pattern = { "nix" },
@@ -715,7 +775,14 @@
                   vim.lsp.enable('jdtls')
                 end,
               })
-              
+
+              vim.api.nvim_create_autocmd("FileType", {
+                pattern = { "rust" },
+                callback = function()
+                  vim.lsp.enable('rust_analyzer')
+                end,
+              })
+
               -- LSP keybindings
               vim.api.nvim_create_autocmd("LspAttach", {
                 group = vim.api.nvim_create_augroup("UserLspConfig", {}),
@@ -903,8 +970,8 @@
               require("nvim-treesitter.configs").setup({
                 ensure_installed = {
                   "nix", "bash", "markdown", "markdown_inline", "lua", "vim", "vimdoc",
-                  "python", "go", "javascript", "typescript", "tsx", "json", "yaml", 
-                  "java", "dockerfile", "terraform"
+                  "python", "go", "rust", "javascript", "typescript", "tsx", "json", "yaml",
+                  "java", "dockerfile", "terraform", "toml"
                 },
                 sync_install = false,
                 auto_install = true,
@@ -1316,6 +1383,7 @@
                 lua = { "stylua" },
                 python = { "isort", "black" },
                 go = { "goimports", "gofmt" },
+                rust = { "rustfmt" },
                 nix = { "nixfmt" },
                 bash = { "shfmt" },
               },
@@ -1343,6 +1411,7 @@
                 typescriptreact = { "eslint_d" },
                 python = { "pylint" },
                 go = { "golangcilint" },
+                rust = { "clippy" },
                 bash = { "shellcheck" },
                 dockerfile = { "hadolint" },
               }

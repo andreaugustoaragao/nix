@@ -42,6 +42,7 @@
     xdg-desktop-portal-gnome
     xdg-desktop-portal-gtk
     teams-for-linux
+    telegram-desktop
     bitwarden-desktop
     neovide
     swayimg

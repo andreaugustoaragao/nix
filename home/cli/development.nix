@@ -52,11 +52,26 @@ in
     python3Packages.isort               # Python import sorter
     python3Packages.flake8              # Python style checker
     
-    # Go Development  
+    # Go Development
     go                                  # Go runtime
     delve                              # Go debugger
     golangci-lint                      # Go meta-linter
-    
+
+    # Rust Development
+    rustc                              # Rust compiler
+    cargo                              # Rust package manager
+    rustfmt                            # Rust code formatter
+    clippy                             # Rust linter
+    rust-analyzer                      # Rust LSP
+    cargo-watch                        # Auto-reload for Rust projects
+    cargo-edit                         # Cargo add/remove/upgrade commands
+    cargo-expand                       # Show macro expansion
+    cargo-outdated                     # Check for outdated dependencies
+    cargo-audit                        # Security vulnerability scanner
+    cargo-deny                         # Cargo plugin for linting dependencies
+    cargo-flamegraph                   # Flamegraph profiling
+    cargo-udeps                        # Find unused dependencies
+
     # Java Development
     openjdk21                          # Java runtime
     maven                              # Java build tool
@@ -115,7 +130,11 @@ in
     # Go
     GOPATH = "$HOME/go";
     GOBIN = "$HOME/go/bin";
-    
+
+    # Rust
+    CARGO_HOME = "$HOME/.cargo";
+    RUSTUP_HOME = "$HOME/.rustup";
+
     # Python
     PYTHONDONTWRITEBYTECODE = "1";
     

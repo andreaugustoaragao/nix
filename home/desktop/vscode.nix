@@ -25,7 +25,8 @@ in
         # Language Support
         golang.go                                 # Go
         redhat.java                               # Java Language Support
-        
+        rust-lang.rust-analyzer                   # Rust Language Support
+
         # Nix Language Support
         jnoortheen.nix-ide                        # Nix language support with formatting and error report
         bbenoist.nix                              # Classic Nix syntax support
@@ -96,7 +97,16 @@ in
         "go.toolsManagement.autoUpdate" = true;
         "go.useLanguageServer" = true;
         "go.formatTool" = "goimports";
-        
+
+        # Rust Configuration
+        "rust-analyzer.check.command" = "clippy";
+        "rust-analyzer.rustfmt.extraArgs" = [ "+nightly" ];
+        "rust-analyzer.cargo.allFeatures" = true;
+        "rust-analyzer.procMacro.enable" = true;
+        "rust-analyzer.inlayHints.chainingHints.enable" = true;
+        "rust-analyzer.inlayHints.parameterHints.enable" = true;
+        "rust-analyzer.inlayHints.typeHints.enable" = true;
+
         # TypeScript Configuration
         "typescript.preferences.importModuleSpecifier" = "relative";
         "typescript.updateImportsOnFileMove.enabled" = "always";
