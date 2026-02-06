@@ -13,6 +13,7 @@
     ./qt.nix
     ./ghostty.nix
     ./foot.nix
+    ./kitty.nix
     ./alacritty.nix
     ./swayosd.nix
     ./hyprpaper.nix
