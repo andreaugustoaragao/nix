@@ -74,6 +74,7 @@
     cowsay
     fortune
     sl
+    cmatrix
     tree
     ncdu
     gdu

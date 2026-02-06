@@ -61,8 +61,8 @@ in
     rustc                              # Rust compiler
     cargo                              # Rust package manager
     rustfmt                            # Rust code formatter
-    clippy                             # Rust linter
     rust-analyzer                      # Rust LSP
+    clippy                             # Rust linter
     cargo-watch                        # Auto-reload for Rust projects
     cargo-edit                         # Cargo add/remove/upgrade commands
     cargo-expand                       # Show macro expansion
@@ -71,6 +71,10 @@ in
     cargo-deny                         # Cargo plugin for linting dependencies
     cargo-flamegraph                   # Flamegraph profiling
     cargo-udeps                        # Find unused dependencies
+    cargo-bloat                        # Find what takes most space in binary
+    cargo-nextest                      # Next-generation test runner
+    cargo-tarpaulin                    # Code coverage tool
+    cargo-criterion                    # Benchmarking
 
     # Java Development
     openjdk21                          # Java runtime
