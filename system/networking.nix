@@ -75,5 +75,56 @@
 
   # Enable NTP time synchronization via systemd-timesyncd (VMs sync from host)
   services.timesyncd.enable = lib.mkIf (!isVm) true;
+
+  # ============================================================================
+  # Firewall Configuration
+  # ============================================================================
+  networking.firewall = {
+    enable = true;
+
+    # Allowed TCP ports
+    allowedTCPPorts = [
+      22    # SSH
+      # 6443  # K3s API server (uncomment if needed externally)
+    ];
+
+    # Allowed UDP ports
+    allowedUDPPorts = [
+      # Add any required UDP ports here
+    ];
+
+    # Allowed TCP port ranges
+    allowedTCPPortRanges = [
+      # { from = 30000; to = 32767; }  # K3s NodePorts (uncomment if needed)
+    ];
+
+    # Allowed UDP port ranges
+    allowedUDPPortRanges = [
+      # { from = 30000; to = 32767; }  # K3s NodePorts (uncomment if needed)
+    ];
+
+    # Trust local interfaces for Docker and K3s
+    trustedInterfaces = [
+      "docker0"     # Docker bridge
+      "cni0"        # K3s CNI bridge
+      "flannel.1"   # K3s Flannel
+    ];
+
+    # Log refused packets (useful for debugging)
+    logRefusedConnections = true;
+    logRefusedPackets = false;  # Set to true only for debugging (can be noisy)
+
+    # Allow ping
+    allowPing = true;
+
+    # Extra firewall commands (if needed)
+    extraCommands = ''
+      # Allow established connections
+      iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+      # Allow loopback
+      iptables -A INPUT -i lo -j ACCEPT
+    '';
+  };
 }
 

@@ -4,9 +4,21 @@
   services.openssh = {
     enable = true;
     settings = {
-      PasswordAuthentication = true;
-      KbdInteractiveAuthentication = true;
-      PermitRootLogin = "no";  # Keep root login disabled for security
+      # SECURITY: Disable password authentication - use SSH keys only
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+      PubkeyAuthentication = true;
+
+      # Additional SSH hardening
+      MaxAuthTries = 3;
+      ClientAliveInterval = 300;
+      ClientAliveCountMax = 2;
+      X11Forwarding = false;
+      AllowTcpForwarding = "no";
+      AllowStreamLocalForwarding = "no";
+      GatewayPorts = "no";
+      AllowUsers = [ "${owner.name}" ];
     };
     # Use extraConfig to allow authorized_keys from SOPS-managed files
     extraConfig = ''
