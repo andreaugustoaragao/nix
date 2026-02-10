@@ -49,8 +49,9 @@
         "-w /var/log/audit -p wa -k audit_log_tamper"
         "-w /etc/audit -p wa -k audit_config"
 
-        # ── Make rules immutable until reboot (must be last) ──
-        "-e 2"
+        # Note: -e 2 (immutable rules) is intentionally omitted.
+        # NixOS appends -e 1 automatically, and immutable rules prevent
+        # reloading on nixos-rebuild switch without a reboot.
       ];
     };
 
