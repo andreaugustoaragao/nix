@@ -4,6 +4,7 @@
   lib,
   inputs,
   wirelessInterface,
+  isVm,
   ...
 }:
 
@@ -71,5 +72,8 @@
 
   # Disable network-wait-online for faster boot
   systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
+
+  # Enable NTP time synchronization via systemd-timesyncd (VMs sync from host)
+  services.timesyncd.enable = lib.mkIf (!isVm) true;
 }
 

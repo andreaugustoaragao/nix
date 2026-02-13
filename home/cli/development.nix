@@ -105,7 +105,10 @@ in
     # API development
     httpie                           # Modern HTTP client
     jq                               # JSON processor
-    
+
+    # Browser Automation & Testing
+    playwright-driver.browsers       # Playwright with bundled browsers
+
     # AI/ML Development
     install-qwen-code                # Script to install Qwen Code CLI tool
   ] ++ [
@@ -130,6 +133,9 @@ in
   home.sessionVariables = {
     # Node.js
     NODE_OPTIONS = "--max-old-space-size=4096";
+
+    # Playwright (browser automation) - use Nix-provided browsers
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     
     # Go
     GOPATH = "$HOME/go";

@@ -74,7 +74,18 @@
       vim.opt.mouse = "a"
       vim.opt.cursorline = true
       vim.opt.undofile = true
-      
+
+      -- Auto-reload files when changed externally (silent)
+      vim.opt.autoread = true
+      vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+        pattern = "*",
+        callback = function()
+          if vim.fn.getcmdwintype() == "" then
+            vim.cmd("checktime")
+          end
+        end,
+      })
+
       -- Folding configuration (prefer LSP, fallback to treesitter)
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "v:lua.vim.lsp.foldexpr()"
