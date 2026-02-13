@@ -15,6 +15,16 @@ let
     echo "qwen-code installed successfully!"
     echo "Make sure $HOME/.npm-global/bin is in your PATH"
   '';
+
+  # Script to install Google Gemini CLI via npm
+  install-gemini-cli = pkgs.writeShellScriptBin "install-gemini-cli" ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+    ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
+    echo "Gemini CLI installed successfully!"
+    echo "Run 'gemini' to start using it"
+  '';
 in
 
 {
@@ -111,6 +121,7 @@ in
 
     # AI/ML Development
     install-qwen-code                # Script to install Qwen Code CLI tool
+    install-gemini-cli               # Script to install Google Gemini CLI
   ] ++ [
     unstable-pkgs.ollama             # Local AI model runner (from unstable)
   ];
@@ -157,6 +168,19 @@ in
     PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
   };
   
+  # Auto-install npm-based AI CLI tools if not present
+  home.activation.installNpmAiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+
+    # Install Gemini CLI if not present
+    if ! command -v gemini &> /dev/null; then
+      echo "Installing Google Gemini CLI..."
+      ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
+    fi
+  '';
+
   # XDG configuration for development tools
   xdg.configFile = {
     # Prettier configuration
