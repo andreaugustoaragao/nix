@@ -6,6 +6,22 @@
   ...
 }:
 
+let
+  waybar-uptime = pkgs.writeShellScript "waybar-uptime" ''
+    read s _ < /proc/uptime
+    s=''${s%.*}
+    d=$((s/86400))
+    h=$((s%86400/3600))
+    m=$((s%3600/60))
+    if [ "$d" -gt 0 ]; then
+      printf "%dd %dh %dm" "$d" "$h" "$m"
+    elif [ "$h" -gt 0 ]; then
+      printf "%dh %dm" "$h" "$m"
+    else
+      printf "%dm" "$m"
+    fi
+  '';
+in
 {
   # Status bar - Waybar (extracted from wayland.nix)
   programs.waybar = {
@@ -35,6 +51,7 @@
         "cpu"
         "memory"
         "disk"
+        "custom/uptime"
         "idle_inhibitor"
         "privacy"
         #        "systemd-failed-units"
@@ -84,6 +101,13 @@
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
         on-click = "alacritty -e btop";
+      };
+
+      "custom/uptime" = {
+        exec = "${waybar-uptime}";
+        interval = 60;
+        format = "󰔟  {}";
+        tooltip-format = "System uptime";
       };
 
       "clock" = {
@@ -230,6 +254,7 @@
         "cpu"
         "memory"
         "disk"
+        "custom/uptime"
         "idle_inhibitor"
         "privacy"
         #  "systemd-failed-units"
@@ -273,6 +298,13 @@
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
         on-click = "alacritty -e btop";
+      };
+
+      "custom/uptime" = {
+        exec = "${waybar-uptime}";
+        interval = 60;
+        format = "󰔟  {}";
+        tooltip-format = "System uptime";
       };
 
       "clock" = {
@@ -524,7 +556,8 @@
       #idle_inhibitor,
       #privacy,
       #systemd-failed-units,
-      #custom-media {
+      #custom-media,
+      #custom-uptime {
         min-width: 10px;
         margin: 0 2px;
         padding: 1px 6px;
@@ -566,6 +599,11 @@
 
       #disk {
         background-color: #c0a36e;
+        color: #1f1f28;
+      }
+
+      #custom-uptime {
+        background-color: #7fb4ca;
         color: #1f1f28;
       }
 

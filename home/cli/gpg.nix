@@ -141,13 +141,13 @@
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
-  
+
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     set -gx SSH_AUTH_SOCK "$XDG_RUNTIME_DIR/ssh-agent"
   '';
-  
+
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"

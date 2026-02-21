@@ -25,6 +25,92 @@ let
     echo "Gemini CLI installed successfully!"
     echo "Run 'gemini' to start using it"
   '';
+
+  # One-time setup script for Google Workspace MCP OAuth flow
+  setup-gworkspace-mcp = pkgs.writeShellScriptBin "setup-gworkspace-mcp" ''
+    set -euo pipefail
+
+    SECRETS_DIR="/run/secrets"
+    CLIENT_ID_FILE="$SECRETS_DIR/google_oauth_client_id"
+    CLIENT_SECRET_FILE="$SECRETS_DIR/google_oauth_client_secret"
+
+    doctor() {
+      echo "=== Google Workspace MCP Doctor ==="
+      local ok=true
+
+      # Check sops secrets
+      if [ -f "$CLIENT_ID_FILE" ] && [ -s "$CLIENT_ID_FILE" ]; then
+        echo "[OK] Client ID secret exists"
+      else
+        echo "[FAIL] Missing $CLIENT_ID_FILE -- run: sudo nixos-rebuild switch"
+        ok=false
+      fi
+
+      if [ -f "$CLIENT_SECRET_FILE" ] && [ -s "$CLIENT_SECRET_FILE" ]; then
+        echo "[OK] Client Secret secret exists"
+      else
+        echo "[FAIL] Missing $CLIENT_SECRET_FILE -- run: sudo nixos-rebuild switch"
+        ok=false
+      fi
+
+      # Check uv is available
+      if command -v ${pkgs.uv}/bin/uv &>/dev/null; then
+        echo "[OK] uv is available"
+      else
+        echo "[FAIL] uv not found"
+        ok=false
+      fi
+
+      # Check OAuth token cache
+      local token_dir="$HOME/.config/gworkspace-mcp"
+      if [ -d "$token_dir" ] && ls "$token_dir"/token* &>/dev/null 2>&1; then
+        echo "[OK] OAuth tokens cached in $token_dir"
+      else
+        echo "[WARN] No OAuth tokens found -- run: setup-gworkspace-mcp"
+      fi
+
+      # Check .mcp.json has google-workspace entry
+      if [ -f "$HOME/.mcp.json" ] && ${pkgs.jq}/bin/jq -e '.mcpServers["google-workspace"]' "$HOME/.mcp.json" &>/dev/null; then
+        echo "[OK] google-workspace in ~/.mcp.json"
+      else
+        echo "[FAIL] google-workspace not in ~/.mcp.json -- run: home-manager switch or nixos-rebuild switch"
+        ok=false
+      fi
+
+      echo ""
+      if $ok; then
+        echo "All checks passed."
+      else
+        echo "Some checks failed. See above."
+        exit 1
+      fi
+    }
+
+    if [ "''${1:-}" = "doctor" ]; then
+      doctor
+      exit 0
+    fi
+
+    # Verify secrets exist
+    if [ ! -f "$CLIENT_ID_FILE" ] || [ ! -s "$CLIENT_ID_FILE" ]; then
+      echo "ERROR: Google OAuth Client ID not found at $CLIENT_ID_FILE"
+      echo "Make sure secrets are added to sops and nixos-rebuild switch has been run."
+      exit 1
+    fi
+    if [ ! -f "$CLIENT_SECRET_FILE" ] || [ ! -s "$CLIENT_SECRET_FILE" ]; then
+      echo "ERROR: Google OAuth Client Secret not found at $CLIENT_SECRET_FILE"
+      echo "Make sure secrets are added to sops and nixos-rebuild switch has been run."
+      exit 1
+    fi
+
+    export GOOGLE_OAUTH_CLIENT_ID="$(cat "$CLIENT_ID_FILE")"
+    export GOOGLE_OAUTH_CLIENT_SECRET="$(cat "$CLIENT_SECRET_FILE")"
+
+    echo "Starting Google Workspace MCP OAuth flow..."
+    echo "A browser window will open for Google consent."
+    echo ""
+    ${pkgs.uv}/bin/uvx --from gworkspace-mcp workspace setup
+  '';
 in
 
 {
@@ -55,12 +141,14 @@ in
     nodePackages.eslint_d              # ESLint daemon for faster linting
     
     # Python Development
-    python3                             # Python runtime
+    (python3.withPackages (ps: with ps; [
+      pylint                            # Python linter
+      black                             # Python code formatter
+      isort                             # Python import sorter
+      flake8                            # Python style checker
+      python-pptx                       # PowerPoint file creation/manipulation
+    ]))
     uv                                  # Ultra-fast Python package manager
-    python3Packages.pylint              # Python linter
-    python3Packages.black               # Python code formatter
-    python3Packages.isort               # Python import sorter
-    python3Packages.flake8              # Python style checker
     
     # Go Development
     go                                  # Go runtime
@@ -116,12 +204,16 @@ in
     httpie                           # Modern HTTP client
     jq                               # JSON processor
 
+    # Cloud Storage
+    rclone                           # Mount Google Drive (and other cloud storage) as local filesystem
+
     # Browser Automation & Testing
     playwright-driver.browsers       # Playwright with bundled browsers
 
     # AI/ML Development
     install-qwen-code                # Script to install Qwen Code CLI tool
     install-gemini-cli               # Script to install Google Gemini CLI
+    setup-gworkspace-mcp             # One-time OAuth setup for Google Workspace MCP
   ] ++ [
     unstable-pkgs.ollama             # Local AI model runner (from unstable)
   ];
@@ -172,7 +264,8 @@ in
   home.activation.installNpmAiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
     mkdir -p "$NPM_CONFIG_PREFIX/bin"
-    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+    # Add Node.js to PATH so npm post-install scripts can find 'node'
+    export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
 
     # Install Gemini CLI if not present
     if ! command -v gemini &> /dev/null; then
@@ -219,6 +312,29 @@ in
         indent = [ "error" 2 ];
         quotes = [ "error" "double" ];
         semi = [ "error" "always" ];
+      };
+    };
+  };
+
+  # Claude Code MCP server configuration (Playwright with Nix-managed paths)
+  # --user-data-dir is required on NixOS because Playwright MCP tries to create
+  # browser profile directories inside PLAYWRIGHT_BROWSERS_PATH (/nix/store/…)
+  # which is read-only. We redirect profiles to a writable location.
+  home.file.".mcp.json".text = builtins.toJSON {
+    mcpServers = {
+      playwright = {
+        command = "bash";
+        args = [
+          "-c"
+          "PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers} PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 exec npx @playwright/mcp@latest --browser chromium --executable-path ${unstable-pkgs.brave}/bin/brave --user-data-dir $HOME/.local/share/playwright-mcp/profiles"
+        ];
+      };
+      google-workspace = {
+        command = "bash";
+        args = [
+          "-c"
+          "export GOOGLE_OAUTH_CLIENT_ID=$(cat /run/secrets/google_oauth_client_id) && export GOOGLE_OAUTH_CLIENT_SECRET=$(cat /run/secrets/google_oauth_client_secret) && exec ${pkgs.uv}/bin/uvx --from gworkspace-mcp workspace mcp"
+        ];
       };
     };
   };

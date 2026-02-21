@@ -15,6 +15,7 @@
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
+    ./claude.nix
   ];
 
 

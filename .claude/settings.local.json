@@ -25,9 +25,23 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "WebFetch(domain:grok.com)",
-      "WebFetch(domain:lobehub.com)"
+      "WebFetch(domain:lobehub.com)",
+      "Bash(sudo iptables:*)",
+      "Bash(sudo nft list:*)",
+      "Bash(lastlog:*)",
+      "Bash(umask:*)",
+      "Bash(kubectl get:*)",
+      "Bash(systemctl is-active:*)",
+      "Bash(sudo fail2ban-client status:*)",
+      "Bash(aa-status:*)",
+      "Bash(sudo aa-status:*)",
+      "Bash(ss:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
 }

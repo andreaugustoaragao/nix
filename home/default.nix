@@ -14,6 +14,11 @@
   home.homeDirectory = "/home/${owner.name}";
   home.stateVersion = "24.11";  # Auto-rebuild test
 
+  # Prioritize ~/.local/bin in PATH
+  home.sessionPath = [
+    "$HOME/.local/bin"
+  ];
+
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
 

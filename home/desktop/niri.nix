@@ -120,6 +120,12 @@
         opacity 0.92
     }
 
+    // Disable transparency for Brave browser
+    window-rule {
+        match app-id=r#"^brave"#
+        opacity 1.0
+    }
+
     window-rule {
         match app-id="org.pulseaudio.pavucontrol"
         open-floating true

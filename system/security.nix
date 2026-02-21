@@ -15,45 +15,10 @@
       killUnconfinedConfinables = true;
     };
 
-    # Audit system for security monitoring
-    # Tuned for a NixOS dev machine: focus on privilege escalation,
-    # persistence, and credential access — skip noisy execve/etc logging.
-    auditd.enable = true;
-    audit = {
-      enable = true;
-      rules = [
-        # ── Privilege escalation ──
-        "-w /run/wrappers/bin/sudo -p x -k priv_esc"
-        "-w /run/wrappers/bin/su -p x -k priv_esc"
-        "-a always,exit -F arch=b64 -S setuid -S setgid -S setreuid -S setregid -S setresuid -S setresgid -F auid>=1000 -F auid!=4294967295 -k priv_esc"
-
-        # ── Kernel modules (rootkit loading) ──
-        "-a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -k kernel_mod"
-
-        # ── Mount operations (data exfil, overlay attacks) ──
-        "-a always,exit -F arch=b64 -S mount -S umount2 -F auid>=1000 -F auid!=4294967295 -k mount"
-
-        # ── Credential and secrets access ──
-        "-w /etc/shadow -p wa -k credentials"
-        "-w /etc/passwd -p wa -k credentials"
-        "-w /etc/group -p wa -k credentials"
-        "-w /run/secrets -p r -k secrets_access"
-
-        # ── SSH config and keys ──
-        "-w /etc/ssh -p wa -k ssh_config"
-
-        # ── Time tampering (log evasion) ──
-        "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time_change"
-
-        # ── Audit config tampering ──
-        "-w /var/log/audit -p wa -k audit_log_tamper"
-        "-w /etc/audit -p wa -k audit_config"
-
-        # Note: -e 2 (immutable rules) is intentionally omitted.
-        # NixOS appends -e 1 automatically, and immutable rules prevent
-        # reloading on nixos-rebuild switch without a reboot.
-      ];
-    };
+    # Audit disabled: AppArmor's profile loading in Parallels VM
+    # causes audit_log_subj_ctx errors, breaking all auditctl operations.
+    auditd.enable = false;
+    audit.enable = false;
 
     # Protect kernel image from modification
     protectKernelImage = true;
