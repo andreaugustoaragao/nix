@@ -1,0 +1,21 @@
+{ config, pkgs, lib, inputs, ... }:
+
+{
+  imports = [
+    ./zsh.nix
+    ./fish.nix
+    ./tmux.nix
+    ./starship.nix
+    ./zoxide.nix
+    ./git.nix
+    ./fastfetch.nix
+    ./btop.nix
+    ./nvim-lazyvim.nix
+  ];
+
+  home.packages = with pkgs; [
+    libnotify  # provides notify-send
+    fzf
+    azure-cli
+  ];
+} 

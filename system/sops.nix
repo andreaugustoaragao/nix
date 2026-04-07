@@ -1,0 +1,189 @@
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  owner,
+  ...
+}:
+
+{
+  # Install sops package system-wide
+  environment.systemPackages = with pkgs; [ sops ];
+
+  # sops-nix configuration
+  sops = {
+    # Default sops file location
+    defaultSopsFile = ../secrets/secrets.yaml;
+
+    # Validate sops files at build time
+    validateSopsFiles = true; # Set to true once you have secrets file
+
+    # Age key configuration
+    age = {
+      # Path to age key for decryption - use metadata owner name
+      keyFile = "/var/lib/sops-nix/key.txt";
+      # Generate host key automatically if it doesn't exist
+      generateKey = true;
+    };
+
+    # Secret definitions
+    secrets = {
+      # User passwords (commented out for initial setup)
+      "user_password" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        neededForUsers = true;
+      };
+
+      "root_password" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        neededForUsers = true;
+      };
+
+      # SSH keys for GitHub
+      "ssh_key_github_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+        path = "/home/${owner.name}/.ssh/id_rsa_work";
+      };
+
+      "ssh_key_github_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+        path = "/home/${owner.name}/.ssh/id_rsa_personal";
+      };
+
+      # SSH public keys (for reference/automation)
+      "ssh_pubkey_github_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0444";
+        path = "/home/${owner.name}/.ssh/id_rsa_work.pub";
+      };
+
+      "ssh_pubkey_github_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0444";
+        path = "/home/${owner.name}/.ssh/id_rsa_personal.pub";
+      };
+
+      # GPG keys for signing/encryption
+      "gpg_key_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "gpg_key_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # SSH key passphrases for automatic loading
+      "ssh_passphrase_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "ssh_passphrase_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # GPG key passphrases for automatic unlocking
+      "gpg_passphrase_personal" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "gpg_passphrase_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # WiFi environment file for wpa_supplicant
+      "wifi_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0600";
+        path = "/run/secrets/wifi_env";
+      };
+
+      # Bitwarden secrets
+      "bitwarden/master_password" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "bitwarden/server_url" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "bitwarden/email" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # Google OAuth credentials (for Google Workspace MCP)
+      "google_oauth_client_id" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "google_oauth_client_secret" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+    };
+  };
+
+  users.users.${owner.name} = lib.mkMerge [
+    # Default configuration with fallback password for initial installation
+    {
+      initialPassword = "changeme"; # Change after first boot and sops setup
+    }
+    # Override with sops password file when available
+    (lib.mkIf (builtins.pathExists config.sops.secrets.user_password.path) {
+      hashedPasswordFile = config.sops.secrets.user_password.path;
+      initialPassword = lib.mkForce null;
+    })
+  ];
+
+  users.users.root = lib.mkMerge [
+    # Default configuration with fallback password for initial installation  
+    {
+      initialPassword = "changeme"; # Change after first boot and sops setup
+    }
+    # Override with sops password file when available
+    (lib.mkIf (builtins.pathExists config.sops.secrets.root_password.path) {
+      hashedPasswordFile = config.sops.secrets.root_password.path;
+      initialPassword = lib.mkForce null;
+    })
+  ];
+
+  # Ensure SSH directory exists with proper permissions
+  system.activationScripts.sops-ssh-setup = lib.stringAfter [ "users" ] ''
+    # Create .ssh directory for ${owner.name} if it doesn't exist
+    mkdir -p /home/${owner.name}/.ssh
+    chown ${owner.name}:users /home/${owner.name}/.ssh
+    chmod 700 /home/${owner.name}/.ssh
+  '';
+}
