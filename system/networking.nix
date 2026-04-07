@@ -118,6 +118,22 @@
     # link-local addresses. The constant address churn triggers Chrome's
     # netlink watcher → ERR_NETWORK_CHANGED on every pod lifecycle event.
     "net.ipv6.conf.default.disable_ipv6" = 1;
+
+    # -------------------------
+    # Dev / load-testing tuning
+    # -------------------------
+    # Widen ephemeral port range (~64K ports instead of ~28K)
+    "net.ipv4.ip_local_port_range" = "1024 65535";
+    # Free TIME_WAIT sockets faster (15s instead of 60s)
+    "net.ipv4.tcp_fin_timeout" = 15;
+    # Reuse TIME_WAIT sockets for outgoing connections
+    "net.ipv4.tcp_tw_reuse" = 1;
+    # Keep congestion window between bursts (avoids ramp-up penalty)
+    "net.ipv4.tcp_slow_start_after_idle" = 0;
+    # TFO for both client and server (useful for local test servers)
+    "net.ipv4.tcp_fastopen" = 3;
+    # Detect dead connections faster (5min instead of 2h)
+    "net.ipv4.tcp_keepalive_time" = 300;
   };
 
   # ============================================================================
