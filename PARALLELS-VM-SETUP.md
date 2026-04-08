@@ -202,7 +202,16 @@ The first rebuild will take a while as it downloads and builds the full desktop 
 
 The configuration uses sops-nix for secret management. Without secrets bootstrapped, the system will work but SSH keys, GPG keys, and passwords won't be managed.
 
-**1. Generate the host age key:**
+Choose the path that matches your situation:
+
+- **Path A** — You have another machine that can already decrypt the secrets (the common case when adding a VM to an existing setup)
+- **Path B** — This is your first machine or you have no access to a machine with decryption keys (full bootstrap from scratch)
+
+### Path A: Add to Existing Secrets
+
+This requires a trusted machine — one whose age key is already in `.sops.yaml` and can decrypt `secrets/secrets.yaml`. The new VM cannot add itself; you need to register its key from the trusted machine.
+
+**1. Get the new VM's host key (on the new VM):**
 
 sops-nix auto-generates a host key at `/var/lib/sops-nix/key.txt` on first activation. Extract its public key:
 
@@ -211,19 +220,18 @@ sops-nix auto-generates a host key at `/var/lib/sops-nix/key.txt` on first activ
 sudo cat /var/lib/sops-nix/key.txt | nix-shell -p age --run "age-keygen -y"
 ```
 
-**2. Save the public key:**
+Copy the `age1...` output — you'll need it on the trusted machine.
+
+**2. Register the key (on the trusted machine):**
 
 ```bash
-# From the nix config directory
 cd ~/projects/personal/nix
 
-# Save the public key for reference
+# Save the new VM's public key
 echo "age1..." > keys/your-vm-name.age.pub
 ```
 
-**3. Add the key to `.sops.yaml`:**
-
-Add the new machine's public age key to the `creation_rules` in `.sops.yaml` so it can decrypt secrets:
+Add the key to `.sops.yaml` under `creation_rules`:
 
 ```yaml
 creation_rules:
@@ -235,21 +243,76 @@ creation_rules:
           - age1...  # your-vm-name
 ```
 
-**4. Re-encrypt secrets for the new machine:**
-
-This must be done from a machine that already has decryption access:
+**3. Re-encrypt secrets (on the trusted machine):**
 
 ```bash
 sops updatekeys secrets/secrets.yaml
 ```
 
-**5. Rebuild to activate secrets:**
+Commit and push the changes to `.sops.yaml`, `keys/`, and `secrets/secrets.yaml`.
+
+**4. Pull and rebuild (on the new VM):**
+
+```bash
+cd ~/projects/personal/nix
+git pull
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+```
+
+### Path B: Bootstrap from Scratch
+
+Use this when no existing machine can decrypt the secrets — you need to create a new admin age key and new secrets from the ground up.
+
+**1. Generate an admin age key (on the new VM):**
+
+```bash
+# Generate the admin age key used for sops encryption/decryption
+age-keygen -o ~/.ssh/id_ed25519_nixos-agenix
+chmod 600 ~/.ssh/id_ed25519_nixos-agenix
+
+# Display the public key — this becomes the admin_key in .sops.yaml
+grep "^age1" ~/.ssh/id_ed25519_nixos-agenix
+```
+
+**2. Get the host key:**
+
+```bash
+sudo cat /var/lib/sops-nix/key.txt | nix-shell -p age --run "age-keygen -y"
+```
+
+Save it:
+
+```bash
+echo "age1..." > keys/your-vm-name.age.pub
+```
+
+**3. Create `.sops.yaml`:**
+
+```yaml
+keys:
+  - &admin_key age1...YOUR_ADMIN_PUBLIC_KEY...
+
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *admin_key
+          - age1...  # your-vm-name host key
+```
+
+**4. Create and populate the secrets file:**
+
+```bash
+sops secrets/secrets.yaml
+```
+
+This opens an editor. See `SOPS-SETUP-GUIDE.md` for the full secrets schema (passwords, SSH keys, GPG keys, etc.) and how to generate each value.
+
+**5. Rebuild:**
 
 ```bash
 sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
 ```
-
-See `SOPS-SETUP-GUIDE.md` for the full secrets bootstrap walkthrough if starting from scratch.
 
 ## Phase 5: Post-Install Verification
 
