@@ -24,37 +24,7 @@ Step-by-step guide for setting up a new NixOS virtual machine on Parallels Deskt
 
 ## Phase 2: Partition and Install NixOS
 
-You have two options. Choose based on your needs:
-
-- **Option A** — Simple ext4 setup
-- **Option B** — LUKS-encrypted btrfs with subvolumes (like `prl-dev-vm`)
-
-### Option A: Simple ext4
-
-```bash
-# Identify the disk (usually /dev/sda)
-lsblk
-
-# Partition: EFI + root
-parted /dev/sda -- mklabel gpt
-parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
-parted /dev/sda -- set 1 esp on
-parted /dev/sda -- mkpart primary ext4 512MiB -8GiB
-parted /dev/sda -- mkpart primary linux-swap -8GiB 100%
-
-# Format
-mkfs.fat -F 32 -n nixos-boot /dev/sda1
-mkfs.ext4 -L nixos-root /dev/sda2
-mkswap -L nixos-swap /dev/sda3
-
-# Mount
-mount /dev/sda2 /mnt
-mkdir -p /mnt/boot
-mount /dev/sda1 /mnt/boot
-swapon /dev/sda3
-```
-
-### Option B: LUKS + btrfs (recommended for dev VMs)
+This uses LUKS encryption with btrfs subvolumes, matching the `prl-dev-vm` setup.
 
 ```bash
 # Identify the disk
@@ -69,8 +39,10 @@ parted /dev/sda -- mkpart primary 512MiB 100%
 # Label the EFI partition
 mkfs.fat -F 32 -n nixos-boot /dev/sda1
 
-# Set up LUKS encryption
+# Set up LUKS encryption — you will be prompted to create a passphrase.
+# This passphrase is required on every boot to unlock the disk.
 cryptsetup luksFormat --label nixos-crypt /dev/sda2
+# Unlock the encrypted partition (enter the passphrase you just set)
 cryptsetup open /dev/sda2 cryptroot
 
 # Create btrfs and subvolumes
@@ -87,15 +59,15 @@ btrfs subvolume create /mnt/@swap
 umount /mnt
 
 # Mount subvolumes with compression
-mount -o subvol=@root,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt
+mount -o subvol=@root,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/{boot,home/aragao,nix,tmp,.snapshots,swap}
 
 mount /dev/sda1 /mnt/boot
-mount -o subvol=@home-aragao,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/home/aragao
-mount -o subvol=@nix,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/nix
-mount -o subvol=@tmp,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/tmp
-mount -o subvol=@snapshots,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/.snapshots
-mount -o subvol=@swap,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/swap
+mount -o subvol=@home-aragao,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/home/aragao
+mount -o subvol=@nix,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/nix
+mount -o subvol=@tmp,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/tmp
+mount -o subvol=@snapshots,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/.snapshots
+mount -o subvol=@swap,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/swap
 
 # Create swap file (16 GB)
 btrfs filesystem mkswapfile --size 16g /mnt/swap/swapfile
