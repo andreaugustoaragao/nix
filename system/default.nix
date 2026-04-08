@@ -27,6 +27,7 @@
     ./users.nix
     ./networking.nix
     ./ssh.nix
+    ./security.nix # Security hardening configuration
     ./kmscon.nix
     ./env.nix
     ./fonts.nix
@@ -34,6 +35,9 @@
     ./sops.nix
     ./bluetooth.nix
     ./lockscreen.nix
+    ./loki.nix
+    ./grafana.nix
+    ./caddy.nix
   ];
 
   config = {

@@ -1,13 +1,20 @@
-{ config, pkgs, lib, inputs, hostName, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  hostName,
+  ...
+}:
 
 {
   virtualisation.docker.enable = true;
 
   # Lazy-load Docker: Remove from critical boot path and start after graphical session
   systemd.services.docker = {
-    wantedBy = lib.mkForce [ ];  # Remove from multi-user.target dependency
-    after = [ "graphical.target" ];  # Start after graphical target
-    requisite = [ "network-online.target" ];  # Still require network
+    wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
+    after = [ "graphical.target" ]; # Start after graphical target
+    requisite = [ "network-online.target" ]; # Still require network
   };
 
   # Create a delayed Docker startup service
@@ -32,14 +39,14 @@
   services.k3s = lib.mkIf (hostName != "hp-laptop") {
     enable = true;
     role = "server";
-    extraFlags = "--disable traefik";
+    extraFlags = "--disable traefik --write-kubeconfig-mode 0644 --node-ip 10.211.55.4 --tls-san 10.211.55.4";
   };
 
   # Lazy-load K3s: Remove from critical boot path and start after graphical session
   systemd.services.k3s = lib.mkIf (hostName != "hp-laptop") {
-    wantedBy = lib.mkForce [ ];  # Remove from multi-user.target dependency
-    after = [ "graphical-session.target" ];  # Start after graphical session
-    requisite = [ "network-online.target" ];  # Still require network
+    wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
+    after = [ "graphical-session.target" ]; # Start after graphical session
+    requisite = [ "network-online.target" ]; # Still require network
   };
 
   # Create a delayed K3s startup service
@@ -59,4 +66,4 @@
       ${pkgs.systemd}/bin/systemctl start k3s.service
     '';
   };
-} 
+}

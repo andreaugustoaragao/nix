@@ -15,6 +15,25 @@ let
     echo "qwen-code installed successfully!"
     echo "Make sure $HOME/.npm-global/bin is in your PATH"
   '';
+
+  # Script to install Google Gemini CLI via npm
+  install-gemini-cli = pkgs.writeShellScriptBin "install-gemini-cli" ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+    ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
+    echo "Gemini CLI installed successfully!"
+    echo "Run 'gemini' to start using it"
+  '';
+
+  # Script to install goplay (Go Playground client) via go install
+  install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
+    export GOPATH="''${GOPATH:-$HOME/go}"
+    export GOBIN="''${GOBIN:-$GOPATH/bin}"
+    ${pkgs.go}/bin/go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
+    echo "goplay installed to $GOBIN/goplay"
+  '';
+
 in
 
 {
@@ -45,24 +64,32 @@ in
     nodePackages.eslint_d              # ESLint daemon for faster linting
     
     # Python Development
-    python3                             # Python runtime
+    (python3.withPackages (ps: with ps; [
+      pylint                            # Python linter
+      black                             # Python code formatter
+      isort                             # Python import sorter
+      flake8                            # Python style checker
+      python-pptx                       # PowerPoint file creation/manipulation
+    ]))
     uv                                  # Ultra-fast Python package manager
-    python3Packages.pylint              # Python linter
-    python3Packages.black               # Python code formatter
-    python3Packages.isort               # Python import sorter
-    python3Packages.flake8              # Python style checker
     
     # Go Development
     go                                  # Go runtime
     delve                              # Go debugger
     golangci-lint                      # Go meta-linter
+    govulncheck                        # Go vulnerability checker
+    gosec                              # Go security analyzer
+    go-licenses                        # Go dependency license checker
+    gotests                            # Generate Go tests from source code
+    impl                               # Generate method stubs for implementing an interface
+    install-goplay                     # Script to install goplay (Go Playground client)
 
     # Rust Development
     rustc                              # Rust compiler
     cargo                              # Rust package manager
     rustfmt                            # Rust code formatter
-    clippy                             # Rust linter
     rust-analyzer                      # Rust LSP
+    clippy                             # Rust linter
     cargo-watch                        # Auto-reload for Rust projects
     cargo-edit                         # Cargo add/remove/upgrade commands
     cargo-expand                       # Show macro expansion
@@ -71,6 +98,10 @@ in
     cargo-deny                         # Cargo plugin for linting dependencies
     cargo-flamegraph                   # Flamegraph profiling
     cargo-udeps                        # Find unused dependencies
+    cargo-bloat                        # Find what takes most space in binary
+    cargo-nextest                      # Next-generation test runner
+    cargo-tarpaulin                    # Code coverage tool
+    cargo-criterion                    # Benchmarking
 
     # Java Development
     openjdk21                          # Java runtime
@@ -80,6 +111,10 @@ in
     # Shell & Docker Development
     shellcheck                         # Shell script analysis
     hadolint                          # Dockerfile linter
+
+    # Security Scanning
+    gitleaks                         # Secret detection in source & git history
+    trivy                            # Dependency & container vulnerability scanner
     
     # Build Tools & Compilers (needed for nvim-treesitter & LuaSnip)
     gcc                              # C compiler
@@ -91,8 +126,12 @@ in
     # Additional Development Tools
     gitui                             # Terminal UI for Git
     lazygit                           # Another terminal UI for Git
+    git-filter-repo                   # Rewrite/filter git history
     gh                                # GitHub CLI
     docker-compose                    # Container orchestration
+    nerdctl                           # Docker-compatible CLI for containerd
+    tilt                              # Local Kubernetes development tool
+    lazydocker                        # Terminal UI for Docker
     sqlite                            # Database for development
     
     # Database tools
@@ -100,12 +139,36 @@ in
     
     # API development
     httpie                           # Modern HTTP client
+    bc                               # Arbitrary precision calculator
     jq                               # JSON processor
-    
+    openssl                          # TLS/SSL toolkit and crypto library
+    openssl.dev                      # OpenSSL headers and pkg-config files
+    curl.dev                         # libcurl headers and pkg-config files
+    rdkafka                          # Apache Kafka C/C++ client library (for rdkafka-sys)
+    rdkafka.dev                      # librdkafka headers and pkg-config files
+    k6                               # Load testing tool
+    websocat                         # WebSocket client (like curl for WebSockets)
+
+    # Cloud & Networking
+    rclone                           # Mount Google Drive (and other cloud storage) as local filesystem
+    cloudflared                      # Cloudflare Tunnel client for exposing local services
+
+    # Browser Automation & Testing
+    playwright-driver.browsers       # Playwright with bundled browsers
+
+    # Audio/Video Processing & Speech-to-Text
+    ffmpeg                           # Audio/video conversion (needed for voice message transcription)
+    whisper-cpp                      # Speech-to-text engine (Whisper.cpp - fast, local, ARM-native)
+
+    # Architecture Diagramming (C4 model)
+    plantuml-c4                      # PlantUML with C4 model library (includes plantuml)
+    graphviz                         # Graph layout engine (required by PlantUML)
+
     # AI/ML Development
     install-qwen-code                # Script to install Qwen Code CLI tool
+    install-gemini-cli               # Script to install Google Gemini CLI
   ] ++ [
-    unstable-pkgs.ollama             # Local AI model runner (from unstable)
+    unstable-pkgs.semgrep            # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues)
   ];
   
   # Development-related programs
@@ -126,6 +189,9 @@ in
   home.sessionVariables = {
     # Node.js
     NODE_OPTIONS = "--max-old-space-size=4096";
+
+    # Playwright (browser automation) - use Nix-provided browsers
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     
     # Go
     GOPATH = "$HOME/go";
@@ -147,6 +213,26 @@ in
     PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
   };
   
+  # Auto-install npm-based AI CLI tools if not present
+  home.activation.installNpmAiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    # Add Node.js to PATH so npm post-install scripts can find 'node'
+    export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
+
+    # Install Gemini CLI if not present
+    if ! command -v gemini &> /dev/null; then
+      echo "Installing Google Gemini CLI..."
+      ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
+    fi
+
+    # Install dev-browser if not present
+    if ! command -v dev-browser &> /dev/null; then
+      echo "Installing dev-browser..."
+      ${pkgs.nodejs_22}/bin/npm install -g dev-browser
+    fi
+  '';
+
   # XDG configuration for development tools
   xdg.configFile = {
     # Prettier configuration
@@ -188,4 +274,5 @@ in
       };
     };
   };
+
 }

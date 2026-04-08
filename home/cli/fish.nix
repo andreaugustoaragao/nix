@@ -16,7 +16,7 @@
       l = "ls -CF";
       
       # System management
-      rebuild = "sudo nixos-rebuild switch --flake .";
+      rebuild = "nix flake lock --update-input cursor && sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
       nixf = "nix search nixpkgs";
       
@@ -71,18 +71,21 @@
       rm = "rm -i";
       cp = "cp -i";
       mv = "mv -i";
-      cd = "z";  # Use zoxide instead of cd
-      
       # FZF with bat preview (from nix-config)
       fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
     };
     
     interactiveShellInit = ''
-      # Zoxide integration
-      zoxide init fish | source
-      
       # Any-nix-shell integration for better nix-shell experience
       ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
+
+      # Use local k3s kubeconfig when no KUBECONFIG is set
+      if test -r /etc/rancher/k3s/k3s.yaml; and not set -q KUBECONFIG
+        set -gx KUBECONFIG /etc/rancher/k3s/k3s.yaml
+      end
+
+      # Puppeteer / Chrome DevTools MCP
+      set -gx PUPPETEER_EXECUTABLE_PATH /etc/profiles/per-user/aragao/bin/brave
     '';
     
     functions = {
@@ -105,10 +108,6 @@
     };
     
     plugins = [
-      {
-        name = "z";
-        src = pkgs.fishPlugins.z.src;
-      }
       {
         name = "fzf-fish";
         src = pkgs.fishPlugins.fzf-fish.src;

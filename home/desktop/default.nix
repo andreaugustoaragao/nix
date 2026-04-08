@@ -1,5 +1,10 @@
 { config, pkgs, lib, inputs, ... }:
-
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    inherit (pkgs) system;
+    config.allowUnfree = true;
+  };
+in
 {
   imports = [
     ./hyprland.nix
@@ -13,12 +18,14 @@
     ./qt.nix
     ./ghostty.nix
     ./foot.nix
+    ./kitty.nix
     ./alacritty.nix
     ./swayosd.nix
     ./hyprpaper.nix
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    ./google-chrome.nix
     ./firefox.nix
     ./qutebrowser.nix
     ./vscode.nix
@@ -42,8 +49,9 @@
     xdg-desktop-portal-gnome
     xdg-desktop-portal-gtk
     teams-for-linux
-    telegram-desktop
+    pkgs-unstable.telegram-desktop
     bitwarden-desktop
+    pkgs-unstable.code-cursor
     neovide
     swayimg
     obsidian

@@ -19,6 +19,7 @@ in
       "--disable-brave-ads"              # Disable Brave Ads
       "--disable-background-mode"        # Prevent running in background
       "--password-store=gnome-libsecret"
+      "--remote-debugging-port=9222"     # Chrome DevTools Protocol for automation
     ];
     extensions = [
       # Bitwarden Password Manager
@@ -32,6 +33,14 @@ in
       # Kanagawa theme
       {
         id = "djnghjlejbfgnbnmjfgbdaeafbiklpha";
+      }
+      # Claude in Chrome
+      {
+        id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
+      }
+      # Markdown Viewer
+      {
+        id = "ckkdlimhmcjmikdlpkmbgfkaikojcbjk";
       }
     ];
   };

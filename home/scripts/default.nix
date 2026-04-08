@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   imports = [
@@ -6,5 +11,6 @@
     ./browser-default.nix
     ./browser-app.nix
     ./eww.nix
+    ./fulcrum-logs.nix
   ];
 }

@@ -15,6 +15,7 @@
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
+    ./claude.nix
   ];
 
 
@@ -74,6 +75,7 @@
     cowsay
     fortune
     sl
+    cmatrix
     tree
     ncdu
     gdu

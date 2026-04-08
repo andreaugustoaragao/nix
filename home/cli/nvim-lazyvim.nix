@@ -74,7 +74,18 @@
       vim.opt.mouse = "a"
       vim.opt.cursorline = true
       vim.opt.undofile = true
-      
+
+      -- Auto-reload files when changed externally (silent)
+      vim.opt.autoread = true
+      vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+        pattern = "*",
+        callback = function()
+          if vim.fn.getcmdwintype() == "" then
+            vim.cmd("checktime")
+          end
+        end,
+      })
+
       -- Folding configuration (prefer LSP, fallback to treesitter)
       vim.opt.foldmethod = "expr"
       vim.opt.foldexpr = "v:lua.vim.lsp.foldexpr()"
@@ -1496,6 +1507,21 @@
               { "<leader>np", "<cmd>lua require('package-info').change_version()<cr>", desc = "Change package version" },
             },
           },
+
+          -- Claude Code integration (terminal toggle for Claude CLI)
+          {
+            "greggh/claude-code.nvim",
+            dependencies = { "nvim-lua/plenary.nvim" },
+            cmd = { "ClaudeCode", "ClaudeCodeContinue", "ClaudeCodeResume", "ClaudeCodeVerbose" },
+            keys = {
+              { "<C-,>", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Code" },
+              { "<leader>cC", "<cmd>ClaudeCodeContinue<cr>", desc = "Claude Code Continue" },
+              { "<leader>cV", "<cmd>ClaudeCodeVerbose<cr>", desc = "Claude Code Verbose" },
+            },
+            config = function()
+              require("claude-code").setup()
+            end,
+          },
         },
         defaults = {
           lazy = false, -- Should plugins be lazy-loaded by default?
@@ -1717,8 +1743,8 @@
           ltex = {
             language = "en-US",
             additionalRules = {
-              enablePickyRules = true,
-              motherTongue = "pt-BR",
+              enablePickyRules = false,
+              motherTongue = "en-US",
             },
             checkFrequency = "save",
             dictionary = {
@@ -1735,7 +1761,7 @@
       
       -- Enable LTeX for appropriate filetypes
       vim.api.nvim_create_autocmd("FileType", {
-        pattern = { "markdown", "tex", "latex", "rst", "org", "text", "gitcommit" },
+        pattern = { "tex", "latex", "rst", "org", "text", "gitcommit" },
         callback = function()
           vim.lsp.enable('ltex')
         end,

@@ -19,7 +19,7 @@
       l = "ls -CF";
       
       # System management
-      rebuild = "sudo nixos-rebuild switch --flake .";
+      rebuild = "nix flake lock --update-input cursor && sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
       
       # Editor shortcuts
@@ -77,8 +77,6 @@
       # FZF with bat preview (from nix-config)
       fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
       
-      # Use zoxide for cd
-      cd = "z";
     };
 
     oh-my-zsh = {

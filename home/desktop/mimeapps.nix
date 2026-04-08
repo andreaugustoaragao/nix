@@ -1,16 +1,33 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
+  # Desktop entry for opening URLs in Brave app mode
+  xdg.desktopEntries.brave-app-mode = {
+    name = "Brave (App Mode)";
+    comment = "Open URL in Brave app mode";
+    exec = "browser-app %U";
+    terminal = false;
+    type = "Application";
+    categories = [ "Network" "WebBrowser" ];
+    mimeType = [
+      "text/html"
+      "x-scheme-handler/http"
+      "x-scheme-handler/https"
+      "x-scheme-handler/about"
+      "x-scheme-handler/unknown"
+    ];
+  };
+
   # Default application associations
   xdg.mimeApps = {
     enable = true;
     defaultApplications = {
-      # Web browser - qutebrowser
-      "text/html" = "org.qutebrowser.qutebrowser.desktop";
-      "x-scheme-handler/http" = "org.qutebrowser.qutebrowser.desktop";
-      "x-scheme-handler/https" = "org.qutebrowser.qutebrowser.desktop";
-      "x-scheme-handler/about" = "org.qutebrowser.qutebrowser.desktop";
-      "x-scheme-handler/unknown" = "org.qutebrowser.qutebrowser.desktop";
+      # Web browser - Brave in app mode
+      "text/html" = "brave-app-mode.desktop";
+      "x-scheme-handler/http" = "brave-app-mode.desktop";
+      "x-scheme-handler/https" = "brave-app-mode.desktop";
+      "x-scheme-handler/about" = "brave-app-mode.desktop";
+      "x-scheme-handler/unknown" = "brave-app-mode.desktop";
       
       # Image viewer - swayimg (Wayland-native)
       "image/jpeg" = "swayimg.desktop";

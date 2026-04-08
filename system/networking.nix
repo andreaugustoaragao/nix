@@ -4,6 +4,8 @@
   lib,
   inputs,
   wirelessInterface,
+  hostName,
+  isVm,
   ...
 }:
 
@@ -19,16 +21,45 @@
 
   systemd.network.networks."10-ethernet" = {
     matchConfig.Name = "en*";
-    networkConfig = {
-      DHCP = "yes";
-      IPv6AcceptRA = true;
-    };
-    dhcpV4Config = {
-      RouteMetric = 1024;
-    };
+    networkConfig =
+      if hostName == "prl-dev-vm" then
+        {
+          Address = "10.211.55.4/24";
+          Gateway = "10.211.55.1";
+          DNS = [
+            "10.211.55.1"
+            "1.1.1.1"
+            "8.8.8.8"
+          ];
+          IPv6AcceptRA = true;
+        }
+      else
+        {
+          DHCP = "yes";
+          IPv6AcceptRA = true;
+        };
+    dhcpV4Config = lib.mkIf (hostName != "prl-dev-vm") (
+      {
+        RouteMetric = 1024;
+      }
+      // lib.optionalAttrs isVm {
+        UseDNS = false; # Parallels NAT DNS drops some records
+      }
+    );
+    dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
+      "1.1.1.1#cloudflare-dns.com"
+      "8.8.8.8#dns.google"
+    ];
     ipv6AcceptRAConfig = {
       RouteMetric = 1024;
     };
+  };
+
+  # Tell networkd to ignore container/K3s veth interfaces — their constant
+  # creation/destruction floods the journal with carrier-change noise.
+  systemd.network.networks."01-veth-ignore" = {
+    matchConfig.Name = "veth*";
+    linkConfig.Unmanaged = true;
   };
 
   # Conditional wireless configuration
@@ -71,5 +102,101 @@
 
   # Disable network-wait-online for faster boot
   systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
+
+  # Enable NTP time synchronization via systemd-timesyncd
+  # mkForce needed to override parallels-guest.nix which disables it for VMs
+  services.timesyncd.enable = lib.mkForce true;
+
+  # ============================================================================
+  # Kernel tuning — larger UDP buffers for QUIC (cloudflared, etc.)
+  # ============================================================================
+  boot.kernel.sysctl = {
+    "net.core.rmem_max" = 7500000;
+    "net.core.wmem_max" = 7500000;
+
+    # Prevent new interfaces (K3s/Docker veths) from auto-generating IPv6
+    # link-local addresses. The constant address churn triggers Chrome's
+    # netlink watcher → ERR_NETWORK_CHANGED on every pod lifecycle event.
+    "net.ipv6.conf.default.disable_ipv6" = 1;
+
+    # -------------------------
+    # Dev / load-testing tuning
+    # -------------------------
+    # Widen ephemeral port range (~64K ports instead of ~28K)
+    "net.ipv4.ip_local_port_range" = "1024 65535";
+    # Free TIME_WAIT sockets faster (15s instead of 60s)
+    "net.ipv4.tcp_fin_timeout" = 15;
+    # Reuse TIME_WAIT sockets for outgoing connections
+    "net.ipv4.tcp_tw_reuse" = 1;
+    # Keep congestion window between bursts (avoids ramp-up penalty)
+    "net.ipv4.tcp_slow_start_after_idle" = 0;
+    # TFO for both client and server (useful for local test servers)
+    "net.ipv4.tcp_fastopen" = 3;
+    # Detect dead connections faster (5min instead of 2h)
+    "net.ipv4.tcp_keepalive_time" = 300;
+  };
+
+  # ============================================================================
+  # Local DNS — friendly names for reverse-proxied services
+  # ============================================================================
+  networking.hosts."127.0.0.1" =
+    [
+      "grafana.local"
+      "loki.local"
+      "prometheus.local"
+    ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [ "fulcrum.local" "infinity.local" ]
+    ++ lib.optionals (!isVm) [ "ollama.local" ];
+
+  # ============================================================================
+  # Firewall Configuration
+  # ============================================================================
+  networking.firewall = {
+    enable = true;
+
+    # Allowed TCP ports
+    allowedTCPPorts = [
+      22    # SSH
+      6443  # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
+    ];
+
+    # Allowed UDP ports
+    allowedUDPPorts = [
+      # Add any required UDP ports here
+    ];
+
+    # Allowed TCP port ranges
+    allowedTCPPortRanges = [
+      # { from = 30000; to = 32767; }  # K3s NodePorts (uncomment if needed)
+    ];
+
+    # Allowed UDP port ranges
+    allowedUDPPortRanges = [
+      # { from = 30000; to = 32767; }  # K3s NodePorts (uncomment if needed)
+    ];
+
+    # Trust local interfaces for Docker and K3s
+    trustedInterfaces = [
+      "docker0"     # Docker bridge
+      "cni0"        # K3s CNI bridge
+      "flannel.1"   # K3s Flannel
+    ];
+
+    # Log refused packets (useful for debugging)
+    logRefusedConnections = true;
+    logRefusedPackets = false;  # Set to true only for debugging (can be noisy)
+
+    # Allow ping
+    allowPing = true;
+
+    # Extra firewall commands (if needed)
+    extraCommands = ''
+      # Allow established connections
+      iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+      # Allow loopback
+      iptables -A INPUT -i lo -j ACCEPT
+    '';
+  };
 }
 

@@ -120,6 +120,12 @@
         opacity 0.92
     }
 
+    // Disable transparency for Brave browser
+    window-rule {
+        match app-id=r#"^brave"#
+        opacity 1.0
+    }
+
     window-rule {
         match app-id="org.pulseaudio.pavucontrol"
         open-floating true
@@ -208,8 +214,8 @@
 
     // Key bindings (matching Hyprland as closely as possible)
     binds {
-        // Applications (using foot as default terminal)
-        Mod+Return { spawn "footclient"; }
+        // Applications (using kitty as default terminal)
+        Mod+Return { spawn "kitty" "--single-instance"; }
         Mod+Shift+T { spawn "thunar"; }
         Mod+Shift+B { spawn "browser-default"; }
         Mod+Shift+N { spawn "notes"; }
@@ -233,26 +239,26 @@
         Mod+V { toggle-window-floating; }
 
         // Focus movement (arrow keys and vim keys)
-        Mod+Left { focus-column-left; }
-        Mod+Right { focus-column-right; }
-        Mod+Up { focus-window-or-workspace-up; }
-        Mod+Down { focus-window-or-workspace-down; }
-        Mod+h { focus-column-left; }
-        Mod+l { focus-column-right; }
-        Mod+k { focus-window-or-workspace-up; }
-        Mod+j { focus-window-or-workspace-down; }
+        Mod+Left repeat=true { focus-column-left; }
+        Mod+Right repeat=true { focus-column-right; }
+        Mod+Up repeat=true { focus-window-or-workspace-up; }
+        Mod+Down repeat=true { focus-window-or-workspace-down; }
+        Mod+h repeat=true { focus-column-left; }
+        Mod+l repeat=true { focus-column-right; }
+        Mod+k repeat=true { focus-window-or-workspace-up; }
+        Mod+j repeat=true { focus-window-or-workspace-down; }
 
         Mod+c {toggle-column-tabbed-display; }
 
         // Window movement (vim keys and arrows)
-        Mod+Shift+Left { move-column-left; }
-        Mod+Shift+Right { move-column-right; }
-        Mod+Shift+Up { move-window-up-or-to-workspace-up; }
-        Mod+Shift+Down { move-window-down-or-to-workspace-down; }
-        Mod+Shift+H { move-column-left; }
-        Mod+Shift+L { move-column-right; }
-        Mod+Shift+K { move-window-up-or-to-workspace-up; }
-        Mod+Shift+J { move-window-down-or-to-workspace-down; }
+        Mod+Shift+Left repeat=true { move-column-left; }
+        Mod+Shift+Right repeat=true { move-column-right; }
+        Mod+Shift+Up repeat=true { move-window-up-or-to-workspace-up; }
+        Mod+Shift+Down repeat=true { move-window-down-or-to-workspace-down; }
+        Mod+Shift+H repeat=true { move-column-left; }
+        Mod+Shift+L repeat=true { move-column-right; }
+        Mod+Shift+K repeat=true { move-window-up-or-to-workspace-up; }
+        Mod+Shift+J repeat=true { move-window-down-or-to-workspace-down; }
 
         // Consume or expel window (bracket keys)
         Mod+BracketLeft { consume-or-expel-window-left; }
@@ -293,10 +299,11 @@
         Mod+End { focus-column-last; }
 
         // Column width adjustment (similar to Hyprland resize)
-        Mod+Minus { set-column-width "-100"; }
-        Mod+Equal { set-column-width "+100"; }
-        Mod+Shift+Minus { set-window-height "-100"; }
-        Mod+Shift+Equal { set-window-height "+100"; }
+        Mod+R { switch-preset-column-width; }
+        Mod+Minus repeat=true { set-column-width "-100"; }
+        Mod+Equal repeat=true { set-column-width "+100"; }
+        Mod+Shift+Minus repeat=true { set-window-height "-100"; }
+        Mod+Shift+Equal repeat=true { set-window-height "+100"; }
 
         // Screenshots (Hyprland-style via script)
         Mod+Shift+S { spawn "screenshot"; }
@@ -311,7 +318,7 @@
         Mod+Semicolon { spawn "makoctl" "restore"; }
 
         // Waybar toggle
-        Mod+Y { spawn "sh" "-c" "pkill waybar || waybar -c ~/.config/waybar/niri-config.json -s ~/.config/waybar/style.css"; }
+        Mod+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar"; }
 
         // Media keys (using SwayOSD)
         XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }

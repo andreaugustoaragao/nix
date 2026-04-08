@@ -27,9 +27,7 @@ in
       RestartSec = "5s";
     };
     
-    Install = {
-      WantedBy = [ "default.target" ];
-    };
+    Install = { };
   };
   
   # Create ollama models directory
