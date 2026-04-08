@@ -102,13 +102,12 @@ If any of these tools aren't available in the environment, note it but don't ski
 
 ## Multi-Machine Awareness
 
-This flake manages 4 machines via `machines.toml`:
+This flake manages 3 machines via `machines.toml`:
 
 | Machine | Platform | Profile |
 |---------|----------|---------|
 | workstation | x86_64-linux | workstation |
 | hp-laptop | x86_64-linux | laptop |
-| parallels-vm | aarch64-linux | vm |
 | prl-dev-vm | aarch64-linux | vm |
 
 - Use `lib.optionals` with `pkgs.stdenv.hostPlatform.system` or the profile booleans (`isWorkstation`, `isLaptop`, `isVm`) for platform/profile-conditional packages.

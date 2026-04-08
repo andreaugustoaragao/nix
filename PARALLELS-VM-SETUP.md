@@ -1,0 +1,316 @@
+# Creating a NixOS Parallels VM from Scratch
+
+Step-by-step guide for setting up a new NixOS virtual machine on Parallels Desktop (Apple Silicon Mac) and bootstrapping it with this flake configuration.
+
+## Prerequisites
+
+- Parallels Desktop installed on macOS (Apple Silicon)
+- NixOS minimal ISO for aarch64 — download from [nixos.org/download](https://nixos.org/download/#nixos-iso)
+  - Choose **Minimal ISO image** under the **aarch64** tab
+
+## Phase 1: Create the VM in Parallels
+
+1. Open Parallels Desktop and choose **File > New**
+2. Select **Install Windows or another OS from a DVD or image file**
+3. Browse to the NixOS `.iso` you downloaded
+4. Parallels won't auto-detect NixOS — select **Other Linux** manually
+5. Name the VM (e.g. `prl-dev-vm`) and choose where to store it
+6. Configure hardware before starting:
+   - **CPU**: 4+ cores recommended
+   - **RAM**: 8 GB minimum (16 GB recommended for development)
+   - **Disk**: 80+ GB (NixOS store grows with packages)
+   - **Network**: Shared Network (NAT) — default
+7. Start the VM — it boots into the NixOS installer shell
+
+## Phase 2: Partition and Install NixOS
+
+You have two options. Choose based on your needs:
+
+- **Option A** — Simple ext4 setup
+- **Option B** — LUKS-encrypted btrfs with subvolumes (like `prl-dev-vm`)
+
+### Option A: Simple ext4
+
+```bash
+# Identify the disk (usually /dev/sda)
+lsblk
+
+# Partition: EFI + root
+parted /dev/sda -- mklabel gpt
+parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
+parted /dev/sda -- set 1 esp on
+parted /dev/sda -- mkpart primary ext4 512MiB -8GiB
+parted /dev/sda -- mkpart primary linux-swap -8GiB 100%
+
+# Format
+mkfs.fat -F 32 -n nixos-boot /dev/sda1
+mkfs.ext4 -L nixos-root /dev/sda2
+mkswap -L nixos-swap /dev/sda3
+
+# Mount
+mount /dev/sda2 /mnt
+mkdir -p /mnt/boot
+mount /dev/sda1 /mnt/boot
+swapon /dev/sda3
+```
+
+### Option B: LUKS + btrfs (recommended for dev VMs)
+
+```bash
+# Identify the disk
+lsblk
+
+# Partition: EFI + LUKS container
+parted /dev/sda -- mklabel gpt
+parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
+parted /dev/sda -- set 1 esp on
+parted /dev/sda -- mkpart primary 512MiB 100%
+
+# Label the EFI partition
+mkfs.fat -F 32 -n nixos-boot /dev/sda1
+
+# Set up LUKS encryption
+cryptsetup luksFormat --label nixos-crypt /dev/sda2
+cryptsetup open /dev/sda2 cryptroot
+
+# Create btrfs and subvolumes
+mkfs.btrfs -L nixos /dev/mapper/cryptroot
+mount /dev/mapper/cryptroot /mnt
+
+btrfs subvolume create /mnt/@root
+btrfs subvolume create /mnt/@home-aragao
+btrfs subvolume create /mnt/@nix
+btrfs subvolume create /mnt/@tmp
+btrfs subvolume create /mnt/@snapshots
+btrfs subvolume create /mnt/@swap
+
+umount /mnt
+
+# Mount subvolumes with compression
+mount -o subvol=@root,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt
+mkdir -p /mnt/{boot,home/aragao,nix,tmp,.snapshots,swap}
+
+mount /dev/sda1 /mnt/boot
+mount -o subvol=@home-aragao,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/home/aragao
+mount -o subvol=@nix,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/nix
+mount -o subvol=@tmp,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/tmp
+mount -o subvol=@snapshots,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/.snapshots
+mount -o subvol=@swap,compress=zstd:1,noatime,space_cache=v2 /dev/mapper/cryptroot /mnt/swap
+
+# Create swap file (16 GB)
+btrfs filesystem mkswapfile --size 16g /mnt/swap/swapfile
+swapon /mnt/swap/swapfile
+```
+
+### Generate and Install the Base System
+
+```bash
+# Generate hardware config
+nixos-generate-config --root /mnt
+
+# Edit the generated config for a minimal bootable system
+nano /mnt/etc/nixos/configuration.nix
+```
+
+Replace the contents of `/mnt/etc/nixos/configuration.nix` with a minimal config to get the system bootable:
+
+```nix
+{ config, pkgs, lib, ... }:
+
+{
+  imports = [ ./hardware-configuration.nix ];
+
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  networking.hostName = "your-vm-name";
+  networking.useDHCP = true;
+
+  # Enable SSH so you can connect from the host
+  services.openssh.enable = true;
+
+  # Temporary user for bootstrapping
+  users.users.aragao = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    initialPassword = "changeme";
+  };
+
+  # Enable flakes
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # Basic packages for bootstrapping
+  environment.systemPackages = with pkgs; [ git vim ];
+
+  system.stateVersion = "25.05";
+}
+```
+
+```bash
+# Install
+nixos-install
+
+# Set root password when prompted
+# Reboot
+reboot
+```
+
+## Phase 3: Bootstrap the Flake Configuration
+
+After the VM boots into the minimal NixOS install:
+
+```bash
+# Log in as aragao (password: changeme)
+
+# Clone the configuration repo
+git clone git@github-personal:andreaugustoaragao/nix.git ~/projects/personal/nix
+cd ~/projects/personal/nix
+```
+
+### Add the New Machine to the Flake
+
+If this is a **new** machine not yet in `machines.toml`, you need to register it:
+
+**1. Add the machine entry to `machines.toml`:**
+
+```toml
+[machines.your-vm-name]
+hostName = "your-vm-name"
+platform = "aarch64-linux"
+profile = "vm"
+stateVersion = "25.05"
+bluetooth = false
+lockScreen = false
+autoLogin = true
+```
+
+**2. Create the hardware configuration directory:**
+
+```bash
+mkdir -p hardware/your-vm-name
+
+# Copy the hardware config generated during install
+cp /etc/nixos/hardware-configuration.nix hardware/your-vm-name/
+```
+
+**3. Edit `hardware/your-vm-name/hardware-configuration.nix`:**
+
+Add Parallels guest support and the QEMU guest profile. Use `hardware/prl-dev-vm/hardware-configuration.nix` as a reference. The key additions are:
+
+```nix
+{ config, lib, pkgs, modulesPath, inputs, ... }:
+
+{
+  imports = [
+    (modulesPath + "/profiles/qemu-guest.nix")
+  ];
+
+  # ... keep the auto-generated kernel modules and filesystem entries ...
+
+  # Add Parallels Tools
+  hardware.parallels = {
+    enable = true;
+    package = pkgs.prl-tools;
+  };
+
+  nixpkgs.config.allowUnfreePredicate = pkg:
+    builtins.elem (lib.getName pkg) [ "prl-tools" ];
+}
+```
+
+**4. Build and switch:**
+
+```bash
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+```
+
+The first rebuild will take a while as it downloads and builds the full desktop environment.
+
+## Phase 4: Set Up Secrets (sops-nix)
+
+The configuration uses sops-nix for secret management. Without secrets bootstrapped, the system will work but SSH keys, GPG keys, and passwords won't be managed.
+
+**1. Generate the host age key:**
+
+sops-nix auto-generates a host key at `/var/lib/sops-nix/key.txt` on first activation. Extract its public key:
+
+```bash
+# Get this machine's age public key
+sudo cat /var/lib/sops-nix/key.txt | nix-shell -p age --run "age-keygen -y"
+```
+
+**2. Save the public key:**
+
+```bash
+# From the nix config directory
+cd ~/projects/personal/nix
+
+# Save the public key for reference
+echo "age1..." > keys/your-vm-name.age.pub
+```
+
+**3. Add the key to `.sops.yaml`:**
+
+Add the new machine's public age key to the `creation_rules` in `.sops.yaml` so it can decrypt secrets:
+
+```yaml
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *admin_key
+          # ... existing keys ...
+          - age1...  # your-vm-name
+```
+
+**4. Re-encrypt secrets for the new machine:**
+
+This must be done from a machine that already has decryption access:
+
+```bash
+sops updatekeys secrets/secrets.yaml
+```
+
+**5. Rebuild to activate secrets:**
+
+```bash
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+```
+
+See `SOPS-SETUP-GUIDE.md` for the full secrets bootstrap walkthrough if starting from scratch.
+
+## Phase 5: Post-Install Verification
+
+```bash
+# Verify Parallels Tools are running
+systemctl status prl-tools.service
+
+# Verify the desktop session works
+# Log out and back in — greetd should present a login screen
+# (or auto-login to Niri if autoLogin = true)
+
+# Verify secrets are decrypted (after sops setup)
+ls -la /run/secrets/
+
+# Verify SSH keys work
+ssh -T github-personal
+
+# Test a rebuild
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+```
+
+## Networking Notes
+
+- VMs default to DHCP on ethernet interfaces via systemd-networkd
+- `prl-dev-vm` is special-cased with a static IP (`10.211.55.4/24`) in `system/networking.nix` — if your new VM needs a static IP, add a similar conditional there
+- Parallels NAT DNS can drop some records, so VMs override DNS to `1.1.1.1` and `8.8.8.8`
+
+## Quick Reference
+
+| Step | Command |
+|------|---------|
+| Rebuild | `sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name` |
+| Check eval | `nix flake check` |
+| Get host age key | `sudo cat /var/lib/sops-nix/key.txt \| age-keygen -y` |
+| Re-encrypt secrets | `sops updatekeys secrets/secrets.yaml` |
+| Format nix files | `nixfmt *.nix` |

@@ -21,15 +21,6 @@ bluetooth = true
 lockScreen = true
 autoLogin = false
 
-[machines.parallels-vm]
-hostName = "parallels-vm"
-platform = "aarch64-linux"
-profile = "vm"
-stateVersion = "25.05"
-bluetooth = false
-lockScreen = false
-autoLogin = false 
-
 [machines.prl-dev-vm]
 hostName = "prl-dev-vm"
 platform = "aarch64-linux"

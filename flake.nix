@@ -92,23 +92,6 @@
             ];
           }
         ) metadata.machines)
-        // {
-          # Temporary backward compatibility alias for current hostname
-          "parallels-nixos" = nixpkgs.lib.nixosSystem {
-            specialArgs = setSpecialArgs metadata.machines.parallels-vm;
-            modules = [
-              { nixpkgs.hostPlatform = metadata.machines.parallels-vm.platform; }
-              # Hardware configuration
-              (./hardware + "/parallels-vm" + /hardware-configuration.nix)
-              # System configuration
-              ./system
-              # Secrets management
-              sops-nix.nixosModules.sops
-              # Home Manager configuration
-              home-manager.nixosModules.home-manager
-              (setHomeManagerTemplate metadata.machines.parallels-vm)
-            ];
-          };
-        };
+;
     };
 }

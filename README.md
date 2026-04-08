@@ -15,7 +15,7 @@ Declarative NixOS + Home Manager setup for multiple machines (x86_64 and aarch64
 Defined in `machines.toml` and wired via `flake.nix`:
 - `workstation` (x86_64-linux)
 - `hp-laptop` (x86_64-linux)
-- `parallels-vm` (aarch64-linux)
+- `prl-dev-vm` (aarch64-linux)
 
 ## Layout
 ```text
@@ -24,7 +24,7 @@ nix/
   machines.toml
   hardware/
     hp-laptop/
-    parallels-vm/
+    prl-dev-vm/
     workstation/
   system/           # System-wide modules
   home/             # Home Manager modules
@@ -40,7 +40,7 @@ Prereqs: NixOS with flakes enabled.
 ```bash
 sudo nixos-rebuild switch --flake .#workstation
 sudo nixos-rebuild switch --flake .#hp-laptop
-sudo nixos-rebuild switch --flake .#parallels-vm
+sudo nixos-rebuild switch --flake .#prl-dev-vm
 ```
 
 - Update inputs and rebuild:
