@@ -306,7 +306,69 @@ creation_rules:
 sops secrets/secrets.yaml
 ```
 
-This opens an editor. See `SOPS-SETUP-GUIDE.md` for the full secrets schema (passwords, SSH keys, GPG keys, etc.) and how to generate each value.
+This opens an editor. All keys below are required — the NixOS configuration expects every one of them in `system/sops.nix`. Missing keys will cause the rebuild to fail.
+
+```yaml
+# ── Login ────────────────────────────────────────────────────────────
+# Generate with: mkpasswd -m SHA-512
+user_password: "$6$..."       # hashed password for your user account
+root_password: "$6$..."       # hashed password for root
+
+# ── SSH keys (GitHub) ────────────────────────────────────────────────
+# Generate with: ssh-keygen -t ed25519
+# Paste the full private key (including BEGIN/END lines)
+ssh_key_github_personal: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  ...
+  -----END OPENSSH PRIVATE KEY-----
+ssh_key_github_work: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  ...
+  -----END OPENSSH PRIVATE KEY-----
+
+# Matching public keys (single line each)
+ssh_pubkey_github_personal: "ssh-ed25519 AAAA... email@example.com"
+ssh_pubkey_github_work: "ssh-ed25519 AAAA... email@work.com"
+
+# Passphrases for automatic SSH key loading (empty string if none)
+ssh_passphrase_personal: ""
+ssh_passphrase_work: ""
+
+# ── GPG keys (commit signing) ───────────────────────────────────────
+# Generate with: gpg --full-generate-key
+# Export with: gpg --export-secret-keys KEY_ID
+gpg_key_personal: |
+  -----BEGIN PGP PRIVATE KEY BLOCK-----
+  ...
+  -----END PGP PRIVATE KEY BLOCK-----
+gpg_key_work: |
+  -----BEGIN PGP PRIVATE KEY BLOCK-----
+  ...
+  -----END PGP PRIVATE KEY BLOCK-----
+
+# Passphrases for automatic GPG key unlocking (empty string if none)
+gpg_passphrase_personal: ""
+gpg_passphrase_work: ""
+
+# ── WiFi ─────────────────────────────────────────────────────────────
+# wpa_supplicant env file with PSK values (used by hp-laptop)
+# For VMs this is still required but won't be used
+wifi_env: |
+  wifi_password_home=...
+  wifi_password_work=...
+
+# ── Bitwarden ────────────────────────────────────────────────────────
+bitwarden:
+  master_password: "..."
+  server_url: "https://..."
+  email: "you@example.com"
+
+# ── Google OAuth (for Google Workspace MCP) ──────────────────────────
+google_oauth_client_id: "...apps.googleusercontent.com"
+google_oauth_client_secret: "GOCSPX-..."
+```
+
+See `SOPS-SETUP-GUIDE.md` for detailed steps on generating each value (password hashes, SSH keys, GPG keys, etc.).
 
 **5. Rebuild:**
 
