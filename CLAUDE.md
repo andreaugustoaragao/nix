@@ -56,7 +56,7 @@ overlays/              # Nixpkgs overlays (if any)
 ## Flake Hygiene
 
 - All flake inputs that transitively depend on nixpkgs **must** use `inputs.nixpkgs.follows = "nixpkgs"` to avoid duplicate evaluations and doubled memory usage.
-- Update inputs intentionally: prefer `nix flake lock --update-input <name>` over `nix flake update` (which updates everything).
+- Update inputs intentionally: prefer `nix flake update <name>` over `nix flake update` (which updates everything).
 - The `flake.lock` is committed to version control. Never delete or regenerate it without reason.
 
 ## Packages and Overlays

@@ -19,7 +19,7 @@
       l = "ls -CF";
       
       # System management
-      rebuild = "nix flake lock --update-input cursor && sudo nixos-rebuild switch --flake .";
+      rebuild = "nix flake update cursor && sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
       
       # Editor shortcuts
