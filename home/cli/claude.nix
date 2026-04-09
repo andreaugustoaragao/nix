@@ -60,7 +60,7 @@ in
   # Model changes: update the model value below, then nixos-rebuild switch
   home.file.".claude/settings.json".text = builtins.toJSON {
     model = "opus[1m]";
-    # effortLevel = "high";
+    effortLevel = "max";
     teammateMode = "auto";
     chrome = false;
     env = {

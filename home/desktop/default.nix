@@ -44,6 +44,14 @@ in
     ./quickshell.nix
   ];
 
+  # Install extensions for Cursor (not managed by programs.vscode)
+  home.activation.installCursorExtensions = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if command -v cursor &>/dev/null; then
+      cursor --install-extension qwtel.sqlite-viewer 2>/dev/null || true
+      cursor --install-extension zaaack.markdown-editor 2>/dev/null || true
+    fi
+  '';
+
   home.packages = with pkgs; [
     pavucontrol
     xdg-desktop-portal-gnome

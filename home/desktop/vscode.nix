@@ -4,6 +4,24 @@ let
     inherit (pkgs) system;
     config.allowUnfree = true;
   };
+
+  sqlite-viewer = pkgs.vscode-utils.buildVscodeMarketplaceExtension {
+    mktplcRef = {
+      name = "sqlite-viewer";
+      publisher = "qwtel";
+      version = "26.2.5";
+      sha256 = "sha256-mPzgci1hgjCmdylQd6co/WLsJJGFl8FRjXsWWoqB5oQ=";
+    };
+  };
+
+  markdown-editor = pkgs.vscode-utils.buildVscodeMarketplaceExtension {
+    mktplcRef = {
+      name = "markdown-editor";
+      publisher = "zaaack";
+      version = "0.1.9";
+      sha256 = "sha256-aukUsWvqabRqx0Kgw3fmfwE9p4nZZf9Q58G5onZk1BA=";
+    };
+  };
 in
 {
   # VSCodium configuration
@@ -93,6 +111,12 @@ in
         enkia.tokyo-night                         # Tokyo Night color theme
         catppuccin.catppuccin-vsc                  # Catppuccin color theme
         catppuccin.catppuccin-vsc-icons            # Catppuccin icon theme
+
+        # Database
+        sqlite-viewer                             # SQLite database viewer
+
+        # Markdown
+        markdown-editor                           # WYSIWYG markdown editor
 
         # Productivity
         pkief.material-icon-theme                 # Better file icons
