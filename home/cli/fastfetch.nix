@@ -1,7 +1,7 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  home.packages = [ inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.fastfetch pkgs.fortune pkgs.lolcat ];
+  home.packages = [ inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch pkgs.fortune pkgs.lolcat ];
 
   # Fastfetch configuration (Omarchy style adapted for NixOS)
   xdg.configFile."fastfetch/config.jsonc".text = ''

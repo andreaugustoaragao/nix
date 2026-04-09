@@ -3,7 +3,7 @@
 {
   # Install QuickShell for the user, not system-wide
   home.packages = [
-    (if pkgs ? quickshell then pkgs.quickshell else inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.quickshell)
+    (if pkgs ? quickshell then pkgs.quickshell else inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.quickshell)
     pkgs.socat
     pkgs.pamixer
     pkgs.wireplumber
