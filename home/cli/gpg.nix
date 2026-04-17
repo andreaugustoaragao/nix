@@ -33,9 +33,9 @@
   # GPG Agent configuration (for signing only, not SSH)
   services.gpg-agent = {
     enable = true;
-    # Cache timeout settings
-    defaultCacheTtl = 1800;      # 30 minutes
-    maxCacheTtl = 7200;          # 2 hours
+    # Cache timeout settings (long TTL for unattended agent operations)
+    defaultCacheTtl = 43200;     # 12 hours
+    maxCacheTtl = 43200;         # 12 hours
     # Disable SSH support - we're using regular SSH keys
     enableSshSupport = false;
     # Use proper pinentry for GPG (ksshaskpass is not compatible with GPG protocol)
@@ -44,7 +44,9 @@
     extraConfig = ''
       # Allow loopback pinentry for automated operations
       allow-loopback-pinentry
-      # Disable preset passphrases
+      # Allow gpg-preset-passphrase to cache passphrases indefinitely
+      allow-preset-passphrase
+      # Disable external cache
       no-allow-external-cache
     '';
   };
@@ -57,39 +59,49 @@
   # Override SSH agent service to add timeout configuration and consistent socket path
   systemd.user.services.ssh-agent = {
     Service = {
-      # Override the default ssh-agent command to set 8 hour timeout
-      # -t sets default timeout (28800 = 8 hours), 0 = no timeout
-      # -a sets the socket path to a consistent location
-      ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 28800 -a %t/ssh-agent";
+      # Override the default ssh-agent command with no timeout for unattended agents
+      # -t 0 = keys never expire, -a sets consistent socket path
+      ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 0 -a %t/ssh-agent";
     };
   };
 
-  # Systemd user service to add SSH keys after agent starts
-  # systemd.user.services.ssh-add-keys = {
-  #   Unit = {
-  #     Description = "Add SSH keys to agent";
-  #     After = [ "ssh-agent.service" "graphical-session.target" ];
-  #     Wants = [ "ssh-agent.service" "graphical-session.target" ];
-  #     ConditionPathExists = [
-  #       "%h/.ssh/id_rsa_personal"
-  #       "%h/.ssh/id_rsa_work"
-  #     ];
-  #   };
-  #   Service = {
-  #     Type = "oneshot";
-  #     ExecStart = "${pkgs.openssh}/bin/ssh-add %h/.ssh/id_rsa_personal %h/.ssh/id_rsa_work";
-  #     Environment = [ 
-  #       "SSH_AUTH_SOCK=%t/ssh-agent"
-  #       "SSH_ASKPASS=${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
-  #       "DISPLAY=:0"
-  #       "QT_QPA_PLATFORM=wayland"
-  #     ];
-  #     RemainAfterExit = true;
-  #   };
-  #   Install = {
-  #     WantedBy = [ "graphical-session.target" ];
-  #   };
-  # };
+  # Auto-preset GPG passphrases after gpg-agent starts
+  systemd.user.services.gpg-preset-keys = {
+    Unit = {
+      Description = "Preset GPG passphrases from SOPS secrets";
+      After = [ "gpg-agent.service" "sops-nix.service" ];
+      Wants = [ "gpg-agent.service" ];
+    };
+    Service = {
+      Type = "oneshot";
+      ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
+      ExecStart = "${pkgs.writeShellScript "gpg-preset-keys" ''
+        export PATH="${lib.makeBinPath [ pkgs.gnupg pkgs.gawk pkgs.coreutils ]}:$PATH"
+        LIBEXEC="${pkgs.gnupg}/libexec"
+
+        preset_key() {
+          local email="$1" passphrase_file="$2"
+          [[ -f "$passphrase_file" ]] || return 0
+          local passphrase
+          passphrase=$(cat "$passphrase_file" 2>/dev/null)
+          [[ -n "$passphrase" && "$passphrase" != "placeholder" ]] || return 0
+          gpg --list-secret-keys "$email" >/dev/null 2>&1 || return 0
+          gpg --list-secret-keys --with-colons --with-keygrip "$email" \
+            | awk -F: '/^grp:/ {print $10}' \
+            | while IFS= read -r grip; do
+                "$LIBEXEC/gpg-preset-passphrase" --preset --passphrase "$passphrase" "$grip"
+              done
+        }
+
+        preset_key "andrearag@gmail.com" "/run/secrets/gpg_passphrase_personal"
+        preset_key "aragao@avaya.com" "/run/secrets/gpg_passphrase_work"
+      ''}";
+      RemainAfterExit = true;
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
 
   # SSH configuration with sops-sourced identity files
   programs.ssh = {
@@ -141,13 +153,13 @@
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
-  
+
   programs.fish.interactiveShellInit = ''
     set -gx SOPS_AGE_KEY_FILE "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     set -gx SSH_AUTH_SOCK "$XDG_RUNTIME_DIR/ssh-agent"
   '';
-  
+
   programs.zsh.initContent = lib.mkBefore ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"

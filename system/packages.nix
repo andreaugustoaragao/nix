@@ -29,6 +29,7 @@
       inotify-tools
       psmisc
       nettools
+      nftables
       inetutils # provides telnet and hostname
       hostname # explicit hostname package for scripts
       smem
@@ -66,6 +67,7 @@
       hexyl
       grex
 
+      libinput
       pamixer
       brightnessctl
 

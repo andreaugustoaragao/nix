@@ -20,7 +20,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-  };
+};
 
   outputs =
     {
@@ -30,6 +30,7 @@
       home-manager,
       firefox-addons,
       sops-nix,
+
       ...
     }@inputs:
     let
@@ -76,9 +77,9 @@
         (builtins.mapAttrs (
           machineName: host:
           nixpkgs.lib.nixosSystem {
-            system = host.platform;
             specialArgs = setSpecialArgs host;
             modules = [
+              { nixpkgs.hostPlatform = host.platform; }
               # Hardware configuration
               (./hardware + "/${machineName}" + /hardware-configuration.nix)
               # System configuration
@@ -91,23 +92,6 @@
             ];
           }
         ) metadata.machines)
-        // {
-          # Temporary backward compatibility alias for current hostname
-          "parallels-nixos" = nixpkgs.lib.nixosSystem {
-            system = metadata.machines.parallels-vm.platform;
-            specialArgs = setSpecialArgs metadata.machines.parallels-vm;
-            modules = [
-              # Hardware configuration
-              (./hardware + "/parallels-vm" + /hardware-configuration.nix)
-              # System configuration
-              ./system
-              # Secrets management
-              sops-nix.nixosModules.sops
-              # Home Manager configuration
-              home-manager.nixosModules.home-manager
-              (setHomeManagerTemplate metadata.machines.parallels-vm)
-            ];
-          };
-        };
+;
     };
 }

@@ -251,7 +251,7 @@ nano system/sops.nix
 git add .sops.yaml secrets/secrets.yaml system/sops.nix
 
 # The auto-rebuild should pick this up, or manually rebuild:
-sudo nixos-rebuild switch --flake .#parallels-nixos
+sudo nixos-rebuild switch --flake .#prl-dev-vm
 ```
 
 ### Step 6.3: Test SSH Access
@@ -333,7 +333,7 @@ nano system/sops.nix
 # };
 
 # Rebuild to apply password changes
-sudo nixos-rebuild switch --flake .#parallels-nixos
+sudo nixos-rebuild switch --flake .#prl-dev-vm
 ```
 
 ## 🔄 Usage Examples

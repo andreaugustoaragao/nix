@@ -139,6 +139,19 @@
         group = "users";
         mode = "0400";
       };
+
+      # Google OAuth credentials (for Google Workspace MCP)
+      "google_oauth_client_id" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      "google_oauth_client_secret" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
     };
   };
 

@@ -77,8 +77,6 @@
       # FZF with bat preview (from nix-config)
       fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
       
-      # Use zoxide for cd
-      cd = "z";
     };
 
     oh-my-zsh = {

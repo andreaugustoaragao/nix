@@ -4,7 +4,8 @@
   lib,
   inputs,
   ...
-}: let
+}:
+let
   # Local web app icons from assets/icons directory
   # Copy local icon files to the Nix store
   webAppIcons = {
@@ -33,8 +34,12 @@
     googledocs = pkgs.copyPathToStore ./../../assets/icons/googledocs.png;
     googlesheets = pkgs.copyPathToStore ./../../assets/icons/googlesheets.png;
     googleslides = pkgs.copyPathToStore ./../../assets/icons/googleslides.png;
+    fulcrum = pkgs.copyPathToStore ./../../assets/icons/fulcrum.png;
+    grafana = pkgs.copyPathToStore ./../../assets/icons/grafana.png;
+    loki = pkgs.copyPathToStore ./../../assets/icons/loki.png;
   };
-in {
+in
+{
   # Web Applications Launcher using wofi
   home.packages = [
     (pkgs.writeShellScriptBin "web-apps-launcher" ''
@@ -71,7 +76,10 @@ in {
       Fidelity Trader|${webAppIcons.fidelity}|https://digital.fidelity.com/ftgw/digital/trader-dashboard|app
       Patreon|${webAppIcons.patreon}|https://patreon.com|app
       Reddit|${webAppIcons.reddit}|https://reddit.com|app
-      WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app"
+      WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app
+      Fulcrum|${webAppIcons.fulcrum}|https://localhost:3100|app
+      Grafana|${webAppIcons.grafana}|http://localhost:3000|app
+      Loki|${webAppIcons.loki}|http://localhost:3101|app"
 
       # Build wofi menu
       declare -A apps_urls

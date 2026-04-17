@@ -18,6 +18,8 @@
       window_padding_width = 5;
       background_opacity = "0.98";
       confirm_os_window_close = 0;
+      wayland_enable_ime = "no";
+      update_check_interval = 0;
 
       # Kanagawa colors
       foreground = "#dcd7ba";

@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Configuration
 DISK="${DISK:-/dev/sda}"  # Override with DISK=/dev/nvme0n1 ./install-nixos.sh
-HOSTNAME="${HOSTNAME:-parallels-vm}"  # Override with HOSTNAME=laptop ./install-nixos.sh
+HOSTNAME="${HOSTNAME:-prl-dev-vm}"  # Override with HOSTNAME=laptop ./install-nixos.sh
 FLAKE_REPO="${FLAKE_REPO:-https://github.com/andreaugustoaragao/nix.git}"
 USERNAME="${USERNAME:-aragao}"
 USER_FULLNAME="${USER_FULLNAME:-Andre Aragao}"

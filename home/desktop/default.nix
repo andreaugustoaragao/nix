@@ -1,5 +1,10 @@
 { config, pkgs, lib, inputs, ... }:
-
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config.allowUnfree = true;
+  };
+in
 {
   imports = [
     ./hyprland.nix
@@ -20,6 +25,7 @@
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    ./google-chrome.nix
     ./firefox.nix
     ./qutebrowser.nix
     ./vscode.nix
@@ -38,13 +44,22 @@
     ./quickshell.nix
   ];
 
+  # Install extensions for Cursor (not managed by programs.vscode)
+  home.activation.installCursorExtensions = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if command -v cursor &>/dev/null; then
+      cursor --install-extension qwtel.sqlite-viewer 2>/dev/null || true
+      cursor --install-extension zaaack.markdown-editor 2>/dev/null || true
+    fi
+  '';
+
   home.packages = with pkgs; [
     pavucontrol
     xdg-desktop-portal-gnome
     xdg-desktop-portal-gtk
     teams-for-linux
-    telegram-desktop
+    pkgs-unstable.telegram-desktop
     bitwarden-desktop
+    pkgs-unstable.code-cursor
     neovide
     swayimg
     obsidian

@@ -61,6 +61,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
@@ -72,6 +73,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
@@ -83,6 +85,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
@@ -94,6 +97,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
@@ -105,6 +109,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
@@ -121,6 +126,7 @@ in
       "compress=zstd:1"
       "noatime"
       "space_cache=v2"
+      "discard=async"
     ];
   };
 
