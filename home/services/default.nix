@@ -9,6 +9,6 @@
   imports = [
     ./notes-sync.nix
     ./ollama.nix
-    # ./fulcrum.nix
+    ./fulcrum.nix
   ];
 }
