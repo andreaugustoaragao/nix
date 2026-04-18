@@ -30,7 +30,7 @@ let
   install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
     export GOPATH="''${GOPATH:-$HOME/go}"
     export GOBIN="''${GOBIN:-$GOPATH/bin}"
-    ${pkgs.go}/bin/go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
+    ${unstable-pkgs.go}/bin/go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
     echo "goplay installed to $GOBIN/goplay"
   '';
 
@@ -74,7 +74,6 @@ in
     uv                                  # Ultra-fast Python package manager
     
     # Go Development
-    go                                  # Go runtime
     delve                              # Go debugger
     golangci-lint                      # Go meta-linter
     govulncheck                        # Go vulnerability checker
@@ -169,6 +168,7 @@ in
     install-gemini-cli               # Script to install Google Gemini CLI
   ] ++ [
     unstable-pkgs.semgrep            # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues)
+    unstable-pkgs.go                 # Go runtime (from unstable for a newer version)
   ];
   
   # Development-related programs
