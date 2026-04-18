@@ -14,8 +14,8 @@ in
       v1/pods:
         columns:
           - NAME
-          - STATUS
           - CPU
           - MEM
+          - STATUS
   '';
 }
