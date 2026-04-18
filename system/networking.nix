@@ -33,17 +33,25 @@
           ];
           IPv6AcceptRA = true;
         }
+      else if hostName == "workstation" then
+        {
+          Address = "192.168.10.75/24";
+          Gateway = "192.168.10.1";
+          DNS = [
+            "192.168.10.1"
+            "1.1.1.1"
+            "8.8.8.8"
+          ];
+          IPv6AcceptRA = true;
+        }
       else
         {
           DHCP = "yes";
           IPv6AcceptRA = true;
         };
-    dhcpV4Config = lib.mkIf (hostName != "prl-dev-vm") (
+    dhcpV4Config = lib.mkIf (hostName == "hp-laptop") (
       {
         RouteMetric = 1024;
-      }
-      // lib.optionalAttrs isVm {
-        UseDNS = false; # Parallels NAT DNS drops some records
       }
     );
     dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
@@ -139,6 +147,10 @@
   # ============================================================================
   # Local DNS — friendly names for reverse-proxied services
   # ============================================================================
+  networking.extraHosts = lib.mkIf (hostName == "workstation") ''
+    192.168.10.75  infinity.local
+  '';
+
   networking.hosts."127.0.0.1" =
     [
       "grafana.local"

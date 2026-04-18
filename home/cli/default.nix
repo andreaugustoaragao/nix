@@ -1,5 +1,11 @@
 { config, pkgs, lib, inputs, ... }:
 
+let
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config.allowUnfree = true;
+  };
+in
 {
   imports = [
     ./zsh.nix
@@ -16,6 +22,7 @@
     ./nvim-lazyvim.nix
     ./development.nix
     ./claude.nix
+    ./k9s.nix
   ];
 
 
@@ -31,7 +38,6 @@
     google-cloud-sdk
     kubectl
     kubernetes-helm
-    k9s
     kubectx
     stern
     terraform

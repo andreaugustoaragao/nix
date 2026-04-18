@@ -36,11 +36,20 @@
   };
 
   # K3s configuration - disabled for hp-laptop
-  services.k3s = lib.mkIf (hostName != "hp-laptop") {
-    enable = true;
-    role = "server";
-    extraFlags = "--disable traefik --write-kubeconfig-mode 0644 --node-ip 10.211.55.4 --tls-san 10.211.55.4";
-  };
+  services.k3s = lib.mkIf (hostName != "hp-laptop") (
+    let
+      nodeIp =
+        if hostName == "prl-dev-vm" then "10.211.55.4"
+        else if hostName == "workstation" then "192.168.10.75"
+        else null;
+      ipFlags = lib.optionalString (nodeIp != null) " --node-ip ${nodeIp} --tls-san ${nodeIp}";
+    in
+    {
+      enable = true;
+      role = "server";
+      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}";
+    }
+  );
 
   # Lazy-load K3s: Remove from critical boot path and start after graphical session
   systemd.services.k3s = lib.mkIf (hostName != "hp-laptop") {

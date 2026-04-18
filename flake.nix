@@ -20,6 +20,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    claude-code = {
+      url = "github:sadjow/claude-code-nix";
+    };
+
 };
 
   outputs =
@@ -30,6 +34,7 @@
       home-manager,
       firefox-addons,
       sops-nix,
+      claude-code,
 
       ...
     }@inputs:
@@ -80,6 +85,7 @@
             specialArgs = setSpecialArgs host;
             modules = [
               { nixpkgs.hostPlatform = host.platform; }
+              { nixpkgs.overlays = [ claude-code.overlays.default ]; }
               # Hardware configuration
               (./hardware + "/${machineName}" + /hardware-configuration.nix)
               # System configuration
