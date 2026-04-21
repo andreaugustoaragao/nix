@@ -89,6 +89,10 @@
       export GOPATH="$HOME/go"
       export GOBIN="$GOPATH/bin"
       export PATH="$GOBIN:$PATH"
+
+      # Some persisted shells can inherit tracing flags from prior sessions.
+      # Clear them during init so command execution does not echo aliases/functions.
+      unsetopt xtrace verbose 2>/dev/null || true
     '';
   };
 } 
