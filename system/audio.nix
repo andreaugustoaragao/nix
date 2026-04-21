@@ -7,15 +7,23 @@
   ...
 }:
 
+let
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config.allowUnfree = true;
+  };
+in
 {
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
+    package = unstable-pkgs.pipewire;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
     jack.enable = true;
     wireplumber.enable = true;
+    wireplumber.package = unstable-pkgs.wireplumber;
   };
   services.pulseaudio.enable = false;
 
