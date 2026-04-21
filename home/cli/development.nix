@@ -231,6 +231,22 @@ in
       echo "Installing dev-browser..."
       ${pkgs.nodejs_22}/bin/npm install -g dev-browser
     fi
+
+    # Install OpenAI Codex CLI if not present
+    if ! command -v codex &> /dev/null; then
+      echo "Installing OpenAI Codex CLI..."
+      ${pkgs.nodejs_22}/bin/npm install -g @openai/codex
+    fi
+  '';
+
+  # Auto-install Cursor Agent CLI if not present.
+  # Relies on nix-ld (enabled in system/packages.nix) to run the prebuilt binary.
+  home.activation.installCursorAgent = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if ! command -v cursor-agent &> /dev/null; then
+      echo "Installing Cursor Agent CLI..."
+      export PATH="${lib.makeBinPath [ pkgs.curl pkgs.gnutar pkgs.gzip pkgs.coreutils ]}:$PATH"
+      ${pkgs.curl}/bin/curl -fsS https://cursor.com/install | ${pkgs.bash}/bin/bash
+    fi
   '';
 
   # XDG configuration for development tools
