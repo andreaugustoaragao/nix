@@ -72,10 +72,10 @@ lib.mkIf lockScreen {
         timeout = 600; # 10 minutes
         command = "${pkgs.swaylock-effects}/bin/swaylock -f";
       }
-      {
-        timeout = 900; # 15 minutes
-        command = "${pkgs.systemd}/bin/systemctl suspend";
-      }
+      # {
+      #   timeout = 900; # 15 minutes
+      #   command = "${pkgs.systemd}/bin/systemctl suspend";
+      # }
     ];
   };
 
