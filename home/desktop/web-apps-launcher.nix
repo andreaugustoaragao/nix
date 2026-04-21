@@ -58,7 +58,7 @@ in
       Proton Mail|${webAppIcons.protonmail}|https://mail.proton.me|app
       Gmail|${webAppIcons.gmail}|https://mail.google.com|app
       Google Calendar|${webAppIcons.googlecalendar}|https://calendar.google.com|app
-      Google Chat|${webAppIcons.googlechat}|https://chat.google.com|app
+      Google Chat|${webAppIcons.googlechat}|https://chat.google.com/app/home|app
       Google Meet|${webAppIcons.googlemeet}|https://meet.google.com|app
       Google Docs|${webAppIcons.googledocs}|https://docs.google.com|app
       Google Sheets|${webAppIcons.googlesheets}|https://sheets.google.com|app
@@ -77,6 +77,7 @@ in
       Patreon|${webAppIcons.patreon}|https://patreon.com|app
       Reddit|${webAppIcons.reddit}|https://reddit.com|app
       WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app
+      TalentMaker|👔|http://performancemanager5.successfactors.eu/login?company=C0000211211P|app
       Fulcrum|${webAppIcons.fulcrum}|https://localhost:3100|app
       Grafana|${webAppIcons.grafana}|http://localhost:3000|app
       Loki|${webAppIcons.loki}|http://localhost:3101|app"
@@ -118,8 +119,14 @@ in
       [[ -z "$selection" ]] && exit 0
 
       # Extract app name and launch
-      # Parse selection format: img:path:text:AppName -> AppName
-      app_name="''${selection##*:}"
+      # Two possible formats:
+      #   img:/nix/store/.../icon.png:text:AppName  (icon entries)
+      #   <emoji> AppName                           (emoji fallback entries)
+      if [[ "$selection" == img:* ]]; then
+          app_name="''${selection##*:}"
+      else
+          app_name="''${selection#* }"
+      fi
       app_name_clean="''${app_name// /_}"  # Replace spaces with underscores
       url="''${apps_urls[$app_name]}"
       profile="''${apps_profiles[$app_name]}"
