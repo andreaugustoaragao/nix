@@ -16,8 +16,9 @@
     extraConfig = ''
       set-option -g set-titles on
       set-option -g set-titles-string "tmux: #S / #(tmux-window-icons #W)"
-      set -ga terminal-features ",xterm-256color:RGB"
-      set-option -g default-terminal "screen-256color"
+      set-option -g default-terminal "tmux-256color"
+      set -ag terminal-features "xterm-kitty:RGB"
+      set -ag terminal-features "xterm-256color:RGB"
       set -s escape-time 0
       set-option -g focus-events on
 
