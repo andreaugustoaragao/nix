@@ -2,13 +2,16 @@
   config,
   pkgs,
   lib,
+  hostName,
   ...
 }:
 
 {
   imports = [
     ./notes-sync.nix
-    ./ollama.nix
     ./fulcrum.nix
+  ]
+  ++ lib.optionals (hostName != "workstation") [
+    ./ollama.nix
   ];
 }

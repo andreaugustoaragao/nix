@@ -152,13 +152,13 @@
   '';
 
   networking.hosts."127.0.0.1" =
-    [
+    lib.optionals (hostName != "workstation") [
       "grafana.local"
       "loki.local"
       "prometheus.local"
     ]
     ++ lib.optionals (hostName == "prl-dev-vm") [ "fulcrum.local" "infinity.local" ]
-    ++ lib.optionals (!isVm) [ "ollama.local" ];
+    ++ lib.optionals (!isVm && hostName != "workstation") [ "ollama.local" ];
 
   # ============================================================================
   # Firewall Configuration
@@ -170,6 +170,10 @@
     allowedTCPPorts = [
       22    # SSH
       6443  # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
+    ]
+    ++ lib.optionals (hostName == "workstation") [
+      80   # K3s ingress (istio-ingress via klipper-lb)
+      443
     ];
 
     # Allowed UDP ports

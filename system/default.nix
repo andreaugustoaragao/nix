@@ -35,6 +35,8 @@
     ./sops.nix
     ./bluetooth.nix
     ./lockscreen.nix
+  ]
+  ++ lib.optionals (hostName != "workstation") [
     ./loki.nix
     ./grafana.nix
     ./caddy.nix
