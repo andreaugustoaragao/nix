@@ -26,14 +26,17 @@ let
   # Emit [HH:MM:SS] (prefix) text lines from up to two whisper JSON
   # transcriptions (call and optional mic), sorted by time. Call lines
   # are unlabeled; mic lines are prefixed with "Me: ".
-  # Args: call_json mic_json_or_- win_off emit_lo emit_hi
+  # Args: call_json mic_json_or_- win_off emit_lo emit_hi started_at_epoch
+  # If started_at_epoch > 0, timestamps are wall-clock (local time);
+  # otherwise they're elapsed seconds from session start.
   mergePy = pkgs.writeText "record-call-merge.py" ''
-    import json, sys
+    import json, sys, time
     call_src = sys.argv[1]
     mic_src = sys.argv[2]
     win_off = float(sys.argv[3])
     emit_lo = float(sys.argv[4])
     emit_hi = float(sys.argv[5])
+    started_at = float(sys.argv[6]) if len(sys.argv) > 6 else 0
 
     def load(path, prefix):
         if path == "-" or not path:
@@ -60,9 +63,34 @@ let
     entries = load(call_src, "") + load(mic_src, "Me: ")
     entries.sort(key=lambda e: e[0])
     for t, prefix, text in entries:
-        h, rem = divmod(int(t), 3600)
-        m, sec = divmod(rem, 60)
-        print(f"[{h:02d}:{m:02d}:{sec:02d}] {prefix}{text}")
+        if started_at > 0:
+            stamp = time.strftime("%H:%M:%S", time.localtime(started_at + t))
+        else:
+            h, rem = divmod(int(t), 3600)
+            m, sec = divmod(rem, 60)
+            stamp = f"{h:02d}:{m:02d}:{sec:02d}"
+        print(f"[{stamp}] {prefix}{text}")
+  '';
+
+  # Rewrite a transcript's [HH:MM:SS] timestamps as wall-clock local
+  # time given a session start epoch. Args: transcript_path start_epoch
+  retimePy = pkgs.writeText "record-call-retime.py" ''
+    import re, sys, time
+    path = sys.argv[1]
+    epoch = int(sys.argv[2])
+    pat = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.*)$")
+    with open(path) as f:
+        lines = f.readlines()
+    with open(path, "w") as f:
+        for ln in lines:
+            m = pat.match(ln.rstrip("\n"))
+            if not m:
+                f.write(ln)
+                continue
+            h, mi, s, rest = m.groups()
+            elapsed = int(h) * 3600 + int(mi) * 60 + int(s)
+            stamp = time.strftime("%H:%M:%S", time.localtime(epoch + elapsed))
+            f.write(f"[{stamp}] {rest}\n")
   '';
 
   # Collapse near-duplicate consecutive lines within ±6s. Window overlaps
@@ -166,9 +194,9 @@ in
             # fragments, transcribe each, and append emit-filtered lines to
             # transcript.txt. Mic transcription uses Silero VAD to skip the
             # silent stretches that Whisper would otherwise hallucinate on.
-            # Args: OUT FRAG WIN ADV MODEL VAD_MODEL WINDOW_IDX EMIT_HI_SEC
+            # Args: OUT FRAG WIN ADV MODEL VAD_MODEL WINDOW_IDX EMIT_HI_SEC STARTED_AT
             process_window() {
-              local OUT="$1" FRAG="$2" WIN="$3" ADV="$4" MODEL="$5" VAD_MODEL="$6" N="$7" EHI="$8"
+              local OUT="$1" FRAG="$2" WIN="$3" ADV="$4" MODEL="$5" VAD_MODEL="$6" N="$7" EHI="$8" STARTED="$9"
               local CHUNKS_DIR="$OUT/chunks"
               local TRANSCRIPT="$OUT/transcript.txt"
               local FPW=$(( WIN / FRAG ))
@@ -236,7 +264,7 @@ in
 
               local win_off=$(( start_frag * FRAG ))
               python3 ${mergePy} "$call_json" "$mic_json" \
-                "$win_off" "$win_off" "$EHI" >> "$TRANSCRIPT"
+                "$win_off" "$win_off" "$EHI" "$STARTED" >> "$TRANSCRIPT"
 
               rm -rf "$work"
             }
@@ -322,7 +350,8 @@ in
               ) &
               FFMPEG_MIC_PID=$!
 
-              ( exec "$0" _watch "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" \
+              STARTED_AT=$(date +%s)
+              ( exec "$0" _watch "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$STARTED_AT" \
                   > "$OUTPUT_DIR/watcher.log" 2>&1 ) &
               WATCHER_PID=$!
 
@@ -336,7 +365,7 @@ in
       FRAGMENT_SEC=$FRAGMENT_SEC
       WINDOW_SEC=$WINDOW_SEC
       ADVANCE_SEC=$ADVANCE_SEC
-      STARTED_AT=$(date +%s)
+      STARTED_AT=$STARTED_AT
       EOF
 
               cat <<EOF
@@ -389,7 +418,7 @@ in
               if [ -f "$OUTPUT_DIR/.next-window" ]; then
                 NEXT_WIN=$(cat "$OUTPUT_DIR/.next-window")
                 echo "Flushing final window (idx $NEXT_WIN)..."
-                process_window "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$NEXT_WIN" "-1"
+                process_window "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$NEXT_WIN" "-1" "$STARTED_AT"
                 rm -f "$OUTPUT_DIR/.next-window"
               fi
 
@@ -495,11 +524,40 @@ in
                 -ac 1 -ar 16000 -c:a pcm_s16le "$WORK/mono.wav"
               whisper-cli -m "$MODEL_PATH" -l en -nt -oj -of "$WORK/out" \
                 -f "$WORK/mono.wav" >/dev/null 2>&1
-              python3 ${mergePy} "$WORK/out.json" - 0 0 -1
+              python3 ${mergePy} "$WORK/out.json" - 0 0 -1 0
+            }
+
+            cmd_retime() {
+              # Rewrite a transcript's timestamps as wall-clock times.
+              # Usage: record-call retime <dir-or-txt> [--start EPOCH]
+              SRC="''${1:-}"
+              [ -n "$SRC" ] || { echo "Usage: record-call retime <dir-or-txt>" >&2; exit 1; }
+              if [ -d "$SRC" ]; then TXT="$SRC/transcript.txt"; else TXT="$SRC"; fi
+              [ -f "$TXT" ] || { echo "Not a file: $TXT" >&2; exit 1; }
+              EPOCH=""
+              if [ "''${2:-}" = "--start" ] && [ -n "''${3:-}" ]; then
+                EPOCH="$3"
+              elif [ -d "$SRC" ] && [ -f "$SRC/.started-at" ]; then
+                EPOCH=$(cat "$SRC/.started-at")
+              else
+                # Parse from output dir name: YYYYMMDD-HHMMSS
+                BASE=$(basename "$(dirname "$TXT")")
+                case "$BASE" in
+                  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
+                    DATE_STR="''${BASE%%-*}"
+                    TIME_STR="''${BASE##*-}"
+                    EPOCH=$(date -d "''${DATE_STR:0:4}-''${DATE_STR:4:2}-''${DATE_STR:6:2} ''${TIME_STR:0:2}:''${TIME_STR:2:2}:''${TIME_STR:4:2}" +%s 2>/dev/null)
+                    ;;
+                esac
+              fi
+              [ -n "$EPOCH" ] || { echo "cannot determine start epoch; pass '--start <epoch>'" >&2; exit 1; }
+              cp -f "$TXT" "$TXT.bak"
+              python3 ${retimePy} "$TXT" "$EPOCH"
+              echo "Retimed from epoch $EPOCH. Backup: $TXT.bak"
             }
 
             cmd__watch() {
-              OUT="$1"; FRAG="$2"; WIN="$3"; ADV="$4"; MODEL="$5"; VAD_MODEL="$6"
+              OUT="$1"; FRAG="$2"; WIN="$3"; ADV="$4"; MODEL="$5"; VAD_MODEL="$6"; STARTED="$7"
               CHUNKS_DIR="$OUT/chunks"
               STATE="$OUT/.next-window"
               FPW=$(( WIN / FRAG ))
@@ -526,7 +584,7 @@ in
 
                 while [ $(( next_window * AF + FPW - 1 )) -le "$top" ]; do
                   emit_hi=$(( (next_window + 1) * ADV ))
-                  process_window "$OUT" "$FRAG" "$WIN" "$ADV" "$MODEL" "$VAD_MODEL" "$next_window" "$emit_hi"
+                  process_window "$OUT" "$FRAG" "$WIN" "$ADV" "$MODEL" "$VAD_MODEL" "$next_window" "$emit_hi" "$STARTED"
                   next_window=$(( next_window + 1 ))
                   printf '%s\n' "$next_window" > "$STATE"
                 done
@@ -545,6 +603,7 @@ in
         record-call stop                 Stop recording, finalize transcript
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
+        record-call retime <dir|txt>     Rewrite timestamps as wall-clock (HH:MM:SS local)
 
       How it works:
         * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
@@ -576,6 +635,7 @@ in
               route)       cmd_route ;;
               transcribe)  cmd_transcribe "$@" ;;
               dedupe)      cmd_dedupe "$@" ;;
+              retime)      cmd_retime "$@" ;;
               _watch)      cmd__watch "$@" ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
