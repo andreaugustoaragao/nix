@@ -23,36 +23,46 @@ let
     pkgs.procps
   ];
 
-  # Emit [HH:MM:SS] text lines from a single whisper JSON transcription
-  # of the call side. win_off is the window's absolute start second;
-  # emit_lo/emit_hi bound which segments to emit (emit_hi = -1 means
-  # no upper bound).
+  # Emit [HH:MM:SS] (prefix) text lines from up to two whisper JSON
+  # transcriptions (call and optional mic), sorted by time. Call lines
+  # are unlabeled; mic lines are prefixed with "Me: ".
+  # Args: call_json mic_json_or_- win_off emit_lo emit_hi
   mergePy = pkgs.writeText "record-call-merge.py" ''
     import json, sys
-    src = sys.argv[1]
-    win_off = float(sys.argv[2])
-    emit_lo = float(sys.argv[3])
-    emit_hi = float(sys.argv[4])
+    call_src = sys.argv[1]
+    mic_src = sys.argv[2]
+    win_off = float(sys.argv[3])
+    emit_lo = float(sys.argv[4])
+    emit_hi = float(sys.argv[5])
 
-    try:
-        with open(src) as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        sys.exit(0)
+    def load(path, prefix):
+        if path == "-" or not path:
+            return []
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+        out = []
+        for s in data.get("transcription", []):
+            t = s.get("offsets", {}).get("from", 0) / 1000.0
+            text = s.get("text", "").strip()
+            if not text:
+                continue
+            abs_t = t + win_off
+            if abs_t < emit_lo:
+                continue
+            if emit_hi >= 0 and abs_t >= emit_hi:
+                continue
+            out.append((abs_t, prefix, text))
+        return out
 
-    for s in data.get("transcription", []):
-        t = s.get("offsets", {}).get("from", 0) / 1000.0
-        text = s.get("text", "").strip()
-        if not text:
-            continue
-        abs_t = t + win_off
-        if abs_t < emit_lo:
-            continue
-        if emit_hi >= 0 and abs_t >= emit_hi:
-            continue
-        h, rem = divmod(int(abs_t), 3600)
+    entries = load(call_src, "") + load(mic_src, "Me: ")
+    entries.sort(key=lambda e: e[0])
+    for t, prefix, text in entries:
+        h, rem = divmod(int(t), 3600)
         m, sec = divmod(rem, 60)
-        print(f"[{h:02d}:{m:02d}:{sec:02d}] {text}")
+        print(f"[{h:02d}:{m:02d}:{sec:02d}] {prefix}{text}")
   '';
 
   # Collapse near-duplicate consecutive lines within ±6s. Window overlaps
@@ -126,6 +136,9 @@ in
             MODEL_NAME="ggml-large-v3-turbo.bin"
             MODEL_PATH="$MODEL_DIR/$MODEL_NAME"
             MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$MODEL_NAME"
+            VAD_MODEL_NAME="ggml-silero-v5.1.2.bin"
+            VAD_MODEL_PATH="$MODEL_DIR/$VAD_MODEL_NAME"
+            VAD_MODEL_URL="https://huggingface.co/ggml-org/whisper-vad/resolve/main/$VAD_MODEL_NAME"
             STATE_DIR="''${XDG_RUNTIME_DIR:-/tmp}/record-call"
             STATE_FILE="$STATE_DIR/session.env"
             mkdir -p "$STATE_DIR"
@@ -137,20 +150,25 @@ in
                 curl -fL --progress-bar -o "$MODEL_PATH.tmp" "$MODEL_URL"
                 mv "$MODEL_PATH.tmp" "$MODEL_PATH"
               fi
+              if [ ! -f "$VAD_MODEL_PATH" ]; then
+                echo "Downloading Silero VAD model ($VAD_MODEL_NAME, ~2MB)..."
+                mkdir -p "$MODEL_DIR"
+                curl -fL --progress-bar -o "$VAD_MODEL_PATH.tmp" "$VAD_MODEL_URL"
+                mv "$VAD_MODEL_PATH.tmp" "$VAD_MODEL_PATH"
+              fi
             }
 
             sink_index() {
               pactl -f json list sinks | jq -r --arg n "$SINK_NAME" '.[] | select(.name == $n) | .index' | head -1
             }
 
-            # Build one overlapping window from call_*.wav fragments,
-            # transcribe it, and append emit-filtered lines to transcript.txt.
-            # Args: OUT FRAG WIN ADV MODEL WINDOW_IDX EMIT_HI_SEC
-            # EMIT_HI_SEC=-1 is the flush variant — emit everything from
-            # emit_lo onward, using all fragments from start_frag to the
-            # last one on disk.
+            # Build one overlapping window from call_*.wav + mic_*.wav
+            # fragments, transcribe each, and append emit-filtered lines to
+            # transcript.txt. Mic transcription uses Silero VAD to skip the
+            # silent stretches that Whisper would otherwise hallucinate on.
+            # Args: OUT FRAG WIN ADV MODEL VAD_MODEL WINDOW_IDX EMIT_HI_SEC
             process_window() {
-              local OUT="$1" FRAG="$2" WIN="$3" ADV="$4" MODEL="$5" N="$6" EHI="$7"
+              local OUT="$1" FRAG="$2" WIN="$3" ADV="$4" MODEL="$5" VAD_MODEL="$6" N="$7" EHI="$8"
               local CHUNKS_DIR="$OUT/chunks"
               local TRANSCRIPT="$OUT/transcript.txt"
               local FPW=$(( WIN / FRAG ))
@@ -159,8 +177,9 @@ in
               local end_frag
 
               if [ "$EHI" = "-1" ]; then
-                end_frag=$(find "$CHUNKS_DIR" -maxdepth 1 -name 'call_*.wav' -type f 2>/dev/null \
-                  | sed -n 's|.*/call_0*\([0-9][0-9]*\)\.wav$|\1|p' \
+                end_frag=$(find "$CHUNKS_DIR" -maxdepth 1 \
+                    \( -name 'call_*.wav' -o -name 'mic_*.wav' \) -type f 2>/dev/null \
+                  | sed -n 's|.*/\(call\|mic\)_0*\([0-9][0-9]*\)\.wav$|\2|p' \
                   | sort -n | tail -1)
                 [ -n "$end_frag" ] || return 0
                 [ "$end_frag" -ge "$start_frag" ] || return 0
@@ -170,32 +189,54 @@ in
 
               local work
               work=$(mktemp -d)
-              local list="$work/list.txt"
-              : > "$list"
+              local call_list="$work/call.txt" mic_list="$work/mic.txt"
+              : > "$call_list"
+              : > "$mic_list"
               local f="$start_frag"
               while [ "$f" -le "$end_frag" ]; do
-                local fpath
-                fpath=$(printf "%s/call_%06d.wav" "$CHUNKS_DIR" "$f")
-                [ -f "$fpath" ] && printf "file '%s'\n" "$fpath" >> "$list"
+                local cpath mpath
+                cpath=$(printf "%s/call_%06d.wav" "$CHUNKS_DIR" "$f")
+                mpath=$(printf "%s/mic_%06d.wav" "$CHUNKS_DIR" "$f")
+                [ -f "$cpath" ] && printf "file '%s'\n" "$cpath" >> "$call_list"
+                [ -f "$mpath" ] && printf "file '%s'\n" "$mpath" >> "$mic_list"
                 f=$(( f + 1 ))
               done
 
-              if [ ! -s "$list" ]; then
+              if [ ! -s "$call_list" ] && [ ! -s "$mic_list" ]; then
                 rm -rf "$work"
                 return 0
               fi
 
-              if ! ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$list" \
-                   -c copy "$work/window.wav" </dev/null 2>/dev/null; then
-                rm -rf "$work"
-                return 0
+              if [ -s "$call_list" ]; then
+                ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$call_list" \
+                  -c copy "$work/call.wav" </dev/null 2>/dev/null || true
+              fi
+              if [ -s "$mic_list" ]; then
+                ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$mic_list" \
+                  -c copy "$work/mic.wav" </dev/null 2>/dev/null || true
               fi
 
-              whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/out" \
-                -f "$work/window.wav" </dev/null >"$work/whisper.log" 2>&1
+              # Transcribe both sides in parallel. Mic gets VAD since the
+              # listener's mic is mostly silence and Whisper hallucinates
+              # there; the call side is almost always speech so VAD only
+              # adds overhead there.
+              local call_json="-" mic_json="-"
+              if [ -s "$work/call.wav" ]; then
+                whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/call" \
+                  -f "$work/call.wav" </dev/null >"$work/call.log" 2>&1 &
+                call_json="$work/call.json"
+              fi
+              if [ -s "$work/mic.wav" ]; then
+                whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/mic" \
+                  --vad --vad-model "$VAD_MODEL" \
+                  -f "$work/mic.wav" </dev/null >"$work/mic.log" 2>&1 &
+                mic_json="$work/mic.json"
+              fi
+              wait
 
               local win_off=$(( start_frag * FRAG ))
-              python3 ${mergePy} "$work/out.json" "$win_off" "$win_off" "$EHI" >> "$TRANSCRIPT"
+              python3 ${mergePy} "$call_json" "$mic_json" \
+                "$win_off" "$win_off" "$EHI" >> "$TRANSCRIPT"
 
               rm -rf "$work"
             }
@@ -206,7 +247,8 @@ in
                 # from a prior crash; clean it up instead of refusing to start.
                 # shellcheck disable=SC1090
                 . "$STATE_FILE" 2>/dev/null || true
-                if [ -n "''${FFMPEG_CALL_PID:-}" ] && kill -0 "$FFMPEG_CALL_PID" 2>/dev/null; then
+                if { [ -n "''${FFMPEG_CALL_PID:-}" ] && kill -0 "$FFMPEG_CALL_PID" 2>/dev/null; } \
+                   || { [ -n "''${FFMPEG_MIC_PID:-}" ] && kill -0 "$FFMPEG_MIC_PID" 2>/dev/null; }; then
                   echo "A recording is already active. Run 'record-call stop' first." >&2
                   exit 1
                 fi
@@ -214,7 +256,7 @@ in
                 pactl list short modules 2>/dev/null | awk '/null-sink|loopback/{print $1}' \
                   | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
                 rm -f "$STATE_FILE"
-                unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID WATCHER_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
+                unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID FFMPEG_MIC_PID WATCHER_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
               fi
 
               ensure_model
@@ -233,28 +275,29 @@ in
                 sink="@DEFAULT_SINK@" \
                 latency_msec=50)
 
-              # Resolve the monitor source's numeric id. pw-record's
+              # Resolve numeric ids for both sources. pw-record's
               # name-based --target is unreliable — it silently auto-links
               # to the default source if the name doesn't match a node
               # exactly. The numeric index always binds correctly.
               MON_ID=""
+              MIC_ID=""
               for _ in $(seq 1 30); do
                 MON_ID=$(pactl list short sources 2>/dev/null | awk -v n="$SINK_NAME.monitor" '$2==n{print $1; exit}')
-                [ -n "$MON_ID" ] && break
+                DEFAULT_SRC=$(pactl get-default-source 2>/dev/null)
+                MIC_ID=$(pactl list short sources 2>/dev/null | awk -v n="$DEFAULT_SRC" '$2==n{print $1; exit}')
+                [ -n "$MON_ID" ] && [ -n "$MIC_ID" ] && break
                 sleep 0.1
               done
-              if [ -z "$MON_ID" ]; then
-                echo "failed to resolve $SINK_NAME.monitor source id" >&2
+              if [ -z "$MON_ID" ] || [ -z "$MIC_ID" ]; then
+                echo "failed to resolve source IDs (mon=$MON_ID mic=$MIC_ID)" >&2
                 exit 1
               fi
               sleep 0.3
 
-              # Capture call audio only (mic is ignored — Whisper hallucinates
-              # on silent mic stretches, and typically the user just wants
-              # the other side of the call transcribed). pw-record's
-              # PipeWire-native path bypasses the pulse-compat "Generic
-              # error" bug `ffmpeg -f pulse` triggers against null-sink
-              # monitors with a loopback attached.
+              # Capture call audio and mic as separate fragment streams.
+              # pw-record piped to ffmpeg segment muxer avoids the pulse-
+              # compat "Generic error" bug `ffmpeg -f pulse` hits against
+              # null-sink monitors with a loopback attached.
               ( set -o pipefail
                 exec pw-record --target="$MON_ID" --format=s16 --rate=16000 --channels=1 - \
                   2>> "$OUTPUT_DIR/pw-call.log" \
@@ -267,7 +310,19 @@ in
               ) &
               FFMPEG_CALL_PID=$!
 
-              ( exec "$0" _watch "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" \
+              ( set -o pipefail
+                exec pw-record --target="$MIC_ID" --format=s16 --rate=16000 --channels=1 - \
+                  2>> "$OUTPUT_DIR/pw-mic.log" \
+                | exec ffmpeg -hide_banner -loglevel warning -y \
+                    -f s16le -ar 16000 -ac 1 -i - \
+                    -c:a pcm_s16le \
+                    -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
+                    "$OUTPUT_DIR/chunks/mic_%06d.wav" \
+                    > "$OUTPUT_DIR/ffmpeg-mic.log" 2>&1
+              ) &
+              FFMPEG_MIC_PID=$!
+
+              ( exec "$0" _watch "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" \
                   > "$OUTPUT_DIR/watcher.log" 2>&1 ) &
               WATCHER_PID=$!
 
@@ -275,6 +330,7 @@ in
       SINK_ID=$SINK_ID
       LOOPBACK_ID=$LOOPBACK_ID
       FFMPEG_CALL_PID=$FFMPEG_CALL_PID
+      FFMPEG_MIC_PID=$FFMPEG_MIC_PID
       WATCHER_PID=$WATCHER_PID
       OUTPUT_DIR=$OUTPUT_DIR
       FRAGMENT_SEC=$FRAGMENT_SEC
@@ -305,10 +361,12 @@ in
               # shellcheck disable=SC1090
               . "$STATE_FILE"
 
-              echo "Stopping ffmpeg capture (flushing last fragment)..."
-              kill -TERM "$FFMPEG_CALL_PID" 2>/dev/null || true
+              echo "Stopping ffmpeg captures (flushing last fragment)..."
+              kill -TERM "$FFMPEG_CALL_PID" "$FFMPEG_MIC_PID" 2>/dev/null || true
               for _ in $(seq 1 20); do
-                kill -0 "$FFMPEG_CALL_PID" 2>/dev/null || break
+                kill -0 "$FFMPEG_CALL_PID" 2>/dev/null \
+                  || kill -0 "$FFMPEG_MIC_PID" 2>/dev/null \
+                  || break
                 sleep 0.25
               done
 
@@ -331,7 +389,7 @@ in
               if [ -f "$OUTPUT_DIR/.next-window" ]; then
                 NEXT_WIN=$(cat "$OUTPUT_DIR/.next-window")
                 echo "Flushing final window (idx $NEXT_WIN)..."
-                process_window "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$NEXT_WIN" "-1"
+                process_window "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$NEXT_WIN" "-1"
                 rm -f "$OUTPUT_DIR/.next-window"
               fi
 
@@ -437,11 +495,11 @@ in
                 -ac 1 -ar 16000 -c:a pcm_s16le "$WORK/mono.wav"
               whisper-cli -m "$MODEL_PATH" -l en -nt -oj -of "$WORK/out" \
                 -f "$WORK/mono.wav" >/dev/null 2>&1
-              python3 ${mergePy} "$WORK/out.json" 0 0 -1
+              python3 ${mergePy} "$WORK/out.json" - 0 0 -1
             }
 
             cmd__watch() {
-              OUT="$1"; FRAG="$2"; WIN="$3"; ADV="$4"; MODEL="$5"
+              OUT="$1"; FRAG="$2"; WIN="$3"; ADV="$4"; MODEL="$5"; VAD_MODEL="$6"
               CHUNKS_DIR="$OUT/chunks"
               STATE="$OUT/.next-window"
               FPW=$(( WIN / FRAG ))
@@ -450,18 +508,25 @@ in
               next_window=0
               printf '%s\n' "$next_window" > "$STATE"
 
+              # Window N is ready when both call_K and mic_K exist for K at
+              # the window's final position. Track the min of the two sides'
+              # top-finalized indices — that's the frontier safe for windowing.
               inotifywait -m -q -e close_write --format '%f' "$CHUNKS_DIR" | \
               while read -r fname; do
                 case "$fname" in
-                  call_*.wav) ;;
+                  call_*.wav|mic_*.wav) ;;
                   *) continue ;;
                 esac
-                idx=$(echo "$fname" | sed -n 's/^call_0*\([0-9][0-9]*\)\.wav$/\1/p')
-                [ -n "$idx" ] || continue
+                call_top=$(find "$CHUNKS_DIR" -maxdepth 1 -name 'call_*.wav' -type f 2>/dev/null \
+                  | sed -n 's|.*/call_0*\([0-9][0-9]*\)\.wav$|\1|p' | sort -n | tail -1)
+                mic_top=$(find "$CHUNKS_DIR" -maxdepth 1 -name 'mic_*.wav' -type f 2>/dev/null \
+                  | sed -n 's|.*/mic_0*\([0-9][0-9]*\)\.wav$|\1|p' | sort -n | tail -1)
+                [ -n "$call_top" ] && [ -n "$mic_top" ] || continue
+                top=$(( call_top < mic_top ? call_top : mic_top ))
 
-                while [ $(( next_window * AF + FPW - 1 )) -le "$idx" ]; do
+                while [ $(( next_window * AF + FPW - 1 )) -le "$top" ]; do
                   emit_hi=$(( (next_window + 1) * ADV ))
-                  process_window "$OUT" "$FRAG" "$WIN" "$ADV" "$MODEL" "$next_window" "$emit_hi"
+                  process_window "$OUT" "$FRAG" "$WIN" "$ADV" "$MODEL" "$VAD_MODEL" "$next_window" "$emit_hi"
                   next_window=$(( next_window + 1 ))
                   printf '%s\n' "$next_window" > "$STATE"
                 done
@@ -484,14 +549,16 @@ in
       How it works:
         * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
           default output so you still hear the call.
-        * pw-record captures the sink's monitor, piped into ffmpeg's segment
-          muxer, producing ''${FRAGMENT_SEC}s call_*.wav fragments under chunks/.
+        * pw-record captures both the sink's monitor (the call) and the
+          default source (your mic), piping each into ffmpeg's segment muxer
+          as ''${FRAGMENT_SEC}s call_*.wav and mic_*.wav fragments under chunks/.
         * A background watcher assembles overlapping ''${WINDOW_SEC}s windows every
           ''${ADVANCE_SEC}s and transcribes each via whisper-cli. Overlap gives
           Whisper context around word boundaries; the merge step emits only
           each window's authoritative ''${ADVANCE_SEC}s slice.
-        * The mic is not transcribed — Whisper hallucinates on silence, and
-          only the other side of the call is typically useful.
+        * Mic transcription uses Silero VAD so the silent stretches while
+          you listen aren't hallucinated into "Thank you." lines. Your own
+          speech is prefixed "Me:"; the call side is unlabeled.
         * At stop, a final partial window is flushed so no audio is lost.
 
       Route browser output to Record-Call-Sink via pavucontrol (Playback tab)
