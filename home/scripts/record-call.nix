@@ -46,6 +46,51 @@ let
         m, s = divmod(rem, 60)
         print(f"[{h:02d}:{m:02d}:{s:02d}] {who}: {text}")
   '';
+
+  # Remove Me: lines that duplicate a Them: line within a small window —
+  # the Jabra speaker bleeds into its own mic, so both channels often
+  # transcribe the same remote speech. Called at stop time and on demand.
+  dedupePy = pkgs.writeText "record-call-dedupe.py" ''
+    import difflib, re, sys
+
+    WINDOW_S = 3
+    THRESHOLD = 0.7
+    LINE_RE = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (\w+): (.+)$")
+
+    def parse(line):
+        m = LINE_RE.match(line.rstrip("\n"))
+        if not m:
+            return None
+        h, mi, s, label, text = m.groups()
+        t = int(h) * 3600 + int(mi) * 60 + int(s)
+        return t, label, text
+
+    def similar(a, b):
+        return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+    path = sys.argv[1]
+    with open(path) as f:
+        lines = f.readlines()
+    parsed = [parse(ln) for ln in lines]
+    drop = set()
+    for i, p in enumerate(parsed):
+        if not p or p[1] != "Me":
+            continue
+        t1, _, text1 = p
+        for j, q in enumerate(parsed):
+            if i == j or not q or q[1] != "Them":
+                continue
+            t2, _, text2 = q
+            if abs(t1 - t2) > WINDOW_S:
+                continue
+            if similar(text1, text2) >= THRESHOLD:
+                drop.add(i)
+                break
+    kept = [ln for i, ln in enumerate(lines) if i not in drop]
+    with open(path, "w") as f:
+        f.writelines(kept)
+    print(f"dedupe: dropped {len(drop)} duplicate Me: line(s) of {len(lines)} total")
+  '';
 in
 {
   home.packages = [
@@ -168,15 +213,36 @@ in
               pactl unload-module "$LOOPBACK_ID" 2>/dev/null || true
               pactl unload-module "$SINK_ID" 2>/dev/null || true
 
+              # Preserve the raw transcript, then dedupe Me:/Them: bleed-through.
+              if [ -s "$OUTPUT_DIR/transcript.txt" ]; then
+                cp -f "$OUTPUT_DIR/transcript.txt" "$OUTPUT_DIR/transcript.raw.txt"
+                python3 ${dedupePy} "$OUTPUT_DIR/transcript.txt" || true
+              fi
+
               ELAPSED=$(( $(date +%s) - STARTED_AT ))
               rm -f "$STATE_FILE"
 
               cat <<EOF
       Stopped.
         Duration:   ''${ELAPSED}s
-        Transcript: $OUTPUT_DIR/transcript.txt
+        Transcript: $OUTPUT_DIR/transcript.txt (raw: transcript.raw.txt)
         Chunks:     $OUTPUT_DIR/chunks/
       EOF
+            }
+
+            cmd_dedupe() {
+              SRC="''${1:-}"
+              if [ -z "$SRC" ]; then
+                echo "Usage: record-call dedupe <output-dir-or-transcript>" >&2
+                exit 1
+              fi
+              if [ -d "$SRC" ]; then
+                SRC="$SRC/transcript.txt"
+              fi
+              [ -f "$SRC" ] || { echo "Not a file: $SRC" >&2; exit 1; }
+              cp -f "$SRC" "$SRC.raw"
+              python3 ${dedupePy} "$SRC"
+              echo "Raw backup: $SRC.raw"
             }
 
             cmd_status() {
@@ -290,6 +356,7 @@ in
         record-call tail                 Follow the live transcript
         record-call stop                 Stop recording, finalize transcript
         record-call transcribe <wav>     Offline: transcribe an existing stereo WAV
+        record-call dedupe <dir|txt>     Drop Me: lines that duplicate Them: within ~3s
 
       How it works:
         * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
@@ -313,6 +380,7 @@ in
               tail)        cmd_tail ;;
               route)       cmd_route ;;
               transcribe)  cmd_transcribe "$@" ;;
+              dedupe)      cmd_dedupe "$@" ;;
               _watch)      cmd__watch "$@" ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
