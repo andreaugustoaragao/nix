@@ -149,10 +149,13 @@ in
 
             SINK_NAME="record-call-sink"
             # ffmpeg writes fine-grained fragments; the watcher assembles
-            # overlapping windows from them so Whisper sees 5s of audio
-            # either side of every word boundary.
+            # overlapping windows from them so Whisper sees ~7s of audio
+            # either side of every emit boundary. 5s of overlap wasn't
+            # enough in practice — whisper's segment timestamps sometimes
+            # land just past the emit cutoff and words on the boundary
+            # ("let" in "let me know") got lost between windows.
             FRAGMENT_SEC="''${RECORD_CALL_FRAGMENT_SEC:-5}"
-            WINDOW_SEC="''${RECORD_CALL_WINDOW_SEC:-35}"
+            WINDOW_SEC="''${RECORD_CALL_WINDOW_SEC:-45}"
             ADVANCE_SEC="''${RECORD_CALL_ADVANCE_SEC:-30}"
             if [ "$ADVANCE_SEC" -gt "$WINDOW_SEC" ] \
                || [ $(( WINDOW_SEC % FRAGMENT_SEC )) -ne 0 ] \
