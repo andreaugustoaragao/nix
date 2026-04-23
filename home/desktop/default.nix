@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
     system = pkgs.stdenv.hostPlatform.system;
@@ -29,6 +35,7 @@ in
     ./firefox.nix
     ./qutebrowser.nix
     ./vscode.nix
+    ./zed.nix
     ./waybar.nix
     ./eww.nix
     ./wallpapers.nix
@@ -52,25 +59,28 @@ in
     fi
   '';
 
-  home.packages = with pkgs; [
-    pavucontrol
-    xdg-desktop-portal-gnome
-    xdg-desktop-portal-gtk
-    teams-for-linux
-    pkgs-unstable.telegram-desktop
-    bitwarden-desktop
-    pkgs-unstable.code-cursor
-    neovide
-    swayimg
-    obsidian
-    qt6.qttools
-    
-    # Video-related packages
-    mpv
-    obs-studio
-    obs-studio-plugins.advanced-scene-switcher
-    kdePackages.kdenlive
-  ] ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
-    zoom-us
-  ];
+  home.packages =
+    with pkgs;
+    [
+      pavucontrol
+      xdg-desktop-portal-gnome
+      xdg-desktop-portal-gtk
+      teams-for-linux
+      pkgs-unstable.telegram-desktop
+      bitwarden-desktop
+      pkgs-unstable.code-cursor
+      neovide
+      swayimg
+      obsidian
+      qt6.qttools
+
+      # Video-related packages
+      mpv
+      obs-studio
+      obs-studio-plugins.advanced-scene-switcher
+      kdePackages.kdenlive
+    ]
+    ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
+      zoom-us
+    ];
 }
