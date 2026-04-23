@@ -33,8 +33,18 @@ in
   # must be on HiFi to expose its Speaker/Headphones/S/PDIF sinks.
   systemd.user.services.workstation-audio-profiles = lib.mkIf (hostName == "workstation") {
     description = "Pin ASRock X870E Taichi audio card profiles";
-    wantedBy = [ "pipewire-pulse.service" ];
+    wantedBy = [
+      "pipewire-pulse.service"
+      "wireplumber.service"
+    ];
     after = [
+      "pipewire-pulse.service"
+      "wireplumber.service"
+    ];
+    # PartOf ties lifecycle to wireplumber/pipewire-pulse so that when either
+    # restarts (which wipes card profiles back to wireplumber's defaults) this
+    # service is restarted too and re-pins the correct profiles.
+    partOf = [
       "pipewire-pulse.service"
       "wireplumber.service"
     ];

@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   # ============================================================================
@@ -110,9 +115,10 @@
     # Ignore bogus ICMP error responses
     "net.ipv4.icmp_ignore_bogus_error_responses" = 1;
 
-    # Log suspicious packets (martians)
-    "net.ipv4.conf.all.log_martians" = 1;
-    "net.ipv4.conf.default.log_martians" = 1;
+    # Log suspicious packets (martians) — disabled because k3s flannel ARP
+    # broadcasts leak into docker container veths and spam dmesg nonstop.
+    "net.ipv4.conf.all.log_martians" = 0;
+    "net.ipv4.conf.default.log_martians" = 0;
 
     # -------------------------
     # Network Security - IPv6
