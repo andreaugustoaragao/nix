@@ -24,6 +24,19 @@ in
     jack.enable = true;
     wireplumber.enable = true;
     wireplumber.package = unstable-pkgs.wireplumber;
+
+    # The Jabra SPEAK 510 (USB audio) xruns continuously at the default
+    # 1024-sample quantum (21ms @ 48kHz), showing up as nonstop
+    # `snd_pcm_avail after recover: Broken pipe` and audible stuttering.
+    # Raise the buffer to 2048 (43ms) to give USB audio more headroom
+    # without making latency noticeable on calls.
+    extraConfig.pipewire."99-workstation-quantum" = lib.mkIf (hostName == "workstation") {
+      "context.properties" = {
+        "default.clock.quantum" = 2048;
+        "default.clock.min-quantum" = 1024;
+        "default.clock.max-quantum" = 4096;
+      };
+    };
   };
   services.pulseaudio.enable = false;
 
