@@ -12,5 +12,6 @@
     ./browser-app.nix
     ./eww.nix
     ./fulcrum-logs.nix
+    ./record-call.nix
   ];
 }
