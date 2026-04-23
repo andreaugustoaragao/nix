@@ -117,6 +117,10 @@
 
     # Log suspicious packets (martians) — disabled because k3s flannel ARP
     # broadcasts leak into docker container veths and spam dmesg nonstop.
+    # Note: the kernel logs when all OR the specific interface is set to 1,
+    # so new docker/k3s veths still inherit 1 when created during service
+    # startup that predates sysctl application. The udev rule below catches
+    # those as they appear.
     "net.ipv4.conf.all.log_martians" = 0;
     "net.ipv4.conf.default.log_martians" = 0;
 
@@ -169,6 +173,59 @@
 
   # Disable core dumps (prevent information disclosure)
   systemd.coredump.enable = false;
+
+  # Silence per-interface log_martians. Docker/k3s create veths during
+  # service startup with log_martians=1 inherited from kernel defaults
+  # that predate our sysctl settings. The kernel logs if *either* `all`
+  # or the interface-specific value is 1, so these veths spam dmesg with
+  # martian-source warnings for otherwise benign cross-bridge ARP flood.
+  services.udev.extraRules = ''
+    SUBSYSTEM=="net", ACTION=="add", RUN+="${pkgs.bash}/bin/bash -c 'echo 0 > /proc/sys/net/ipv4/conf/%k/log_martians 2>/dev/null || true'"
+  '';
+
+  systemd.services.silence-log-martians = {
+    description = "Disable log_martians on all host and container network namespaces";
+    wantedBy = [ "multi-user.target" ];
+    after = [
+      "network-pre.target"
+      "docker.service"
+      "k3s.service"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "silence-log-martians" ''
+        # Host netns
+        for f in /proc/sys/net/ipv4/conf/*/log_martians; do
+          echo 0 > "$f" 2>/dev/null || true
+        done
+        # Every other netns on the system (docker, k3s pods, etc.)
+        declare -A seen
+        for p in /proc/[0-9]*/ns/net; do
+          ns=$(${pkgs.coreutils}/bin/readlink "$p" 2>/dev/null) || continue
+          [ -n "$ns" ] || continue
+          [ -z "''${seen[$ns]:-}" ] || continue
+          seen[$ns]=1
+          ${pkgs.util-linux}/bin/nsenter --net="$p" --no-fork -- \
+            ${pkgs.bash}/bin/bash -c '
+              for f in /proc/sys/net/ipv4/conf/*/log_martians; do
+                echo 0 > "$f" 2>/dev/null || true
+              done
+            ' 2>/dev/null || true
+        done
+      '';
+    };
+  };
+
+  # Re-run every 60s so new containers/pods get silenced too.
+  systemd.timers.silence-log-martians = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "1min";
+      OnUnitActiveSec = "60s";
+      Unit = "silence-log-martians.service";
+    };
+  };
 
   # Restrict /proc and /sys access
   boot.specialFileSystems = {
