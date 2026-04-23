@@ -16,6 +16,7 @@ let
     pkgs.inotify-tools
     pkgs.jq
     pkgs.python3
+    pkgs.uv # `uv run --script` for diarization (pyannote.audio + PyTorch)
     pkgs.curl
     pkgs.coreutils
     pkgs.gnused
@@ -70,6 +71,95 @@ let
             m, sec = divmod(rem, 60)
             stamp = f"{h:02d}:{m:02d}:{sec:02d}"
         print(f"[{stamp}] {prefix}{text}")
+  '';
+
+  # Speaker diarization via pyannote.audio — emits JSON segments of
+  # [start, end, speaker] for an input audio file. Uses uv's PEP-723
+  # inline metadata so PyTorch + pyannote are fetched on first run and
+  # cached in uv's global cache. Needs HF_TOKEN because the gated
+  # pyannote/speaker-diarization-3.1 model.
+  diarizePy = pkgs.writeText "record-call-diarize.py" ''
+    # /// script
+    # requires-python = ">=3.11"
+    # dependencies = ["pyannote.audio>=3.1,<4"]
+    # ///
+    import json, os, sys
+    from pyannote.audio import Pipeline
+    import torch
+
+    audio = sys.argv[1]
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+    if not token:
+        sys.stderr.write("HF_TOKEN not set — see 'record-call diarize' help\n")
+        sys.exit(1)
+
+    pipe = Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=token,
+    )
+    if torch.cuda.is_available():
+        pipe.to(torch.device("cuda"))
+
+    diarization = pipe(audio)
+    segs = []
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        segs.append({"start": float(turn.start), "end": float(turn.end), "speaker": speaker})
+    json.dump(segs, sys.stdout)
+  '';
+
+  # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
+  # diarization JSON by prepending the active speaker to each line.
+  # Args: transcript_path diar_json started_at_epoch out_path
+  alignPy = pkgs.writeText "record-call-align.py" ''
+    import json, re, sys, time
+    tpath, dpath, epoch_s, outpath = sys.argv[1:5]
+    epoch = int(epoch_s)
+    with open(dpath) as f:
+        segs = json.load(f)
+
+    def speaker_at(t):
+        # Pick the diarization segment whose [start, end] contains t,
+        # or the closest one within 1s either side (whisper and
+        # pyannote timestamps disagree at sub-second level).
+        hit = None
+        for s in segs:
+            if s["start"] <= t <= s["end"]:
+                return s["speaker"]
+            if hit is None or abs(t - (s["start"] + s["end"]) / 2) < abs(t - (hit["start"] + hit["end"]) / 2):
+                hit = s
+        if hit and min(abs(t - hit["start"]), abs(t - hit["end"])) <= 1.0:
+            return hit["speaker"]
+        return None
+
+    # Canonical speaker id mapping: SPEAKER_00 -> Speaker 1, etc.
+    # Preserves first-seen order for nicer reading.
+    canonical = {}
+    def label(raw):
+        if raw is None:
+            return None
+        if raw not in canonical:
+            canonical[raw] = f"Speaker {len(canonical) + 1}"
+        return canonical[raw]
+
+    pat = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.*)$")
+    with open(tpath) as f, open(outpath, "w") as out:
+        for ln in f:
+            m = pat.match(ln.rstrip("\n"))
+            if not m:
+                out.write(ln)
+                continue
+            h, mi, s, rest = m.groups()
+            wall = time.mktime(time.strptime(
+                time.strftime("%Y-%m-%d ", time.localtime(epoch)) + f"{h}:{mi}:{s}",
+                "%Y-%m-%d %H:%M:%S",
+            ))
+            rel = wall - epoch
+            spk = label(speaker_at(rel))
+            prefix = f"[{h}:{mi}:{s}] "
+            if spk:
+                out.write(f"{prefix}{spk}: {rest}\n")
+            else:
+                out.write(f"{prefix}{rest}\n")
   '';
 
   # Rewrite a transcript's [HH:MM:SS] timestamps as wall-clock local
@@ -530,6 +620,68 @@ in
               python3 ${mergePy} "$WORK/out.json" - 0 0 -1 0
             }
 
+            cmd_diarize() {
+              # Post-process: speaker-label the transcript using pyannote.
+              # Args: <dir>   (the Recordings/calls/<ts>/ directory)
+              SRC="''${1:-}"
+              [ -d "$SRC" ] || { echo "Usage: record-call diarize <output-dir>" >&2; exit 1; }
+              [ -f "$SRC/transcript.txt" ] || { echo "No transcript.txt in $SRC" >&2; exit 1; }
+              if [ -z "''${HF_TOKEN:-}" ] && [ -z "''${HUGGINGFACE_HUB_TOKEN:-}" ]; then
+                cat >&2 <<EOF
+      HF_TOKEN is required for pyannote's gated model.
+        1) Create an HF account at https://huggingface.co/join
+        2) Accept the license: https://huggingface.co/pyannote/speaker-diarization-3.1
+        3) Create a read token: https://huggingface.co/settings/tokens
+        4) export HF_TOKEN=hf_xxxxx and re-run
+      EOF
+                exit 1
+              fi
+              # Resolve session start epoch (for aligning wall-clock
+              # transcript timestamps with diarization's audio-relative ones).
+              EPOCH=""
+              if [ -f "$SRC/.started-at" ]; then
+                EPOCH=$(cat "$SRC/.started-at")
+              else
+                BASE=$(basename "$SRC")
+                case "$BASE" in
+                  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
+                    D="''${BASE%%-*}"; T="''${BASE##*-}"
+                    EPOCH=$(date -d "''${D:0:4}-''${D:4:2}-''${D:6:2} ''${T:0:2}:''${T:2:2}:''${T:4:2}" +%s 2>/dev/null)
+                    ;;
+                esac
+              fi
+              [ -n "$EPOCH" ] || { echo "can't determine session start epoch" >&2; exit 1; }
+
+              # Concatenate call_*.wav fragments into one continuous session.wav
+              echo "Concatenating call fragments..."
+              WORK=$(mktemp -d)
+              trap 'rm -rf "$WORK"' EXIT
+              find "$SRC/chunks" -name 'call_*.wav' -type f 2>/dev/null \
+                | sort | sed "s|^|file '|; s|\$|'|" > "$WORK/list.txt"
+              [ -s "$WORK/list.txt" ] || { echo "no call fragments found" >&2; exit 1; }
+              ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$WORK/list.txt" \
+                -c copy "$SRC/session.wav" </dev/null
+
+              # Run pyannote via uv (manages its own venv + torch)
+              echo "Running speaker diarization (first run downloads ~2GB)..."
+              uv run --script ${diarizePy} "$SRC/session.wav" > "$SRC/diarization.json" \
+                || { echo "diarize.py failed — see stderr above" >&2; exit 1; }
+
+              echo "Aligning with transcript..."
+              python3 ${alignPy} "$SRC/transcript.txt" "$SRC/diarization.json" \
+                "$EPOCH" "$SRC/transcript.diarized.txt"
+
+              SPKS=$(jq -r '[.[].speaker] | unique | length' "$SRC/diarization.json")
+              LINES=$(wc -l < "$SRC/transcript.diarized.txt")
+              cat <<EOF
+      Diarized.
+        Speakers:   $SPKS
+        Lines:      $LINES
+        Transcript: $SRC/transcript.diarized.txt
+        Raw diar:   $SRC/diarization.json
+      EOF
+            }
+
             cmd_retime() {
               # Rewrite a transcript's timestamps as wall-clock times.
               # Usage: record-call retime <dir-or-txt> [--start EPOCH]
@@ -607,6 +759,7 @@ in
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
         record-call retime <dir|txt>     Rewrite timestamps as wall-clock (HH:MM:SS local)
+        record-call diarize <dir>        Speaker-label the transcript (needs HF_TOKEN)
 
       How it works:
         * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
@@ -639,6 +792,7 @@ in
               transcribe)  cmd_transcribe "$@" ;;
               dedupe)      cmd_dedupe "$@" ;;
               retime)      cmd_retime "$@" ;;
+              diarize)     cmd_diarize "$@" ;;
               _watch)      cmd__watch "$@" ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
