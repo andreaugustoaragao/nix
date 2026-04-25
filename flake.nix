@@ -3,7 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Tracks the nixpkgs-unstable branch (not nixos-unstable). Both are
+    # channel-tested; nixpkgs-unstable rolls slightly faster and is
+    # currently the one carrying Go 1.26.2 (nixos-unstable is lagging
+    # on 1.26.1 as of this writing). Needed so lfk, which requires
+    # Go >= 1.26.2, can build.
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
@@ -20,11 +25,24 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    lfk = {
+      url = "github:janosmiko/lfk";
+      # lfk's `vendorHash` is computed against the exact nixpkgs rev
+      # pinned in its own flake.lock. Upstream declares
+      # `nixpkgs.url = "github:NixOS/nixpkgs/master"` (a moving branch),
+      # so without this explicit pin every `nix flake update` would
+      # re-resolve lfk's nixpkgs to a newer master tip whose
+      # buildGoModule produces a different vendor hash. Pinning to the
+      # exact commit upstream tested with keeps the build reproducible.
+      inputs.nixpkgs.url =
+        "github:NixOS/nixpkgs/9cadaf6932b7c926e468f777549d57f04a7212da";
+    };
+
     claude-code = {
       url = "github:sadjow/claude-code-nix";
     };
 
-};
+  };
 
   outputs =
     {
@@ -78,8 +96,8 @@
     in
     {
       # NixOS configurations for all machines
-      nixosConfigurations =
-        (builtins.mapAttrs (
+      nixosConfigurations = (
+        builtins.mapAttrs (
           machineName: host:
           nixpkgs.lib.nixosSystem {
             specialArgs = setSpecialArgs host;
@@ -97,7 +115,7 @@
               (setHomeManagerTemplate host)
             ];
           }
-        ) metadata.machines)
-;
+        ) metadata.machines
+      );
     };
 }

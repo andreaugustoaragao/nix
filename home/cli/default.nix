@@ -1,10 +1,26 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, inputs, ... }:
 
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
     system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
+
+  # Upstream lfk's flake.nix declares a stale `vendorHash` that doesn't
+  # match what `go mod download` actually produces (their CI doesn't run
+  # `nix build`, so the drift went unnoticed). Patch the goModules
+  # derivation's outputHash to the hash nix computes locally so the
+  # build is reproducible. Re-check this value after each
+  # `nix flake update lfk`.
+  lfk =
+    let
+      base = inputs.lfk.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    in
+    base.overrideAttrs (_: {
+      goModules = base.goModules.overrideAttrs (_: {
+        outputHash = "sha256-Da/VSnqvybfAAKz2txoOPOAjf/sI8NftGo6JNye/bwk=";
+      });
+    });
 in
 {
   imports = [
@@ -25,13 +41,12 @@ in
     ./k9s.nix
   ];
 
-
- home.packages = with pkgs; [
+  home.packages = with pkgs; [
     # System utilities
-    libnotify  # provides notify-send
+    libnotify # provides notify-send
     fzf
 
-    # Cloud packages  
+    # Cloud packages
     azure-cli
     awscli2
     databricks-cli
@@ -40,6 +55,7 @@ in
     kubernetes-helm
     kubectx
     stern
+    lfk
     terraform
     terragrunt
     ansible
@@ -47,7 +63,7 @@ in
     podman-compose
 
     # General tools
-    code2prompt  # CLI tool with token counting functionality
+    code2prompt # CLI tool with token counting functionality
     bitwarden-cli
     curlie
     xh
@@ -95,9 +111,9 @@ in
     inotify-tools
     lorri
     cachix
-    mesa-demos  # provides glxinfo for OpenGL debugging
+    mesa-demos # provides glxinfo for OpenGL debugging
 
-    # Rust-based coreutils and modern replacements  
+    # Rust-based coreutils and modern replacements
     ripgrep
     fd
     bat
@@ -132,14 +148,18 @@ in
     pastel
     ouch
     unzip
-    zellij
     yazi
     inkscape
-    imagemagick  # provides convert command
-    
+    imagemagick # provides convert command
+
     # Development tools that moved to development.nix:
     # - All language servers, compilers, and dev tools
     # - cargo-*, gitui, jq, httpie moved to development.nix
     # - direnv moved to development.nix as a program
+  ] ++ [
+    # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
+    # channel ships 1.91.1; use unstable until the channel revert
+    # (NixOS/nixpkgs#512626) propagates.
+    unstable-pkgs.zellij
   ];
-} 
+}

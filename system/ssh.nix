@@ -22,7 +22,11 @@
     };
     # Use extraConfig to allow authorized_keys from SOPS-managed files
     extraConfig = ''
-      AuthorizedKeysFile /home/${owner.name}/.ssh/authorized_keys /home/${owner.name}/.ssh/id_rsa_personal.pub
+      AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u /home/${owner.name}/.ssh/authorized_keys /home/${owner.name}/.ssh/id_rsa_personal.pub
     '';
   };
-} 
+
+  users.users.${owner.name}.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAb7TATctV9ege4yZoT8lZpLbvtvFE/TE1B3xFwxgnE4 penguin"
+  ];
+}

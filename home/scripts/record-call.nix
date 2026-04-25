@@ -337,13 +337,16 @@ in
                   -c copy "$work/mic.wav" </dev/null 2>/dev/null || true
               fi
 
-              # Transcribe both sides in parallel. Mic gets VAD since the
-              # listener's mic is mostly silence and Whisper hallucinates
-              # there; the call side is almost always speech so VAD only
-              # adds overhead there.
+              # Transcribe both sides in parallel, both with Silero VAD.
+              # The mic is mostly silence while the user listens, and the
+              # call side can be silent too (hold music, the other end on
+              # mute, or — historically — unrouted audio). Without VAD,
+              # Whisper hallucinates "you" / "Thanks for watching" lines
+              # on silence.
               local call_json="-" mic_json="-"
               if [ -s "$work/call.wav" ]; then
                 whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/call" \
+                  --vad --vad-model "$VAD_MODEL" \
                   -f "$work/call.wav" </dev/null >"$work/call.log" 2>&1 &
                 call_json="$work/call.json"
               fi
@@ -374,10 +377,14 @@ in
                   exit 1
                 fi
                 echo "Removing stale session state..." >&2
+                if [ -n "''${AUTOROUTE_PID:-}" ]; then
+                  pkill -TERM -P "$AUTOROUTE_PID" 2>/dev/null || true
+                  kill -TERM "$AUTOROUTE_PID" 2>/dev/null || true
+                fi
                 pactl list short modules 2>/dev/null | awk '/null-sink|loopback/{print $1}' \
                   | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
                 rm -f "$STATE_FILE"
-                unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID FFMPEG_MIC_PID WATCHER_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
+                unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID FFMPEG_MIC_PID WATCHER_PID AUTOROUTE_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
               fi
 
               ensure_model
@@ -448,12 +455,19 @@ in
                   > "$OUTPUT_DIR/watcher.log" 2>&1 ) &
               WATCHER_PID=$!
 
+              # Auto-route browser streams to Record-Call-Sink for the
+              # lifetime of the session, so call audio gets captured even
+              # if the tab is opened/refreshed after 'record-call start'.
+              ( exec "$0" _autoroute > "$OUTPUT_DIR/autoroute.log" 2>&1 ) &
+              AUTOROUTE_PID=$!
+
               cat > "$STATE_FILE" <<EOF
       SINK_ID=$SINK_ID
       LOOPBACK_ID=$LOOPBACK_ID
       FFMPEG_CALL_PID=$FFMPEG_CALL_PID
       FFMPEG_MIC_PID=$FFMPEG_MIC_PID
       WATCHER_PID=$WATCHER_PID
+      AUTOROUTE_PID=$AUTOROUTE_PID
       OUTPUT_DIR=$OUTPUT_DIR
       FRAGMENT_SEC=$FRAGMENT_SEC
       WINDOW_SEC=$WINDOW_SEC
@@ -466,9 +480,10 @@ in
         Output:     $OUTPUT_DIR
         Transcript: $OUTPUT_DIR/transcript.txt
 
-      Route the call audio to the **Record-Call-Sink** via pavucontrol
-      (Playback tab), or run 'record-call route'. A loopback plays it to
-      your default output so you still hear the call.
+      Browser audio is auto-routed to **Record-Call-Sink** for the
+      lifetime of the session. If a stream doesn't get captured, run
+      'record-call route' (or reroute via pavucontrol). A loopback plays
+      it to your default output so you still hear the call.
 
       Monitor the live transcript:
           record-call tail
@@ -482,6 +497,12 @@ in
               [ -f "$STATE_FILE" ] || { echo "No active recording." >&2; exit 1; }
               # shellcheck disable=SC1090
               . "$STATE_FILE"
+
+              echo "Stopping auto-router..."
+              if [ -n "''${AUTOROUTE_PID:-}" ]; then
+                pkill -TERM -P "$AUTOROUTE_PID" 2>/dev/null || true
+                kill -TERM "$AUTOROUTE_PID" 2>/dev/null || true
+              fi
 
               echo "Stopping ffmpeg captures (flushing last fragment)..."
               kill -TERM "$FFMPEG_CALL_PID" "$FFMPEG_MIC_PID" 2>/dev/null || true
@@ -581,18 +602,17 @@ in
               tail -F "$OUTPUT_DIR/transcript.txt"
             }
 
-            cmd_route() {
-              TARGET=$(sink_index)
-              if [ -z "$TARGET" ]; then
-                echo "Record-Call-Sink is not loaded. Run 'record-call start' first." >&2
-                exit 1
-              fi
-              MOVED=0
+            # Move matching browser streams to Record-Call-Sink. Echoes the
+            # number moved. Used by both the one-shot `record-call route`
+            # command and the background auto-router.
+            do_route() {
+              local target="$1"
+              local moved=0 id
               while read -r id; do
                 [ -n "$id" ] || continue
-                pactl move-sink-input "$id" "$TARGET" 2>/dev/null && MOVED=$((MOVED + 1)) || true
+                pactl move-sink-input "$id" "$target" 2>/dev/null && moved=$((moved + 1)) || true
               done < <(
-                pactl -f json list sink-inputs 2>/dev/null | jq -r --argjson t "$TARGET" '
+                pactl -f json list sink-inputs 2>/dev/null | jq -r --argjson t "$target" '
                   .[]
                   | select(.sink != $t)
                   | select(
@@ -603,7 +623,44 @@ in
                   | .index
                 '
               )
+              echo "$moved"
+            }
+
+            cmd_route() {
+              TARGET=$(sink_index)
+              if [ -z "$TARGET" ]; then
+                echo "Record-Call-Sink is not loaded. Run 'record-call start' first." >&2
+                exit 1
+              fi
+              MOVED=$(do_route "$TARGET")
               echo "Routed $MOVED stream(s) to Record-Call-Sink."
+            }
+
+            # Background auto-router: re-runs do_route every time pactl
+            # reports a sink-input event. Handles the common failure mode
+            # where the user starts recording before the call tab is open
+            # (or refreshes the tab mid-call) — any new browser stream gets
+            # captured automatically, no need to remember 'record-call route'.
+            cmd__autoroute() {
+              local TARGET
+              for _ in $(seq 1 30); do
+                TARGET=$(sink_index)
+                [ -n "$TARGET" ] && break
+                sleep 0.1
+              done
+              [ -n "$TARGET" ] || { echo "record-call sink never appeared" >&2; exit 1; }
+              do_route "$TARGET" >/dev/null
+              pactl subscribe 2>/dev/null | while read -r line; do
+                case "$line" in
+                  *"on sink-input"*)
+                    # Brief settle delay — a freshly-created stream often
+                    # reports its application properties a beat after the
+                    # event fires, and we need those to match the filter.
+                    sleep 0.1
+                    do_route "$TARGET" >/dev/null
+                    ;;
+                esac
+              done
             }
 
             cmd_transcribe() {
@@ -764,6 +821,9 @@ in
       How it works:
         * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
           default output so you still hear the call.
+        * A background auto-router watches PipeWire events and moves any
+          matching browser sink-input (chrome/chromium/brave/firefox) onto
+          Record-Call-Sink, even if the tab is opened/refreshed mid-session.
         * pw-record captures both the sink's monitor (the call) and the
           default source (your mic), piping each into ffmpeg's segment muxer
           as ''${FRAGMENT_SEC}s call_*.wav and mic_*.wav fragments under chunks/.
@@ -771,13 +831,13 @@ in
           ''${ADVANCE_SEC}s and transcribes each via whisper-cli. Overlap gives
           Whisper context around word boundaries; the merge step emits only
           each window's authoritative ''${ADVANCE_SEC}s slice.
-        * Mic transcription uses Silero VAD so the silent stretches while
-          you listen aren't hallucinated into "Thank you." lines. Your own
-          speech is prefixed "Me:"; the call side is unlabeled.
+        * Both sides use Silero VAD so silent stretches aren't hallucinated
+          into "you" / "Thanks for watching." lines. The user's mic is
+          prefixed "Me:"; the call side is unlabeled.
         * At stop, a final partial window is flushed so no audio is lost.
 
-      Route browser output to Record-Call-Sink via pavucontrol (Playback tab)
-      or by running 'record-call route' once the call is active.
+      If a stream isn't auto-routed, move it to Record-Call-Sink via
+      pavucontrol (Playback tab) or by running 'record-call route'.
       EOF
             }
 
@@ -794,6 +854,7 @@ in
               retime)      cmd_retime "$@" ;;
               diarize)     cmd_diarize "$@" ;;
               _watch)      cmd__watch "$@" ;;
+              _autoroute)  cmd__autoroute ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
             esac

@@ -1,145 +1,283 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
   ...
 }:
+# Web apps are exposed as ordinary XDG desktop entries so they show up
+# in `wofi --show drun` (Mod+D) alongside native applications. The
+# previous incarnation of this module spawned a separate `wofi --dmenu`
+# launcher bound to Mod+O; that key and the launcher script are gone.
 let
-  # Local web app icons from assets/icons directory
-  # Copy local icon files to the Nix store
-  webAppIcons = {
-    teams = pkgs.copyPathToStore ./../../assets/icons/teams.png;
-    outlook = pkgs.copyPathToStore ./../../assets/icons/outlook.png;
-    protonmail = pkgs.copyPathToStore ./../../assets/icons/protonmail.png;
-    gmail = pkgs.copyPathToStore ./../../assets/icons/gmail.png;
-    protondrive = pkgs.copyPathToStore ./../../assets/icons/protondrive.png;
-    googledrive = pkgs.copyPathToStore ./../../assets/icons/googledrive.png;
-    github = pkgs.copyPathToStore ./../../assets/icons/github.png;
-    youtubemusic = pkgs.copyPathToStore ./../../assets/icons/youtubemusic.png;
-    x = pkgs.copyPathToStore ./../../assets/icons/x.png;
-    grok = pkgs.copyPathToStore ./../../assets/icons/grok.png;
-    chatgpt = pkgs.copyPathToStore ./../../assets/icons/chatgpt.png;
-    claude = pkgs.copyPathToStore ./../../assets/icons/claude.png;
-    youtube = pkgs.copyPathToStore ./../../assets/icons/youtube.png;
-    m1finance = pkgs.copyPathToStore ./../../assets/icons/m1finance.png;
-    fidelity = pkgs.copyPathToStore ./../../assets/icons/fidelity.png;
-    powerpoint = pkgs.copyPathToStore ./../../assets/icons/powerpoint.png;
-    patreon = pkgs.copyPathToStore ./../../assets/icons/patreon.png;
-    reddit = pkgs.copyPathToStore ./../../assets/icons/reddit.png;
-    whatsapp = pkgs.copyPathToStore ./../../assets/icons/whatsapp.png;
-    googlecalendar = pkgs.copyPathToStore ./../../assets/icons/googlecalendar.png;
-    googlechat = pkgs.copyPathToStore ./../../assets/icons/googlechat.png;
-    googlemeet = pkgs.copyPathToStore ./../../assets/icons/googlemeet.png;
-    googledocs = pkgs.copyPathToStore ./../../assets/icons/googledocs.png;
-    googlesheets = pkgs.copyPathToStore ./../../assets/icons/googlesheets.png;
-    googleslides = pkgs.copyPathToStore ./../../assets/icons/googleslides.png;
-    fulcrum = pkgs.copyPathToStore ./../../assets/icons/fulcrum.png;
-    grafana = pkgs.copyPathToStore ./../../assets/icons/grafana.png;
-    loki = pkgs.copyPathToStore ./../../assets/icons/loki.png;
-  };
+  iconStore = name: pkgs.copyPathToStore (./../../assets/icons + "/${name}.png");
+
+  # name      : human-readable label, becomes the .desktop `Name=`
+  # key       : slug used in the .desktop file name (must be unique)
+  # icon      : store path to a PNG, or null for entries without an icon
+  # url       : target URL
+  # mode      : "app" (launches via `browser-app` as a standalone PWA-style
+  #             window) or "default" (a normal browser tab via
+  #             `browser-default`)
+  # profile   : Brave profile to use ("Personal" or "Work")
+  apps = [
+    {
+      key = "teams";
+      name = "Teams";
+      icon = iconStore "teams";
+      url = "https://teams.microsoft.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "outlook";
+      name = "Outlook";
+      icon = iconStore "outlook";
+      url = "https://outlook.office365.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "powerpoint";
+      name = "PowerPoint";
+      icon = iconStore "powerpoint";
+      url = "https://office.live.com/start/PowerPoint.aspx";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "proton-mail";
+      name = "Proton Mail";
+      icon = iconStore "protonmail";
+      url = "https://mail.proton.me";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "gmail";
+      name = "Gmail";
+      icon = iconStore "gmail";
+      url = "https://mail.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-calendar";
+      name = "Google Calendar";
+      icon = iconStore "googlecalendar";
+      url = "https://calendar.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-chat";
+      name = "Google Chat";
+      icon = iconStore "googlechat";
+      url = "https://chat.google.com/app/home";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-meet";
+      name = "Google Meet";
+      icon = iconStore "googlemeet";
+      url = "https://meet.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-docs";
+      name = "Google Docs";
+      icon = iconStore "googledocs";
+      url = "https://docs.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-sheets";
+      name = "Google Sheets";
+      icon = iconStore "googlesheets";
+      url = "https://sheets.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "google-slides";
+      name = "Google Slides";
+      icon = iconStore "googleslides";
+      url = "https://slides.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "proton-drive";
+      name = "Proton Drive";
+      icon = iconStore "protondrive";
+      url = "https://drive.proton.me";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "google-drive";
+      name = "Google Drive";
+      icon = iconStore "googledrive";
+      url = "https://drive.google.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "github";
+      name = "GitHub";
+      icon = iconStore "github";
+      url = "https://github.com";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "youtube-music";
+      name = "YouTube Music";
+      icon = iconStore "youtubemusic";
+      url = "https://music.youtube.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "x-twitter";
+      name = "X (Twitter)";
+      icon = iconStore "x";
+      url = "https://x.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "grok";
+      name = "Grok AI";
+      icon = iconStore "grok";
+      url = "https://grok.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "chatgpt";
+      name = "ChatGPT";
+      icon = iconStore "chatgpt";
+      url = "https://chat.openai.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "claude";
+      name = "Claude";
+      icon = iconStore "claude";
+      url = "https://claude.ai";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "youtube";
+      name = "YouTube";
+      icon = iconStore "youtube";
+      url = "https://youtube.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "m1-finance";
+      name = "M1 Finance";
+      icon = iconStore "m1finance";
+      url = "https://m1.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "fidelity-trader";
+      name = "Fidelity Trader";
+      icon = iconStore "fidelity";
+      url = "https://digital.fidelity.com/ftgw/digital/trader-dashboard";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "patreon";
+      name = "Patreon";
+      icon = iconStore "patreon";
+      url = "https://patreon.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "reddit";
+      name = "Reddit";
+      icon = iconStore "reddit";
+      url = "https://reddit.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "whatsapp";
+      name = "WhatsApp";
+      icon = iconStore "whatsapp";
+      url = "https://web.whatsapp.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "talentmaker";
+      name = "TalentMaker";
+      icon = null;
+      url = "http://performancemanager5.successfactors.eu/login?company=C0000211211P";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "fulcrum";
+      name = "Fulcrum";
+      icon = iconStore "fulcrum";
+      url = "https://localhost:3100";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "grafana";
+      name = "Grafana";
+      icon = iconStore "grafana";
+      url = "http://localhost:3000";
+      mode = "app";
+      profile = "Work";
+    }
+    {
+      key = "loki";
+      name = "Loki";
+      icon = iconStore "loki";
+      url = "http://localhost:3101";
+      mode = "app";
+      profile = "Work";
+    }
+  ];
+
+  mkEntry =
+    app:
+    {
+      name = app.name;
+      # Per the freedesktop .desktop spec, Exec reserves characters
+      # like `?`, `&`, `#`, `;` outside of quotes — quote the URL (and
+      # profile, for symmetry) so URLs with query strings are valid.
+      exec =
+        let
+          cmd = if app.mode == "app" then "browser-app" else "browser-default";
+        in
+        ''${cmd} "${app.profile}" "${app.url}"'';
+      type = "Application";
+      terminal = false;
+      categories = [ "Network" ];
+    }
+    // lib.optionalAttrs (app.icon != null) {
+      icon = "${app.icon}";
+    };
 in
 {
-  # Web Applications Launcher using wofi
-  home.packages = [
-    (pkgs.writeShellScriptBin "web-apps-launcher" ''
-      #!/usr/bin/env bash
-      set -euo pipefail
-
-      # Browser configuration - using Firefox scripts
-      BROWSER_APP_CMD="browser-app"
-      BROWSER_DEFAULT_CMD="browser-default"
-
-      # Web applications list (name|icon|url|profile)
-      # Note: Some icons use emoji fallbacks due to icon availability issues
-      apps_config="Teams|${webAppIcons.teams}|https://teams.microsoft.com|app
-      Outlook|${webAppIcons.outlook}|https://outlook.office365.com|app
-      PowerPoint|${webAppIcons.powerpoint}|https://office.live.com/start/PowerPoint.aspx|app
-      Proton Mail|${webAppIcons.protonmail}|https://mail.proton.me|app
-      Gmail|${webAppIcons.gmail}|https://mail.google.com|app
-      Google Calendar|${webAppIcons.googlecalendar}|https://calendar.google.com|app
-      Google Chat|${webAppIcons.googlechat}|https://chat.google.com/app/home|app
-      Google Meet|${webAppIcons.googlemeet}|https://meet.google.com|app
-      Google Docs|${webAppIcons.googledocs}|https://docs.google.com|app
-      Google Sheets|${webAppIcons.googlesheets}|https://sheets.google.com|app
-      Google Slides|${webAppIcons.googleslides}|https://slides.google.com|app
-      Proton Drive|${webAppIcons.protondrive}|https://drive.proton.me|app
-      Google Drive|${webAppIcons.googledrive}|https://drive.google.com|app
-      GitHub|${webAppIcons.github}|https://github.com|app
-      YouTube Music|${webAppIcons.youtubemusic}|https://music.youtube.com|app
-      X (Twitter)|${webAppIcons.x}|https://x.com|app
-      Grok AI|${webAppIcons.grok}|https://grok.com|app
-      ChatGPT|${webAppIcons.chatgpt}|https://chat.openai.com|app
-      Claude|${webAppIcons.claude}|https://claude.ai|app
-      YouTube|${webAppIcons.youtube}|https://youtube.com|app
-      M1 Finance|${webAppIcons.m1finance}|https://m1.com|app
-      Fidelity Trader|${webAppIcons.fidelity}|https://digital.fidelity.com/ftgw/digital/trader-dashboard|app
-      Patreon|${webAppIcons.patreon}|https://patreon.com|app
-      Reddit|${webAppIcons.reddit}|https://reddit.com|app
-      WhatsApp|${webAppIcons.whatsapp}|https://web.whatsapp.com|app
-      TalentMaker|👔|http://performancemanager5.successfactors.eu/login?company=C0000211211P|app
-      Fulcrum|${webAppIcons.fulcrum}|https://localhost:3100|app
-      Grafana|${webAppIcons.grafana}|http://localhost:3000|app
-      Loki|${webAppIcons.loki}|http://localhost:3101|app"
-
-      # Build wofi menu
-      declare -A apps_urls
-      declare -A apps_profiles
-      declare -A apps_icons
-      wofi_input=""
-
-      while IFS='|' read -r name icon url profile; do
-          [[ -z "$name" || "$name" =~ ^[[:space:]]*# ]] && continue
-          apps_urls["$name"]="$url"
-          apps_profiles["$name"]="$profile"
-          apps_icons["$name"]="$icon"
-          if [[ -n "$wofi_input" ]]; then
-              wofi_input+="\n"
-          fi
-          # Check if icon is a file path or emoji
-          if [[ "$icon" =~ ^/nix/store/ ]]; then
-              wofi_input+="img:$icon:text:$name"
-          else
-              wofi_input+="$icon $name"
-          fi
-      done <<< "$apps_config"
-
-      # Show wofi menu
-      selection=$(echo -e "$wofi_input" | ${pkgs.wofi}/bin/wofi \
-          --dmenu \
-          --prompt "Launch Web App" \
-          --width 600 \
-          --height 400 \
-          --allow-markup \
-          --allow-images \
-          --image-size 40 \
-          --insensitive \
-          --cache-file /dev/null)
-
-      [[ -z "$selection" ]] && exit 0
-
-      # Extract app name and launch
-      # Two possible formats:
-      #   img:/nix/store/.../icon.png:text:AppName  (icon entries)
-      #   <emoji> AppName                           (emoji fallback entries)
-      if [[ "$selection" == img:* ]]; then
-          app_name="''${selection##*:}"
-      else
-          app_name="''${selection#* }"
-      fi
-      app_name_clean="''${app_name// /_}"  # Replace spaces with underscores
-      url="''${apps_urls[$app_name]}"
-      profile="''${apps_profiles[$app_name]}"
-
-      case "$profile" in
-          "app")
-              $BROWSER_APP_CMD "$url"
-              ;;
-          *)
-              $BROWSER_DEFAULT_CMD "$url"
-              ;;
-      esac
-
-    '')
-  ];
+  xdg.desktopEntries = lib.listToAttrs (
+    map (app: {
+      name = "web-${app.key}";
+      value = mkEntry app;
+    }) apps
+  );
 }

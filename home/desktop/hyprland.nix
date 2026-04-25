@@ -26,6 +26,7 @@
       # Startup applications (others handled by systemd user services)
       exec-once = [
         "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
+        "uwsm app -- ${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
         "uwsm app -- alacritty --daemon" # Terminal daemon for faster startup
       ];
 

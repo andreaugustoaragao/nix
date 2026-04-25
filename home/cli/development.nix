@@ -41,6 +41,8 @@ in
     # Language Servers
     nil                                    # Nix LSP
     nixfmt-rfc-style                      # Nix formatter
+    statix                                # Nix linter (anti-pattern detection)
+    deadnix                               # Nix dead-code detector
     bash-language-server                  # Bash LSP
     marksman                             # Markdown LSP
     pyright                              # Python LSP
@@ -74,13 +76,11 @@ in
     uv                                  # Ultra-fast Python package manager
     
     # Go Development
-    delve                              # Go debugger
-    golangci-lint                      # Go meta-linter
-    govulncheck                        # Go vulnerability checker
-    gosec                              # Go security analyzer
-    go-licenses                        # Go dependency license checker
-    gotests                            # Generate Go tests from source code
-    impl                               # Generate method stubs for implementing an interface
+    # The Go toolchain itself is pulled from unstable further down;
+    # install-goplay is a host script (wraps `go install`) so it stays
+    # on stable pkgs. Everything else here is Go tooling and lives on
+    # unstable (see the `++ [ unstable-pkgs.* ]` block below) to stay
+    # in sync with the unstable Go runtime.
     install-goplay                     # Script to install goplay (Go Playground client)
 
     # Rust Development
@@ -167,8 +167,21 @@ in
     install-qwen-code                # Script to install Qwen Code CLI tool
     install-gemini-cli               # Script to install Google Gemini CLI
   ] ++ [
+    unstable-pkgs.opencode           # AI coding agent for the terminal (unstable for current release cadence)
+
     unstable-pkgs.semgrep            # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues)
-    unstable-pkgs.go                 # Go runtime (from unstable for a newer version)
+
+    # Go toolchain pulled from unstable to get the newer runtime (stable
+    # nixpkgs' default `go` lags). The companion tools follow so they're
+    # built against the same Go stdlib as the runtime.
+    unstable-pkgs.go                 # Go runtime
+    unstable-pkgs.delve              # Go debugger
+    unstable-pkgs.golangci-lint      # Go meta-linter
+    unstable-pkgs.govulncheck        # Go vulnerability checker
+    unstable-pkgs.gosec              # Go security analyzer
+    unstable-pkgs.go-licenses        # Go dependency license checker
+    unstable-pkgs.gotests            # Generate Go tests from source code
+    unstable-pkgs.impl               # Generate method stubs for implementing an interface
   ];
   
   # Development-related programs

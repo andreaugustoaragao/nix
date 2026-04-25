@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   inputs,
@@ -7,7 +6,7 @@
 }:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
@@ -70,6 +69,7 @@ in
       bitwarden-desktop
       pkgs-unstable.code-cursor
       neovide
+      sniffnet
       swayimg
       obsidian
       qt6.qttools
@@ -80,7 +80,7 @@ in
       obs-studio-plugins.advanced-scene-switcher
       kdePackages.kdenlive
     ]
-    ++ lib.optionals (pkgs.stdenv.system == "x86_64-linux") [
+    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
     ];
 }

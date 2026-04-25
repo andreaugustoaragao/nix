@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
   home.packages = [
@@ -6,11 +11,18 @@
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # Launch Brave with app mode
-      exec brave --app="$@"
+      # Usage:
+      #   browser-app <url>                  # defaults to Personal profile
+      #   browser-app <profile> <url>        # explicit profile (Personal/Work)
+      if [[ $# -ge 2 ]]; then
+        profile="$1"
+        url="$2"
+      else
+        profile="Personal"
+        url="$1"
+      fi
 
-      # Launch Firefox with the app profile (uncomment to use Firefox)
-      # exec firefox -P app --new-window "$@"
+      exec brave --profile-directory="$profile" --app="$url"
     '')
   ];
 }

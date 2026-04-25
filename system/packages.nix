@@ -52,6 +52,7 @@ in
       ripgrep
       fd
       bat
+      nixfmt-rfc-style
       eza
       lsd
       dust

@@ -8,6 +8,8 @@
 }:
 
 {
+  home.packages = [ pkgs.hyprpolkitagent ];
+
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
     workspace "1" 
@@ -31,6 +33,7 @@
     // Define workspaces with numbers
 
     // Spawn programs on startup (others managed by systemd user services)
+    spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
     spawn-at-startup "prlcc"
 
 
@@ -229,7 +232,6 @@
         Mod+Backslash { spawn "bitwarden"; }
         Mod+Shift+A { spawn "browser-app" "https://grok.com"; }
         Mod+Shift+X { spawn "browser-app" "https://x.com"; }
-        Mod+O { spawn "web-apps-launcher"; }
         Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher

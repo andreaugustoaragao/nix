@@ -34,6 +34,7 @@ in
       "catppuccin"
       "tokyo-night"
       "rose-pine-theme"
+      "kanagawa-themes"
 
       # Icon themes
       "material-icon-theme"
@@ -67,6 +68,11 @@ in
       };
       title_bar = {
         show_sign_in = false;
+      };
+      terminal = {
+        shell = {
+          program = "${pkgs.fish}/bin/fish";
+        };
       };
 
       languages = {
