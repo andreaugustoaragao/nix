@@ -389,7 +389,7 @@ in
 
               ensure_model
 
-              OUTPUT_DIR="''${1:-$HOME/Recordings/calls/$(date +%Y%m%d-%H%M%S)}"
+              OUTPUT_DIR="''${1:-$HOME/recordings/calls/$(date +%Y%m%d-%H%M%S)}"
               mkdir -p "$OUTPUT_DIR/chunks"
               touch "$OUTPUT_DIR/transcript.txt"
 
@@ -679,7 +679,7 @@ in
 
             cmd_diarize() {
               # Post-process: speaker-label the transcript using pyannote.
-              # Args: <dir>   (the Recordings/calls/<ts>/ directory)
+              # Args: <dir>   (the recordings/calls/<ts>/ directory)
               SRC="''${1:-}"
               [ -d "$SRC" ] || { echo "Usage: record-call diarize <output-dir>" >&2; exit 1; }
               [ -f "$SRC/transcript.txt" ] || { echo "No transcript.txt in $SRC" >&2; exit 1; }
@@ -808,7 +808,7 @@ in
       record-call — capture browser conference calls locally and transcribe with Whisper.
 
       Usage:
-        record-call start [output-dir]   Begin recording (default: ~/Recordings/calls/<ts>)
+        record-call start [output-dir]   Begin recording (default: ~/recordings/calls/<ts>)
         record-call route                Move browser streams to Record-Call-Sink
         record-call status               Show the active session
         record-call tail                 Follow the live transcript

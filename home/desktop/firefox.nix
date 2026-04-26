@@ -157,6 +157,11 @@ in
           "browser.startup.homepage" = "https://search.brave.com";
           "browser.newtabpage.enabled" = false; # Use custom homepage instead of new tab page
           "browser.startup.page" = 1; # 0=blank, 1=home, 3=restore
+
+          # Default download directory
+          "browser.download.folderList" = 2; # 2 = use custom dir
+          "browser.download.dir" = "${config.home.homeDirectory}/downloads";
+          "browser.download.useDownloadDir" = true; # Don't prompt for each download
         };
 
         userChrome = ''
@@ -305,6 +310,11 @@ in
           "browser.sessionstore.max_resumed_crashes" = 0;
           "browser.sessionstore.max_tabs_undo" = 0;
           "browser.sessionstore.max_windows_undo" = 0;
+
+          # Default download directory
+          "browser.download.folderList" = 2; # 2 = use custom dir
+          "browser.download.dir" = "${config.home.homeDirectory}/downloads";
+          "browser.download.useDownloadDir" = true; # Don't prompt for each download
         };
 
         userChrome = ''

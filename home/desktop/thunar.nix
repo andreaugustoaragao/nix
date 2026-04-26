@@ -1,30 +1,37 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 {
   # Thunar and thumbnailing packages
   home.packages = with pkgs; [
     xfce.thunar
-    xfce.tumbler  # Thumbnail service for Thunar
-    ffmpegthumbnailer  # Video thumbnails
-    poppler-utils  # PDF thumbnails
+    xfce.tumbler # Thumbnail service for Thunar
+    ffmpegthumbnailer # Video thumbnails
+    poppler-utils # PDF thumbnails
   ];
 
   # GTK bookmarks for Thunar sidebar
   xdg.configFile."gtk-3.0/bookmarks".text = ''
-    file://${config.home.homeDirectory}/projects projects
+    file://${config.home.homeDirectory}/downloads downloads
     file://${config.home.homeDirectory}/projects/work work
     file://${config.home.homeDirectory}/projects/personal personal
-    file://${config.home.homeDirectory}/documents documents
-    file://${config.home.homeDirectory}/downloads downloads
+    file://${config.home.homeDirectory}/projects/work/notes notes
+    file://${config.home.homeDirectory}/pictures/screenshots screenshots
+    file://${config.home.homeDirectory}/projects/work/infinity-core infinity-core
   '';
 
   # Thunar file manager configuration via home-manager activation
-  home.activation.configureThunar = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  home.activation.configureThunar = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     # Create project directories if they don't exist
     mkdir -p "${config.home.homeDirectory}/projects/work"
     mkdir -p "${config.home.homeDirectory}/projects/personal"
     echo "Created project directories"
-    
+
     # Configure Thunar via xfconf-query during home-manager activation
     if command -v xfconf-query >/dev/null 2>&1; then
       echo "Configuring Thunar via xfconf..."
@@ -78,4 +85,4 @@
     </action>
     </actions>
   '';
-} 
+}

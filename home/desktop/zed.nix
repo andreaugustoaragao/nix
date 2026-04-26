@@ -58,8 +58,8 @@ in
       buffer_font_size = 15;
       theme = {
         mode = "system";
-        light = "One Light";
-        dark = "Gruvbox Dark Hard";
+        light = "Kanagawa Wave";
+        dark = "Kanagawa Wave";
       };
       icon_theme = {
         mode = "system";
