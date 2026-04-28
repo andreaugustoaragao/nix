@@ -16,6 +16,7 @@ in
     ./niri.nix
     ./wayland-services.nix
     ./wofi.nix
+    ./fuzzel.nix
     ./wlogout.nix
     ./lockscreen.nix
     ./mako.nix

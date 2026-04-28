@@ -1,14 +1,8 @@
 { pkgs, inputs, ... }:
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
-    config.allowUnfree = true;
-  };
-in
 {
   programs.zed-editor = {
     enable = true;
-    package = pkgs-unstable.zed-editor;
+    package = inputs.zed-editor.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
     # Nix owns settings.json — Zed cannot modify it at runtime.
     mutableUserSettings = false;
@@ -58,8 +52,8 @@ in
       buffer_font_size = 15;
       theme = {
         mode = "system";
-        light = "Kanagawa Wave";
-        dark = "Kanagawa Wave";
+        light = "Rosé Pine Dawn";
+        dark = "Rosé Pine";
       };
       icon_theme = {
         mode = "system";

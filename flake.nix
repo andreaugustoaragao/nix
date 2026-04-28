@@ -42,6 +42,11 @@
       url = "github:sadjow/claude-code-nix";
     };
 
+    zed-editor = {
+      url = "github:zed-industries/zed";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =

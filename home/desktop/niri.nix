@@ -235,8 +235,8 @@
         Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
-        Mod+Space { spawn "wofi" "--show" "drun"; }
-        Mod+D { spawn "wofi" "--show" "drun"; } 
+        Mod+Space { spawn "fuzzel"; }
+        Mod+D { spawn "fuzzel"; }
         Mod+Escape { spawn "wlogout"; }
 
         // Window management

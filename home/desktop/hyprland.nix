@@ -224,7 +224,7 @@
         "$mainMod, S, exec, alacritty msg create-window -e btop" # System monitor
 
         # Menus (Omarchy style)
-        "$mainMod, Space, exec, wofi --show drun" # Launch apps
+        "$mainMod, Space, exec, fuzzel" # Launch apps
         "$mainMod ALT, Space, exec, alacritty msg create-window" # Omarchy menu (using terminal)
         "$mainMod, Escape, exec, wlogout" # Power menu
 
