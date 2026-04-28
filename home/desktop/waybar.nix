@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  useDms ? false,
   ...
 }:
 
@@ -429,7 +430,9 @@ in
       };
     };
 
-    "waybar/style.css".text = ''
+    "waybar/style.css".text = lib.optionalString useDms ''
+      @import url("colors-matugen.css");
+    '' + ''
       * {
         background-color: transparent;
         color: #dcd7ba;

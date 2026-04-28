@@ -1,8 +1,10 @@
-{ ... }:
+{ lib, useDms ? false, ... }:
 {
   programs.fuzzel = {
     enable = true;
-    settings = {
+    # fuzzel has no `include` directive — when DMS is on, matugen writes
+    # the entire fuzzel.ini, so let it own the file by skipping settings.
+    settings = lib.mkIf (!useDms) {
       main = {
         prompt = "";
         layer = "overlay";

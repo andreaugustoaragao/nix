@@ -1,9 +1,12 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, useDms ? false, ... }:
 
 {
   programs.alacritty = {
     enable = true;
     settings = {
+      # Layer matugen-generated palette on top of Kanagawa fallback.
+      general.import = lib.optionals useDms [ "~/.config/alacritty/colors-matugen.toml" ];
+
       window = {
         opacity = 0.98;  # Match Omarchy opacity
         decorations = "none";  # Disable window decorations

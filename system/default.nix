@@ -36,6 +36,8 @@
     ./bluetooth.nix
     ./lockscreen.nix
     ./browsers.nix
+    ./printing.nix
+    ./accounts.nix
   ]
   ++ lib.optionals (hostName != "workstation") [
     ./loki.nix

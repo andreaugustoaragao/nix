@@ -4,6 +4,7 @@
   lib,
   inputs,
   lockScreen ? false,
+  useDms ? false,
   ...
 }:
 
@@ -32,8 +33,9 @@
 
     // Define workspaces with numbers
 
-    // Spawn programs on startup (others managed by systemd user services)
-    spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
+    // Spawn programs on startup (others managed by systemd user services).
+    // When useDms = true, DMS provides the polkit agent so we skip hyprpolkitagent.
+    ${lib.optionalString (!useDms) ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''}
     spawn-at-startup "prlcc"
 
 
@@ -328,14 +330,28 @@
 
         // Waybar toggle
         Mod+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar"; }
+        Mod+Shift+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww"; }
+        ${lib.optionalString useDms ''Mod+Shift+D { spawn "dms" "ipc" "call" "theme" "toggle"; }''}
 
-        // Media keys (using SwayOSD)
-        XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }
-        XF86AudioLowerVolume { spawn "swayosd-client" "--output-volume" "lower"; }
-        XF86AudioMute { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
-        XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
-        XF86MonBrightnessUp { spawn "swayosd-client" "--brightness" "raise"; }
-        XF86MonBrightnessDown { spawn "swayosd-client" "--brightness" "lower"; }
+        // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl
+        // direct when DMS owns the OSD (DMS shows its own via pipewire monitoring).
+        ${
+          if useDms then ''
+            XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "-l" "1.5" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+            XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+            XF86AudioMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+            XF86AudioMicMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+            XF86MonBrightnessUp { spawn "brightnessctl" "set" "5%+"; }
+            XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+          '' else ''
+            XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }
+            XF86AudioLowerVolume { spawn "swayosd-client" "--output-volume" "lower"; }
+            XF86AudioMute { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
+            XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
+            XF86MonBrightnessUp { spawn "swayosd-client" "--brightness" "raise"; }
+            XF86MonBrightnessDown { spawn "swayosd-client" "--brightness" "lower"; }
+          ''
+        }
 
         // Precise media adjustments with Alt
         Alt+XF86AudioRaiseVolume { spawn "pamixer" "-i" "1"; }

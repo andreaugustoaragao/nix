@@ -3,12 +3,18 @@
   pkgs,
   lib,
   inputs,
+  useDms ? false,
   ...
 }:
 
 {
   programs.kitty = {
     enable = true;
+    # When DMS owns the desktop, layer matugen-generated colors on top
+    # of the static Kanagawa fallback below (later `include` wins).
+    extraConfig = lib.optionalString useDms ''
+      include colors-matugen.conf
+    '';
     font = {
       name = "CaskaydiaMono Nerd Font";
       size = 9;

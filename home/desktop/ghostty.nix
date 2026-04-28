@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, useDms ? false, ... }:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
     system = pkgs.stdenv.hostPlatform.system;
@@ -56,5 +56,7 @@ in
     window-decoration = false
     unfocused-split-opacity = 0.9
     copy-on-select = false
+
+    ${lib.optionalString useDms "config-file = colors-matugen"}
   '';
-} 
+}

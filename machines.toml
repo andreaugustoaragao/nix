@@ -10,6 +10,7 @@ stateVersion = "25.05"
 bluetooth = true
 lockScreen = true
 autoLogin = false
+useDms = true
 
 [machines.hp-laptop]
 hostName = "hp-laptop"
@@ -20,6 +21,7 @@ wirelessInterface = "wlp2s0"
 bluetooth = true
 lockScreen = true
 autoLogin = false
+useDms = false
 
 [machines.prl-dev-vm]
 hostName = "prl-dev-vm"
@@ -28,4 +30,5 @@ profile = "vm"
 stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
-autoLogin = true 
+autoLogin = true
+useDms = false

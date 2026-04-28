@@ -49,6 +49,7 @@ in
     ./web-apps-launcher.nix
     ./do-not-disturb.nix
     ./quickshell.nix
+    ./matugen.nix
   ];
 
   # Install extensions for Cursor (not managed by programs.vscode)

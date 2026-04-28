@@ -47,6 +47,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    dms = {
+      url = "github:AvengeMedia/DankMaterialShell/stable";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =
@@ -85,6 +90,10 @@
         lockScreen = host.lockScreen or false;
         # Optional auto login configuration
         autoLogin = host.autoLogin or false;
+        # Enable DankMaterialShell on this host. When true, conflicting
+        # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
+        # hyprpolkitagent) are not autostarted so DMS owns the screen.
+        useDms = host.useDms or false;
         inherit inputs;
       };
 

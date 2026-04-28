@@ -1,5 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, useDms ? false, ... }:
 
+let
+  # When DMS owns the desktop, the daemons it replaces (mako/swayosd/hyprpaper/waybar)
+  # stay installed but don't autostart. Empty WantedBy = unit defined, not enabled.
+  graphicalUnless = lib.optional (!useDms) "graphical-session.target";
+in
 {
   # Generic Wayland session services (start when a Wayland compositor is running)
   systemd.user.services.wl-mako = {
@@ -14,7 +19,7 @@
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
+    Install = { WantedBy = graphicalUnless; };
   };
 
   systemd.user.services.wl-swayosd = {
@@ -29,7 +34,7 @@
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
+    Install = { WantedBy = graphicalUnless; };
   };
 
   systemd.user.services.wl-hyprpaper = {
@@ -44,7 +49,7 @@
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
+    Install = { WantedBy = graphicalUnless; };
   };
 
   # systemd.user.services.wl-alacritty-daemon = {
@@ -98,6 +103,27 @@
     Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
+  systemd.user.services.wl-eww = {
+    Unit = {
+      Description = "Wayland: eww status bar";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      Type = "simple";
+      ExecStart = "${pkgs.eww}/bin/eww --config %h/.config/eww/bar --no-daemonize daemon";
+      ExecStartPost = "${pkgs.bash}/bin/bash -c 'until ${pkgs.eww}/bin/eww --config %h/.config/eww/bar ping >/dev/null 2>&1; do sleep 0.1; done; ${pkgs.eww}/bin/eww --config %h/.config/eww/bar open bar'";
+      ExecStop = "${pkgs.eww}/bin/eww --config %h/.config/eww/bar kill";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Environment = [
+        "XDG_CONFIG_HOME=%h/.config"
+        "PATH=/run/wrappers/bin:/etc/profiles/per-user/aragao/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin"
+      ];
+    };
+  };
+
   systemd.user.services.wl-waybar = {
     Unit = {
       Description = "Wayland: waybar status bar";
@@ -113,7 +139,7 @@
         "XDG_CONFIG_HOME=%h/.config"
       ];
     };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
+    Install = { WantedBy = graphicalUnless; };
   };
 
 }

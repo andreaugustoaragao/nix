@@ -3,13 +3,16 @@
   pkgs,
   lib,
   inputs,
+  useDms ? false,
   ...
 }:
 
 {
   programs.foot = {
     enable = true;
-    settings = {
+    # foot has no `include` directive — when DMS is on, matugen writes
+    # the entire foot.ini, so let it own the file by skipping settings.
+    settings = lib.mkIf (!useDms) {
       main = {
         font = "CaskaydiaMono Nerd Font:size=9"; # Match Alacritty font size
         font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=9";

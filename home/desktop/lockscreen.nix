@@ -1,6 +1,6 @@
-{ config, pkgs, lib, lockScreen ? false, ... }:
+{ config, pkgs, lib, lockScreen ? false, useDms ? false, ... }:
 
-lib.mkIf lockScreen {
+lib.mkIf (lockScreen && !useDms) {
   # Lock screen configuration for desktop machines
   home.packages = with pkgs; [
     swaylock-effects
