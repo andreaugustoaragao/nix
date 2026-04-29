@@ -232,6 +232,19 @@
     "/proc".options = [ "hidepid=2" ];
   };
 
+  # Raise the file-descriptor ceiling for sudo'd processes (PAM session
+  # limits) and the systemd manager defaults. Without this, `sudo
+  # nixos-rebuild switch` hits "Too many open files" while evaluating the
+  # large flake closure (DMS + matugen + plugin registry).
+  security.pam.loginLimits = [
+    { domain = "*"; type = "soft"; item = "nofile"; value = "524288"; }
+    { domain = "*"; type = "hard"; item = "nofile"; value = "1048576"; }
+  ];
+  systemd.settings.Manager.DefaultLimitNOFILE = "1048576";
+  systemd.user.extraConfig = ''
+    DefaultLimitNOFILE=1048576
+  '';
+
   # Enable kernel lockdown mode (requires recent kernel)
   # boot.kernelParams = [ "lockdown=integrity" ];
 }

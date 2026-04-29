@@ -151,6 +151,21 @@
     192.168.10.75  infinity.local
   '';
 
+  # Keep explicit /etc/hosts entries authoritative for local dev domains.
+  # Without this, .local names can stall in mDNS/systemd-resolved before the
+  # infinity.local extraHosts mapping is consulted.
+  system.nssDatabases.hosts = lib.mkIf (hostName == "workstation") (
+    lib.mkForce [
+      "files"
+      "mymachines"
+      "mdns4_minimal [NOTFOUND=return]"
+      "resolve [!UNAVAIL=return]"
+      "myhostname"
+      "dns"
+      "mdns4"
+    ]
+  );
+
   networking.hosts."127.0.0.1" =
     lib.optionals (hostName != "workstation") [
       "grafana.local"

@@ -6,19 +6,18 @@ let
     config.allowUnfree = true;
   };
 
-  # Upstream lfk's flake.nix declares a stale `vendorHash` that doesn't
-  # match what `go mod download` actually produces (their CI doesn't run
-  # `nix build`, so the drift went unnoticed). Patch the goModules
-  # derivation's outputHash to the hash nix computes locally so the
-  # build is reproducible. Re-check this value after each
-  # `nix flake update lfk`.
+  # Upstream lfk's flake.nix used to declare a stale `vendorHash`; we
+  # used to override it here. As of rev 1b1d9c1 (2026-04-28) upstream
+  # fixed it, but we still patch defensively to the hash nix computes
+  # locally so a future upstream drift doesn't break the build. Re-check
+  # this value after each `nix flake update lfk`.
   lfk =
     let
       base = inputs.lfk.packages.${pkgs.stdenv.hostPlatform.system}.default;
     in
     base.overrideAttrs (_: {
       goModules = base.goModules.overrideAttrs (_: {
-        outputHash = "sha256-Da/VSnqvybfAAKz2txoOPOAjf/sI8NftGo6JNye/bwk=";
+        outputHash = "sha256-nEMHImlytPq9FhN6Rb5mmBMpZ7d+II1MirD0xLLZv+A=";
       });
     });
 in

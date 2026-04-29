@@ -240,7 +240,10 @@
         // Menu and launcher
         Mod+Space { spawn "fuzzel"; }
         Mod+D { spawn "fuzzel"; }
-        Mod+Escape { spawn "wlogout"; }
+        ${if useDms
+          then ''Mod+Escape { spawn "dms" "ipc" "call" "powermenu" "toggle"; }''
+          else ''Mod+Escape { spawn "wlogout"; }''
+        }
 
         // Window management
         Mod+W { close-window; }

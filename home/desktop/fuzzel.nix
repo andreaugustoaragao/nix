@@ -20,9 +20,7 @@
         line-height = 22;
         icon-theme = "Papirus-Dark";
         terminal = "ghostty -e";
-        hide-before-typing = true;
-        filter-desktop = true;
-        fields = "name,generic,keywords";
+        fields = "name,generic,comment,categories,filename,keywords";
       };
 
       colors = {

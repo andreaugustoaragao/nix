@@ -1,24 +1,41 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  useDms ? false,
+  ...
+}:
 
+let
+  iconTheme = if useDms then "Papirus-Dark" else "Yaru-blue";
+  iconPkg   = if useDms then pkgs.papirus-icon-theme else pkgs.yaru-theme;
+in
 {
   gtk = {
     enable = true;
+    # Adwaita stays the structural base in both modes; DMS's
+    # matugen-generated `dank-colors.css` is symlinked at gtk.css and
+    # overlays Adwaita with the wallpaper-derived palette when useDms.
     theme = {
       name = "Adwaita";
     };
     iconTheme = {
-      name = "Yaru-blue";
-      package = pkgs.yaru-theme;
+      name = iconTheme;
+      package = iconPkg;
     };
     cursorTheme = {
       name = "Bibata-Modern-Classic";
       package = pkgs.bibata-cursors;
       size = 24;
     };
-    gtk3.extraConfig = {
+    # In DMS mode, the freedesktop color-scheme portal toggles dark/light
+    # globally (syncModeWithPortal=true). Forcing prefer-dark-theme here
+    # would override the portal and break light-mode switching.
+    gtk3.extraConfig = lib.mkIf (!useDms) {
       gtk-application-prefer-dark-theme = 1;
     };
-    gtk4.extraConfig = {
+    gtk4.extraConfig = lib.mkIf (!useDms) {
       gtk-application-prefer-dark-theme = 1;
     };
   };
@@ -31,9 +48,10 @@
   dconf.settings = {
     "org/gnome/desktop/interface" = {
       gtk-theme = "Adwaita";
-      icon-theme = "Yaru-blue";
+      icon-theme = iconTheme;
       cursor-theme = "Bibata-Modern-Classic";
-      color-scheme = "prefer-dark";
+      # In DMS mode the portal owns the color-scheme; don't pin it here.
+      color-scheme = lib.mkIf (!useDms) "prefer-dark";
     };
 
     "org/gtk/settings/file-chooser" = {
@@ -49,4 +67,4 @@
       type-format = "category";
     };
   };
-} 
+}
