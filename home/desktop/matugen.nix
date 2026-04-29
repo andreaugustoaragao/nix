@@ -125,7 +125,6 @@ lib.mkIf useDms {
 
     "matugen/templates/fuzzel.ini".text = ''
       [main]
-      prompt=
       layer=overlay
       width=50
       lines=12
@@ -135,9 +134,7 @@ lib.mkIf useDms {
       line-height=22
       icon-theme=Papirus-Dark
       terminal=ghostty -e
-      hide-before-typing=true
-      filter-desktop=true
-      fields=name,generic,keywords
+      fields=name,generic,comment,categories,filename,keywords
 
       [colors]
       background={{colors.surface.default.hex_stripped}}f2

@@ -17,6 +17,7 @@
 
         FUZZEL_CONFIG=(
             --dmenu
+            --no-run-if-empty
             --prompt="Windows "
             --placeholder="Type title, app, or workspace..."
             --width=90
@@ -24,7 +25,11 @@
             --minimal-lines
             --match-mode=fuzzy
             --counter
-            --nth-delimiter=$'\t'
+            --icon-theme=Papirus-Dark
+            # Tab is fuzzel's default --with-nth/--accept-nth delimiter;
+            # passing --nth-delimiter explicitly trips a leftover debug
+            # printf in fuzzel 1.13.1 that pollutes stdout and breaks the
+            # window-id capture below.
             --with-nth=2
             --accept-nth=1
         )
@@ -44,8 +49,16 @@
                 if (app_id == "") app_id = "unknown"
                 if (workspace_id == "") workspace_id = "?"
 
+                icon = app_id ",application-x-executable"
+                if (app_id ~ /^brave-/) icon = "brave-browser,brave,web-browser"
+                else if (app_id ~ /^chromium/) icon = "chromium-browser,chromium,web-browser"
+                else if (app_id ~ /^dev\.zed\.Zed/) icon = "zed,dev.zed.Zed,dev.zed.Zed-Nightly,text-editor"
+                else if (app_id == "com.mitchellh.ghostty") icon = "com.mitchellh.ghostty,ghostty,utilities-terminal"
+                else if (app_id == "kitty") icon = "kitty,utilities-terminal"
+                else if (app_id == "cursor") icon = "cursor,code,visual-studio-code,text-editor"
+
                 focused_marker = is_focused ? "●" : " "
-                printf "%s\t%s  WS %s  %-18s  %s\n", window_id, focused_marker, workspace_id, app_id, title
+                printf "%s\t%s  WS %s  %-18s  %s\0icon\037%s\n", window_id, focused_marker, workspace_id, app_id, title, icon
             }
             /^Window ID [0-9]+:/ {
                 if (window_id != "") {
@@ -81,17 +94,8 @@
 
         # Main function
         main() {
-            # Get list of windows
-            window_list=$(get_windows)
-            
-            # Check if there are any windows
-            if [[ -z "$window_list" ]]; then
-                echo "No windows found"
-                exit 1
-            fi
-            
             # Fuzzel shows only the pretty second column and returns the hidden window ID.
-            window_id=$(printf '%s\n' "$window_list" | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
+            window_id=$(get_windows | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
             
             # Exit if nothing selected
             if [[ -z "$window_id" ]]; then
