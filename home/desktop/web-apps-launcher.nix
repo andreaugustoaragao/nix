@@ -222,7 +222,7 @@ let
     {
       key = "talentmaker";
       name = "TalentMaker";
-      icon = null;
+      icon = "applications-office";
       url = "http://performancemanager5.successfactors.eu/login?company=C0000211211P";
       mode = "app";
       profile = "Work";

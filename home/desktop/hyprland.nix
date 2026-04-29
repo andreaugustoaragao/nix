@@ -210,7 +210,7 @@
       "$mainMod" = "SUPER";
       bind = [
         # Applications (matching Omarchy exactly)
-        "$mainMod, Return, exec, alacritty msg create-window --working-directory ~" # Terminal (new window via daemon)
+        "$mainMod, Return, exec, ghostty --working-directory=~" # Terminal (gtk-single-instance reuses the existing process)
         "$mainMod, F, exec, thunar" # File manager
         "$mainMod, B, exec, qutebrowser" # Qutebrowser
         "$mainMod, M, exec, spotify" # Music
@@ -221,11 +221,11 @@
         "$mainMod, A, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name Grok_AI -R --target window https://grok.com" # Grok AI
         "$mainMod, X, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name X_Twitter -R --target window https://x.com" # X.com
         "$mainMod, O, exec, web-apps-launcher" # Web Apps Launcher
-        "$mainMod, S, exec, alacritty msg create-window -e btop" # System monitor
+        "$mainMod, S, exec, ghostty -e btop" # System monitor
 
         # Menus (Omarchy style)
         "$mainMod, Space, exec, fuzzel" # Launch apps
-        "$mainMod ALT, Space, exec, alacritty msg create-window" # Omarchy menu (using terminal)
+        "$mainMod ALT, Space, exec, ghostty" # Omarchy menu (using terminal)
         "$mainMod, Escape, exec, wlogout" # Power menu
 
         # Window management (exact Omarchy bindings)

@@ -5,22 +5,24 @@
   ...
 }:
 
-# Matugen integration. DMS already runs matugen when the wallpaper / theme
-# changes (because `runUserMatugenTemplates = true` in dms-settings.json),
-# so all this module does is supply a config.toml + per-app templates at
-# ~/.config/matugen/. DMS finds them automatically.
+# Matugen integration for apps DMS doesn't already template.
 #
-# Two patterns are used:
+# DMS ships its own templates (in `quickshell/dms/matugen/templates/`)
+# for kitty, ghostty, alacritty, foot, neovim, gtk, niri, hyprland,
+# qt5ct, qt6ct, firefox, vscode, zed, etc. Those are enabled via
+# `matugenTemplate*` settings and DMS runs them automatically. The
+# corresponding nix module just needs to load the `dank-*` output files
+# DMS writes.
 #
-#   1. Apps that have a native include directive — kitty, ghostty,
-#      alacritty, waybar — get a small "colors-matugen.<ext>" file with
-#      just the palette. Their main config (still nix-managed) imports it
-#      so static colors stay as fallback.
+# This module fills the gaps DMS doesn't cover:
+#   - waybar  (write a colors.css for @import)
+#   - mako    (write the full config — no include directive)
+#   - fuzzel  (write the full ini — no include directive)
+#   - tmux    (write a status-bar style block)
 #
-#   2. Apps without include support — foot, mako, fuzzel — get their
-#      *whole* config rendered by matugen. The corresponding nix module
-#      gates its xdg.configFile / programs.<x>.settings on `!useDms` to
-#      avoid conflicting with the matugen-owned file.
+# DMS picks up these templates automatically because
+# `runUserMatugenTemplates = true`. Paths must be absolute since DMS
+# invokes matugen from /tmp.
 lib.mkIf useDms {
   home.packages = [ pkgs.matugen ];
 
@@ -34,34 +36,10 @@ lib.mkIf useDms {
       arguments = []
       set = false
 
-      # ── Apps with include support (matugen writes only colors) ──
-
-      [templates.kitty]
-      input_path  = "~/.config/matugen/templates/kitty.conf"
-      output_path = "~/.config/kitty/colors-matugen.conf"
-      post_hook   = "kill -SIGUSR1 $(pgrep -x kitty) 2>/dev/null || true"
-
-      [templates.ghostty]
-      input_path  = "~/.config/matugen/templates/ghostty"
-      output_path = "~/.config/ghostty/colors-matugen"
-      post_hook   = "pkill -SIGUSR2 ghostty 2>/dev/null || true"
-
-      [templates.alacritty]
-      input_path  = "~/.config/matugen/templates/alacritty.toml"
-      output_path = "~/.config/alacritty/colors-matugen.toml"
-      # alacritty hot-reloads its config via inotify
-
       [templates.waybar]
       input_path  = "~/.config/matugen/templates/waybar.css"
       output_path = "~/.config/waybar/colors-matugen.css"
       post_hook   = "systemctl --user is-active --quiet wl-waybar && systemctl --user restart wl-waybar; true"
-
-      # ── Apps without include support (matugen owns the full file) ──
-
-      [templates.foot]
-      input_path  = "~/.config/matugen/templates/foot.ini"
-      output_path = "~/.config/foot/foot.ini"
-      post_hook   = "pkill -SIGUSR1 foot 2>/dev/null || true"
 
       [templates.mako]
       input_path  = "~/.config/matugen/templates/mako"
@@ -72,90 +50,16 @@ lib.mkIf useDms {
       input_path  = "~/.config/matugen/templates/fuzzel.ini"
       output_path = "~/.config/fuzzel/fuzzel.ini"
       # fuzzel re-reads on next launch
-    '';
 
-    "matugen/templates/kitty.conf".text = ''
-      background           {{colors.surface.default.hex}}
-      foreground           {{colors.on_surface.default.hex}}
-      cursor               {{colors.primary.default.hex}}
-      selection_background {{colors.primary_container.default.hex}}
-      selection_foreground {{colors.on_primary_container.default.hex}}
+      [templates.tmux]
+      input_path  = "~/.config/matugen/templates/tmux.conf"
+      output_path = "~/.config/tmux/colors-matugen.conf"
+      post_hook   = "tmux source-file ~/.config/tmux/tmux.conf 2>/dev/null && tmux refresh-client -S 2>/dev/null; true"
 
-      color0  {{colors.surface_container_lowest.default.hex}}
-      color8  {{colors.surface_container_high.default.hex}}
-      color1  {{colors.error.default.hex}}
-      color9  {{colors.error.default.hex}}
-      color2  {{colors.tertiary.default.hex}}
-      color10 {{colors.tertiary.default.hex}}
-      color3  {{colors.secondary.default.hex}}
-      color11 {{colors.secondary.default.hex}}
-      color4  {{colors.primary.default.hex}}
-      color12 {{colors.primary.default.hex}}
-      color5  {{colors.tertiary_container.default.hex}}
-      color13 {{colors.tertiary_container.default.hex}}
-      color6  {{colors.primary_container.default.hex}}
-      color14 {{colors.primary_container.default.hex}}
-      color7  {{colors.outline_variant.default.hex}}
-      color15 {{colors.on_surface.default.hex}}
-    '';
-
-    "matugen/templates/ghostty".text = ''
-      background           = {{colors.surface.default.hex_stripped}}
-      foreground           = {{colors.on_surface.default.hex_stripped}}
-      cursor-color         = {{colors.primary.default.hex_stripped}}
-      selection-background = {{colors.primary_container.default.hex_stripped}}
-      selection-foreground = {{colors.on_primary_container.default.hex_stripped}}
-
-      palette = 0={{colors.surface_container_lowest.default.hex}}
-      palette = 1={{colors.error.default.hex}}
-      palette = 2={{colors.tertiary.default.hex}}
-      palette = 3={{colors.secondary.default.hex}}
-      palette = 4={{colors.primary.default.hex}}
-      palette = 5={{colors.tertiary_container.default.hex}}
-      palette = 6={{colors.primary_container.default.hex}}
-      palette = 7={{colors.outline_variant.default.hex}}
-      palette = 8={{colors.surface_container_high.default.hex}}
-      palette = 9={{colors.error.default.hex}}
-      palette = 10={{colors.tertiary.default.hex}}
-      palette = 11={{colors.secondary.default.hex}}
-      palette = 12={{colors.primary.default.hex}}
-      palette = 13={{colors.tertiary_container.default.hex}}
-      palette = 14={{colors.primary_container.default.hex}}
-      palette = 15={{colors.on_surface.default.hex}}
-    '';
-
-    "matugen/templates/alacritty.toml".text = ''
-      [colors.primary]
-      background = "{{colors.surface.default.hex}}"
-      foreground = "{{colors.on_surface.default.hex}}"
-
-      [colors.cursor]
-      cursor = "{{colors.primary.default.hex}}"
-      text   = "{{colors.on_primary.default.hex}}"
-
-      [colors.selection]
-      background = "{{colors.primary_container.default.hex}}"
-      text       = "{{colors.on_primary_container.default.hex}}"
-
-      [colors.normal]
-      black   = "{{colors.surface_container_lowest.default.hex}}"
-      red     = "{{colors.error.default.hex}}"
-      green   = "{{colors.tertiary.default.hex}}"
-      yellow  = "{{colors.secondary.default.hex}}"
-      blue    = "{{colors.primary.default.hex}}"
-      magenta = "{{colors.tertiary_container.default.hex}}"
-      cyan    = "{{colors.primary_container.default.hex}}"
-      white   = "{{colors.outline_variant.default.hex}}"
-
-      [colors.bright]
-      black   = "{{colors.surface_container_high.default.hex}}"
-      red     = "{{colors.error.default.hex}}"
-      green   = "{{colors.tertiary.default.hex}}"
-      yellow  = "{{colors.secondary.default.hex}}"
-      blue    = "{{colors.primary.default.hex}}"
-      magenta = "{{colors.tertiary_container.default.hex}}"
-      cyan    = "{{colors.primary_container.default.hex}}"
-      white   = "{{colors.on_surface.default.hex}}"
+      [templates.yazi]
+      input_path  = "~/.config/matugen/templates/yazi.toml"
+      output_path = "~/.config/yazi/theme.toml"
+      # yazi reloads its theme on restart; no live signal-reload available.
     '';
 
     "matugen/templates/waybar.css".text = ''
@@ -200,39 +104,6 @@ lib.mkIf useDms {
       #battery.critical   { background-color: @m_error;     color: @m_fg; }
     '';
 
-    "matugen/templates/foot.ini".text = ''
-      [main]
-      font=CaskaydiaMono Nerd Font:size=9
-      font-bold=CaskaydiaMono Nerd Font:style=Bold:size=9
-      font-italic=CaskaydiaMono Nerd Font:style=Italic:size=9
-      dpi-aware=no
-      pad=5x5
-      shell=fish
-
-      [colors]
-      alpha=0.98
-      foreground={{colors.on_surface.default.hex_stripped}}
-      background={{colors.surface.default.hex_stripped}}
-
-      regular0={{colors.surface_container_lowest.default.hex_stripped}}
-      regular1={{colors.error.default.hex_stripped}}
-      regular2={{colors.tertiary.default.hex_stripped}}
-      regular3={{colors.secondary.default.hex_stripped}}
-      regular4={{colors.primary.default.hex_stripped}}
-      regular5={{colors.tertiary_container.default.hex_stripped}}
-      regular6={{colors.primary_container.default.hex_stripped}}
-      regular7={{colors.outline_variant.default.hex_stripped}}
-
-      bright0={{colors.surface_container_high.default.hex_stripped}}
-      bright1={{colors.error.default.hex_stripped}}
-      bright2={{colors.tertiary.default.hex_stripped}}
-      bright3={{colors.secondary.default.hex_stripped}}
-      bright4={{colors.primary.default.hex_stripped}}
-      bright5={{colors.tertiary_container.default.hex_stripped}}
-      bright6={{colors.primary_container.default.hex_stripped}}
-      bright7={{colors.on_surface.default.hex_stripped}}
-    '';
-
     "matugen/templates/mako".text = ''
       background-color=#{{colors.surface.default.hex_stripped}}e6
       text-color=#{{colors.on_surface.default.hex_stripped}}
@@ -263,8 +134,10 @@ lib.mkIf useDms {
       inner-pad=8
       line-height=22
       icon-theme=Papirus-Dark
-      terminal=alacritty msg create-window -e
-      fields=name,generic,comment,categories,filename,keywords
+      terminal=ghostty -e
+      hide-before-typing=true
+      filter-desktop=true
+      fields=name,generic,keywords
 
       [colors]
       background={{colors.surface.default.hex_stripped}}f2
@@ -278,6 +151,142 @@ lib.mkIf useDms {
       [border]
       width=2
       radius=8
+    '';
+
+    "matugen/templates/yazi.toml".text = ''
+      # Yazi runs inside the (always-dark) terminals, so we use the
+      # matugen dark palette unconditionally. Yazi merges this onto its
+      # built-in defaults — only the keys that matter visually are
+      # overridden here; the rest stay as the package ships them.
+
+      "$schema" = "https://yazi-rs.github.io/schemas/theme.json"
+
+      [mgr]
+      cwd          = { fg = "{{colors.primary.dark.hex}}" }
+      hovered      = { fg = "{{colors.on_primary_container.dark.hex}}", bg = "{{colors.primary_container.dark.hex}}" }
+      preview_hovered = { underline = true }
+      find_keyword = { fg = "{{colors.tertiary.dark.hex}}", italic = true }
+      find_position = { fg = "{{colors.error.dark.hex}}", bg = "reset", italic = true }
+      marker_copied   = { fg = "{{colors.tertiary.dark.hex}}", bg = "{{colors.tertiary.dark.hex}}" }
+      marker_cut      = { fg = "{{colors.error.dark.hex}}",    bg = "{{colors.error.dark.hex}}" }
+      marker_marked   = { fg = "{{colors.secondary.dark.hex}}", bg = "{{colors.secondary.dark.hex}}" }
+      marker_selected = { fg = "{{colors.primary.dark.hex}}",  bg = "{{colors.primary.dark.hex}}" }
+      count_copied    = { fg = "{{colors.on_tertiary.dark.hex}}",  bg = "{{colors.tertiary.dark.hex}}" }
+      count_cut       = { fg = "{{colors.on_error.dark.hex}}",     bg = "{{colors.error.dark.hex}}" }
+      count_selected  = { fg = "{{colors.on_primary.dark.hex}}",   bg = "{{colors.primary.dark.hex}}" }
+      border_symbol   = "│"
+      border_style    = { fg = "{{colors.outline.dark.hex}}" }
+
+      [mode]
+      normal_main = { fg = "{{colors.on_primary.dark.hex}}",   bg = "{{colors.primary.dark.hex}}",   bold = true }
+      normal_alt  = { fg = "{{colors.primary.dark.hex}}",      bg = "{{colors.surface_container_high.dark.hex}}" }
+      select_main = { fg = "{{colors.on_secondary.dark.hex}}", bg = "{{colors.secondary.dark.hex}}", bold = true }
+      select_alt  = { fg = "{{colors.secondary.dark.hex}}",    bg = "{{colors.surface_container_high.dark.hex}}" }
+      unset_main  = { fg = "{{colors.on_error.dark.hex}}",     bg = "{{colors.error.dark.hex}}",     bold = true }
+      unset_alt   = { fg = "{{colors.error.dark.hex}}",        bg = "{{colors.surface_container_high.dark.hex}}" }
+
+      [tabs]
+      active   = { fg = "{{colors.on_primary.dark.hex}}",  bg = "{{colors.primary.dark.hex}}" }
+      inactive = { fg = "{{colors.on_surface.dark.hex}}",  bg = "{{colors.surface_container_high.dark.hex}}" }
+
+      [status]
+      overall = { bg = "{{colors.surface_container.dark.hex}}" }
+      sep_left  = { open = "", close = "" }
+      sep_right = { open = "", close = "" }
+      perm_type  = { fg = "{{colors.primary.dark.hex}}" }
+      perm_read  = { fg = "{{colors.tertiary.dark.hex}}" }
+      perm_write = { fg = "{{colors.error.dark.hex}}" }
+      perm_exec  = { fg = "{{colors.secondary.dark.hex}}" }
+      perm_sep   = { fg = "{{colors.outline.dark.hex}}" }
+      progress_label  = { fg = "{{colors.on_surface.dark.hex}}", bold = true }
+      progress_normal = { fg = "{{colors.primary.dark.hex}}",    bg = "{{colors.surface_container.dark.hex}}" }
+      progress_error  = { fg = "{{colors.error.dark.hex}}",      bg = "{{colors.surface_container.dark.hex}}" }
+
+      [input]
+      border  = { fg = "{{colors.outline.dark.hex}}" }
+      title   = {}
+      value   = {}
+      selected = { reversed = true }
+
+      [pick]
+      border    = { fg = "{{colors.outline.dark.hex}}" }
+      active    = { fg = "{{colors.primary.dark.hex}}", bold = true }
+      inactive  = {}
+
+      [confirm]
+      border  = { fg = "{{colors.outline.dark.hex}}" }
+      title   = { fg = "{{colors.primary.dark.hex}}" }
+      content = {}
+      list    = {}
+      btn_yes = { reversed = true }
+      btn_no  = {}
+      btn_labels = ["[Y]es", "[N]o"]
+
+      [tasks]
+      border  = { fg = "{{colors.outline.dark.hex}}" }
+      title   = {}
+      hovered = { fg = "{{colors.primary.dark.hex}}", underline = true }
+
+      [which]
+      mask           = { bg = "{{colors.surface_container.dark.hex}}" }
+      cand           = { fg = "{{colors.tertiary.dark.hex}}" }
+      rest           = { fg = "{{colors.outline.dark.hex}}" }
+      desc           = { fg = "{{colors.secondary.dark.hex}}" }
+      separator      = "  "
+      separator_style = { fg = "{{colors.outline_variant.dark.hex}}" }
+
+      [help]
+      on      = { fg = "{{colors.tertiary.dark.hex}}" }
+      run     = { fg = "{{colors.primary.dark.hex}}" }
+      desc    = { fg = "{{colors.on_surface.dark.hex}}" }
+      hovered = { bg = "{{colors.primary_container.dark.hex}}", bold = true }
+      footer  = { fg = "{{colors.surface.dark.hex}}", bg = "{{colors.on_surface.dark.hex}}" }
+
+      [notify]
+      title_info = { fg = "{{colors.primary.dark.hex}}" }
+      title_warn = { fg = "{{colors.secondary.dark.hex}}" }
+      title_error = { fg = "{{colors.error.dark.hex}}" }
+    '';
+
+    "matugen/templates/tmux.conf".text = ''
+      # tmux follows the *dark* matugen palette unconditionally so it
+      # stays consistent with the terminals (which are pinned dark via
+      # DMS's terminalsAlwaysDark setting). Otherwise tmux's status bar
+      # would flip to the light palette while the surrounding terminal
+      # stayed dark, looking incoherent.
+
+      # Status bar — matugen dark palette
+      set -g status-style 'bg={{colors.surface.dark.hex}},fg={{colors.on_surface.dark.hex}}'
+
+      # Active window pill
+      set -g window-status-current-format '#[fg={{colors.on_primary.dark.hex}},bold,bg={{colors.primary.dark.hex}}]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
+
+      # Inactive window
+      set -g window-status-format '#[fg={{colors.outline.dark.hex}},bg=default]#(tmux-window-icons #W)'
+
+      # Last (recently visited) window
+      set -g window-status-last-style 'fg={{colors.on_surface.dark.hex}},bg=default'
+
+      # Status-left session name
+      set -g status-left "#[fg={{colors.primary.dark.hex}},bold,bg=default] #S "
+
+      # Status-right (clock + tools)
+      set -g status-right "#(tmux-right-status)#[fg={{colors.primary.dark.hex}}] 󱑒 %a %b %d %l:%M %p"
+
+      # Pane borders
+      set -g pane-border-style "fg={{colors.outline.dark.hex}}"
+      set -g pane-active-border-style "fg={{colors.primary.dark.hex}}"
+
+      # Inactive panes use bg=default so they inherit ghostty's
+      # background-opacity (0.85) and the wallpaper bleeds through.
+      # The active pane sets an explicit surface bg, which the terminal
+      # renders fully opaque — so it stands out as "solid" against the
+      # see-through inactive ones.
+      set -g window-style "fg={{colors.outline.dark.hex}},bg=default"
+      set -g window-active-style "fg=default,bg={{colors.surface.dark.hex}}"
+
+      # Message line
+      set -g message-style "fg={{colors.on_surface.dark.hex}},bg={{colors.surface_container_high.dark.hex}}"
     '';
   };
 }

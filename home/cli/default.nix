@@ -162,4 +162,43 @@ in
     # (NixOS/nixpkgs#512626) propagates.
     unstable-pkgs.zellij
   ];
+
+  # Local .desktop overrides for packages whose Icon= references a name
+  # not in the active icon theme (Papirus-Dark). User-local entries win
+  # over the package-provided ones in the XDG search path.
+  xdg.desktopEntries = {
+    yazi = {
+      name = "Yazi";
+      comment = "Blazing fast terminal file manager written in Rust";
+      exec = "yazi %u";
+      terminal = true;
+      type = "Application";
+      mimeType = [ "inode/directory" ];
+      categories = [ "Utility" "FileTools" "FileManager" "ConsoleOnly" ];
+      icon = "system-file-manager";
+    };
+
+    # khal ships no Icon= field at all.
+    khal = {
+      name = "ikhal";
+      genericName = "Calendar application";
+      comment = "Terminal CLI calendar application";
+      exec = "ikhal";
+      terminal = true;
+      type = "Application";
+      categories = [ "Calendar" "ConsoleOnly" ];
+      icon = "office-calendar";
+    };
+
+    # blueman ships Icon=blueman-device which isn't in Papirus.
+    blueman-adapters = {
+      name = "Bluetooth Adapters";
+      comment = "Set Bluetooth Adapter Properties";
+      exec = "blueman-adapters";
+      terminal = false;
+      type = "Application";
+      categories = [ "Settings" "HardwareSettings" ];
+      icon = "blueman";
+    };
+  };
 }

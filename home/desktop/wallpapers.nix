@@ -6,6 +6,7 @@ let
     cp ${../../assets/wallpapers/kanagawa.jpg}            $out/share/wallpapers/kanagawa.jpg
     cp ${../../assets/wallpapers/fuji-day.jpg}            $out/share/wallpapers/fuji-day.jpg
     cp ${../../assets/wallpapers/fuji-pagoda-sunset.jpg}  $out/share/wallpapers/fuji-pagoda-sunset.jpg
+    cp ${../../assets/wallpapers/blue-jays.png}           $out/share/wallpapers/blue-jays.png
   '';
 in
 {

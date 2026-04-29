@@ -1,7 +1,9 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  # Desktop entry for opening URLs in Brave app mode
+  # Desktop entry for opening URLs in Brave app mode. NoDisplay since
+  # this is purely a MIME handler — users open URLs via apps; nobody
+  # launches "Brave (App Mode)" from a launcher with no URL argument.
   xdg.desktopEntries.brave-app-mode = {
     name = "Brave (App Mode)";
     comment = "Open URL in Brave app mode";
@@ -9,6 +11,7 @@
     terminal = false;
     type = "Application";
     categories = [ "Network" "WebBrowser" ];
+    noDisplay = true;
     mimeType = [
       "text/html"
       "x-scheme-handler/http"

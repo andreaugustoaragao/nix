@@ -1,13 +1,12 @@
 { config, pkgs, lib, inputs, useDms ? false, ... }:
 
-let
-  # When DMS owns the desktop, the daemons it replaces (mako/swayosd/hyprpaper/waybar)
-  # stay installed but don't autostart. Empty WantedBy = unit defined, not enabled.
-  graphicalUnless = lib.optional (!useDms) "graphical-session.target";
-in
+# When DMS owns the desktop, the daemons it replaces (mako/swayosd/hyprpaper/waybar)
+# packages stay installed but their systemd units aren't defined at all. This avoids
+# the `linked but not enabled` state where systemd can still auto-restart a unit if
+# it ever gets nudged (mako in particular fights DMS for org.freedesktop.Notifications).
 {
   # Generic Wayland session services (start when a Wayland compositor is running)
-  systemd.user.services.wl-mako = {
+  systemd.user.services.wl-mako = lib.mkIf (!useDms) {
     Unit = {
       Description = "Wayland: mako notification daemon";
       After = [ "graphical-session.target" ];
@@ -19,10 +18,10 @@ in
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = graphicalUnless; };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
-  systemd.user.services.wl-swayosd = {
+  systemd.user.services.wl-swayosd = lib.mkIf (!useDms) {
     Unit = {
       Description = "Wayland: swayosd server";
       After = [ "graphical-session.target" ];
@@ -34,10 +33,10 @@ in
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = graphicalUnless; };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
-  systemd.user.services.wl-hyprpaper = {
+  systemd.user.services.wl-hyprpaper = lib.mkIf (!useDms) {
     Unit = {
       Description = "Wayland: hyprpaper wallpaper daemon";
       After = [ "graphical-session.target" ];
@@ -49,7 +48,7 @@ in
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install = { WantedBy = graphicalUnless; };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
   # systemd.user.services.wl-alacritty-daemon = {
@@ -124,7 +123,7 @@ in
     };
   };
 
-  systemd.user.services.wl-waybar = {
+  systemd.user.services.wl-waybar = lib.mkIf (!useDms) {
     Unit = {
       Description = "Wayland: waybar status bar";
       After = [ "graphical-session.target" ];
@@ -139,7 +138,7 @@ in
         "XDG_CONFIG_HOME=%h/.config"
       ];
     };
-    Install = { WantedBy = graphicalUnless; };
+    Install = { WantedBy = [ "graphical-session.target" ]; };
   };
 
 }

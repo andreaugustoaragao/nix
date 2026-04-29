@@ -4,8 +4,8 @@
   programs.alacritty = {
     enable = true;
     settings = {
-      # Layer matugen-generated palette on top of Kanagawa fallback.
-      general.import = lib.optionals useDms [ "~/.config/alacritty/colors-matugen.toml" ];
+      # Layer DMS-generated matugen palette on top of Kanagawa fallback.
+      general.import = lib.optionals useDms [ "~/.config/alacritty/dank-theme.toml" ];
 
       window = {
         opacity = 0.98;  # Match Omarchy opacity

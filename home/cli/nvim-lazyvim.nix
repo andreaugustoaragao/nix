@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, useDms ? false, ... }:
 
 {
   programs.neovim = {
@@ -19,7 +19,7 @@
     extraLuaConfig = ''
       -- Bootstrap lazy.nvim
       local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-      if not vim.loop.fs_stat(lazypath) then
+      if not vim.uv.fs_stat(lazypath) then
         vim.fn.system({
           "git",
           "clone",
@@ -36,7 +36,7 @@
       vim.g.maplocalleader = "\\"
       
       -- Track startup time from the very beginning
-      vim.g.start_time = vim.loop.hrtime()
+      vim.g.start_time = vim.uv.hrtime()
       
       -- Basic Neovim options
       vim.opt.number = true
@@ -127,6 +127,11 @@
         spec = {
           -- Import only specific LazyVim plugins we want, not all
           -- { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+
+          -- Auto-import any plugin spec in ~/.config/nvim/lua/plugins/.
+          -- DMS writes its matugen base16 colorscheme there as
+          -- dankcolors.lua when matugenTemplateNeovim is enabled.
+          { import = "plugins" },
           
           -- Icon support (load early for better keymap support)
           {
@@ -190,7 +195,13 @@
                   light = "lotus"
                 },
               })
-              vim.cmd("colorscheme kanagawa")
+              -- DMS's matugen integration writes a base16 plugin spec to
+              -- lua/plugins/dankcolors.lua. When present, let it own the
+              -- palette; otherwise fall back to kanagawa.
+              local dms_colors = vim.fn.stdpath("config") .. "/lua/plugins/dankcolors.lua"
+              if vim.fn.filereadable(dms_colors) ~= 1 then
+                vim.cmd("colorscheme kanagawa")
+              end
             end,
           },
           
@@ -886,7 +897,7 @@
 
               return {
                 options = {
-                  theme = "kanagawa", -- Keep kanagawa theme instead of auto
+                  theme = "auto", -- derive from whatever colorscheme is active (kanagawa fallback OR DMS's base16/dankcolors)
                   globalstatus = true,
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
@@ -1508,20 +1519,24 @@
             },
           },
 
-          -- Claude Code integration (terminal toggle for Claude CLI)
+          -- Claude Code IDE integration via MCP. Reuses the OAuth login
+          -- that the `claude` CLI already has — no API key needed. Same
+          -- WebSocket MCP protocol the official VSCode/JetBrains plugins
+          -- use, so you get inline diff approvals + selection-send.
           {
-            "greggh/claude-code.nvim",
-            dependencies = { "nvim-lua/plenary.nvim" },
-            cmd = { "ClaudeCode", "ClaudeCodeContinue", "ClaudeCodeResume", "ClaudeCodeVerbose" },
+            "coder/claudecode.nvim",
+            dependencies = { "folke/snacks.nvim" },
+            event = "VeryLazy",
+            opts = {},
             keys = {
-              { "<C-,>", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Code" },
-              { "<leader>cC", "<cmd>ClaudeCodeContinue<cr>", desc = "Claude Code Continue" },
-              { "<leader>cV", "<cmd>ClaudeCodeVerbose<cr>", desc = "Claude Code Verbose" },
+              { "<C-,>",      "<cmd>ClaudeCode<cr>",        desc = "Toggle Claude Code" },
+              { "<leader>cf", "<cmd>ClaudeCodeFocus<cr>",   desc = "Focus Claude" },
+              { "<leader>cs", "<cmd>ClaudeCodeSend<cr>",    desc = "Send selection to Claude", mode = { "n", "v" } },
+              { "<leader>ca", "<cmd>ClaudeCodeAdd<cr>",     desc = "Add file to Claude context" },
+              { "<leader>cm", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
             },
-            config = function()
-              require("claude-code").setup()
-            end,
           },
+
         },
         defaults = {
           lazy = false, -- Should plugins be lazy-loaded by default?
@@ -1588,7 +1603,7 @@
           -- Calculate total startup time from our tracking
           local total_time = 0
           if vim.g.start_time then
-            local end_time = vim.loop.hrtime()
+            local end_time = vim.uv.hrtime()
             total_time = (end_time - vim.g.start_time) / 1e6 -- Convert nanoseconds to milliseconds
           end
           

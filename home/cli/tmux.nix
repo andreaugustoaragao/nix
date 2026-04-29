@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, useDms ? false, ... }:
 
 {
   programs.tmux = {
@@ -83,6 +83,12 @@
       bind -r D neww -c "#{pane_current_path}" "[[ -e TODO.md ]] && nvim TODO.md || nvim ~/src/notes/todo.md"
 
       bind -r f display-popup -E "tmux-sessionizer"
+      ${lib.optionalString useDms ''
+        # Source matugen-generated status-bar palette LAST so its `set`
+        # calls override the static Rosé Pine block above.
+        if-shell "test -r ~/.config/tmux/colors-matugen.conf" \
+          "source-file ~/.config/tmux/colors-matugen.conf"
+      ''}
     '';
   };
 

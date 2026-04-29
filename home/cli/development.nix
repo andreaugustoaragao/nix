@@ -252,12 +252,15 @@ in
     fi
   '';
 
-  # Auto-install Cursor Agent CLI if not present.
+  # Auto-install/update Cursor Agent CLI.
   # Relies on nix-ld (enabled in system/packages.nix) to run the prebuilt binary.
   home.activation.installCursorAgent = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if ! command -v cursor-agent &> /dev/null; then
+    export PATH="$HOME/.local/bin:${lib.makeBinPath [ pkgs.curl pkgs.gnutar pkgs.gzip pkgs.coreutils ]}:$PATH"
+    if command -v cursor-agent &> /dev/null; then
+      echo "Updating Cursor Agent CLI..."
+      cursor-agent update || true
+    else
       echo "Installing Cursor Agent CLI..."
-      export PATH="${lib.makeBinPath [ pkgs.curl pkgs.gnutar pkgs.gzip pkgs.coreutils ]}:$PATH"
       ${pkgs.curl}/bin/curl -fsS https://cursor.com/install | ${pkgs.bash}/bin/bash
     fi
   '';

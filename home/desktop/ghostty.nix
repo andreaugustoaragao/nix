@@ -11,16 +11,28 @@ in
   xdg.configFile."ghostty/config".text = ''
     # Font configuration
     font-family = CaskaydiaMono Nerd Font
-    font-size = 11
+    font-size = 9
+
+    # Single-instance: subsequent invocations open a new window in the
+    # existing process (analogous to footclient or kitty --single-instance).
+    gtk-single-instance = true
     
     # Shell configuration
     shell-integration = fish
     command = fish
     
     # Window configuration
-    window-padding-x = 14
-    window-padding-y = 14
+    window-padding-x = 5
+    window-padding-y = 5
     window-theme = dark
+
+    # Translucent terminal — cells using the default bg render at this
+    # opacity (so wallpaper bleeds through). Cells with explicit bg
+    # colors stay fully opaque, which is how tmux's active pane
+    # (window-active-style bg=<surface hex>) reads as "solid" while
+    # inactive panes (bg=default) fade to wallpaper.
+    background-opacity = 0.85
+    background-blur-radius = 20
     
     # Kanagawa color scheme
     background = 1f1f28
@@ -56,7 +68,9 @@ in
     window-decoration = false
     unfocused-split-opacity = 0.9
     copy-on-select = false
+    # Close windows/splits without the "are you sure?" prompt.
+    confirm-close-surface = false
 
-    ${lib.optionalString useDms "config-file = colors-matugen"}
+    ${lib.optionalString useDms "theme = dankcolors"}
   '';
 }

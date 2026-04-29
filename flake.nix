@@ -104,7 +104,7 @@
           useGlobalPkgs = true;
           extraSpecialArgs = setSpecialArgs host;
           users.${getUserName metadata.user host} = import ./home;
-          backupFileExtension = "hm-backup-$(date +%Y%m%d-%H%M%S)";
+          backupFileExtension = "hm-backup";
         };
       };
     in

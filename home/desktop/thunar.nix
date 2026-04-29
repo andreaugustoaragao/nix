@@ -69,7 +69,7 @@
     fi
   '';
 
-  # Thunar custom actions (set foot as terminal)
+  # Thunar custom actions (ghostty as terminal)
   xdg.configFile."Thunar/uca.xml".text = ''
     <?xml version="1.0" encoding="UTF-8"?>
     <actions>
@@ -77,8 +77,8 @@
       <icon>utilities-terminal</icon>
       <name>Open Terminal Here</name>
       <unique-id>1409659827532001-1</unique-id>
-      <command>foot --working-directory=%f</command>
-      <description>Open foot terminal in the current directory</description>
+      <command>ghostty --working-directory=%f</command>
+      <description>Open ghostty terminal in the current directory</description>
       <patterns>*</patterns>
       <startup-notify/>
       <directories/>

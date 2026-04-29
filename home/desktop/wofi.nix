@@ -30,7 +30,7 @@
       hide_scroll = true;
       print_command = true;
       layer = "overlay";
-      term = "alacritty msg create-window";
+      term = "ghostty";
       sort_order = "alphabetical";
     };
 

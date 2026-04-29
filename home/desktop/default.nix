@@ -60,6 +60,12 @@ in
     fi
   '';
 
+  # Cursor's icon ships in share/pixmaps/ which fuzzel doesn't search.
+  # Surfacing it under the hicolor theme so .desktop's Icon=cursor
+  # resolves in launchers.
+  xdg.dataFile."icons/hicolor/512x512/apps/cursor.png".source =
+    "${pkgs-unstable.code-cursor}/share/pixmaps/cursor.png";
+
   home.packages =
     with pkgs;
     [

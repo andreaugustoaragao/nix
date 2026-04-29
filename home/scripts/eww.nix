@@ -15,5 +15,6 @@
     exec = ''sh -c "eww daemon >/dev/null 2>&1 & sleep 0.2 && eww open bar"'';
     terminal = false;
     categories = [ "Utility" ];
+    icon = "applications-system";
   };
 } 

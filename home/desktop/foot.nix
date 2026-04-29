@@ -10,21 +10,22 @@
 {
   programs.foot = {
     enable = true;
-    # foot has no `include` directive — when DMS is on, matugen writes
-    # the entire foot.ini, so let it own the file by skipping settings.
+    # When DMS owns the theme, we write foot.ini ourselves below so we
+    # can place an `include = …` at the top (home-manager's settings
+    # generator can't emit pre-section directives). The Nix-managed
+    # settings stay in charge of layout/font/etc when not in DMS mode.
     settings = lib.mkIf (!useDms) {
       main = {
-        font = "CaskaydiaMono Nerd Font:size=9"; # Match Alacritty font size
+        font = "CaskaydiaMono Nerd Font:size=9";
         font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=9";
         font-italic = "CaskaydiaMono Nerd Font:style=Italic:size=9";
         dpi-aware = "no";
-        pad = "5x5"; # Match Alacritty padding
-        shell = "fish"; # Use Fish shell in foot terminal
+        pad = "5x5";
+        shell = "fish";
       };
 
-      # Kanagawa colors (from Omarchy)
       colors = {
-        alpha = "0.98"; # Match Omarchy opacity
+        alpha = "0.98";
 
         foreground = "dcd7ba";
         background = "1f1f28";
@@ -49,5 +50,23 @@
       };
     };
   };
-}
 
+  # In DMS mode, write foot.ini directly so we can include DMS's
+  # matugen-generated palette before the [main] section.
+  xdg.configFile."foot/foot.ini" = lib.mkIf useDms {
+    text = ''
+      include=~/.config/foot/dank-colors.ini
+
+      [main]
+      font=CaskaydiaMono Nerd Font:size=9
+      font-bold=CaskaydiaMono Nerd Font:style=Bold:size=9
+      font-italic=CaskaydiaMono Nerd Font:style=Italic:size=9
+      dpi-aware=no
+      pad=5x5
+      shell=fish
+
+      [colors]
+      alpha=0.98
+    '';
+  };
+}

@@ -61,12 +61,17 @@
           echo "Warning: gpg-add-keys command not found, proceeding without GPG key preloading"
         fi
         
-        # Function to send desktop notification
+        # Function to send desktop notification — only fires on failures.
+        # All call sites still pass success/info messages, but those are
+        # silently dropped here. Tail journalctl --user -u notes-sync for
+        # the full picture.
         notify() {
           local title="$1"
           local message="$2"
           local urgency="''${3:-normal}"
-          ${pkgs.libnotify}/bin/notify-send --urgency="$urgency" --app-name="Notes Sync" "$title" "$message"
+          if [ "$urgency" = "critical" ]; then
+            ${pkgs.libnotify}/bin/notify-send --urgency="$urgency" --app-name="Notes Sync" "$title" "$message"
+          fi
         }
         
         # Error handler for unexpected failures

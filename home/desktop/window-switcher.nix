@@ -1,22 +1,33 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  # Window switcher script with wofi integration for niri
+  # Window switcher script with fuzzel integration for niri
   home.packages = [
     (pkgs.writeShellApplication {
       name = "window-switcher";
-      runtimeInputs = with pkgs; [ wofi coreutils gnused gawk ];
+      runtimeInputs = with pkgs; [ fuzzel coreutils gnused gawk ];
       text = ''
         #!/usr/bin/env bash
 
-        # Window switcher script with wofi integration for niri
+        # Window switcher script with fuzzel integration for niri
         # Usage: window-switcher
-        # Description: Search, select, and switch to open windows using wofi
+        # Description: Search, select, and switch to open windows using fuzzel
 
         set -e
 
-        # Colors for wofi (consistent with notes script)
-        WOFI_CONFIG=(--width=800 --height=400 --prompt="Windows" --insensitive --cache-file=/dev/null)
+        FUZZEL_CONFIG=(
+            --dmenu
+            --prompt="Windows "
+            --placeholder="Type title, app, or workspace..."
+            --width=90
+            --lines=10
+            --minimal-lines
+            --match-mode=fuzzy
+            --counter
+            --nth-delimiter=$'\t'
+            --with-nth=2
+            --accept-nth=1
+        )
 
         # Function to get list of open windows
         get_windows() {
@@ -28,11 +39,17 @@
                 workspace_id = ""
                 is_focused = 0
             }
+            function print_window() {
+                if (title == "") title = "(untitled)"
+                if (app_id == "") app_id = "unknown"
+                if (workspace_id == "") workspace_id = "?"
+
+                focused_marker = is_focused ? "●" : " "
+                printf "%s\t%s  WS %s  %-18s  %s\n", window_id, focused_marker, workspace_id, app_id, title
+            }
             /^Window ID [0-9]+:/ {
                 if (window_id != "") {
-                    # Print previous window
-                    focused_marker = is_focused ? "● " : "  "
-                    printf "%s[WS %s] %s (%s) | %s\n", focused_marker, workspace_id, title, app_id, window_id
+                    print_window()
                 }
                 # Extract window ID and check if focused
                 match($0, /Window ID ([0-9]+):(.*)/, arr)
@@ -57,17 +74,9 @@
             }
             END {
                 if (window_id != "") {
-                    # Print last window
-                    focused_marker = is_focused ? "● " : "  "
-                    printf "%s[WS %s] %s (%s) | %s\n", focused_marker, workspace_id, title, app_id, window_id
+                    print_window()
                 }
             }'
-        }
-
-        # Function to extract window ID from selection
-        extract_window_id() {
-            local selection="$1"
-            echo "''${selection##*| }"
         }
 
         # Main function
@@ -81,16 +90,13 @@
                 exit 1
             fi
             
-            # Show wofi menu with windows
-            selection=$(echo "$window_list" | wofi --dmenu "''${WOFI_CONFIG[@]}")
+            # Fuzzel shows only the pretty second column and returns the hidden window ID.
+            window_id=$(printf '%s\n' "$window_list" | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
             
             # Exit if nothing selected
-            if [[ -z "$selection" ]]; then
+            if [[ -z "$window_id" ]]; then
                 exit 0
             fi
-            
-            # Extract window ID from selection
-            window_id=$(extract_window_id "$selection")
             
             # Focus the selected window
             if [[ -n "$window_id" ]]; then
@@ -110,7 +116,7 @@
             window-switcher [OPTIONS]
 
         DESCRIPTION:
-            A script to switch between open windows in niri using wofi for selection.
+            A script to switch between open windows in niri using fuzzel for selection.
             Shows all open windows across all workspaces with their titles, app IDs,
             and workspace information.
 
@@ -123,17 +129,16 @@
             • Mark currently focused window with ●
             • Fuzzy search through window titles and app names
             • Switch to selected window instantly
-            • Integration with wofi for consistent UX
+            • Integration with fuzzel for consistent UX
 
         WINDOW FORMAT:
-            ● [WS 1] Window Title (app-id) | window-id
+            ●  WS 1  app-id              Window Title
             
             Where:
             ● = currently focused window (empty space for others)
-            [WS N] = workspace number
+            WS N = workspace number
+            app-id = the application identifier
             Window Title = the window's title
-            (app-id) = the application identifier
-            | window-id = internal window ID (used for switching)
 
         WORKFLOW:
             • Type to search through window titles or app names (fuzzy matching)
@@ -142,7 +147,7 @@
 
         DEPENDENCIES:
             • niri (window manager)
-            • wofi (for menu interface)
+            • fuzzel (for menu interface)
             • awk (text processing)
             • bash (shell)
         EOF

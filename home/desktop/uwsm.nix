@@ -1,12 +1,15 @@
 { config, pkgs, lib, inputs, ... }:
 
 {
-  # UWSM desktop entries for both window managers
+  # UWSM desktop entries — NoDisplay so the display manager picks them
+  # up but launchers (fuzzel) skip them. No point launching a fresh
+  # compositor session from inside the current one.
   xdg.desktopEntries.hyprland-uwsm = {
     name = "Hyprland (UWSM)";
     comment = "Hyprland compositor managed by UWSM";
     exec = "uwsm start hyprland";
     type = "Application";
+    noDisplay = true;
   };
 
   xdg.desktopEntries.niri-uwsm = {
@@ -14,6 +17,7 @@
     comment = "Niri compositor managed by UWSM";
     exec = "uwsm start niri";
     type = "Application";
+    noDisplay = true;
   };
 
   # UWSM environment configurations

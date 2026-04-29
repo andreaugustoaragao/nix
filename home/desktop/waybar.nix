@@ -86,14 +86,14 @@ in
         interval = 5;
         format = "󰻠  {usage}%";
         tooltip-format = "CPU Usage: {usage}%";
-        on-click = "alacritty -e btm";
+        on-click = "ghostty -e btm";
       };
 
       "memory" = {
         interval = 5;
         format = "󰍛  {used:0.1f}G ({percentage}%)";
         tooltip-format = "Memory: {used:0.1f}G / {total:0.1f}G ({percentage}%)";
-        on-click = "alacritty -e btop";
+        on-click = "ghostty -e btop";
       };
 
       "disk" = {
@@ -101,7 +101,7 @@ in
         format = "󰋊  {used} ({percentage_used}%)";
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
-        on-click = "alacritty -e btop";
+        on-click = "ghostty -e btop";
       };
 
       "custom/uptime" = {
@@ -282,14 +282,14 @@ in
         interval = 5;
         format = "󰻠  {usage}%";
         tooltip-format = "CPU Usage: {usage}%";
-        on-click = "alacritty -e btm";
+        on-click = "ghostty -e btm";
       };
 
       "memory" = {
         interval = 5;
         format = "󰍛  {used:0.1f}G ({percentage}%)";
         tooltip-format = "Memory: {used:0.1f}G / {total:0.1f}G ({percentage}%)";
-        on-click = "alacritty -e btop";
+        on-click = "ghostty -e btop";
       };
 
       "disk" = {
@@ -297,7 +297,7 @@ in
         format = "󰋊  {used} ({percentage_used}%)";
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
-        on-click = "alacritty -e btop";
+        on-click = "ghostty -e btop";
       };
 
       "custom/uptime" = {

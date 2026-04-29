@@ -226,8 +226,9 @@
 
     // Key bindings (matching Hyprland as closely as possible)
     binds {
-        // Applications (using kitty as default terminal)
-        Mod+Return { spawn "kitty" "--single-instance"; }
+        // Applications (ghostty is the default terminal; gtk-single-instance
+        // makes subsequent launches reuse the existing process)
+        Mod+Return { spawn "ghostty"; }
         Mod+Shift+T { spawn "thunar"; }
         Mod+Shift+B { spawn "browser-default"; }
         Mod+Shift+N { spawn "notes"; }
@@ -365,5 +366,15 @@
         XF86AudioPause { spawn "playerctl" "play-pause"; }
         XF86AudioPrev { spawn "playerctl" "previous"; }
     }
+    ${lib.optionalString useDms ''
+      // DMS writes per-feature KDL snippets to ~/.config/niri/dms/ and
+      // refuses to apply settings (cursor, matugen colors, alt-tab,
+      // wallpaper blur) until they're included here. Placed last so DMS
+      // overrides any earlier layout/colors set by Nix.
+      include "dms/cursor.kdl"
+      include "dms/colors.kdl"
+      include "dms/alttab.kdl"
+      include "dms/wpblur.kdl"
+    ''}
   '';
 }

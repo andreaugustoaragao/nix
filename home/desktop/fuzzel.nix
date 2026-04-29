@@ -1,5 +1,9 @@
-{ lib, useDms ? false, ... }:
+{ pkgs, lib, useDms ? false, ... }:
 {
+  # Papirus provides icons for nearly every Linux desktop app — without
+  # it fuzzel silently shows entries with no icon.
+  home.packages = [ pkgs.papirus-icon-theme ];
+
   programs.fuzzel = {
     enable = true;
     # fuzzel has no `include` directive — when DMS is on, matugen writes
@@ -15,8 +19,10 @@
         inner-pad = 8;
         line-height = 22;
         icon-theme = "Papirus-Dark";
-        terminal = "alacritty msg create-window -e";
-        fields = "name,generic,comment,categories,filename,keywords";
+        terminal = "ghostty -e";
+        hide-before-typing = true;
+        filter-desktop = true;
+        fields = "name,generic,keywords";
       };
 
       colors = {
