@@ -115,6 +115,14 @@ in
 
           # Weather in Fahrenheit (default is Celsius).
           useFahrenheit = true;
+
+          # Auto-lock after 20 min of idle on AC or battery, and lock
+          # before suspend so the screen is locked when the machine
+          # wakes. Mod+Ctrl+L manually triggers DMS's lock UI via
+          # `dms ipc call lock lock` (bound in niri.nix).
+          acLockTimeout = 1200;
+          batteryLockTimeout = 1200;
+          lockBeforeSuspend = true;
         }
     );
 

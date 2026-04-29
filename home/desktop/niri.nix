@@ -320,14 +320,23 @@
         Mod+Shift+Minus repeat=true { set-window-height "-100"; }
         Mod+Shift+Equal repeat=true { set-window-height "+100"; }
 
-        // Screenshots (Hyprland-style via script)
-        Mod+Shift+S { spawn "screenshot"; }
+        // Screenshots
+        // Mod+Shift+S → niri-native interactive overlay piped through satty.
+        // Mod+Shift+F keeps the existing hyprshot-based output capture.
+        Mod+Shift+S { spawn "screenshot-niri"; }
         Mod+Shift+F { spawn "screenshot" "output"; }
         
-        ${lib.optionalString lockScreen ''
-          // Lock screen (only on desktop machines)  
-          Mod+Ctrl+L { spawn "swaylock" "-f"; }
-        ''}
+        ${lib.optionalString lockScreen (
+          if useDms
+          then ''
+            // Lock screen via DMS (dms-settings.json owns the timeouts).
+            Mod+Ctrl+L { spawn "dms" "ipc" "call" "lock" "lock"; }
+          ''
+          else ''
+            // Lock screen via swaylock (lockscreen.nix configures it).
+            Mod+Ctrl+L { spawn "swaylock" "-f"; }
+          ''
+        )}
 
         // Notification control
         Mod+Semicolon { spawn "makoctl" "restore"; }
