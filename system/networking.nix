@@ -111,6 +111,28 @@
   # Disable network-wait-online for faster boot
   systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
 
+  # ============================================================================
+  # DNS resolver — global config on systemd-resolved
+  # ============================================================================
+  # The per-link DNS configured on the "10-ethernet" network only kicks
+  # in when that link is marked DefaultRoute=yes. With multiple en*
+  # interfaces (enp11s0 down, enp5s0f0 carrying the actual route),
+  # resolved sometimes lists the DNS on the wrong link, falls through
+  # to the global fallback list (Quad9/Cloudflare/Google), and queries
+  # never hit 192.168.40.3. Setting Global DNS on resolved sidesteps
+  # link-routing entirely — every lookup goes through 192.168.40.3
+  # first regardless of which link won the network match.
+  services.resolved = {
+    enable = true;
+    extraConfig = lib.mkIf (hostName == "workstation") ''
+      DNS=192.168.40.3
+      Domains=faragao.net
+    '';
+  };
+
+  # FQDN: hostname --fqdn → workstation.faragao.net.
+  networking.domain = lib.mkIf (hostName == "workstation") "faragao.net";
+
   # Enable NTP time synchronization via systemd-timesyncd
   # mkForce needed to override parallels-guest.nix which disables it for VMs
   services.timesyncd.enable = lib.mkForce true;
@@ -149,6 +171,7 @@
   # ============================================================================
   networking.extraHosts = lib.mkIf (hostName == "workstation") ''
     192.168.10.75  infinity.local
+    127.0.1.1      workstation.faragao.net workstation
   '';
 
   # Keep explicit /etc/hosts entries authoritative for local dev domains.
