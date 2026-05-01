@@ -29,7 +29,7 @@
           family = "CaskaydiaMono Nerd Font";
           style = "Italic";
         };
-        size = 9;  # Match Omarchy font size
+        size = 11;  # Match Omarchy font size
       };
       
       terminal = {

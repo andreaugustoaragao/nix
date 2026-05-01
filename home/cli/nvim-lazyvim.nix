@@ -75,15 +75,61 @@
       vim.opt.cursorline = true
       vim.opt.undofile = true
 
-      -- Auto-reload files when changed externally (silent)
+      -- Hide the EndOfBuffer "~" markers, give the window-split
+      -- separator a solid Kanagawa-violet line (replaces what
+      -- colorful-winsep.nvim used to render).
+      vim.opt.fillchars = { eob = " ", vert = "│" }
+
+      -- Auto-reload files when changed externally (silent).
+      --
+      -- Uses libuv's filesystem-event API (inotify on Linux) rather
+      -- than polling on FocusGained/BufEnter/CursorHold. Each open
+      -- buffer attaches a kernel watcher to its file; on any modify
+      -- event nvim runs :checktime in that buffer's context, which
+      -- reloads the buffer when autoread is on and the buffer is
+      -- clean. Dirty buffers still get the FileChangedShell prompt.
       vim.opt.autoread = true
-      vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
-        pattern = "*",
-        callback = function()
-          if vim.fn.getcmdwintype() == "" then
-            vim.cmd("checktime")
+
+      local function watch_buffer(buf)
+        local file = vim.api.nvim_buf_get_name(buf)
+        if file == "" or vim.fn.filereadable(file) == 0 then
+          return
+        end
+
+        local handle = vim.uv.new_fs_event()
+        if not handle then
+          return
+        end
+
+        local function on_event(err)
+          if err or not vim.api.nvim_buf_is_valid(buf) then
+            if not handle:is_closing() then handle:close() end
+            return
           end
-        end,
+          vim.api.nvim_buf_call(buf, function()
+            vim.cmd("checktime")
+          end)
+          -- Editors that save via "write-temp + rename" change the
+          -- inode, which kills the original watch; re-arm on the
+          -- (new) inode each time we fire.
+          if not handle:is_closing() then
+            handle:stop()
+            handle:start(file, {}, vim.schedule_wrap(on_event))
+          end
+        end
+
+        handle:start(file, {}, vim.schedule_wrap(on_event))
+
+        vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+          buffer = buf,
+          callback = function()
+            if not handle:is_closing() then handle:close() end
+          end,
+        })
+      end
+
+      vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+        callback = function(ev) watch_buffer(ev.buf) end,
       })
 
       -- Folding configuration (prefer LSP, fallback to treesitter)
@@ -205,360 +251,236 @@
             end,
           },
           
-          -- Override LazyVim dashboard with alpha configuration
+          -- alpha-nvim was replaced by snacks.dashboard on 2026-05-01.
+          { "goolord/alpha-nvim", enabled = false },
+
+          -- snacks.nvim — folke's QoL collection. Replaces alpha
+          -- (dashboard), telescope (picker), nvim-tree (explorer),
+          -- and adds bigfile/notifier/scroll/scratch out of the box.
+          -- Loads at startup so dashboard appears on bare `nvim`.
           {
-            "goolord/alpha-nvim",
-            event = "VimEnter",
-            opts = function()
-              local dashboard = require("alpha.themes.dashboard")
-              
-              -- Custom ASCII art header (Kanagawa-inspired wave)
-              dashboard.section.header.val = {
-                "                                                     ",
-                "  ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗ ",
-                "  ████╗  ██║██╔════╝██╔═══██╗██║   ██║██║████╗ ████║ ",
-                "  ██╔██╗ ██║█████╗  ██║   ██║██║   ██║██║██╔████╔██║ ",
-                "  ██║╚██╗██║██╔══╝  ██║   ██║╚██╗ ██╔╝██║██║╚██╔╝██║ ",
-                "  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║ ",
-                "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝ ",
-                "                                                     ",
-                "           🌊 Kanagawa Theme - Like the Great Wave    ",
-                "                                                     ",
-              }
-              
-              -- Custom buttons  
-              dashboard.section.buttons.val = {
-                dashboard.button("f", "  Find File", ":Telescope find_files <CR>"),
-                dashboard.button("e", "  New File", ":ene <BAR> startinsert <CR>"),
-                dashboard.button("r", "  Recent Files", ":Telescope oldfiles <CR>"),
-                dashboard.button("g", "  Find Text", ":Telescope live_grep <CR>"),
-                dashboard.button("c", "  Configuration", ":e ~/.config/nvim/init.lua <CR>"),
-                dashboard.button("s", "  Load Session", ":SessionLoad <CR>"),
-                dashboard.button("l", "  Lazy", ":Lazy <CR>"),
-                dashboard.button("q", "  Quit", ":qa <CR>"),
-              }
-              
-              -- Footer with load time
-              dashboard.section.footer.val = function()
-                local stats = require("lazy").stats()
-                local ms = (math.floor(stats.startuptime * 100 + 0.5) / 100)
-                return {
-                  "",
-                  "⚡ Neovim loaded " .. stats.loaded .. "/" .. stats.count .. " plugins in " .. ms .. "ms",
-                  "",
-                  "The Great Wave off Kanagawa inspires this colorful journey",
-                  "~ Katsushika Hokusai ~",
-                }
-              end
-              
-              return dashboard
-            end,
-            config = function(_, dashboard)
-              -- Set custom highlight groups
-              vim.api.nvim_create_autocmd("User", {
-                once = true,
-                pattern = "LazyVimStarted",
-                callback = function()
-                  -- Header: Use Kanagawa spring violet
-                  vim.api.nvim_set_hl(0, "AlphaHeader", { fg = "#957fb8" })
-                  -- Buttons: Use Kanagawa crystal blue
-                  vim.api.nvim_set_hl(0, "AlphaButtons", { fg = "#7e9cd8" })
-                  -- Footer: Use Kanagawa fuji gray
-                  vim.api.nvim_set_hl(0, "AlphaFooter", { fg = "#727169", italic = true })
-                  
-                  dashboard.section.header.opts.hl = "AlphaHeader"
-                  dashboard.section.buttons.opts.hl = "AlphaButtons"
-                  dashboard.section.footer.opts.hl = "AlphaFooter"
-                end,
-              })
-              
-              require("alpha").setup(dashboard.opts)
-              
-              -- Disable folding on alpha buffer
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = "alpha",
-                callback = function()
-                  vim.opt_local.foldenable = false
-                end,
-              })
-            end,
-          },
-          
-          -- Override telescope configuration
-          {
-            "nvim-telescope/telescope.nvim",
+            "folke/snacks.nvim",
+            priority = 1000,
+            lazy = false,
+            ---@type snacks.Config
             opts = {
-              defaults = {
-                layout_strategy = "horizontal",
-                layout_config = { prompt_position = "top" },
-                sorting_strategy = "ascending",
-                winblend = 0,
-                mappings = {
-                  i = {
-                    ["<C-h>"] = "which_key"
-                  }
-                }
+              bigfile = { enabled = true }, -- auto-disables TS/LSP/syntax on >1.5MB files
+              notifier = { enabled = true, timeout = 3000 },
+              quickfile = { enabled = true },
+              statuscolumn = { enabled = true },
+              scroll = { enabled = true },
+              indent = { enabled = true },
+              picker = {
+                enabled = true,
+                ui_select = true, -- replace vim.ui.select with snacks picker
+                layout = {
+                  preset = "default",
+                  layout = { position = "float" },
+                },
               },
-              extensions = {
-                fzf = {
-                  fuzzy = true,
-                  override_generic_sorter = true,
-                  override_file_sorter = true,
-                  case_mode = "smart_case",
-                }
-              }
-            },
-          },
-          
-          -- Completion setup
-          {
-            "hrsh7th/nvim-cmp",
-            event = "InsertEnter",
-            dependencies = {
-              -- LSP source
-              "hrsh7th/cmp-nvim-lsp",
-              
-              -- Buffer completions
-              "hrsh7th/cmp-buffer",
-              
-              -- Path completions
-              "hrsh7th/cmp-path",
-              
-              -- Command line completions
-              "hrsh7th/cmp-cmdline",
-              
-              -- Snippet engine and completion
-              {
-                "L3MON4D3/LuaSnip",
-                build = function()
-                  -- Build jsregexp for better snippet transformations
-                  if vim.fn.executable("make") == 1 then
-                    return "make install_jsregexp"
-                  end
-                  return nil
-                end,
-                dependencies = { "rafamadriz/friendly-snippets" },
-              },
-              "saadparwaiz1/cmp_luasnip",
-              
-              -- Additional sources
-              "hrsh7th/cmp-nvim-lua", -- Neovim Lua API
-              "hrsh7th/cmp-nvim-lsp-signature-help", -- LSP signature help
-              "hrsh7th/cmp-calc", -- Calculator
-              "f3fora/cmp-spell", -- Spell suggestions
-              "hrsh7th/cmp-emoji", -- Emoji completions
-            },
-            config = function()
-              local cmp = require("cmp")
-              local luasnip = require("luasnip")
-              
-              -- Load friendly snippets
-              require("luasnip.loaders.from_vscode").lazy_load()
-              
-              -- Better snippet navigation
-              local has_words_before = function()
-                unpack = unpack or table.unpack
-                local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-                return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
-              end
-              
-              cmp.setup({
-                enabled = function()
-                  -- Disable completion in comments
-                  local context = require("cmp.config.context")
-                  if vim.api.nvim_get_mode().mode == 'c' then
-                    return true
-                  else
-                    return not context.in_treesitter_capture("comment") and not context.in_syntax_group("Comment")
-                  end
-                end,
-                
-                snippet = {
-                  expand = function(args)
-                    luasnip.lsp_expand(args.body)
-                  end,
-                },
-                
-                completion = {
-                  completeopt = "menu,menuone,noinsert",
-                },
-                
-                formatting = {
-                  fields = { "kind", "abbr", "menu" },
-                  format = function(entry, vim_item)
-                    local kind_icons = {
-                      Text = "󰉿",
-                      Method = "󰆧",
-                      Function = "󰊕",
-                      Constructor = "",
-                      Field = "󰜢",
-                      Variable = "󰀫",
-                      Class = "󰠱",
-                      Interface = "",
-                      Module = "",
-                      Property = "󰜢",
-                      Unit = "󰑭",
-                      Value = "󰎠",
-                      Enum = "",
-                      Keyword = "󰌋",
-                      Snippet = "",
-                      Color = "󰏘",
-                      File = "󰈙",
-                      Reference = "󰈇",
-                      Folder = "󰉋",
-                      EnumMember = "",
-                      Constant = "󰏿",
-                      Struct = "󰙅",
-                      Event = "",
-                      Operator = "󰆕",
-                      TypeParameter = "",
-                    }
-                    
-                    vim_item.kind = string.format('%s %s', kind_icons[vim_item.kind], vim_item.kind)
-                    vim_item.menu = ({
-                      nvim_lsp = "[LSP]",
-                      nvim_lua = "[Lua]",
-                      luasnip = "[LuaSnip]",
-                      buffer = "[Buffer]",
-                      path = "[Path]",
-                      calc = "[Calc]",
-                      spell = "[Spell]",
-                      dictionary = "[Dict]",
-                      emoji = "[Emoji]",
-                    })[entry.source.name]
-                    return vim_item
-                  end,
-                },
-                
-                window = {
-                  completion = cmp.config.window.bordered({
-                    border = "rounded",
-                    winhighlight = "Normal:CmpPmenu,CursorLine:PmenuSel,Search:None",
-                  }),
-                  documentation = cmp.config.window.bordered({
-                    border = "rounded",
-                    winhighlight = "Normal:CmpDoc",
-                  }),
-                },
-                
-                mapping = cmp.mapping.preset.insert({
-                  ["<C-b>"] = cmp.mapping.scroll_docs(-4),
-                  ["<C-f>"] = cmp.mapping.scroll_docs(4),
-                  ["<C-Space>"] = cmp.mapping.complete(),
-                  ["<C-e>"] = cmp.mapping.abort(),
-                  ["<CR>"] = cmp.mapping.confirm({ 
-                    behavior = cmp.ConfirmBehavior.Replace,
-                    select = true,
-                  }),
-                  
-                  -- Super Tab like behavior
-                  ["<Tab>"] = cmp.mapping(function(fallback)
-                    if cmp.visible() then
-                      cmp.select_next_item()
-                    elseif luasnip.expand_or_jumpable() then
-                      luasnip.expand_or_jump()
-                    elseif has_words_before() then
-                      cmp.complete()
-                    else
-                      fallback()
-                    end
-                  end, { "i", "s" }),
-                  
-                  ["<S-Tab>"] = cmp.mapping(function(fallback)
-                    if cmp.visible() then
-                      cmp.select_prev_item()
-                    elseif luasnip.jumpable(-1) then
-                      luasnip.jump(-1)
-                    else
-                      fallback()
-                    end
-                  end, { "i", "s" }),
-                }),
-                
-                sources = cmp.config.sources({
-                  { name = "nvim_lsp", priority = 1000 },
-                  { name = "nvim_lsp_signature_help", priority = 1000 },
-                  { name = "luasnip", priority = 750 },
-                  { name = "nvim_lua", priority = 500 },
-                  { name = "path", priority = 250 },
-                }, {
-                  { name = "buffer", priority = 500, keyword_length = 3 },
-                  { name = "calc", priority = 150 },
-                  { name = "spell", priority = 100 },
-                  { name = "dictionary", priority = 100, keyword_length = 2 },
-                  { name = "emoji", priority = 100 },
-                }),
-                
-                experimental = {
-                  ghost_text = {
-                    hl_group = "CmpGhostText",
+              explorer = { enabled = true, replace_netrw = true },
+
+              dashboard = {
+                enabled = true,
+                preset = {
+                  -- Custom ASCII art header (Kanagawa-inspired wave).
+                  header = table.concat({
+                    "",
+                    "  ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗ ",
+                    "  ████╗  ██║██╔════╝██╔═══██╗██║   ██║██║████╗ ████║ ",
+                    "  ██╔██╗ ██║█████╗  ██║   ██║██║   ██║██║██╔████╔██║ ",
+                    "  ██║╚██╗██║██╔══╝  ██║   ██║╚██╗ ██╔╝██║██║╚██╔╝██║ ",
+                    "  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║ ",
+                    "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝ ",
+                    "",
+                    "           🌊 Kanagawa Theme - Like the Great Wave    ",
+                    "",
+                  }, "\n"),
+                  keys = {
+                    { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
+                    { icon = " ", key = "n", desc = "New File", action = ":ene | startinsert" },
+                    { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('grep')" },
+                    { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+                    { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', { cwd = vim.fn.stdpath('config') })" },
+                    { icon = " ", key = "s", desc = "Restore Session", section = "session" },
+                    { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
+                    { icon = " ", key = "q", desc = "Quit", action = ":qa" },
                   },
                 },
+                sections = {
+                  { section = "header" },
+                  { section = "keys", gap = 1, padding = 1 },
+                  { section = "startup" },
+                  {
+                    text = {
+                      { "", hl = "Comment" },
+                      { "The Great Wave off Kanagawa inspires this colorful journey", hl = "SnacksDashboardFooter" },
+                      { "", hl = "Comment" },
+                      { "~ Katsushika Hokusai ~", hl = "SnacksDashboardFooter" },
+                    },
+                    align = "center",
+                  },
+                },
+              },
+
+              styles = {
+                notification = { wo = { wrap = true } },
+              },
+            },
+            keys = {
+              -- Picker (replaces telescope)
+              { "<leader>ff", function() Snacks.picker.files() end,        desc = "Find Files" },
+              { "<leader>fg", function() Snacks.picker.grep() end,         desc = "Live Grep" },
+              { "<leader>fb", function() Snacks.picker.buffers() end,      desc = "Buffers" },
+              { "<leader>fh", function() Snacks.picker.help() end,         desc = "Help Tags" },
+              { "<leader>fr", function() Snacks.picker.recent() end,       desc = "Recent Files" },
+              { "<leader>fc", function() Snacks.picker.command_history() end, desc = "Command History" },
+              { "<leader>fs", function() Snacks.picker.lsp_symbols() end,  desc = "Symbols" },
+              { "<leader>fd", function() Snacks.picker.diagnostics() end,  desc = "Diagnostics" },
+              -- Explorer (replaces nvim-tree)
+              { "<leader>e",  function() Snacks.explorer() end,             desc = "Toggle file explorer" },
+              -- Notifications
+              { "<leader>n",  function() Snacks.notifier.show_history() end, desc = "Notification history" },
+            },
+            init = function()
+              -- Use snacks for vim.notify so toasts get the styled UI.
+              vim.api.nvim_create_autocmd("User", {
+                pattern = "VeryLazy",
+                callback = function()
+                  vim.notify = Snacks.notifier.notify
+                end,
               })
-              
-              -- Command line completion (disabled for cleaner Telescope experience)
-              -- Uncomment these if you want cmdline completion in Vim's command mode
-              -- cmp.setup.cmdline({ '/', '?' }, {
-              --   mapping = cmp.mapping.preset.cmdline(),
-              --   sources = {
-              --     { name = 'buffer' }
-              --   }
-              -- })
-              -- 
-              -- cmp.setup.cmdline(':', {
-              --   mapping = cmp.mapping.preset.cmdline(),
-              --   sources = cmp.config.sources({
-              --     { name = 'path' }
-              --   }, {
-              --     { name = 'cmdline' }
-              --   })
-              -- })
-              
-              -- Set up custom highlight groups
-              local function setup_cmp_highlights()
-                vim.api.nvim_set_hl(0, "CmpGhostText", { link = "Comment", default = true })
-                vim.api.nvim_set_hl(0, "CmpPmenu", { bg = "#1f1f28", fg = "#dcd7ba" })
-                vim.api.nvim_set_hl(0, "CmpDoc", { bg = "#1f1f28", fg = "#dcd7ba" })
-              end
-              
+
+              -- Dashboard header palette (Kanagawa colours).
               vim.api.nvim_create_autocmd("ColorScheme", {
-                pattern = "kanagawa",
-                callback = setup_cmp_highlights,
+                pattern = "*",
+                callback = function()
+                  vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { fg = "#957fb8" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardKey",    { fg = "#7e9cd8" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardDesc",   { fg = "#dcd7ba" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardFooter", { fg = "#727169", italic = true })
+                end,
               })
-              
-              setup_cmp_highlights()
             end,
           },
           
-          -- Dictionary completion plugin
+          -- telescope.nvim was replaced by snacks.picker on 2026-05-01.
+          { "nvim-telescope/telescope.nvim", enabled = false },
+          { "nvim-telescope/telescope-fzf-native.nvim", enabled = false },
+          
+          -- Completion setup — blink.cmp replaced the nvim-cmp stack
+          -- (cmp-nvim-lsp, cmp-buffer, cmp-path, cmp-cmdline,
+          -- cmp_luasnip, cmp-nvim-lua, cmp-nvim-lsp-signature-help,
+          -- cmp-calc, cmp-spell, cmp-emoji, cmp-dictionary) on
+          -- 2026-05-01. blink ships LSP/buffer/path/snippet/cmdline
+          -- as built-in providers and a Rust-backed fuzzy matcher.
+          { "hrsh7th/nvim-cmp", enabled = false },
+          { "hrsh7th/cmp-nvim-lsp", enabled = false },
+          { "hrsh7th/cmp-buffer", enabled = false },
+          { "hrsh7th/cmp-path", enabled = false },
+          { "hrsh7th/cmp-cmdline", enabled = false },
+          { "saadparwaiz1/cmp_luasnip", enabled = false },
+          { "hrsh7th/cmp-nvim-lua", enabled = false },
+          { "hrsh7th/cmp-nvim-lsp-signature-help", enabled = false },
+          { "hrsh7th/cmp-calc", enabled = false },
+          { "f3fora/cmp-spell", enabled = false },
+          { "hrsh7th/cmp-emoji", enabled = false },
+          { "uga-rosa/cmp-dictionary", enabled = false },
+
           {
-            "uga-rosa/cmp-dictionary",
-            ft = { "markdown", "text", "tex", "latex" },
+            "L3MON4D3/LuaSnip",
+            build = function()
+              if vim.fn.executable("make") == 1 then
+                return "make install_jsregexp"
+              end
+              return nil
+            end,
+            dependencies = { "rafamadriz/friendly-snippets" },
             config = function()
-              require("cmp_dictionary").setup({
-                paths = {
-                  "/run/current-system/sw/share/hunspell/en_US.dic",
-                  "/run/current-system/sw/share/hunspell/en_GB.dic"
-                },
-                exact_length = 2,
-                first_case_insensitive = true,
-                document = {
-                  enable = false,
-                },
-              })
+              require("luasnip.loaders.from_vscode").lazy_load()
             end,
           },
 
-          -- LSP Configuration
+          {
+            "saghen/blink.cmp",
+            -- pulls a tagged release with the prebuilt Rust fuzzy
+            -- matcher binary, so no cargo build needed at install.
+            version = "*",
+            event = "InsertEnter",
+            dependencies = { "L3MON4D3/LuaSnip" },
+            ---@module "blink.cmp"
+            ---@type blink.cmp.Config
+            opts = {
+              keymap = {
+                preset = "default",
+                ["<CR>"] = { "accept", "fallback" },
+                ["<Tab>"] = { "select_next", "snippet_forward", "fallback" },
+                ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
+                ["<C-Space>"] = { "show", "show_documentation", "hide_documentation" },
+                ["<C-e>"] = { "hide", "fallback" },
+                ["<C-b>"] = { "scroll_documentation_up", "fallback" },
+                ["<C-f>"] = { "scroll_documentation_down", "fallback" },
+              },
+              snippets = { preset = "luasnip" },
+              completion = {
+                accept = { auto_brackets = { enabled = true } },
+                documentation = {
+                  auto_show = true,
+                  auto_show_delay_ms = 200,
+                  window = { border = "rounded" },
+                },
+                menu = {
+                  border = "rounded",
+                  draw = {
+                    treesitter = { "lsp" },
+                    columns = {
+                      { "kind_icon", "label", "label_description", gap = 1 },
+                      { "kind" },
+                    },
+                  },
+                },
+                ghost_text = { enabled = true },
+                list = { selection = { preselect = true, auto_insert = false } },
+              },
+              signature = { enabled = true, window = { border = "rounded" } },
+              sources = {
+                default = { "lsp", "path", "snippets", "buffer" },
+                providers = {
+                  buffer = {
+                    -- mimic old cmp-buffer keyword_length=3 behaviour
+                    min_keyword_length = 3,
+                  },
+                },
+              },
+              fuzzy = { implementation = "prefer_rust_with_warning" },
+              cmdline = {
+                keymap = { preset = "inherit" },
+                completion = { menu = { auto_show = true } },
+              },
+              appearance = {
+                use_nvim_cmp_as_default = false,
+                nerd_font_variant = "mono",
+              },
+            },
+            opts_extend = { "sources.default" },
+          },
+
+
+          -- LSP Configuration. Kept nvim-lspconfig as a dependency
+          -- because it ships the per-server defaults (filetypes,
+          -- root markers, default cmd) that vim.lsp.config layers on
+          -- top of. Activation has moved to a single vim.lsp.enable
+          -- call below — no more per-filetype autocmds.
           {
             "neovim/nvim-lspconfig",
             event = { "BufReadPre", "BufNewFile" },
-            dependencies = {
-              "hrsh7th/nvim-cmp",
-            },
+            dependencies = { "saghen/blink.cmp" },
             config = function()
-              local capabilities = require("cmp_nvim_lsp").default_capabilities()
-              
+              -- blink.cmp exposes its capabilities via a helper so
+              -- the LSP knows which client features are supported
+              -- (snippet expansion, completion item resolution, etc).
+              local capabilities = require("blink.cmp").get_lsp_capabilities()
+
               -- Enable file watching capabilities (important for project-wide changes)
               capabilities.workspace = capabilities.workspace or {}
               capabilities.workspace.didChangeWatchedFiles = {
@@ -748,64 +670,27 @@
                 },
               })
 
-              -- Enable LSP servers for appropriate filetypes
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "nix" },
-                callback = function()
-                  vim.lsp.enable('nil_ls')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "sh", "bash" },
-                callback = function()
-                  vim.lsp.enable('bashls')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "markdown" },
-                callback = function()
-                  vim.lsp.enable('marksman')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "python" },
-                callback = function()
-                  vim.lsp.enable('pyright')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "go" },
-                callback = function()
-                  vim.lsp.enable('gopls')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
-                callback = function()
-                  vim.lsp.enable('ts_ls')
-                end,
-              })
-              
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "java" },
-                callback = function()
-                  vim.lsp.enable('jdtls')
-                end,
+              -- One-shot enable for all configured servers. Each
+              -- server's filetypes/root_dir come from nvim-lspconfig's
+              -- defaults (in its lsp/<name>.lua files), layered with
+              -- the overrides set via vim.lsp.config above. nvim
+              -- attaches each server only when a matching filetype is
+              -- opened — no per-filetype autocmd needed.
+              vim.lsp.enable({
+                "nil_ls",
+                "bashls",
+                "marksman",
+                "pyright",
+                "gopls",
+                "ts_ls",
+                "jdtls",
+                "rust_analyzer",
               })
 
-              vim.api.nvim_create_autocmd("FileType", {
-                pattern = { "rust" },
-                callback = function()
-                  vim.lsp.enable('rust_analyzer')
-                end,
-              })
-
-              -- LSP keybindings
+              -- LSP keybindings + inlay-hint toggle. Inlay hints are
+              -- configured per-server above (gopls/ts_ls/pyright/
+              -- rust_analyzer) but the runtime toggle still needs
+              -- vim.lsp.inlay_hint.enable() to actually show them.
               vim.api.nvim_create_autocmd("LspAttach", {
                 group = vim.api.nvim_create_augroup("UserLspConfig", {}),
                 callback = function(ev)
@@ -818,40 +703,31 @@
                   vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
                   vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, opts)
                   vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
-                  vim.keymap.set("n", "<leader>cf", function()
-                    vim.lsp.buf.format({ async = true })
-                  end, opts)
+                  -- <leader>cf is owned by conform.nvim (with
+                  -- lsp_fallback), so no LSP-specific format binding
+                  -- here — keeps the keymap unambiguous.
+
+                  local client = vim.lsp.get_client_by_id(ev.data.client_id)
+                  if client and client.server_capabilities.inlayHintProvider then
+                    vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+                  end
                 end,
               })
-              
-              -- Auto-format on save
-              vim.api.nvim_create_autocmd("BufWritePre", {
-                group = vim.api.nvim_create_augroup("AutoFormat", {}),
-                callback = function()
-                  vim.lsp.buf.format({ async = false })
-                end,
-              })
+
+              -- <leader>ti: global inlay-hint toggle, applied to all buffers.
+              vim.keymap.set("n", "<leader>ti", function()
+                vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+              end, { desc = "Toggle inlay hints" })
+
+              -- Format-on-save is owned by conform.nvim (with
+              -- lsp_fallback), so no LSP-driven BufWritePre here —
+              -- otherwise the buffer formats twice per save.
             end,
           },
           
-          -- File explorer (lazy-loaded on first use)
-          {
-            "nvim-tree/nvim-tree.lua",
-            cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeFindFile", "NvimTreeCollapse" },
-            keys = {
-              { "<leader>e", "<cmd>NvimTreeToggle<cr>", desc = "Toggle file explorer" },
-            },
-            opts = {
-              git = {
-                enable = true,
-                ignore = false,
-              },
-              view = {
-                width = 30,
-                side = "left",
-              },
-            },
-          },
+          -- nvim-tree replaced by snacks.explorer on 2026-05-01.
+          -- (<leader>e keymap is defined on the snacks.nvim spec.)
+          { "nvim-tree/nvim-tree.lua", enabled = false },
           
           -- Status line configuration (advanced setup from nix-config)
           {
@@ -902,8 +778,8 @@
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
                   disabled_filetypes = {
-                    statusline = { "dashboard", "alpha", "starter" },
-                    winbar = { "help", "alpha", "dashboard", "NvimTree", "Trouble", "starter" },
+                    statusline = { "dashboard", "alpha", "starter", "snacks_dashboard" },
+                    winbar = { "help", "alpha", "dashboard", "snacks_dashboard", "snacks_layout_box", "NvimTree", "Trouble", "starter" },
                   },
                   disabled_buftypes = {
                     "quickfix",
@@ -911,6 +787,7 @@
                   },
                   ignore_focus = {
                     "NvimTree",
+                    "snacks_layout_box",
                   },
                 },
                 sections = {
@@ -978,7 +855,7 @@
                     { "location", padding = { left = 0, right = 1 } },
                   },
                 },
-                extensions = { "nvim-tree", "lazy", "quickfix" },
+                extensions = { "lazy", "quickfix" },
               }
             end,
           },
@@ -996,7 +873,10 @@
                   "java", "dockerfile", "terraform", "toml"
                 },
                 sync_install = false,
-                auto_install = true,
+                -- Don't silently install grammars at runtime; rely on
+                -- the explicit ensure_installed list above so the closure
+                -- stays reproducible.
+                auto_install = false,
                 highlight = {
                   enable = true,
                   additional_vim_regex_highlighting = false,
@@ -1018,11 +898,69 @@
             opts = {},
           },
           
-          -- Auto pairs (lazy-loaded when entering insert mode)
+          -- nvim-autopairs replaced by mini.pairs on 2026-05-01.
+          { "windwp/nvim-autopairs", enabled = false },
+
+          -- mini.pairs — treesitter-aware bracket/quote auto-pairs.
+          -- Lighter than nvim-autopairs and integrates cleanly with
+          -- blink.cmp's accept/auto_brackets handling.
           {
-            "windwp/nvim-autopairs",
-            event = "InsertEnter", 
+            "echasnovski/mini.pairs",
+            event = "InsertEnter",
+            opts = {
+              modes = { insert = true, command = true, terminal = false },
+              -- skip autopair when inside a string/comment/regex
+              skip_ts = { "string" },
+              -- skip when next char is a closing bracket (avoid ((x))))
+              skip_unbalanced = true,
+              markdown = true,
+            },
+          },
+
+          -- flash.nvim — s/S motions for fast cursor jumps. Replaces
+          -- the leap/hop family with a tighter native-feel design.
+          {
+            "folke/flash.nvim",
+            event = "VeryLazy",
             opts = {},
+            keys = {
+              { "s",     mode = { "n", "x", "o" }, function() require("flash").jump() end,        desc = "Flash" },
+              { "S",     mode = { "n", "x", "o" }, function() require("flash").treesitter() end,  desc = "Flash Treesitter" },
+              { "r",     mode = "o",                function() require("flash").remote() end,      desc = "Remote Flash" },
+              { "R",     mode = { "o", "x" },       function() require("flash").treesitter_search() end, desc = "Treesitter Search" },
+              { "<C-s>", mode = { "c" },            function() require("flash").toggle() end,      desc = "Toggle Flash Search" },
+            },
+          },
+
+          -- oil.nvim — edit directories as buffers (rename/move/delete
+          -- via :w). Complements snacks.explorer for keyboard-driven
+          -- batch filesystem ops.
+          {
+            "stevearc/oil.nvim",
+            cmd = { "Oil" },
+            keys = {
+              { "-", "<cmd>Oil<cr>", desc = "Open parent directory in Oil" },
+            },
+            opts = {
+              default_file_explorer = false, -- snacks.explorer keeps the netrw-replace role
+              view_options = { show_hidden = true },
+              keymaps = {
+                ["g?"] = "actions.show_help",
+                ["<CR>"] = "actions.select",
+                ["<C-s>"] = { "actions.select", opts = { vertical = true } },
+                ["<C-h>"] = { "actions.select", opts = { horizontal = true } },
+                ["<C-c>"] = "actions.close",
+                ["<C-l>"] = "actions.refresh",
+                ["-"] = "actions.parent",
+                ["_"] = "actions.open_cwd",
+                ["`"] = "actions.cd",
+                ["~"] = { "actions.cd", opts = { scope = "tab" } },
+                ["gs"] = "actions.change_sort",
+                ["gx"] = "actions.open_external",
+                ["g."] = "actions.toggle_hidden",
+                ["g\\"] = "actions.toggle_trash",
+              },
+            },
           },
           
           -- Which-key (lazy-loaded on key press)  
@@ -1041,64 +979,20 @@
           { "folke/tokyonight.nvim", enabled = false },
           { "catppuccin/nvim", name = "catppuccin", enabled = false },
           
-          -- Window focus highlighting
-          {
-            "nvim-zh/colorful-winsep.nvim",
-            event = "WinNew", 
-            config = function()
-              require("colorful-winsep").setup({
-                highlight = "#957FB8", -- Kanagawa spring violet for window separators
-                interval = 30,
-                no_exec_files = { "packer", "TelescopePrompt", "mason", "CompetiTest", "NvimTree" },
-                symbols = { "─", "│", "┌", "┐", "└", "┘" },
-              })
-            end,
-          },
+          -- colorful-winsep.nvim disabled on 2026-05-01: native
+          -- WinSeparator highlight + fillchars.vert give the same
+          -- effect with no plugin (set up after lazy.setup, see below).
+          { "nvim-zh/colorful-winsep.nvim", enabled = false },
           
           -- Advanced Markdown Editing Plugins
-          {
-            "iamcco/markdown-preview.nvim",
-            ft = { "markdown" },
-            cmd = { "MarkdownPreview", "MarkdownPreviewStop", "MarkdownPreviewToggle" },
-            build = function()
-              vim.fn["mkdp#util#install"]()
-            end,
-            keys = {
-              { "<leader>mp", "<cmd>MarkdownPreviewToggle<cr>", desc = "Toggle Markdown Preview", ft = "markdown" },
-            },
-            config = function()
-              vim.g.mkdp_filetypes = { "markdown" }
-              vim.g.mkdp_auto_start = 0
-              vim.g.mkdp_auto_close = 1
-              vim.g.mkdp_refresh_slow = 0
-              vim.g.mkdp_command_for_global = 0
-              vim.g.mkdp_open_to_the_world = 0
-              vim.g.mkdp_open_ip = ""
-              vim.g.mkdp_browser = ""
-              vim.g.mkdp_echo_preview_url = 0
-              vim.g.mkdp_browserfunc = ""
-              vim.g.mkdp_preview_options = {
-                mkit = {},
-                katex = {},
-                uml = {},
-                maid = {},
-                disable_sync_scroll = 0,
-                sync_scroll_type = "middle",
-                hide_yaml_meta = 1,
-                sequence_diagrams = {},
-                flowchart_diagrams = {},
-                content_editable = false,
-                disable_filename = 0,
-                toc = {},
-              }
-              vim.g.mkdp_markdown_css = ""
-              vim.g.mkdp_highlight_css = ""
-              vim.g.mkdp_port = ""
-              vim.g.mkdp_page_title = "「''${name}」"
-              vim.g.mkdp_theme = "dark"
-            end,
-          },
-          
+          --
+          -- markdown-preview.nvim was disabled on 2026-05-01:
+          -- render-markdown.nvim (below) provides in-buffer rendering,
+          -- which covers the same use case without spawning a node
+          -- server / opening a browser tab. <leader>mp is now free.
+          { "iamcco/markdown-preview.nvim", enabled = false },
+
+
           {
             "MeanderingProgrammer/render-markdown.nvim",
             ft = { "markdown" },
@@ -1237,29 +1131,10 @@
             end,
           },
           
-          {
-            "bullets-vim/bullets.vim",
-            ft = { "markdown", "text", "gitcommit" },
-            config = function()
-              vim.g.bullets_enabled_file_types = {
-                "markdown",
-                "text", 
-                "gitcommit",
-                "scratch",
-              }
-              vim.g.bullets_enable_in_empty_buffers = 0
-              vim.g.bullets_set_mappings = 1
-              vim.g.bullets_mapping_leader = ""
-              vim.g.bullets_delete_last_bullet_if_empty = 1
-              vim.g.bullets_line_spacing = 1
-              vim.g.bullets_pad_right = 1
-              vim.g.bullets_max_alpha_characters = 2
-              vim.g.bullets_renumber_on_change = 1
-              vim.g.bullets_nested_checkboxes = 1
-              vim.g.bullets_checkbox_markers = " .oOX"
-              vim.g.bullets_outline_levels = { "ROM", "ABC", "num", "abc", "rom", "ABC", "num" }
-            end,
-          },
+          -- bullets.vim disabled on 2026-05-01: overlapped with
+          -- autolist.nvim on <CR>/o in markdown buffers. autolist
+          -- (lua native) is the single source of truth now.
+          { "bullets-vim/bullets.vim", enabled = false },
           
           {
             "hedyhli/outline.nvim",
@@ -1267,76 +1142,25 @@
             keys = {
               { "<leader>o", "<cmd>Outline<CR>", desc = "Toggle Outline" },
             },
+            -- Only overrides of upstream defaults are listed here;
+            -- full default schema lives in the plugin's docs.
             opts = {
               outline_window = {
                 position = "right",
                 width = 25,
-                relative_width = true,
-                auto_close = false,
-                auto_jump = false,
-                jump_highlight_duration = 300,
-                center_on_jump = true,
-                show_numbers = false,
-                show_relative_numbers = false,
-                wrap = false,
                 show_cursorline = true,
-                hide_cursor = false,
-                focus_on_open = false,
-                winhl = "",
-              },
-              outline_items = {
-                show_symbol_details = true,
-                show_symbol_lineno = false,
-                highlight_hovered_item = true,
-                auto_set_cursor = true,
-              },
-              guides = {
-                enabled = true,
-                markers = {
-                  bottom = "└",
-                  middle = "├", 
-                  vertical = "│",
-                },
               },
               symbol_folding = {
                 autofold_depth = 1,
                 auto_unfold_hover = true,
                 auto_unfold_goto = true,
-                markers = { "", "" },
               },
               preview_window = {
                 enabled = true,
                 border = "single",
-                min_height = 4,
-                min_width = 30,
-                show_title = true,
-                show_cursorline = true,
-                live = false,
-              },
-              keymaps = {
-                show_help = "?",
-                close = { "<Esc>", "q" },
-                goto_location = "<CR>",
-                peek_location = "o",
-                goto_and_close = "<S-CR>",
-                restore_location = "<C-g>",
-                hover_symbol = "<C-space>",
-                toggle_preview = "K",
-                rename_symbol = "r",
-                code_actions = "a",
-                fold = "h",
-                unfold = "l",
-                fold_all = "W",
-                unfold_all = "E",
-                fold_reset = "R",
-                down_and_jump = "<C-j>",
-                up_and_jump = "<C-k>",
               },
               providers = {
                 priority = { "lsp", "coc", "markdown", "norg" },
-                lsp = {
-                  blacklist_clients = {},
-                },
               },
             },
           },
@@ -1530,7 +1354,7 @@
             opts = {},
             keys = {
               { "<C-,>",      "<cmd>ClaudeCode<cr>",        desc = "Toggle Claude Code" },
-              { "<leader>cf", "<cmd>ClaudeCodeFocus<cr>",   desc = "Focus Claude" },
+              { "<leader>cF", "<cmd>ClaudeCodeFocus<cr>",   desc = "Focus Claude" },
               { "<leader>cs", "<cmd>ClaudeCodeSend<cr>",    desc = "Send selection to Claude", mode = { "n", "v" } },
               { "<leader>ca", "<cmd>ClaudeCodeAdd<cr>",     desc = "Add file to Claude context" },
               { "<leader>cm", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
@@ -1622,66 +1446,37 @@
         end,
       })
       
-      -- Window focus highlighting and dimming
-      vim.api.nvim_create_augroup("WindowFocus", { clear = true })
-      
-      -- Set up window focus highlighting colors (Kanagawa theme)
+      -- Window-focus + float + winsep highlights, set on every
+      -- colorscheme load so kanagawa or DMS's matugen-driven palette
+      -- both pick them up. The previous WinEnter/WinLeave winblend=10
+      -- dimming was removed (uncommon, distracting on inactive windows);
+      -- the active/inactive distinction comes from NormalNC instead.
       local function setup_window_highlights()
-        -- Colors from Kanagawa theme
-        local colors = {
-          focused_bg = "#1F1F28",      -- Kanagawa wave bg
-          unfocused_bg = "#16161D",    -- Darker Kanagawa bg
-          focused_fg = "#DCD7BA",      -- Kanagawa fg
-          unfocused_fg = "#727169",    -- Dimmed Kanagawa fg
-          focused_border = "#7E9CD8",  -- Kanagawa crystal blue
-          unfocused_border = "#54546D", -- Dimmed border
-        }
-        
-        -- Set highlight groups
-        vim.api.nvim_set_hl(0, "NormalFloat", { bg = colors.focused_bg })
-        vim.api.nvim_set_hl(0, "FloatBorder", { fg = colors.focused_border, bg = colors.focused_bg })
-        
-        -- Custom highlight groups for window focus
-        vim.api.nvim_set_hl(0, "ActiveWindow", { bg = colors.focused_bg })
-        vim.api.nvim_set_hl(0, "InactiveWindow", { bg = colors.unfocused_bg })
+        local violet = "#957FB8" -- Kanagawa spring violet
+        local crystal_blue = "#7E9CD8"
+        local wave_bg = "#1F1F28"
+        local sumi_bg = "#16161D"
+
+        vim.api.nvim_set_hl(0, "NormalFloat", { bg = wave_bg })
+        vim.api.nvim_set_hl(0, "FloatBorder", { fg = crystal_blue, bg = wave_bg })
+        -- Subtle bg shift for inactive windows; pairs with native NormalNC.
+        vim.api.nvim_set_hl(0, "NormalNC", { bg = sumi_bg })
+        -- Window-split separator (replaces colorful-winsep.nvim).
+        vim.api.nvim_set_hl(0, "WinSeparator", { fg = violet })
       end
-      
-      -- Apply highlights after colorscheme loads
+
       vim.api.nvim_create_autocmd("ColorScheme", {
-        group = "WindowFocus",
+        group = vim.api.nvim_create_augroup("WindowHighlights", { clear = true }),
         pattern = "*",
         callback = setup_window_highlights,
       })
-      
-      -- Window focus events
-      vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
-        group = "WindowFocus",
-        callback = function()
-          -- Highlight focused window
-          vim.opt_local.winhighlight = "Normal:ActiveWindow,NormalNC:InactiveWindow"
-          vim.opt_local.winblend = 0
-        end,
-      })
-      
-      vim.api.nvim_create_autocmd({ "WinLeave", "BufLeave" }, {
-        group = "WindowFocus",
-        callback = function()
-          -- Dim unfocused window
-          vim.opt_local.winhighlight = "Normal:InactiveWindow,NormalNC:InactiveWindow"
-          vim.opt_local.winblend = 10
-        end,
-      })
-      
-      -- Set initial highlight groups
       setup_window_highlights()
       
-      -- Essential keybindings
+      -- Essential keybindings.
+      -- <leader>ff/fg/fb/fh/e are owned by the snacks.nvim plugin
+      -- spec's `keys = {}` table (lazy-loads snacks on first press),
+      -- so they're not redefined here.
       vim.keymap.set("n", "<leader>l", "<cmd>Lazy<cr>", { desc = "Lazy Plugin Manager" })
-      vim.keymap.set("n", "<leader>ff", "<cmd>Telescope find_files<cr>", { desc = "Find Files" })
-      vim.keymap.set("n", "<leader>fg", "<cmd>Telescope live_grep<cr>", { desc = "Live Grep" })
-      vim.keymap.set("n", "<leader>fb", "<cmd>Telescope buffers<cr>", { desc = "Buffers" })
-      vim.keymap.set("n", "<leader>fh", "<cmd>Telescope help_tags<cr>", { desc = "Help Tags" })
-      vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle File Explorer" })
       
       -- Markdown-specific settings and keybindings
       vim.api.nvim_create_augroup("MarkdownSettings", { clear = true })
@@ -1752,35 +1547,6 @@
         end,
       })
       
-      -- Configure LTeX Language Server for Grammar and Spell Checking
-      vim.lsp.config('ltex', {
-        settings = {
-          ltex = {
-            language = "en-US",
-            additionalRules = {
-              enablePickyRules = false,
-              motherTongue = "en-US",
-            },
-            checkFrequency = "save",
-            dictionary = {
-              ["en-US"] = {},
-              ["pt-BR"] = {},
-            },
-            disabledRules = {
-              ["en-US"] = {},
-              ["pt-BR"] = {},
-            },
-          },
-        },
-      })
-      
-      -- Enable LTeX for appropriate filetypes
-      vim.api.nvim_create_autocmd("FileType", {
-        pattern = { "tex", "latex", "rst", "org", "text", "gitcommit" },
-        callback = function()
-          vim.lsp.enable('ltex')
-        end,
-      })
     '';
   };
 }

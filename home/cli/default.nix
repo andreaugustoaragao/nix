@@ -44,127 +44,131 @@ in
     ./k9s.nix
   ];
 
-  home.packages = with pkgs; [
-    # System utilities
-    libnotify # provides notify-send
-    fzf
+  home.packages =
+    with pkgs;
+    [
+      # System utilities
+      libnotify # provides notify-send
+      file
+      fzf
 
-    # Cloud packages
-    azure-cli
-    awscli2
-    databricks-cli
-    google-cloud-sdk
-    kubectl
-    kubernetes-helm
-    kubectx
-    stern
-    lfk
-    terraform
-    terragrunt
-    ansible
-    packer
-    podman-compose
+      # Cloud packages
+      azure-cli
+      awscli2
+      databricks-cli
+      google-cloud-sdk
+      kubectl
+      kubernetes-helm
+      kubectx
+      stern
+      lfk
+      terraform
+      terragrunt
+      ansible
+      packer
+      podman-compose
 
-    # General tools
-    code2prompt # CLI tool with token counting functionality
-    bitwarden-cli
-    curlie
-    xh
-    wget
-    aria2
-    rsync
-    openssh
-    mosh
-    tmux
-    screen
-    htop
-    iotop
-    nethogs
-    iftop
-    nmap
-    tcpdump
-    wireshark-cli
-    socat
-    netcat
-    dig
-    whois
-    mtr
-    traceroute
-    iperf
-    speedtest-cli
-    neofetch
-    screenfetch
-    lolcat
-    figlet
-    toilet
-    cowsay
-    fortune
-    sl
-    cmatrix
-    tree
-    ncdu
-    gdu
-    duf
-    dfc
-    progress
-    pv
-    moreutils
-    entr
-    watchman
-    inotify-tools
-    lorri
-    cachix
-    mesa-demos # provides glxinfo for OpenGL debugging
+      # General tools
+      code2prompt # CLI tool with token counting functionality
+      bitwarden-cli
+      curlie
+      xh
+      wget
+      aria2
+      rsync
+      openssh
+      mosh
+      tmux
+      screen
+      htop
+      iotop
+      nethogs
+      iftop
+      nmap
+      tcpdump
+      wireshark-cli
+      socat
+      netcat
+      dig
+      whois
+      mtr
+      traceroute
+      iperf
+      speedtest-cli
+      neofetch
+      screenfetch
+      lolcat
+      figlet
+      toilet
+      cowsay
+      fortune
+      sl
+      cmatrix
+      tree
+      ncdu
+      gdu
+      duf
+      dfc
+      progress
+      pv
+      moreutils
+      entr
+      watchman
+      inotify-tools
+      lorri
+      cachix
+      mesa-demos # provides glxinfo for OpenGL debugging
 
-    # Rust-based coreutils and modern replacements
-    ripgrep
-    fd
-    bat
-    eza
-    lsd
-    dust
-    bottom
-    delta
-    procs
-    hyperfine
-    bandwhich
-    dog
-    tokei
-    uutils-coreutils
-    broot
-    sd
-    choose
-    hexyl
-    grex
-    zoxide
-    skim
-    tealdeer
-    starship
-    just
-    watchexec
-    onefetch
-    difftastic
-    jless
-    qsv
-    csvlens
-    viu
-    pastel
-    ouch
-    unzip
-    yazi
-    inkscape
-    imagemagick # provides convert command
+      # Rust-based coreutils and modern replacements
+      ripgrep
+      fd
+      bat
+      eza
+      lsd
+      dust
+      bottom
+      delta
+      procs
+      hyperfine
+      bandwhich
+      dog
+      tokei
+      uutils-coreutils
+      broot
+      sd
+      choose
+      hexyl
+      grex
+      zoxide
+      skim
+      tealdeer
+      starship
+      just
+      watchexec
+      onefetch
+      difftastic
+      jless
+      qsv
+      csvlens
+      viu
+      pastel
+      ouch
+      unzip
+      yazi
+      inkscape
+      imagemagick # provides convert command
 
-    # Development tools that moved to development.nix:
-    # - All language servers, compilers, and dev tools
-    # - cargo-*, gitui, jq, httpie moved to development.nix
-    # - direnv moved to development.nix as a program
-  ] ++ [
-    # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
-    # channel ships 1.91.1; use unstable until the channel revert
-    # (NixOS/nixpkgs#512626) propagates.
-    unstable-pkgs.zellij
-  ];
+      # Development tools that moved to development.nix:
+      # - All language servers, compilers, and dev tools
+      # - cargo-*, gitui, jq, httpie moved to development.nix
+      # - direnv moved to development.nix as a program
+    ]
+    ++ [
+      # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
+      # channel ships 1.91.1; use unstable until the channel revert
+      # (NixOS/nixpkgs#512626) propagates.
+      unstable-pkgs.zellij
+    ];
 
   # Local .desktop overrides for packages whose Icon= references a name
   # not in the active icon theme (Papirus-Dark). User-local entries win
@@ -177,7 +181,12 @@ in
       terminal = true;
       type = "Application";
       mimeType = [ "inode/directory" ];
-      categories = [ "Utility" "FileTools" "FileManager" "ConsoleOnly" ];
+      categories = [
+        "Utility"
+        "FileTools"
+        "FileManager"
+        "ConsoleOnly"
+      ];
       icon = "system-file-manager";
     };
 
@@ -189,7 +198,10 @@ in
       exec = "ikhal";
       terminal = true;
       type = "Application";
-      categories = [ "Calendar" "ConsoleOnly" ];
+      categories = [
+        "Calendar"
+        "ConsoleOnly"
+      ];
       icon = "office-calendar";
     };
 
@@ -200,7 +212,10 @@ in
       exec = "blueman-adapters";
       terminal = false;
       type = "Application";
-      categories = [ "Settings" "HardwareSettings" ];
+      categories = [
+        "Settings"
+        "HardwareSettings"
+      ];
       icon = "blueman";
     };
   };

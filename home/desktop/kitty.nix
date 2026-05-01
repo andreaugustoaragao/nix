@@ -18,7 +18,7 @@
     '';
     font = {
       name = "CaskaydiaMono Nerd Font";
-      size = 9;
+      size = 11;
     };
     settings = {
       shell = "fish";

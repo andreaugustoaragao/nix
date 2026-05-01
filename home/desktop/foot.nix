@@ -16,9 +16,9 @@
     # settings stay in charge of layout/font/etc when not in DMS mode.
     settings = lib.mkIf (!useDms) {
       main = {
-        font = "CaskaydiaMono Nerd Font:size=9";
-        font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=9";
-        font-italic = "CaskaydiaMono Nerd Font:style=Italic:size=9";
+        font = "CaskaydiaMono Nerd Font:size=11";
+        font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=11";
+        font-italic = "CaskaydiaMono Nerd Font:style=Italic:size=11";
         dpi-aware = "no";
         pad = "5x5";
         shell = "fish";
@@ -58,9 +58,9 @@
       include=~/.config/foot/dank-colors.ini
 
       [main]
-      font=CaskaydiaMono Nerd Font:size=9
-      font-bold=CaskaydiaMono Nerd Font:style=Bold:size=9
-      font-italic=CaskaydiaMono Nerd Font:style=Italic:size=9
+      font=CaskaydiaMono Nerd Font:size=11
+      font-bold=CaskaydiaMono Nerd Font:style=Bold:size=11
+      font-italic=CaskaydiaMono Nerd Font:style=Italic:size=11
       dpi-aware=no
       pad=5x5
       shell=fish

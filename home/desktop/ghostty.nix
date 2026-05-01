@@ -11,7 +11,7 @@ in
   xdg.configFile."ghostty/config".text = ''
     # Font configuration
     font-family = CaskaydiaMono Nerd Font
-    font-size = 9
+    font-size = 11
 
     # Single-instance: subsequent invocations open a new window in the
     # existing process (analogous to footclient or kitty --single-instance).

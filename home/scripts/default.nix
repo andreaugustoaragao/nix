@@ -8,6 +8,7 @@
 {
   imports = [
     ./bw-query.nix
+    ./bookmarks.nix
     ./browser-default.nix
     ./browser-app.nix
     ./eww.nix

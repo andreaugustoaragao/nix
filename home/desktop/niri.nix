@@ -45,10 +45,11 @@
     // to a class=user logind session. For the same reason, when DMS is
     // active it gets spawned here too so its built-in PolkitAuthModal
     // can register the agent slot.
-    ${if useDms then
-      ''spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"''
-    else
-      ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''
+    ${
+      if useDms then
+        ''spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"''
+      else
+        ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''
     }
     spawn-at-startup "prlcc"
 
@@ -219,20 +220,16 @@
     }
 
     ${lib.optionalString useDms ''
-      // Frosted-glass effect on layer-shell surfaces (DMS bar / popouts /
-      // control-center / notifications all sit on top or overlay).
-      // xray defaults to true when blur is on, so the bar reads as
-      // glass-on-wallpaper, not smeared application content. Requires
-      // niri 26.04+. Per niri's KDL schema the value is positional
-      // (`blur true`) — not the `on=true` named-arg form.
+      // Frosted-glass effect on the DMS bar only. Earlier versions of
+      // this rule matched layer="top"/"overlay" globally, but DMS
+      // modals (DankModal.qml) spawn a fullscreen "*:clickcatcher"
+      // layer-shell surface for click-outside-to-dismiss; with niri's
+      // blur applied behind it, the rest of the screen visually
+      // disappeared while a dialog was open. DMS handles its own
+      // backdrop blur for popouts/control-center via blurEnabled, so
+      // we only need niri's compositor blur for the bar itself.
       layer-rule {
-          match layer="top"
-          background-effect {
-              blur true
-          }
-      }
-      layer-rule {
-          match layer="overlay"
+          match namespace="dms:bar"
           background-effect {
               blur true
           }
@@ -275,6 +272,7 @@
         Mod+Return { spawn "ghostty"; }
         Mod+Shift+T { spawn "thunar"; }
         Mod+Shift+B { spawn "browser-default"; }
+        Mod+Shift+M { spawn "bookmarks"; }
         Mod+Shift+N { spawn "notes"; }
         Mod+Backslash { spawn "bitwarden"; }
         Mod+Shift+A { spawn "browser-app" "https://grok.com"; }
@@ -284,9 +282,11 @@
         // Menu and launcher
         Mod+Space { spawn "fuzzel"; }
         Mod+D { spawn "fuzzel"; }
-        ${if useDms
-          then ''Mod+Escape { spawn "dms" "ipc" "call" "powermenu" "toggle"; }''
-          else ''Mod+Escape { spawn "wlogout"; }''
+        ${
+          if useDms then
+            ''Mod+Escape { spawn "dms" "ipc" "call" "powermenu" "toggle"; }''
+          else
+            ''Mod+Escape { spawn "wlogout"; }''
         }
 
         // Window management
@@ -371,15 +371,16 @@
         Mod+Shift+F { spawn "screenshot" "output"; }
         
         ${lib.optionalString lockScreen (
-          if useDms
-          then ''
-            // Lock screen via DMS (dms-settings.json owns the timeouts).
-            Mod+Ctrl+L { spawn "dms" "ipc" "call" "lock" "lock"; }
-          ''
-          else ''
-            // Lock screen via swaylock (lockscreen.nix configures it).
-            Mod+Ctrl+L { spawn "swaylock" "-f"; }
-          ''
+          if useDms then
+            ''
+              // Lock screen via DMS (dms-settings.json owns the timeouts).
+              Mod+Ctrl+L { spawn "dms" "ipc" "call" "lock" "lock"; }
+            ''
+          else
+            ''
+              // Lock screen via swaylock (lockscreen.nix configures it).
+              Mod+Ctrl+L { spawn "swaylock" "-f"; }
+            ''
         )}
 
         // Notification control
@@ -399,21 +400,24 @@
         // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl
         // direct when DMS owns the OSD (DMS shows its own via pipewire monitoring).
         ${
-          if useDms then ''
-            XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "-l" "1.5" "@DEFAULT_AUDIO_SINK@" "5%+"; }
-            XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
-            XF86AudioMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-            XF86AudioMicMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
-            XF86MonBrightnessUp { spawn "brightnessctl" "set" "5%+"; }
-            XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
-          '' else ''
-            XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }
-            XF86AudioLowerVolume { spawn "swayosd-client" "--output-volume" "lower"; }
-            XF86AudioMute { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
-            XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
-            XF86MonBrightnessUp { spawn "swayosd-client" "--brightness" "raise"; }
-            XF86MonBrightnessDown { spawn "swayosd-client" "--brightness" "lower"; }
-          ''
+          if useDms then
+            ''
+              XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "-l" "1.5" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+              XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+              XF86AudioMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+              XF86AudioMicMute { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+              XF86MonBrightnessUp { spawn "brightnessctl" "set" "5%+"; }
+              XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+            ''
+          else
+            ''
+              XF86AudioRaiseVolume { spawn "swayosd-client" "--output-volume" "raise"; }
+              XF86AudioLowerVolume { spawn "swayosd-client" "--output-volume" "lower"; }
+              XF86AudioMute { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
+              XF86AudioMicMute { spawn "pamixer" "--default-source" "-t"; }
+              XF86MonBrightnessUp { spawn "swayosd-client" "--brightness" "raise"; }
+              XF86MonBrightnessDown { spawn "swayosd-client" "--brightness" "lower"; }
+            ''
         }
 
         // Precise media adjustments with Alt
