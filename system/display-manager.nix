@@ -68,4 +68,41 @@ in
 
   # Update PAM services for greetd
   security.pam.services.greetd.enableGnomeKeyring = true;
+
+  # Override niri's bundled `niri-session` script.
+  #
+  # The upstream script does `systemctl --user --wait start niri.service`,
+  # which puts the wayland session inside user@1000.service/session.slice/
+  # niri.service. polkit's auth-agent registration walks the cgroup tree
+  # looking for a `session-N.scope` ancestor; user@1000.service has none
+  # (logind's session-N.scope is a parallel tree under user-1000.slice),
+  # so any agent spawned by niri (DMS PolkitAuthModal, hyprpolkitagent)
+  # fails with "No session for pid X" and never gets the slot.
+  #
+  # On useDms hosts the DMS greeter sends `niri-session` back to greetd
+  # as the chosen session command (from wayland-sessions/niri.desktop's
+  # `Exec=`), so this hiPrio wrapper wins and niri runs directly inside
+  # the logind session-N.scope. niri's children (DMS via spawn-at-startup)
+  # then inherit the scope, and polkit accepts the agent registration.
+  #
+  # tuigreet hosts already exec `niri --session` directly via greetd's
+  # `command = "tuigreet ... --cmd 'niri --session'"`, so the wrapper is
+  # only needed on useDms hosts — but installing it everywhere is
+  # harmless and keeps the system reproducible.
+  environment.systemPackages = [
+    (lib.hiPrio (
+      pkgs.writeShellScriptBin "niri-session" ''
+        exec ${pkgs-unstable.niri}/bin/niri --session
+      ''
+    ))
+  ];
+
+  # Add the home-manager per-user profile zsh path to /etc/shells so
+  # pkexec doesn't reject $SHELL (which gets set to that path during
+  # login). NixOS's programs.zsh.enable already adds the system path
+  # /run/current-system/sw/bin/zsh; this just covers the per-user
+  # variant.
+  environment.shells = [
+    "/etc/profiles/per-user/${owner.name}/bin/zsh"
+  ];
 }

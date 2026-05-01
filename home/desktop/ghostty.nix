@@ -71,6 +71,11 @@ in
     # Close windows/splits without the "are you sure?" prompt.
     confirm-close-surface = false
 
+    # Tame mouse-wheel scroll speed (default 1.0 jumps several lines
+    # per notch on high-resolution wheels). 0.4 matches niri's
+    # mouse.scroll-factor in this repo.
+    mouse-scroll-multiplier = 0.4
+
     # Full silence: don't ring the bell when long commands finish, and
     # disable every bell-feature so DMS/niri don't get an attention
     # signal that gets routed to the freedesktop alert sound theme.
