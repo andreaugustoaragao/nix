@@ -12,7 +12,7 @@
       lazy-nvim
       
       # Essential plugins that need to be available immediately
-      kanagawa-nvim  # Colorscheme needs to be available at startup
+      rose-pine      # Colorscheme needs to be available at startup
       plenary-nvim   # Many plugins depend on this
     ];
     
@@ -214,39 +214,30 @@
           
           -- Colorscheme (load immediately)
           {
-            "rebelot/kanagawa.nvim",
+            "rose-pine/neovim",
+            name = "rose-pine",
             priority = 1000,
             config = function()
-              require('kanagawa').setup({
-                compile = false,
-                undercurl = true,
-                commentStyle = { italic = true },
-                functionStyle = {},
-                keywordStyle = { italic = true},
-                statementStyle = { bold = true },
-                typeStyle = {},
-                transparent = false,
-                dimInactive = false,
-                terminalColors = true,
-                colors = {
-                  palette = {},
-                  theme = { wave = {}, lotus = {}, dragon = {}, all = {} },
-                },
-                overrides = function(colors)
-                  return {}
-                end,
-                theme = "wave",
-                background = {
-                  dark = "wave",
-                  light = "lotus"
+              require("rose-pine").setup({
+                variant = "main",        -- "main" (dark), "moon" (dark soft), "dawn" (light)
+                dark_variant = "main",
+                bold_vert_split = false,
+                dim_nc_background = false,
+                disable_background = false,
+                disable_float_background = false,
+                disable_italics = false,
+                styles = {
+                  italic = true,
+                  bold = true,
+                  transparency = false,
                 },
               })
               -- DMS's matugen integration writes a base16 plugin spec to
               -- lua/plugins/dankcolors.lua. When present, let it own the
-              -- palette; otherwise fall back to kanagawa.
+              -- palette; otherwise fall back to rose-pine.
               local dms_colors = vim.fn.stdpath("config") .. "/lua/plugins/dankcolors.lua"
               if vim.fn.filereadable(dms_colors) ~= 1 then
-                vim.cmd("colorscheme kanagawa")
+                vim.cmd("colorscheme rose-pine")
               end
             end,
           },
@@ -773,7 +764,13 @@
 
               return {
                 options = {
-                  theme = "auto", -- derive from whatever colorscheme is active (kanagawa fallback OR DMS's base16/dankcolors)
+                  -- Pinned to rose-pine instead of "auto" because the
+                  -- matugen-derived dankcolors palette occasionally
+                  -- produces a low-contrast statusline (light bg with
+                  -- light fg → invisible diagnostics/git diff numbers).
+                  -- rose-pine ships a lualine theme bundle in the
+                  -- colorscheme plugin, so no extra dependency.
+                  theme = "rose-pine",
                   globalstatus = true,
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
@@ -1123,7 +1120,7 @@
               end
               
               vim.api.nvim_create_autocmd("ColorScheme", {
-                pattern = "kanagawa",
+                pattern = "*",
                 callback = setup_markdown_highlights,
               })
               
@@ -1366,7 +1363,7 @@
           lazy = false, -- Should plugins be lazy-loaded by default?
           version = false, -- Always use the latest git commit
         },
-        install = { colorscheme = { "kanagawa" } },
+        install = { colorscheme = { "rose-pine" } },
         checker = { enabled = false }, -- Don't check for plugin updates automatically
         performance = {
           rtp = {
