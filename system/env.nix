@@ -8,4 +8,11 @@
     NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
     ENABLE_TOOL_SEARCH = "true";
   };
+
+  # Use dash for /bin/sh — small, fast, POSIX. Affects systemd ExecStart
+  # `sh -c …`, build-sandbox shells, and any unshebanged scripts that
+  # run via /bin/sh. Interactive shells (fish/zsh/bash) are unchanged.
+  # Revert by removing this line if anything upstream assumes bash at
+  # /bin/sh and breaks.
+  environment.binsh = "${pkgs.dash}/bin/dash";
 } 

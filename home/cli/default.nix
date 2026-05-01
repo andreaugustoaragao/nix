@@ -17,7 +17,7 @@ let
     in
     base.overrideAttrs (_: {
       goModules = base.goModules.overrideAttrs (_: {
-        outputHash = "sha256-nEMHImlytPq9FhN6Rb5mmBMpZ7d+II1MirD0xLLZv+A=";
+        outputHash = "sha256-2YhpOg5asUYaMQxorwTt1gkyiA165wjBxDoIUJ74sro=";
       });
     });
 in
@@ -28,6 +28,10 @@ in
     ./tmux.nix
     ./starship.nix
     ./zoxide.nix
+    ./atuin.nix
+    ./mise.nix
+    ./carapace.nix
+    ./pay-respects.nix
     ./git.nix
     ./gpg.nix
     ./ssh-add-keys.nix

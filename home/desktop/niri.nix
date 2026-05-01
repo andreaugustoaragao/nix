@@ -9,7 +9,12 @@
 }:
 
 {
-  home.packages = [ pkgs.hyprpolkitagent ];
+  # On non-DMS hosts we run hyprpolkitagent for polkit auth prompts.
+  # On DMS hosts, DMS's own PolkitAuthModal handles auth instead — but
+  # only when DMS lives inside niri's graphical logind session, which
+  # is why the spawn-at-startup below launches DMS directly (and the
+  # systemd dms.service is disabled in quickshell.nix).
+  home.packages = lib.optionals (!useDms) [ pkgs.hyprpolkitagent ];
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
@@ -28,14 +33,23 @@
     output "DP-1" {
         // Default configuration for all outputs
         mode "3840x2160@144.000"
-        scale 1.75 
+        scale 1.25
     }
 
     // Define workspaces with numbers
 
     // Spawn programs on startup (others managed by systemd user services).
-    // When useDms = true, DMS provides the polkit agent so we skip hyprpolkitagent.
-    ${lib.optionalString (!useDms) ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''}
+    // The polkit auth agent must be spawned by niri itself (not via
+    // systemd user service) so it lands in the graphical login session's
+    // cgroup — polkit refuses auth-agent listeners that aren't attached
+    // to a class=user logind session. For the same reason, when DMS is
+    // active it gets spawned here too so its built-in PolkitAuthModal
+    // can register the agent slot.
+    ${if useDms then
+      ''spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"''
+    else
+      ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''
+    }
     spawn-at-startup "prlcc"
 
 
@@ -172,6 +186,15 @@
         open-on-output "current"
     }
 
+    ${lib.optionalString useDms ''
+      window-rule {
+          match app-id="org.quickshell" title="Settings"
+          open-floating true
+          default-column-width { fixed 1200; }
+          open-on-output "current"
+      }
+    ''}
+
     window-rule {
         match is-window-cast-target=true
 
@@ -194,6 +217,27 @@
             inactive-color "#7d0d2d"
         }
     }
+
+    ${lib.optionalString useDms ''
+      // Frosted-glass effect on layer-shell surfaces (DMS bar / popouts /
+      // control-center / notifications all sit on top or overlay).
+      // xray defaults to true when blur is on, so the bar reads as
+      // glass-on-wallpaper, not smeared application content. Requires
+      // niri 26.04+. Per niri's KDL schema the value is positional
+      // (`blur true`) — not the `on=true` named-arg form.
+      layer-rule {
+          match layer="top"
+          background-effect {
+              blur true
+          }
+      }
+      layer-rule {
+          match layer="overlay"
+          background-effect {
+              blur true
+          }
+      }
+    ''}
 
     // Prefer no server-side decorations (clean look like Hyprland)
     prefer-no-csd
@@ -344,7 +388,13 @@
         // Waybar toggle
         Mod+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar"; }
         Mod+Shift+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww"; }
-        ${lib.optionalString useDms ''Mod+Shift+D { spawn "dms" "ipc" "call" "theme" "toggle"; }''}
+        ${lib.optionalString useDms ''
+          // DMS surface toggles
+          Mod+Shift+D { spawn "dms" "ipc" "call" "theme" "toggle"; }
+          Mod+Comma   { spawn "dms" "ipc" "call" "dash" "toggle" "overview"; }
+          Mod+Period  { spawn "dms" "ipc" "call" "control-center" "toggle"; }
+          Mod+N       { spawn "dms" "ipc" "call" "notepad" "toggle"; }
+        ''}
 
         // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl
         // direct when DMS owns the OSD (DMS shows its own via pipewire monitoring).

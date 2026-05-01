@@ -8,11 +8,12 @@
 }:
 
 {
-  # Ensure mako is installed
-  home.packages = [ pkgs.mako ];
+  # mako is the notification daemon when DMS isn't running. Under DMS,
+  # DMS itself owns org.freedesktop.Notifications natively, so don't
+  # install mako at all — having the binary on PATH is what lets stale
+  # processes accidentally race DMS for the dbus slot.
+  home.packages = lib.optionals (!useDms) [ pkgs.mako ];
 
-  # mako has no `include` directive — when DMS is on, matugen writes
-  # the entire ~/.config/mako/config, so skip writing it from Nix.
   xdg.configFile."mako/config" = lib.mkIf (!useDms) {
     text = ''
       # Kanagawa theme colors

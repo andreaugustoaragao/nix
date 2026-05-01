@@ -29,10 +29,6 @@ in
       {
         id = "dbepggeogbaibhgnhhndojpepiihcmeb";
       }
-      # Kanagawa theme
-      {
-        id = "djnghjlejbfgnbnmjfgbdaeafbiklpha";
-      }
       # Claude in Chrome
       {
         id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";

@@ -247,4 +247,15 @@
       fi
     '')
   ];
-} 
+
+  xdg.desktopEntries.tmux-sessionizer = {
+    name = "Tmux Project";
+    genericName = "Tmux session picker";
+    comment = "Pick a project and attach or create its tmux session";
+    exec = "tmux-sessionizer";
+    terminal = true;
+    type = "Application";
+    categories = [ "Utility" "TerminalEmulator" "ConsoleOnly" ];
+    icon = "utilities-terminal";
+  };
+}

@@ -71,6 +71,12 @@ in
     # Close windows/splits without the "are you sure?" prompt.
     confirm-close-surface = false
 
+    # Full silence: don't ring the bell when long commands finish, and
+    # disable every bell-feature so DMS/niri don't get an attention
+    # signal that gets routed to the freedesktop alert sound theme.
+    notify-on-command-finish-action = no-bell,no-notify
+    bell-features = no-system,no-audio,no-attention,no-title,no-border
+
     ${lib.optionalString useDms "theme = dankcolors"}
   '';
 }

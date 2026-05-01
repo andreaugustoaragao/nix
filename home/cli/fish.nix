@@ -5,27 +5,48 @@
   programs.fish = {
     enable = true;
     
+    # Aliases are commands fish silently substitutes — used here for
+    # cases that override or transform a real command (eza-as-ls,
+    # safer rm/cp/mv) where seeing the expansion every time is noise.
     shellAliases = {
-      # File listing
+      # File listing — eza with our preferred flags
       ls = "eza -lh --group-directories-first --icons=auto";
       lsa = "eza -lh --group-directories-first --icons=auto -a";
       lt = "eza --tree --level=2 --long --icons --git";
       lta = "eza --tree --level=2 --long --icons --git -a";
       ll = "ls -alF";
-      la = "ls -A";  
+      la = "ls -A";
       l = "ls -CF";
-      
+
+      # Safety/coloring overrides on stdlib commands
+      grep = "grep --color=auto";
+      cat = "cat -v";
+      mkdir = "mkdir -p";
+      rm = "rm -i";
+      cp = "cp -i";
+      mv = "mv -i";
+
+      # Composed
+      fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
+    };
+
+    # Abbreviations expand inline as you type — `g<space>` becomes
+    # `git `. You see the full command before running it, history
+    # records the expanded form, and tab-completion works on the
+    # expanded command. Preferred over aliases for any prefix-style
+    # shortcut where the expansion is informative.
+    shellAbbrs = {
       # System management
       rebuild = "sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
       nixf = "nix search nixpkgs";
-      
-      # Editor shortcuts
+
+      # Editor
       v = "nvim";
       vim = "nvim";
       vi = "nvim";
-      
-      # Git shortcuts
+
+      # Git
       g = "git";
       ga = "git add";
       gaa = "git add --all";
@@ -46,8 +67,8 @@
       gss = "git status --short";
       gst = "git stash";
       gstp = "git stash pop";
-      
-      # Kubectl shortcuts
+
+      # Kubernetes
       k = "kubectl";
       kd = "kubectl describe";
       ke = "kubectl edit";
@@ -57,27 +78,24 @@
       ka = "kubectl apply -f";
       kdel = "kubectl delete";
       kex = "kubectl exec -it";
-      
-      # Databricks shortcuts
+
+      # Databricks
       db = "databricks";
-      
-      # Common shortcuts
+
+      # Misc shortcuts
       c = "clear";
       h = "history";
       y = "yazi";
-      grep = "grep --color=auto";
-      cat = "cat -v";
-      mkdir = "mkdir -p";
-      rm = "rm -i";
-      cp = "cp -i";
-      mv = "mv -i";
-      # FZF with bat preview (from nix-config)
-      fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
     };
     
     interactiveShellInit = ''
       # Any-nix-shell integration for better nix-shell experience
       ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
+
+      # zoxide replaces `cd` in interactive fish only — zsh/bash get
+      # the default `z` alias (so non-interactive scripts and CLI
+      # agents that source those shells keep POSIX cd semantics).
+      ${pkgs.zoxide}/bin/zoxide init fish --cmd cd | source
 
       # Use local k3s kubeconfig when no KUBECONFIG is set
       if test -r /etc/rancher/k3s/k3s.yaml; and not set -q KUBECONFIG

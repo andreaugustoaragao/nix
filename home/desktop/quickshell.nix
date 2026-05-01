@@ -34,6 +34,24 @@ let
     "rose-pine" = "rosePine";
   };
 
+  # DMS plugins live in their own GitHub repos; the registry is just
+  # an index. Pinning each plugin source so the desktop-widget set is
+  # reproducible across machines.
+  dms-plugins = {
+    cavaVisualizer = pkgs.fetchFromGitHub {
+      owner = "ernestowgg";
+      repo = "cava-visualizer";
+      rev = "e4b65a207652bc3204121401fafd5566b8d22c37";
+      hash = "sha256-3Cr+PzPkNGWeIrOqucEc/bLh4xndHI/M3k/srBRCdAQ=";
+    };
+    dankRssWidget = pkgs.fetchFromGitHub {
+      owner = "BrendonJL";
+      repo = "dms-rss-widget";
+      rev = "dcfe5a638ef2143fc18efdd09ef0b80eacbf35f4";
+      hash = "sha256-IzqsQYyBjRv9o4cNSQNRfMYBRmirn/LEGCH2c1fhchw=";
+    };
+  };
+
   # `danksearch` is the indexed filesystem search backend DMS's launcher
   # uses. Not in nixpkgs, so we build from upstream against a pinned rev.
   danksearch = pkgs.buildGoModule {
@@ -59,8 +77,13 @@ in
 
   programs.dank-material-shell = {
     enable = useDms;
+    # Don't generate the systemd user unit. The unit lands in app.slice,
+    # outside the graphical logind session — polkit refuses to register
+    # DMS's PolkitAuthModal from there. Instead, niri spawns DMS via
+    # spawn-at-startup so it inherits niri's logind session (class=user),
+    # which lets DMS own the polkit auth-agent slot.
     systemd = {
-      enable = useDms;
+      enable = false;
       target = "graphical-session.target";
     };
 
@@ -112,6 +135,7 @@ in
           # Weight 600 = Demi/Semi Bold.
           fontFamily = "Cantarell";
           fontWeight = 600;
+          fontScale = 1.25;
 
           # Weather in Fahrenheit (default is Celsius).
           useFahrenheit = true;
@@ -123,6 +147,43 @@ in
           acLockTimeout = 1200;
           batteryLockTimeout = 1200;
           lockBeforeSuspend = true;
+
+          # Frosted-glass effect on bar/popouts/control-center.
+          blurEnabled = true;
+
+          # Desktop widgets (Mod+. opens the picker; positions are
+          # editable in DMS Settings → Desktop Widgets). Setting the
+          # legacy *Enabled flags to false so the migration code doesn't
+          # double-add the system monitor — we provide the full instance
+          # array directly.
+          desktopClockEnabled = false;
+          systemMonitorEnabled = false;
+          desktopWidgetInstances = [
+            {
+              id = "dw_sysmon_primary";
+              widgetType = "systemMonitor";
+              name = "System Monitor";
+              enabled = true;
+              config = { };
+              positions = { };
+            }
+            {
+              id = "dw_cava_primary";
+              widgetType = "cavaVisualizer";
+              name = "Cava Visualizer";
+              enabled = true;
+              config = { };
+              positions = { };
+            }
+            {
+              id = "dw_rss_primary";
+              widgetType = "dankRssWidget";
+              name = "Dank RSS Widget";
+              enabled = true;
+              config = { };
+              positions = { };
+            }
+          ];
         }
     );
 
@@ -140,16 +201,23 @@ in
   };
 
   # Optional DMS feature backends — only installed when DMS is active.
-  home.packages = lib.optionals useDms [ danksearch ];
+  # cava: required by the cavaVisualizer desktop widget.
+  home.packages = lib.optionals useDms [ danksearch pkgs.cava ];
 
   # Mount registry theme directories into DMS's expected location.
   # DMS reads ~/.config/DankMaterialShell/themes/<dir>/theme.json on
   # startup. Each entry below symlinks the whole theme dir from the
-  # pinned registry checkout.
+  # pinned registry checkout. Plugins are mounted the same way under
+  # plugins/<id>/, sourced from each plugin's upstream repo.
   xdg.configFile = lib.mkIf useDms (
-    lib.mapAttrs' (dir: _id: {
+    (lib.mapAttrs' (dir: _id: {
       name = "DankMaterialShell/themes/${dir}";
       value.source = "${dms-registry}/themes/${dir}";
-    }) themes
+    }) themes)
+    //
+    (lib.mapAttrs' (id: src: {
+      name = "DankMaterialShell/plugins/${id}";
+      value.source = src;
+    }) dms-plugins)
   );
 }

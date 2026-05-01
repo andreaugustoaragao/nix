@@ -16,9 +16,12 @@
 #
 # This module fills the gaps DMS doesn't cover:
 #   - waybar  (write a colors.css for @import)
-#   - mako    (write the full config — no include directive)
 #   - fuzzel  (write the full ini — no include directive)
 #   - tmux    (write a status-bar style block)
+#   - yazi    (write a theme.toml — yazi reloads on restart)
+#
+# mako is intentionally omitted: under DMS it's not installed and DMS
+# owns notifications natively.
 #
 # DMS picks up these templates automatically because
 # `runUserMatugenTemplates = true`. Paths must be absolute since DMS
@@ -40,11 +43,6 @@ lib.mkIf useDms {
       input_path  = "~/.config/matugen/templates/waybar.css"
       output_path = "~/.config/waybar/colors-matugen.css"
       post_hook   = "systemctl --user is-active --quiet wl-waybar && systemctl --user restart wl-waybar; true"
-
-      [templates.mako]
-      input_path  = "~/.config/matugen/templates/mako"
-      output_path = "~/.config/mako/config"
-      post_hook   = "makoctl reload 2>/dev/null || true"
 
       [templates.fuzzel]
       input_path  = "~/.config/matugen/templates/fuzzel.ini"
@@ -102,25 +100,6 @@ lib.mkIf useDms {
       #battery            { background-color: @m_tertiary;  color: @m_bg; }
       #battery.warning    { background-color: @m_secondary; color: @m_bg; }
       #battery.critical   { background-color: @m_error;     color: @m_fg; }
-    '';
-
-    "matugen/templates/mako".text = ''
-      background-color=#{{colors.surface.default.hex_stripped}}e6
-      text-color=#{{colors.on_surface.default.hex_stripped}}
-      border-color=#{{colors.outline.default.hex_stripped}}
-
-      anchor=top-right
-      width=400
-      height=110
-      margin=10
-      padding=15
-      border-size=2
-      border-radius=8
-
-      default-timeout=10000
-
-      [mode=do-not-disturb]
-      invisible=1
     '';
 
     "matugen/templates/fuzzel.ini".text = ''

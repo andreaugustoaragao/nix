@@ -24,14 +24,17 @@ let
   '';
 in
 {
-  # Status bar - Waybar (extracted from wayland.nix)
-  programs.waybar = {
+  # Status bar - Waybar. Under DMS, waybar is replaced entirely by
+  # DankBar, so don't install the package or its bundled systemd unit
+  # (which would auto-start at graphical-session.target regardless of
+  # programs.waybar.systemd.enable=false).
+  programs.waybar = lib.mkIf (!useDms) {
     enable = true;
     systemd.enable = false;
   };
 
   # Separate configuration files for different window managers
-  xdg.configFile = {
+  xdg.configFile = lib.mkIf (!useDms) {
     "waybar/hyprland-config.json".text = builtins.toJSON {
       reload_style_on_change = true;
       layer = "top";
