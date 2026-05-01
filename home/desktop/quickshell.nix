@@ -71,6 +71,193 @@ let
       license = lib.licenses.mit;
     };
   };
+
+  # Desired DMS state. The DMS home-manager module would render these
+  # as symlinks into /nix/store, which DMS can't write back to (so
+  # mode-driven wallpaper swap, widget drag, and any UI mutation
+  # silently fail). Instead we render them to writable copies via
+  # home.activation below; DMS owns runtime state, and a rebuild
+  # only re-seeds the live file when it is missing or still a
+  # symlink to /nix/store. To force a reset to Nix-defined state,
+  # delete the live file and rebuild.
+  desiredSettings = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-settings.json)) {
+    currentThemeName = "dynamic";
+    currentThemeCategory = "dynamic";
+    registryThemeVariants = {
+      peaceAndQuiet = "blue";
+    };
+    syncModeWithPortal = true;
+    terminalsAlwaysDark = true;
+    notificationPopupPosition = -1;
+    cursorSettings = {
+      niri = {
+        hideWhenTyping = true;
+      };
+    };
+    fontFamily = "Cantarell";
+    fontWeight = 600;
+    fontScale = 1.25;
+    useFahrenheit = true;
+    acLockTimeout = 1200;
+    batteryLockTimeout = 1200;
+    lockBeforeSuspend = true;
+    blurEnabled = true;
+    desktopClockEnabled = false;
+    systemMonitorEnabled = false;
+    # Positions are in DMS logical pixels (post-scale). Workstation
+    # DP-1 is 3840x2160 @ scale 1.25 → 3072x1728 logical.
+    desktopWidgetInstances = [
+      {
+        id = "dw_sysmon_primary";
+        widgetType = "systemMonitor";
+        name = "System Monitor";
+        enabled = true;
+        config = { };
+        positions = {
+          "DP-1" = {
+            x = 16;
+            y = 52;
+            width = 660;
+            height = 1380;
+          };
+        };
+      }
+      {
+        id = "dw_cava_primary";
+        widgetType = "cavaVisualizer";
+        name = "Cava Visualizer";
+        enabled = true;
+        config = { };
+        positions = {
+          "DP-1" = {
+            x = 0;
+            y = 1640;
+            width = 3072;
+            height = 240;
+          };
+        };
+      }
+      {
+        id = "dw_rss_primary";
+        widgetType = "dankRssWidget";
+        name = "Dank RSS Widget";
+        enabled = true;
+        config = {
+          # Initial feed list — DankRssWidget reads this via
+          # loadValue("feeds", []). Mutable at runtime now that
+          # settings.json is a real file (not a /nix/store symlink).
+          feeds = [
+            {
+              name = "Simon Willison";
+              url = "https://simonwillison.net/atom/everything/";
+            }
+            {
+              name = "Hacker News";
+              url = "https://hnrss.org/frontpage";
+            }
+            {
+              name = "Ars Technica";
+              url = "https://feeds.arstechnica.com/arstechnica/index";
+            }
+            {
+              name = "Google Research";
+              url = "https://blog.research.google/feeds/posts/default";
+            }
+            {
+              name = "arXiv cs.AI";
+              url = "https://arxiv.org/rss/cs.AI";
+            }
+            {
+              name = "MIT Tech Review";
+              url = "https://www.technologyreview.com/feed/";
+            }
+            {
+              name = "LWN.net";
+              url = "https://lwn.net/headlines/rss";
+            }
+            {
+              name = "Phoronix";
+              url = "https://www.phoronix.com/rss.php";
+            }
+            {
+              name = "It's FOSS";
+              url = "https://itsfoss.com/feed/";
+            }
+            {
+              name = "OMG Ubuntu";
+              url = "https://www.omgubuntu.co.uk/feed";
+            }
+            {
+              name = "DistroWatch";
+              url = "https://distrowatch.com/news/dw.xml";
+            }
+            {
+              name = "The Go Blog";
+              url = "https://go.dev/blog/feed.atom";
+            }
+            {
+              name = "Dave Cheney";
+              url = "https://dave.cheney.net/feed";
+            }
+            {
+              name = "Eli Bendersky";
+              url = "https://eli.thegreenplace.net/feeds/all.atom.xml";
+            }
+            {
+              name = "r/golang";
+              url = "https://www.reddit.com/r/golang/.rss";
+            }
+            {
+              name = "Ardan Labs";
+              url = "https://www.ardanlabs.com/blog/index.xml";
+            }
+            {
+              name = "WSJ Markets";
+              url = "https://feeds.a.dj.com/rss/RSSMarketsMain.xml";
+            }
+            {
+              name = "Calculated Risk";
+              url = "https://www.calculatedriskblog.com/feeds/posts/default";
+            }
+            {
+              name = "A Wealth of Common Sense";
+              url = "https://awealthofcommonsense.com/feed/";
+            }
+            {
+              name = "Of Dollars And Data";
+              url = "https://ofdollarsanddata.com/feed/";
+            }
+            {
+              name = "Marginal Revolution";
+              url = "https://marginalrevolution.com/feed";
+            }
+            {
+              name = "Reuters Business";
+              url = "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best";
+            }
+          ];
+        };
+        positions = {
+          "DP-1" = {
+            x = 2396;
+            y = 52;
+            width = 660;
+            height = 1380;
+          };
+        };
+      }
+    ];
+  };
+
+  desiredSession = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-session.json)) {
+    perModeWallpaper = true;
+    wallpaperPath = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+    wallpaperPathDark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+    wallpaperPathLight = "${wallpapers}/share/wallpapers/blue-jays.png";
+  };
+
+  settingsSource = pkgs.writeText "dms-settings.json" (builtins.toJSON desiredSettings);
+  sessionSource = pkgs.writeText "dms-session.json" (builtins.toJSON desiredSession);
 in
 {
   imports = [ inputs.dms.homeModules.dank-material-shell ];
@@ -94,233 +281,12 @@ in
     # dependencies just for it.
     enableVPN = false;
 
-    # Full DMS state captured into Nix. The two snapshot files were
-    # copied verbatim from ~/.config and ~/.local/state on 2026-04-28;
-    # any further tweaks happen by editing those JSON files (or by
-    # overriding individual keys via lib.recursiveUpdate below).
-    settings = lib.mkIf useDms (
-      lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-settings.json)) {
-        # Default to dynamic (wallpaper-derived) theming so DMS itself
-        # follows whatever palette matugen extracts from the active
-        # wallpaper. The five registry themes mounted below stay
-        # available in the Browse picker — flip currentThemeName to
-        # "custom" + set customThemeFile/category=registry to use them.
-        currentThemeName = "dynamic";
-        currentThemeCategory = "dynamic";
-        # Pre-select Peace & Quiet's Blue variant so it's already
-        # configured if you switch to that theme via the picker.
-        registryThemeVariants = {
-          peaceAndQuiet = "blue";
-        };
-        # Application toggles in DMS Theme tab.
-        syncModeWithPortal = true; # XDG portal color-scheme sync
-        terminalsAlwaysDark = true; # force terminals to dark palette
-
-        # Notifications appear at the top-center of the screen
-        # (-1 is DMS's special sentinel for top-center; positive
-        # values map to SettingsData.Position.{Top,Bottom,Left,Right,...}).
-        notificationPopupPosition = -1;
-
-        # Hide the cursor while typing in niri.
-        cursorSettings = {
-          niri = {
-            hideWhenTyping = true;
-          };
-        };
-
-        # DMS uses one global font for all UI (bar, popups, control
-        # center), so this applies to the status bar too.
-        # Weight 600 = Demi/Semi Bold.
-        fontFamily = "Cantarell";
-        fontWeight = 600;
-        fontScale = 1.25;
-
-        # Weather in Fahrenheit (default is Celsius).
-        useFahrenheit = true;
-
-        # Auto-lock after 20 min of idle on AC or battery, and lock
-        # before suspend so the screen is locked when the machine
-        # wakes. Mod+Ctrl+L manually triggers DMS's lock UI via
-        # `dms ipc call lock lock` (bound in niri.nix).
-        acLockTimeout = 1200;
-        batteryLockTimeout = 1200;
-        lockBeforeSuspend = true;
-
-        # Frosted-glass effect on bar/popouts/control-center.
-        blurEnabled = true;
-
-        # Desktop widgets (Mod+. opens the picker; positions are
-        # editable in DMS Settings → Desktop Widgets). Setting the
-        # legacy *Enabled flags to false so the migration code doesn't
-        # double-add the system monitor — we provide the full instance
-        # array directly.
-        desktopClockEnabled = false;
-        systemMonitorEnabled = false;
-        # Positions are in DMS logical pixels (post-scale). Workstation
-        # DP-1 is 3840x2160 @ scale 1.25 → 3072x1728 logical. Screen
-        # keys are niri output names (default getScreenDisplayName).
-        desktopWidgetInstances = [
-          {
-            id = "dw_sysmon_primary";
-            widgetType = "systemMonitor";
-            name = "System Monitor";
-            enabled = true;
-            config = { };
-            positions = {
-              "DP-1" = {
-                x = 16;
-                y = 52;
-                width = 660;
-                height = 1380;
-              };
-            };
-          }
-          {
-            id = "dw_cava_primary";
-            widgetType = "cavaVisualizer";
-            name = "Cava Visualizer";
-            enabled = true;
-            config = { };
-            positions = {
-              "DP-1" = {
-                x = 0;
-                y = 1640;
-                width = 3072;
-                height = 240;
-              };
-            };
-          }
-          {
-            id = "dw_rss_primary";
-            widgetType = "dankRssWidget";
-            name = "Dank RSS Widget";
-            enabled = true;
-            config = {
-              # Initial feed list — DankRssWidget reads this via
-              # loadValue("feeds", []). Edit/extend in DMS Settings or
-              # here; the widget's saveValue() rewrites this back, but
-              # under our Nix-managed settings.json the runtime write
-              # silently fails, so this list is the source of truth.
-              feeds = [
-                # AI / tech
-                {
-                  name = "Simon Willison";
-                  url = "https://simonwillison.net/atom/everything/";
-                }
-                {
-                  name = "Hacker News";
-                  url = "https://hnrss.org/frontpage";
-                }
-                {
-                  name = "Ars Technica";
-                  url = "https://feeds.arstechnica.com/arstechnica/index";
-                }
-                {
-                  name = "Google Research";
-                  url = "https://blog.research.google/feeds/posts/default";
-                }
-                {
-                  name = "arXiv cs.AI";
-                  url = "https://arxiv.org/rss/cs.AI";
-                }
-                {
-                  name = "MIT Tech Review";
-                  url = "https://www.technologyreview.com/feed/";
-                }
-
-                # Linux
-                {
-                  name = "LWN.net";
-                  url = "https://lwn.net/headlines/rss";
-                }
-                {
-                  name = "Phoronix";
-                  url = "https://www.phoronix.com/rss.php";
-                }
-                {
-                  name = "It's FOSS";
-                  url = "https://itsfoss.com/feed/";
-                }
-                {
-                  name = "OMG Ubuntu";
-                  url = "https://www.omgubuntu.co.uk/feed";
-                }
-                {
-                  name = "DistroWatch";
-                  url = "https://distrowatch.com/news/dw.xml";
-                }
-
-                # Go
-                {
-                  name = "The Go Blog";
-                  url = "https://go.dev/blog/feed.atom";
-                }
-                {
-                  name = "Dave Cheney";
-                  url = "https://dave.cheney.net/feed";
-                }
-                {
-                  name = "Eli Bendersky";
-                  url = "https://eli.thegreenplace.net/feeds/all.atom.xml";
-                }
-                {
-                  name = "r/golang";
-                  url = "https://www.reddit.com/r/golang/.rss";
-                }
-                {
-                  name = "Ardan Labs";
-                  url = "https://www.ardanlabs.com/blog/index.xml";
-                }
-
-                # Investment / markets
-                {
-                  name = "WSJ Markets";
-                  url = "https://feeds.a.dj.com/rss/RSSMarketsMain.xml";
-                }
-                {
-                  name = "Calculated Risk";
-                  url = "https://www.calculatedriskblog.com/feeds/posts/default";
-                }
-                {
-                  name = "A Wealth of Common Sense";
-                  url = "https://awealthofcommonsense.com/feed/";
-                }
-                {
-                  name = "Of Dollars And Data";
-                  url = "https://ofdollarsanddata.com/feed/";
-                }
-                {
-                  name = "Marginal Revolution";
-                  url = "https://marginalrevolution.com/feed";
-                }
-                {
-                  name = "Reuters Business";
-                  url = "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best";
-                }
-              ];
-            };
-            positions = {
-              "DP-1" = {
-                x = 2396;
-                y = 52;
-                width = 660;
-                height = 1380;
-              };
-            };
-          }
-        ];
-      }
-    );
-
-    session = lib.mkIf useDms (
-      lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-session.json)) {
-        # Per-mode wallpapers from the flake's assets/wallpapers/.
-        perModeWallpaper = true;
-        wallpaperPath = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
-        wallpaperPathDark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
-        wallpaperPathLight = "${wallpapers}/share/wallpapers/blue-jays.png";
-      }
-    );
+    # settings/session intentionally omitted here. The DMS home module
+    # would render them as /nix/store symlinks, which DMS can't write
+    # to (so mode-driven wallpaper swap, widget drag, runtime UI
+    # mutation all silently fail). The desired content is rendered to
+    # writable copies via home.activation.dms-bootstrap-state below.
+    # See `desiredSettings` and `desiredSession` in the let block.
   };
 
   # Optional DMS feature backends — only installed when DMS is active.
@@ -344,5 +310,26 @@ in
       name = "DankMaterialShell/plugins/${id}";
       value.source = src;
     }) dms-plugins)
+  );
+
+  # Seed DMS settings/session as writable files (not /nix/store
+  # symlinks), so the runtime can mutate them — wallpaper swap on
+  # mode toggle, widget drag, etc. Only installs when the live file
+  # is missing or still a stale symlink. To force a reset to the
+  # Nix-defined state, delete the live file and rebuild.
+  home.activation.dms-bootstrap-state = lib.mkIf useDms (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      install_writable() {
+        local target="$1"
+        local source="$2"
+        run mkdir -p "$(dirname "$target")"
+        if [ -L "$target" ] || [ ! -e "$target" ]; then
+          run rm -f "$target"
+          run install -m 644 "$source" "$target"
+        fi
+      }
+      install_writable "$HOME/.config/DankMaterialShell/settings.json" "${settingsSource}"
+      install_writable "$HOME/.local/state/DankMaterialShell/session.json" "${sessionSource}"
+    ''
   );
 }

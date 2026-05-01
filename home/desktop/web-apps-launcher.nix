@@ -180,6 +180,14 @@ let
       profile = "Personal";
     }
     {
+      key = "amazon-prime-video";
+      name = "Amazon Prime Video";
+      icon = iconStore "primevideo";
+      url = "https://www.primevideo.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
       key = "m1-finance";
       name = "M1 Finance";
       icon = iconStore "m1finance";
