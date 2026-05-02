@@ -40,7 +40,11 @@
       "WebFetch(domain:nixos.wiki)",
       "WebFetch(domain:ryantm.github.io)",
       "Bash(sudo systemctl restart:*)",
-      "Bash(command ls:*)"
+      "Bash(command ls:*)",
+      "Bash(findmnt *)",
+      "Bash(lsblk *)",
+      "Bash(nix-store --version)",
+      "Read(//nix/store/**)"
     ],
     "deny": [],
     "ask": []
