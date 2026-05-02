@@ -169,7 +169,15 @@ let
       icon = iconStore "claude";
       url = "https://claude.ai";
       mode = "app";
-      profile = "Personal";
+      profile = "Work";
+    }
+    {
+      key = "claude-new";
+      name = "Claude (New Chat)";
+      icon = iconStore "claude";
+      url = "https://claude.ai/new";
+      mode = "app";
+      profile = "Work";
     }
     {
       key = "youtube";
