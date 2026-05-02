@@ -183,7 +183,7 @@ let
       key = "amazon-prime-video";
       name = "Amazon Prime Video";
       icon = iconStore "primevideo";
-      url = "https://www.primevideo.com";
+      url = "https://www.amazon.com/gp/video/storefront?redirectToCMP=1";
       mode = "app";
       profile = "Personal";
     }

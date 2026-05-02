@@ -112,26 +112,22 @@
       
       selected=~/projects/"$selected"
       selected_name=$(basename "$selected" | tr . _)
-      tmux_running=$(pgrep tmux)
-      
-      if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
-        tmux new-session -s $selected_name -c $selected
-        exit 0
-      fi
-      
+
       new_session_flag=0
       if ! tmux has-session -t=$selected_name 2> /dev/null; then
         tmux new-session -ds $selected_name -c $selected
         tmux set-environment -t $selected_name TMUX_SESSION_ROOT_DIR $selected
         new_session_flag=1
       fi
-      
-      tmux switch-client -t $selected_name
-      if [ $new_session_flag -eq 1 ]; then
-        if [[ -e ''${selected}/.tmux-setup.sh ]]; then
-          cd ''${selected}
-          source ''${selected}/.tmux-setup.sh ''${selected_name}
-        fi
+
+      if [ $new_session_flag -eq 1 ] && [[ -e ''${selected}/.tmux-setup.sh ]]; then
+        ( cd ''${selected} && source ''${selected}/.tmux-setup.sh ''${selected_name} )
+      fi
+
+      if [[ -z $TMUX ]]; then
+        tmux attach -t $selected_name
+      else
+        tmux switch-client -t $selected_name
       fi
     '')
     
