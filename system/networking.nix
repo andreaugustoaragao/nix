@@ -144,6 +144,10 @@
     "net.core.rmem_max" = 7500000;
     "net.core.wmem_max" = 7500000;
 
+    # BBR + fq pacing — better throughput/latency over WAN, neutral on LAN.
+    "net.core.default_qdisc" = "fq";
+    "net.ipv4.tcp_congestion_control" = "bbr";
+
     # Prevent new interfaces (K3s/Docker veths) from auto-generating IPv6
     # link-local addresses. The constant address churn triggers Chrome's
     # netlink watcher → ERR_NETWORK_CHANGED on every pod lifecycle event.
