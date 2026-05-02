@@ -42,6 +42,7 @@ in
     ./development.nix
     ./claude.nix
     ./k9s.nix
+    ./fzf.nix
   ];
 
   home.packages =

@@ -15,10 +15,14 @@
 # DMS writes.
 #
 # This module fills the gaps DMS doesn't cover:
-#   - waybar  (write a colors.css for @import)
-#   - fuzzel  (write the full ini — no include directive)
-#   - tmux    (write a status-bar style block)
-#   - yazi    (write a theme.toml — yazi reloads on restart)
+#   - waybar   (write a colors.css for @import)
+#   - fuzzel   (write the full ini — no include directive)
+#   - tmux     (write a status-bar style block)
+#   - yazi     (write a theme.toml — yazi reloads on restart)
+#   - k9s      (write a skin yaml — referenced from k9s/config.yaml)
+#   - bottom   (write the whole bottom.toml — no include directive)
+#   - lazygit  (write gui.theme — lazygit deep-merges with defaults)
+#   - fzf      (write opts.conf — read via FZF_DEFAULT_OPTS_FILE on every run)
 #
 # mako is intentionally omitted: under DMS it's not installed and DMS
 # owns notifications natively.
@@ -58,6 +62,26 @@ lib.mkIf useDms {
       input_path  = "~/.config/matugen/templates/yazi.toml"
       output_path = "~/.config/yazi/theme.toml"
       # yazi reloads its theme on restart; no live signal-reload available.
+
+      [templates.k9s]
+      input_path  = "~/.config/matugen/templates/k9s.yaml"
+      output_path = "~/.config/k9s/skins/matugen.yaml"
+      # k9s reads the skin on launch; restart for new colors.
+
+      [templates.bottom]
+      input_path  = "~/.config/matugen/templates/bottom.toml"
+      output_path = "~/.config/bottom/bottom.toml"
+      # bottom (btm) re-reads the config on launch.
+
+      [templates.lazygit]
+      input_path  = "~/.config/matugen/templates/lazygit.yml"
+      output_path = "~/.config/lazygit/config.yml"
+      # lazygit re-reads the config on launch.
+
+      [templates.fzf]
+      input_path  = "~/.config/matugen/templates/fzf.conf"
+      output_path = "~/.config/fzf/opts.conf"
+      # fzf reads opts on every invocation via FZF_DEFAULT_OPTS_FILE.
     '';
 
     "matugen/templates/waybar.css".text = ''
@@ -263,6 +287,189 @@ lib.mkIf useDms {
 
       # Message line
       set -g message-style "fg={{colors.on_surface.dark.hex}},bg={{colors.surface_container_high.dark.hex}}"
+    '';
+
+    "matugen/templates/k9s.yaml".text = ''
+      # K9s skin generated from the matugen dark palette. Active skin is
+      # selected via ~/.config/k9s/config.yaml (k9s.ui.skin = "matugen").
+      k9s:
+        body:
+          fgColor:    "{{colors.on_surface.dark.hex}}"
+          bgColor:    "{{colors.surface.dark.hex}}"
+          logoColor:  "{{colors.primary.dark.hex}}"
+        prompt:
+          fgColor:      "{{colors.on_surface.dark.hex}}"
+          bgColor:      "{{colors.surface.dark.hex}}"
+          suggestColor: "{{colors.outline.dark.hex}}"
+        info:
+          fgColor:      "{{colors.secondary.dark.hex}}"
+          sectionColor: "{{colors.on_surface_variant.dark.hex}}"
+        dialog:
+          fgColor:            "{{colors.on_surface.dark.hex}}"
+          bgColor:            "{{colors.surface.dark.hex}}"
+          buttonFgColor:      "{{colors.on_primary.dark.hex}}"
+          buttonBgColor:      "{{colors.primary.dark.hex}}"
+          buttonFocusFgColor: "{{colors.on_secondary.dark.hex}}"
+          buttonFocusBgColor: "{{colors.secondary.dark.hex}}"
+          labelFgColor:       "{{colors.tertiary.dark.hex}}"
+          fieldFgColor:       "{{colors.on_surface.dark.hex}}"
+        frame:
+          border:
+            fgColor:    "{{colors.outline.dark.hex}}"
+            focusColor: "{{colors.primary.dark.hex}}"
+          menu:
+            fgColor:     "{{colors.on_surface.dark.hex}}"
+            keyColor:    "{{colors.tertiary.dark.hex}}"
+            numKeyColor: "{{colors.primary.dark.hex}}"
+          crumbs:
+            fgColor:     "{{colors.on_primary.dark.hex}}"
+            bgColor:     "{{colors.primary.dark.hex}}"
+            activeColor: "{{colors.on_secondary.dark.hex}}"
+          status:
+            newColor:       "{{colors.primary.dark.hex}}"
+            modifyColor:    "{{colors.tertiary.dark.hex}}"
+            addColor:       "{{colors.primary.dark.hex}}"
+            pendingColor:   "{{colors.secondary.dark.hex}}"
+            errorColor:     "{{colors.error.dark.hex}}"
+            highlightColor: "{{colors.secondary.dark.hex}}"
+            killColor:      "{{colors.error.dark.hex}}"
+            completedColor: "{{colors.on_surface_variant.dark.hex}}"
+          title:
+            fgColor:        "{{colors.on_surface.dark.hex}}"
+            bgColor:        "{{colors.surface.dark.hex}}"
+            highlightColor: "{{colors.primary.dark.hex}}"
+            counterColor:   "{{colors.secondary.dark.hex}}"
+            filterColor:    "{{colors.tertiary.dark.hex}}"
+        views:
+          charts:
+            bgColor: "{{colors.surface.dark.hex}}"
+            defaultDialColors:
+              - "{{colors.primary.dark.hex}}"
+              - "{{colors.error.dark.hex}}"
+            defaultChartColors:
+              - "{{colors.primary.dark.hex}}"
+              - "{{colors.error.dark.hex}}"
+          table:
+            fgColor:       "{{colors.on_surface.dark.hex}}"
+            bgColor:       "{{colors.surface.dark.hex}}"
+            cursorFgColor: "{{colors.on_primary.dark.hex}}"
+            cursorBgColor: "{{colors.primary.dark.hex}}"
+            header:
+              fgColor:     "{{colors.tertiary.dark.hex}}"
+              bgColor:     "{{colors.surface.dark.hex}}"
+              sorterColor: "{{colors.primary.dark.hex}}"
+          xray:
+            fgColor:         "{{colors.on_surface.dark.hex}}"
+            bgColor:         "{{colors.surface.dark.hex}}"
+            cursorColor:     "{{colors.surface_container_high.dark.hex}}"
+            cursorTextColor: "{{colors.on_surface.dark.hex}}"
+            graphicColor:    "{{colors.secondary.dark.hex}}"
+          yaml:
+            keyColor:   "{{colors.primary.dark.hex}}"
+            colonColor: "{{colors.outline.dark.hex}}"
+            valueColor: "{{colors.on_surface.dark.hex}}"
+          logs:
+            fgColor: "{{colors.on_surface.dark.hex}}"
+            bgColor: "{{colors.surface.dark.hex}}"
+            indicator:
+              fgColor:        "{{colors.primary.dark.hex}}"
+              bgColor:        "{{colors.surface.dark.hex}}"
+              toggleOnColor:  "{{colors.primary.dark.hex}}"
+              toggleOffColor: "{{colors.outline.dark.hex}}"
+    '';
+
+    "matugen/templates/bottom.toml".text = ''
+      # bottom (btm) styles generated from the matugen dark palette.
+      # bottom owns this whole file because it has no include directive;
+      # add non-style options here as needed.
+
+      [styles.cpu]
+      all_entry_color = "{{colors.primary.dark.hex}}"
+      avg_entry_color = "{{colors.tertiary.dark.hex}}"
+      nice_color      = "{{colors.secondary.dark.hex}}"
+      system_color    = "{{colors.error.dark.hex}}"
+      user_color      = "{{colors.primary.dark.hex}}"
+
+      [styles.memory]
+      ram_color   = "{{colors.primary.dark.hex}}"
+      cache_color = "{{colors.secondary.dark.hex}}"
+      swap_color  = "{{colors.tertiary.dark.hex}}"
+      arc_color   = "{{colors.error.dark.hex}}"
+
+      [styles.network]
+      rx_color       = "{{colors.tertiary.dark.hex}}"
+      tx_color       = "{{colors.primary.dark.hex}}"
+      rx_total_color = "{{colors.secondary.dark.hex}}"
+      tx_total_color = "{{colors.outline.dark.hex}}"
+
+      [styles.battery]
+      high_battery_color   = "{{colors.primary.dark.hex}}"
+      medium_battery_color = "{{colors.secondary.dark.hex}}"
+      low_battery_color    = "{{colors.error.dark.hex}}"
+
+      [styles.tables]
+      headers = { color = "{{colors.tertiary.dark.hex}}" }
+
+      [styles.tables.text]
+      color = "{{colors.on_surface.dark.hex}}"
+
+      [styles.tables.selected_text]
+      color    = "{{colors.on_primary.dark.hex}}"
+      bg_color = "{{colors.primary.dark.hex}}"
+
+      [styles.graphs]
+      graph_color = "{{colors.outline.dark.hex}}"
+
+      [styles.graphs.legend_text]
+      color = "{{colors.on_surface.dark.hex}}"
+
+      [styles.widgets]
+      border_color          = "{{colors.outline.dark.hex}}"
+      selected_border_color = "{{colors.primary.dark.hex}}"
+
+      [styles.widgets.widget_title]
+      color = "{{colors.primary.dark.hex}}"
+
+      [styles.widgets.text]
+      color = "{{colors.on_surface.dark.hex}}"
+
+      [styles.widgets.disabled_text]
+      color = "{{colors.outline_variant.dark.hex}}"
+    '';
+
+    "matugen/templates/lazygit.yml".text = ''
+      # lazygit theme generated from the matugen dark palette. lazygit
+      # deep-merges this onto its built-in defaults, so we only set
+      # gui.theme — keybindings and other prefs come from upstream.
+      gui:
+        theme:
+          activeBorderColor:
+            - "{{colors.primary.dark.hex}}"
+            - bold
+          inactiveBorderColor:
+            - "{{colors.outline.dark.hex}}"
+          optionsTextColor:
+            - "{{colors.secondary.dark.hex}}"
+          selectedLineBgColor:
+            - "{{colors.surface_container_high.dark.hex}}"
+          cherryPickedCommitBgColor:
+            - "{{colors.primary_container.dark.hex}}"
+          cherryPickedCommitFgColor:
+            - "{{colors.on_primary_container.dark.hex}}"
+          unstagedChangesColor:
+            - "{{colors.error.dark.hex}}"
+          defaultFgColor:
+            - "{{colors.on_surface.dark.hex}}"
+          searchingActiveBorderColor:
+            - "{{colors.tertiary.dark.hex}}"
+            - bold
+    '';
+
+    "matugen/templates/fzf.conf".text = ''
+      # fzf option file from matugen dark palette. The shell exports
+      # FZF_DEFAULT_OPTS_FILE pointing at the rendered output, and fzf
+      # reads it on every invocation — no reload signal needed.
+      --color=fg:{{colors.on_surface.dark.hex}},bg:-1,hl:{{colors.tertiary.dark.hex}},fg+:{{colors.on_primary.dark.hex}},bg+:{{colors.surface_container_high.dark.hex}},hl+:{{colors.primary.dark.hex}},info:{{colors.secondary.dark.hex}},prompt:{{colors.primary.dark.hex}},pointer:{{colors.primary.dark.hex}},marker:{{colors.tertiary.dark.hex}},spinner:{{colors.tertiary.dark.hex}},header:{{colors.secondary.dark.hex}},border:{{colors.outline.dark.hex}}
     '';
   };
 }
