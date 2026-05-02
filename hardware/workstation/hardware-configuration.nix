@@ -14,9 +14,22 @@
     ./amd-gpu.nix
   ];
 
-  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "ahci" "thunderbolt" "usbhid" "usb_storage" "sd_mod" ];
+  boot.initrd.availableKernelModules = [
+    "nvme"
+    "xhci_pci"
+    "ahci"
+    "thunderbolt"
+    "usbhid"
+    "usb_storage"
+    "sd_mod"
+  ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-amd" "mt7925e" "it87" "r8126" ];
+  boot.kernelModules = [
+    "kvm-amd"
+    "mt7925e"
+    "it87"
+    "r8126"
+  ];
   boot.extraModulePackages = [ ];
   hardware.enableRedistributableFirmware = true;
 
@@ -24,20 +37,32 @@
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
     fsType = "btrfs";
-    options = [ "subvol=@" ];
+    options = [
+      "subvol=@"
+      "compress=zstd:1"
+      "noatime"
+    ];
   };
 
   # Boot partition
   fileSystems."/boot" = {
     device = "/dev/disk/by-uuid/79B2-0CFC";
     fsType = "vfat";
-    options = [ "fmask=0077" "dmask=0077" ];
+    options = [
+      "fmask=0077"
+      "dmask=0077"
+    ];
   };
 
-  # Nix store on separate ext4 partition
+  # Nix store on btrfs subvolume @nix (compressed)
   fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/ba653b05-b075-4a98-86f7-cd6a50f0d0fb";
-    fsType = "ext4";
+    device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
+    fsType = "btrfs";
+    options = [
+      "subvol=@nix"
+      "compress=zstd:1"
+      "noatime"
+    ];
   };
 
   # Swap device
@@ -52,6 +77,16 @@
 
   # AMD-specific optimizations
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
+  # Use the modern AMD P-State driver in active mode (EPP-based) for the 9950X
+  # instead of acpi-cpufreq — gives finer-grained boost behavior on Zen 5.
+  boot.kernelParams = [ "amd_pstate=active" ];
+
+  # No power constraints on a desktop — pin governor to performance.
+  powerManagement.cpuFreqGovernor = "performance";
+
+  # 186 GiB of RAM — strongly prefer dropping page cache over swapping anon pages.
+  boot.kernel.sysctl."vm.swappiness" = 10;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }

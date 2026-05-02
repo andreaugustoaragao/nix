@@ -85,6 +85,7 @@ in
 
       # Filesystem and encryption tools
       btrfs-progs
+      compsize
       cryptsetup
 
       nautilus
