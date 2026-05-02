@@ -4,6 +4,17 @@
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  # Use all CPU cores per build, pick parallel build count automatically.
+  nix.settings.cores = 0;
+  nix.settings.max-jobs = "auto";
+
+  # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
+  nix.settings.auto-optimise-store = true;
+  nix.optimise = {
+    automatic = true;
+    dates = [ "weekly" ];
+  };
+
   nix.gc = {
     automatic = true;
     dates = "weekly";
