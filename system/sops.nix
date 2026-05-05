@@ -153,6 +153,21 @@
         group = "users";
         mode = "0400";
       };
+
+      # Matrix bot credentials — used by system/matrix-alert.nix and
+      # system/auto-upgrade.nix to post failure alerts and upgrade
+      # diffs to the alert room on matrix.faragao.net (homeserver
+      # runs on maui). Loaded into units via systemd LoadCredential.
+      "matrix/bot_token" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
+      "matrix/alert_room_id" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
     }
     // lib.optionalAttrs isServer {
       # ACME — Cloudflare API token for DNS-01 challenge.

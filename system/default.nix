@@ -21,6 +21,7 @@
     ./boot.nix
     ./nix.nix
     ./auto-upgrade.nix
+    ./matrix-alert.nix
     ./packages.nix
     ./users.nix
     ./networking.nix
