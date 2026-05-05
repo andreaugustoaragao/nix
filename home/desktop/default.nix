@@ -70,6 +70,7 @@ in
     with pkgs;
     [
       pavucontrol
+      easyeffects
       xdg-desktop-portal-gnome
       xdg-desktop-portal-gtk
       teams-for-linux
