@@ -6,6 +6,7 @@
   isWorkstation,
   isLaptop,
   isVm,
+  isServer,
   owner,
   hostName,
   stateVersion,
@@ -19,11 +20,8 @@
   imports = [
     ./boot.nix
     ./nix.nix
+    ./auto-upgrade.nix
     ./packages.nix
-    ./desktop.nix
-    ./virtualization.nix
-    ./audio.nix
-    ./display-manager.nix
     ./users.nix
     ./networking.nix
     ./ssh.nix
@@ -33,16 +31,27 @@
     ./fonts.nix
     ./nvim.nix
     ./sops.nix
+  ]
+  ++ lib.optionals (!isServer) [
+    ./desktop.nix
+    ./virtualization.nix
+    ./audio.nix
+    ./display-manager.nix
     ./bluetooth.nix
     ./lockscreen.nix
     ./browsers.nix
     ./printing.nix
     ./accounts.nix
   ]
-  ++ lib.optionals (hostName != "workstation") [
+  ++ lib.optionals (hostName != "workstation" && !isServer) [
     ./loki.nix
     ./grafana.nix
+  ]
+  ++ lib.optionals (hostName != "workstation") [
     ./caddy.nix
+  ]
+  ++ lib.optionals isServer [
+    ./server
   ];
 
   config = {
