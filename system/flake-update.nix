@@ -10,11 +10,19 @@
 let
   repoPath = "/home/${owner.name}/projects/personal/nix";
 
+  # SSH_ASKPASS helper. ssh's "ask for passphrase" hook reads the
+  # passphrase from stdout of this script. Pulled out of sops by
+  # systemd LoadCredential so it lives only in the unit's runtime
+  # credential dir — no plaintext on disk.
+  sshAskpass = pkgs.writeShellScript "flake-update-askpass" ''
+    exec ${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/ssh-passphrase"
+  '';
+
   # Run only on workstation for now. Updates flake.lock, commits, and
   # pushes via the user's existing github-personal SSH alias (sops
-  # already deploys id_rsa_personal). Hosts that auto-upgrade
-  # afterwards build from the new lock — gives "actual" upgrades on
-  # the cadence below while keeping every host bit-for-bit
+  # already deploys id_rsa_personal + its passphrase). Hosts that
+  # auto-upgrade afterwards build from the new lock — gives "actual"
+  # upgrades on the cadence below while keeping every host bit-for-bit
   # reproducible against the same lock.
   flakeUpdate = pkgs.writeShellScript "flake-update" ''
     set -uo pipefail
@@ -23,6 +31,14 @@ let
     cd "$REPO"
 
     log() { echo "[$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')] $1"; }
+
+    # Feed the passphrase for id_rsa_personal via SSH_ASKPASS. ssh
+    # only invokes ASKPASS when there's no TTY *and* SSH_ASKPASS_REQUIRE
+    # is set to "force" (or DISPLAY is set on older builds). systemd
+    # services have no TTY, so this works.
+    export SSH_ASKPASS="${sshAskpass}"
+    export SSH_ASKPASS_REQUIRE=force
+    export DISPLAY=:0
 
     # Bail on dirty working tree — avoid pushing the user's WIP.
     if ! ${pkgs.git}/bin/git diff-index --quiet HEAD --; then
@@ -124,6 +140,7 @@ lib.mkIf isWorkstation {
       LoadCredential = [
         "matrix-token:${config.sops.secrets."matrix/bot_token".path}"
         "matrix-room:${config.sops.secrets."matrix/alert_room_id".path}"
+        "ssh-passphrase:${config.sops.secrets."ssh_passphrase_personal".path}"
       ];
     };
     onFailure = [ "matrix-alert@flake-update.service" ];
