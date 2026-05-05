@@ -31,6 +31,11 @@
     options = "--delete-older-than 30d";
   };
 
+  # Bubble GC failures (lock contention, ENOSPC, /nix store inconsistency)
+  # into the alert room. Without this you only learn the weekly GC bailed
+  # by reading journalctl after disks fill.
+  systemd.services.nix-gc.onFailure = [ "matrix-alert@nix-gc.service" ];
+
   nixpkgs.config.allowUnfree = true;
 
   # Allow root to treat the repo as safe when rebuilding from the system service
