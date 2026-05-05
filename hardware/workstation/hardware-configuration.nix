@@ -65,6 +65,14 @@
     ];
   };
 
+  # Monthly scrub of the btrfs pool catches silent bitrot on the
+  # T700 NVMe before it propagates into store paths. Both / and /nix
+  # are subvolumes of the same FS, so a single scrub covers everything.
+  services.btrfs.autoScrub = {
+    enable = true;
+    interval = "monthly";
+  };
+
   # Swap device
   swapDevices = [
     { device = "/dev/disk/by-uuid/5bc24bc4-4f67-4c21-8d4d-e15a9eeef8f7"; }
