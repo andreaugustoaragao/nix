@@ -4,6 +4,7 @@
   lib,
   inputs,
   owner,
+  isServer,
   ...
 }:
 
@@ -152,6 +153,65 @@
         group = "users";
         mode = "0400";
       };
+    }
+    // lib.optionalAttrs isServer {
+      # ACME — Cloudflare API token for DNS-01 challenge.
+      # File contents: CLOUDFLARE_DNS_API_TOKEN=<token>
+      "cloudflare_dns_token" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "acme-faragao.net.service" ];
+      };
+
+      # LLDAP admin password. Read directly by lldap (via
+      # services.lldap.settings.ldap_user_pass_file) and by Authelia
+      # (via AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE). Must
+      # contain exactly the password bytes (no trailing newline).
+      "lldap/admin_password" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [
+          "lldap.service"
+          "authelia-main.service"
+        ];
+      };
+
+      # Authelia secrets — all consumed via LoadCredential by the
+      # authelia-main systemd unit, so root ownership is fine.
+      "authelia/jwt_secret" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "authelia-main.service" ];
+      };
+      "authelia/storage_encryption_key" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "authelia-main.service" ];
+      };
+      "authelia/session_secret" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "authelia-main.service" ];
+      };
+      "authelia/hmac_secret" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "authelia-main.service" ];
+      };
+      # OIDC issuer private key — RSA PEM. Generate with:
+      #   openssl genrsa -out issuer.pem 4096
+      "authelia/jwt_private_key" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "authelia-main.service" ];
+      };
     };
   };
 
@@ -168,7 +228,7 @@
   ];
 
   users.users.root = lib.mkMerge [
-    # Default configuration with fallback password for initial installation  
+    # Default configuration with fallback password for initial installation
     {
       initialPassword = "changeme"; # Change after first boot and sops setup
     }

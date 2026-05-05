@@ -6,6 +6,7 @@
   wirelessInterface,
   hostName,
   isVm,
+  isServer,
   ...
 }:
 
@@ -44,16 +45,25 @@
           ];
           IPv6AcceptRA = true;
         }
+      else if hostName == "tala" then
+        {
+          Address = "192.168.40.10/24";
+          Gateway = "192.168.40.1";
+          DNS = [
+            "192.168.40.3"
+            "1.1.1.1"
+            "8.8.8.8"
+          ];
+          IPv6AcceptRA = true;
+        }
       else
         {
           DHCP = "yes";
           IPv6AcceptRA = true;
         };
-    dhcpV4Config = lib.mkIf (hostName == "hp-laptop") (
-      {
-        RouteMetric = 1024;
-      }
-    );
+    dhcpV4Config = lib.mkIf (hostName == "hp-laptop") ({
+      RouteMetric = 1024;
+    });
     dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
       "1.1.1.1#cloudflare-dns.com"
       "8.8.8.8#dns.google"
@@ -199,7 +209,10 @@
       "loki.local"
       "prometheus.local"
     ]
-    ++ lib.optionals (hostName == "prl-dev-vm") [ "fulcrum.local" "infinity.local" ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [
+      "fulcrum.local"
+      "infinity.local"
+    ]
     ++ lib.optionals (!isVm && hostName != "workstation") [ "ollama.local" ];
 
   # ============================================================================
@@ -210,12 +223,17 @@
 
     # Allowed TCP ports
     allowedTCPPorts = [
-      22    # SSH
-      6443  # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
+      22 # SSH
+      6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
     ]
     ++ lib.optionals (hostName == "workstation") [
-      80   # K3s ingress (istio-ingress via klipper-lb)
+      80 # K3s ingress (istio-ingress via klipper-lb)
       443
+    ]
+    ++ lib.optionals isServer [
+      80 # Caddy (ACME HTTP-01 fallback / redirect to 443)
+      443 # Caddy reverse proxy for auth.faragao.net + lldap.faragao.net
+      3890 # LLDAP — exposed on LAN so other hosts can bind clients
     ];
 
     # Allowed UDP ports
@@ -235,14 +253,14 @@
 
     # Trust local interfaces for Docker and K3s
     trustedInterfaces = [
-      "docker0"     # Docker bridge
-      "cni0"        # K3s CNI bridge
-      "flannel.1"   # K3s Flannel
+      "docker0" # Docker bridge
+      "cni0" # K3s CNI bridge
+      "flannel.1" # K3s Flannel
     ];
 
     # Log refused packets (useful for debugging)
     logRefusedConnections = true;
-    logRefusedPackets = false;  # Set to true only for debugging (can be noisy)
+    logRefusedPackets = false; # Set to true only for debugging (can be noisy)
 
     # Allow ping
     allowPing = true;
@@ -257,4 +275,3 @@
     '';
   };
 }
-
