@@ -39,6 +39,11 @@ let
       exit 0
     fi
 
+    # Snapshot the lock so we can diff after `nix flake update`.
+    old_lock=$(${pkgs.coreutils}/bin/mktemp)
+    trap 'rm -f "$old_lock"' EXIT
+    ${pkgs.coreutils}/bin/cp flake.lock "$old_lock"
+
     log "running nix flake update"
     ${pkgs.nix}/bin/nix flake update || { log "flake update failed"; exit 1; }
 
@@ -47,11 +52,57 @@ let
       exit 0
     fi
 
+    diff_text=$(${pkgs.diffutils}/bin/diff -u "$old_lock" flake.lock || true)
+    # Truncate (Matrix readers + the Element client don't enjoy walls of
+    # diff). Keep enough to tell which inputs moved.
+    max=8000
+    if (( ''${#diff_text} > max )); then
+      diff_text="''${diff_text:0:$max}"$'\n'"...(truncated)"
+    fi
+
     log "committing and pushing flake.lock"
     ${pkgs.git}/bin/git -c user.name="flake-update" -c user.email="flake-update@workstation" \
       commit flake.lock -m "Auto-update flake inputs ($(${pkgs.coreutils}/bin/date -u +%Y-%m-%d))"
 
-    ${pkgs.git}/bin/git push origin HEAD:main
+    ${pkgs.git}/bin/git push origin HEAD:main || { log "push failed"; exit 1; }
+
+    pushed_rev=$(${pkgs.git}/bin/git rev-parse --short HEAD)
+    host=$(${pkgs.nettools}/bin/hostname)
+
+    # Post-success Matrix message. Non-fatal — a Matrix delivery
+    # failure must NOT flip the unit to failed (which would itself
+    # fire matrix-alert@flake-update and produce noise about a
+    # successful push).
+    plain_msg="flake.lock updated on $host (commit $pushed_rev):"$'\n\n'"$diff_text"
+
+    token=$(cat "$CREDENTIALS_DIRECTORY/matrix-token")
+    room=$(cat "$CREDENTIALS_DIRECTORY/matrix-room")
+    txn=$(date +%s%N)
+
+    body=$(${pkgs.jq}/bin/jq -n \
+      --arg plain "$plain_msg" \
+      --arg host "$host" \
+      --arg rev "$pushed_rev" \
+      --arg diff "$diff_text" \
+      '{
+        msgtype: "m.text",
+        body: $plain,
+        format: "org.matrix.custom.html",
+        formatted_body: (
+          "flake.lock updated on " + $host + " (commit " + $rev + "):<br><br><pre>"
+          + ($diff
+             | gsub("&"; "&amp;")
+             | gsub("<"; "&lt;")
+             | gsub(">"; "&gt;"))
+          + "</pre>"
+        )
+      }')
+
+    ${pkgs.curl}/bin/curl -fsS --retry 3 --max-time 30 -X PUT \
+      "https://matrix.faragao.net/_matrix/client/v3/rooms/$room/send/m.room.message/$txn" \
+      -H "Authorization: Bearer $token" \
+      -H "Content-Type: application/json" \
+      -d "$body" || log "matrix post failed (non-fatal)"
   '';
 in
 lib.mkIf isWorkstation {
@@ -70,6 +121,10 @@ lib.mkIf isWorkstation {
       User = owner.name;
       Group = "users";
       ExecStart = "${flakeUpdate}";
+      LoadCredential = [
+        "matrix-token:${config.sops.secrets."matrix/bot_token".path}"
+        "matrix-room:${config.sops.secrets."matrix/alert_room_id".path}"
+      ];
     };
     onFailure = [ "matrix-alert@flake-update.service" ];
   };
