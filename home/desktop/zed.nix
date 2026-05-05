@@ -1,8 +1,14 @@
 { pkgs, inputs, ... }:
+let
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config.allowUnfree = true;
+  };
+in
 {
   programs.zed-editor = {
     enable = true;
-    package = inputs.zed-editor.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    package = unstable-pkgs.zed-editor;
 
     # Nix owns settings.json — Zed cannot modify it at runtime.
     mutableUserSettings = false;

@@ -3,11 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    # Tracks the nixpkgs-unstable branch (not nixos-unstable). Both are
-    # channel-tested; nixpkgs-unstable rolls slightly faster and is
-    # currently the one carrying Go 1.26.2 (nixos-unstable is lagging
-    # on 1.26.1 as of this writing). Needed so lfk, which requires
-    # Go >= 1.26.2, can build.
+    # Tracks nixpkgs-unstable for packages we want fresher than 25.11
+    # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
+    # system/ and home/.
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     home-manager = {
@@ -25,26 +23,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    lfk = {
-      url = "github:janosmiko/lfk";
-      # lfk's `vendorHash` is computed against the exact nixpkgs rev
-      # pinned in its own flake.lock. Upstream declares
-      # `nixpkgs.url = "github:NixOS/nixpkgs/master"` (a moving branch),
-      # so without this explicit pin every `nix flake update` would
-      # re-resolve lfk's nixpkgs to a newer master tip whose
-      # buildGoModule produces a different vendor hash. Pinning to the
-      # exact commit upstream tested with keeps the build reproducible.
-      inputs.nixpkgs.url =
-        "github:NixOS/nixpkgs/9cadaf6932b7c926e468f777549d57f04a7212da";
-    };
-
     claude-code = {
       url = "github:sadjow/claude-code-nix";
-    };
-
-    zed-editor = {
-      url = "github:zed-industries/zed";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     dms = {
@@ -78,6 +58,7 @@
         isWorkstation = (host.profile == "workstation");
         isLaptop = (host.profile == "laptop");
         isVm = (host.profile == "vm");
+        isServer = (host.profile == "server");
         owner = metadata.user // {
           name = getUserName metadata.user host;
         };
