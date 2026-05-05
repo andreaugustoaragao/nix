@@ -18,10 +18,21 @@
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
-    workspace "1" 
-    workspace "2" 
-    workspace "3"
-    workspace "4"
+    // Named workspaces pinned to the main landscape display. Without
+    // open-on-output, niri assigns them to the first-enumerated output
+    // (DP-2 at position 0,0), leaving DP-1 empty.
+    workspace "1" {
+        open-on-output "DP-1"
+    }
+    workspace "2" {
+        open-on-output "DP-1"
+    }
+    workspace "3" {
+        open-on-output "DP-1"
+    }
+    workspace "4" {
+        open-on-output "DP-1"
+    }
 
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {
@@ -30,10 +41,22 @@
     }
 
 
+    // DP-2: Dell S2725QS, 27" 4K, mounted in portrait to the left of DP-1.
+    // Logical size after scale=1.5 + 90° rotation = 1440 wide x 2560 tall.
+    // Flip transform to "90" if the image lands upside-down.
+    output "DP-2" {
+        mode "3840x2160@120.000"
+        scale 1.5
+        transform "270"
+        position x=0 y=0
+    }
+
+    // DP-1: Guangxi 32M2V, 32" 4K, landscape, right of DP-2.
+    // Logical 3072x1728 at scale=1.25; placed flush right of DP-2.
     output "DP-1" {
-        // Default configuration for all outputs
         mode "3840x2160@144.000"
         scale 1.25
+        position x=1440 y=0
     }
 
     // Define workspaces with numbers
@@ -51,6 +74,16 @@
       else
         ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''
     }
+    // niri runs in the logind session scope (not niri.service), so the
+    // user-systemd graphical-session.target is never armed and any unit
+    // with Requisite=graphical-session.target (e.g. xdg-desktop-portal-gnome)
+    // refuses to start — which breaks screen sharing in browsers.
+    // graphical-session.target itself has RefuseManualStart=yes, so we
+    // can't pull it up directly; instead we start niri-graphical-session
+    // (defined in system/desktop.nix) which BindsTo+Before the target
+    // and pulls it active for the duration of the niri session.
+    spawn-at-startup "${pkgs.dbus}/bin/dbus-update-activation-environment" "--systemd" "WAYLAND_DISPLAY" "XDG_CURRENT_DESKTOP" "XDG_SESSION_TYPE" "DISPLAY"
+    spawn-at-startup "systemctl" "--user" "start" "niri-graphical-session.service"
     spawn-at-startup "prlcc"
 
 
@@ -93,7 +126,7 @@
     layout {
         gaps 10
         
-        default-column-width { proportion 0.5; }
+        default-column-width { proportion 1.0; }
 
         preset-column-widths {
             proportion 0.25
@@ -136,10 +169,10 @@
         clip-to-geometry true
     }
 
-    // Transparency: focused slightly more transparent than unfocused
+    // Transparency: focused fully opaque, unfocused dimmed
     window-rule {
         match is-active=true
-        opacity 0.97
+        opacity 1.0
     }
 
     window-rule {
@@ -147,10 +180,15 @@
         opacity 0.92
     }
 
-    // Disable transparency for Brave browser
+    // Brave: opaque when focused, slight dim when unfocused
     window-rule {
         match app-id=r#"^brave"#
         opacity 1.0
+    }
+
+    window-rule {
+        match app-id=r#"^brave"# is-active=false
+        opacity 0.95
     }
 
     window-rule {
@@ -297,31 +335,45 @@
         Mod+F { maximize-column; }
         Mod+V { toggle-window-floating; }
 
-        // Focus movement (arrow keys and vim keys)
-        Mod+Left repeat=true { focus-column-left; }
-        Mod+Right repeat=true { focus-column-right; }
+        // Focus movement (arrow keys and vim keys). Horizontal motion
+        // falls through to the neighboring monitor when at the edge.
+        Mod+Left repeat=true { focus-column-or-monitor-left; }
+        Mod+Right repeat=true { focus-column-or-monitor-right; }
         Mod+Up repeat=true { focus-window-or-workspace-up; }
         Mod+Down repeat=true { focus-window-or-workspace-down; }
-        Mod+h repeat=true { focus-column-left; }
-        Mod+l repeat=true { focus-column-right; }
+        Mod+h repeat=true { focus-column-or-monitor-left; }
+        Mod+l repeat=true { focus-column-or-monitor-right; }
         Mod+k repeat=true { focus-window-or-workspace-up; }
         Mod+j repeat=true { focus-window-or-workspace-down; }
 
         Mod+c {toggle-column-tabbed-display; }
 
-        // Window movement (vim keys and arrows)
-        Mod+Shift+Left repeat=true { move-column-left; }
-        Mod+Shift+Right repeat=true { move-column-right; }
+        // Window movement (vim keys and arrows). Horizontal motion
+        // carries the column across to the neighboring monitor at the
+        // edge.
+        Mod+Shift+Left repeat=true { move-column-left-or-to-monitor-left; }
+        Mod+Shift+Right repeat=true { move-column-right-or-to-monitor-right; }
         Mod+Shift+Up repeat=true { move-window-up-or-to-workspace-up; }
         Mod+Shift+Down repeat=true { move-window-down-or-to-workspace-down; }
-        Mod+Shift+H repeat=true { move-column-left; }
-        Mod+Shift+L repeat=true { move-column-right; }
+        Mod+Shift+H repeat=true { move-column-left-or-to-monitor-left; }
+        Mod+Shift+L repeat=true { move-column-right-or-to-monitor-right; }
         Mod+Shift+K repeat=true { move-window-up-or-to-workspace-up; }
         Mod+Shift+J repeat=true { move-window-down-or-to-workspace-down; }
 
         // Consume or expel window (bracket keys)
         Mod+BracketLeft { consume-or-expel-window-left; }
         Mod+BracketRight { consume-or-expel-window-right; }
+
+        // Multi-monitor: focus and send windows across outputs.
+        // Arrow-only because Mod+Ctrl+L collides with the lock binding.
+        Mod+Ctrl+Left  { focus-monitor-left; }
+        Mod+Ctrl+Right { focus-monitor-right; }
+        Mod+Ctrl+Up    { focus-monitor-up; }
+        Mod+Ctrl+Down  { focus-monitor-down; }
+        Mod+Ctrl+Shift+Left  { move-column-to-monitor-left; }
+        Mod+Ctrl+Shift+Right { move-column-to-monitor-right; }
+        Mod+Ctrl+Shift+Up    { move-column-to-monitor-up; }
+        Mod+Ctrl+Shift+Down  { move-column-to-monitor-down; }
 
         // Workspace switching (using number keys)
         Mod+1 { focus-workspace 1; }

@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  isServer,
   ...
 }:
 
@@ -73,22 +74,14 @@ in
       hexyl
       grex
 
-      libinput
-      pamixer
-      brightnessctl
-
       # Audio diagnostic tools
       pciutils # provides lspci
       usbutils # provides lsusb
-      alsa-utils # provides aplay, arecord, amixer
-      pulseaudio # provides pactl for PulseAudio compatibility diagnostics
 
       # Filesystem and encryption tools
       btrfs-progs
       compsize
       cryptsetup
-
-      nautilus
 
       # Spell checking dictionaries
       hunspell
@@ -97,12 +90,19 @@ in
 
       # Development tools moved to home configuration
     ]
+    ++ lib.optionals (!isServer) [
+      libinput
+      pamixer
+      brightnessctl
+      alsa-utils # provides aplay, arecord, amixer
+      pulseaudio # provides pactl for PulseAudio compatibility diagnostics
+      nautilus
+    ]
     # Office suite - OnlyOffice for x86_64, LibreOffice for ARM
-    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
+    ++ lib.optionals (!isServer && pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       onlyoffice-desktopeditors
     ]
-    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-linux") [
+    ++ lib.optionals (!isServer && pkgs.stdenv.hostPlatform.system == "aarch64-linux") [
       libreoffice
     ];
 }
-

@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   # Claude in Chrome native messaging host manifest
@@ -51,10 +56,12 @@ let
 in
 {
   # Claude in Chrome native messaging host for Brave
-  home.file.".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text = claudeBrowserHost;
+  home.file.".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
+    claudeBrowserHost;
 
   # Claude in Chrome native messaging host for Chromium
-  home.file.".config/chromium/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text = claudeBrowserHost;
+  home.file.".config/chromium/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
+    claudeBrowserHost;
 
   # Claude Code settings (declarative)
   # Model changes: update the model value below, then nixos-rebuild switch
@@ -63,6 +70,10 @@ in
     effortLevel = "max";
     teammateMode = "auto";
     chrome = false;
+    skipAutoPermissionPrompt = true;
+    permissions = {
+      defaultMode = "auto";
+    };
     env = {
       CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
       # CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = "1";

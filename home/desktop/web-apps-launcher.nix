@@ -196,6 +196,14 @@ let
       profile = "Personal";
     }
     {
+      key = "amazon";
+      name = "Amazon";
+      icon = iconStore "amazon";
+      url = "https://www.amazon.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
       key = "m1-finance";
       name = "M1 Finance";
       icon = iconStore "m1finance";
@@ -232,6 +240,14 @@ let
       name = "WhatsApp";
       icon = iconStore "whatsapp";
       url = "https://web.whatsapp.com";
+      mode = "app";
+      profile = "Personal";
+    }
+    {
+      key = "speedtest";
+      name = "Speedtest";
+      icon = iconStore "speedtest";
+      url = "https://www.speedtest.net";
       mode = "app";
       profile = "Personal";
     }

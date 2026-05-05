@@ -5,21 +5,6 @@ let
     system = pkgs.stdenv.hostPlatform.system;
     config.allowUnfree = true;
   };
-
-  # Upstream lfk's flake.nix used to declare a stale `vendorHash`; we
-  # used to override it here. As of rev 1b1d9c1 (2026-04-28) upstream
-  # fixed it, but we still patch defensively to the hash nix computes
-  # locally so a future upstream drift doesn't break the build. Re-check
-  # this value after each `nix flake update lfk`.
-  lfk =
-    let
-      base = inputs.lfk.packages.${pkgs.stdenv.hostPlatform.system}.default;
-    in
-    base.overrideAttrs (_: {
-      goModules = base.goModules.overrideAttrs (_: {
-        outputHash = "sha256-2YhpOg5asUYaMQxorwTt1gkyiA165wjBxDoIUJ74sro=";
-      });
-    });
 in
 {
   imports = [
@@ -62,7 +47,6 @@ in
       kubernetes-helm
       kubectx
       stern
-      lfk
       terraform
       terragrunt
       ansible

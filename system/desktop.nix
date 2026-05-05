@@ -1,4 +1,10 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
@@ -20,23 +26,47 @@ in
   };
 
   environment.systemPackages = with pkgs; [ xwayland-satellite ];
-  environment.sessionVariables = { WLR_NO_HARDWARE_CURSORS = "0"; };
+  environment.sessionVariables = {
+    WLR_NO_HARDWARE_CURSORS = "0";
+  };
 
-#  xdg.portal = {
-#    enable = true;
-#    extraPortals = with pkgs; [
-#      xdg-desktop-portal-gnome
-#      xdg-desktop-portal-hyprland
-#      xdg-desktop-portal-gtk
-#      xdg-desktop-portal-gnome
-#    ];
-#    config.common = {
-#      default = [ "gtk" ];
-#    };
-#config.niri = {
-#      default = [ "gnome" "gtk"  ];
-#    };
-#  };
+  # Screen sharing on niri requires xdg-desktop-portal-gnome to handle
+  # the ScreenCast/RemoteDesktop interfaces (gtk's portal doesn't
+  # implement them). Two pieces are needed:
+  #
+  #   1. Tell xdg-desktop-portal which backend handles each interface
+  #      on niri. Without this, the .portal files' UseIn=gnome guards
+  #      mean nothing auto-loads on a niri session.
+  #
+  #   2. Arm graphical-session.target. niri runs directly inside the
+  #      logind session-N.scope (not via niri.service — see
+  #      system/display-manager.nix for why), so the target is never
+  #      activated by niri.service's BindsTo, and the gnome portal's
+  #      Requisite=graphical-session.target makes its D-Bus activation
+  #      fail. The bridge service below mirrors what niri.service
+  #      would do for the target lifecycle, without actually wrapping
+  #      niri in a user-systemd service. niri.nix starts the bridge
+  #      via spawn-at-startup at compositor launch.
+  xdg.portal.config.niri = {
+    default = [
+      "gnome"
+      "gtk"
+    ];
+    "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
+    "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
+    "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
+  };
+
+  systemd.user.services.niri-graphical-session = {
+    description = "Pull graphical-session.target up for niri (started outside niri.service)";
+    bindsTo = [ "graphical-session.target" ];
+    before = [ "graphical-session.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = "yes";
+      ExecStart = "${pkgs.coreutils}/bin/true";
+    };
+  };
 
   programs.dconf.enable = true;
 
@@ -64,4 +94,4 @@ in
       Group = "input";
     };
   };
-} 
+}

@@ -44,12 +44,6 @@ let
       rev = "e4b65a207652bc3204121401fafd5566b8d22c37";
       hash = "sha256-3Cr+PzPkNGWeIrOqucEc/bLh4xndHI/M3k/srBRCdAQ=";
     };
-    dankRssWidget = pkgs.fetchFromGitHub {
-      owner = "BrendonJL";
-      repo = "dms-rss-widget";
-      rev = "dcfe5a638ef2143fc18efdd09ef0b80eacbf35f4";
-      hash = "sha256-IzqsQYyBjRv9o4cNSQNRfMYBRmirn/LEGCH2c1fhchw=";
-    };
   };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
@@ -104,156 +98,112 @@ let
     blurEnabled = true;
     desktopClockEnabled = false;
     systemMonitorEnabled = false;
-    # Positions are in DMS logical pixels (post-scale). Workstation
-    # DP-1 is 3840x2160 @ scale 1.25 → 3072x1728 logical.
+    scrollTitleEnabled = false;
+    mediaSize = 0;
+    # Positions are in DMS logical pixels (post-scale). Widgets live
+    # only on DP-2 (portrait, 1440x2560 logical) — DP-1 is reserved
+    # for windows. `config.displayPreferences` is what DMS actually
+    # consults to decide visibility (see DesktopWidgetLayer.qml);
+    # the `positions` map only carries x/y/width/height per display.
     desktopWidgetInstances = [
-      {
-        id = "dw_sysmon_primary";
-        widgetType = "systemMonitor";
-        name = "System Monitor";
-        enabled = true;
-        config = { };
-        positions = {
-          "DP-1" = {
-            x = 16;
-            y = 52;
-            width = 660;
-            height = 1380;
-          };
-        };
-      }
       {
         id = "dw_cava_primary";
         widgetType = "cavaVisualizer";
         name = "Cava Visualizer";
         enabled = true;
-        config = { };
-        positions = {
-          "DP-1" = {
-            x = 0;
-            y = 1640;
-            width = 3072;
-            height = 240;
-          };
-        };
-      }
-      {
-        id = "dw_rss_primary";
-        widgetType = "dankRssWidget";
-        name = "Dank RSS Widget";
-        enabled = true;
         config = {
-          # Initial feed list — DankRssWidget reads this via
-          # loadValue("feeds", []). Mutable at runtime now that
-          # settings.json is a real file (not a /nix/store symlink).
-          feeds = [
-            {
-              name = "Simon Willison";
-              url = "https://simonwillison.net/atom/everything/";
-            }
-            {
-              name = "Hacker News";
-              url = "https://hnrss.org/frontpage";
-            }
-            {
-              name = "Ars Technica";
-              url = "https://feeds.arstechnica.com/arstechnica/index";
-            }
-            {
-              name = "Google Research";
-              url = "https://blog.research.google/feeds/posts/default";
-            }
-            {
-              name = "arXiv cs.AI";
-              url = "https://arxiv.org/rss/cs.AI";
-            }
-            {
-              name = "MIT Tech Review";
-              url = "https://www.technologyreview.com/feed/";
-            }
-            {
-              name = "LWN.net";
-              url = "https://lwn.net/headlines/rss";
-            }
-            {
-              name = "Phoronix";
-              url = "https://www.phoronix.com/rss.php";
-            }
-            {
-              name = "It's FOSS";
-              url = "https://itsfoss.com/feed/";
-            }
-            {
-              name = "OMG Ubuntu";
-              url = "https://www.omgubuntu.co.uk/feed";
-            }
-            {
-              name = "DistroWatch";
-              url = "https://distrowatch.com/news/dw.xml";
-            }
-            {
-              name = "The Go Blog";
-              url = "https://go.dev/blog/feed.atom";
-            }
-            {
-              name = "Dave Cheney";
-              url = "https://dave.cheney.net/feed";
-            }
-            {
-              name = "Eli Bendersky";
-              url = "https://eli.thegreenplace.net/feeds/all.atom.xml";
-            }
-            {
-              name = "r/golang";
-              url = "https://www.reddit.com/r/golang/.rss";
-            }
-            {
-              name = "Ardan Labs";
-              url = "https://www.ardanlabs.com/blog/index.xml";
-            }
-            {
-              name = "WSJ Markets";
-              url = "https://feeds.a.dj.com/rss/RSSMarketsMain.xml";
-            }
-            {
-              name = "Calculated Risk";
-              url = "https://www.calculatedriskblog.com/feeds/posts/default";
-            }
-            {
-              name = "A Wealth of Common Sense";
-              url = "https://awealthofcommonsense.com/feed/";
-            }
-            {
-              name = "Of Dollars And Data";
-              url = "https://ofdollarsanddata.com/feed/";
-            }
-            {
-              name = "Marginal Revolution";
-              url = "https://marginalrevolution.com/feed";
-            }
-            {
-              name = "Reuters Business";
-              url = "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best";
-            }
-          ];
+          displayPreferences = [ "DP-2" ];
         };
         positions = {
-          "DP-1" = {
-            x = 2396;
-            y = 52;
-            width = 660;
-            height = 1380;
+          "DP-2" = {
+            x = 16;
+            y = 2240;
+            width = 1408;
+            height = 280;
           };
         };
       }
     ];
+
+    # Per-monitor bars. The default bar (full widget set) is scoped to
+    # DP-1; DP-2 (portrait, only 1440 logical wide) gets a slimmed-down
+    # version that drops widgets duplicated by the desktop System
+    # Monitor (cpu/mem/disk/network) and other desktop-irrelevant ones
+    # (battery, idleInhibitor).
+    barConfigs =
+      let
+        base = builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0;
+      in
+      [
+        (
+          base
+          // {
+            screenPreferences = [ "DP-1" ];
+          }
+        )
+        (
+          base
+          // {
+            id = "dp2";
+            name = "Portrait Bar";
+            screenPreferences = [ "DP-2" ];
+            showOnLastDisplay = false;
+            leftWidgets = [
+              "launcherButton"
+              "workspaceSwitcher"
+            ];
+            centerWidgets = [ "clock" ];
+            rightWidgets = [
+              {
+                id = "clipboard";
+                enabled = true;
+              }
+              {
+                id = "notificationButton";
+                enabled = true;
+              }
+              {
+                id = "controlCenterButton";
+                enabled = true;
+              }
+              {
+                id = "privacyIndicator";
+                enabled = true;
+              }
+              {
+                id = "systemTray";
+                enabled = true;
+                trayUseInlineExpansion = false;
+              }
+            ];
+            fontScale = 0.85;
+            iconScale = 0.9;
+          }
+        )
+      ];
   };
 
   desiredSession = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-session.json)) {
     perModeWallpaper = true;
+    perMonitorWallpaper = true;
+    # DP-1: 32M2V landscape (3840x2160). DP-2: Dell S2725QS portrait
+    # (2160x3840 after niri's transform=270). Per-monitor wallpapers
+    # let each display use a print sized for its orientation.
     wallpaperPath = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathDark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathLight = "${wallpapers}/share/wallpapers/blue-jays.png";
+    monitorWallpapersDark = {
+      "DP-1" = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+      "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
+    };
+    monitorWallpapersLight = {
+      "DP-1" = "${wallpapers}/share/wallpapers/blue-jays.png";
+      "DP-2" = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
+    };
+    monitorWallpaperFillModes = {
+      "DP-1" = "Fill";
+      "DP-2" = "Fit";
+    };
   };
 
   settingsSource = pkgs.writeText "dms-settings.json" (builtins.toJSON desiredSettings);
@@ -283,9 +233,9 @@ in
 
     # settings/session intentionally omitted here. The DMS home module
     # would render them as /nix/store symlinks, which DMS can't write
-    # to (so mode-driven wallpaper swap, widget drag, runtime UI
-    # mutation all silently fail). The desired content is rendered to
-    # writable copies via home.activation.dms-bootstrap-state below.
+    # to (so mode-driven wallpaper swap silently fails). Instead they
+    # are written to writable copies via home.activation.dms-write-state
+    # below, with Nix as the authoritative source on every rebuild.
     # See `desiredSettings` and `desiredSession` in the let block.
   };
 
@@ -312,24 +262,24 @@ in
     }) dms-plugins)
   );
 
-  # Seed DMS settings/session as writable files (not /nix/store
-  # symlinks), so the runtime can mutate them — wallpaper swap on
-  # mode toggle, widget drag, etc. Only installs when the live file
-  # is missing or still a stale symlink. To force a reset to the
-  # Nix-defined state, delete the live file and rebuild.
-  home.activation.dms-bootstrap-state = lib.mkIf useDms (
+  # Render DMS settings/session as writable files (not /nix/store
+  # symlinks, which DMS can't write back to and would break runtime
+  # mode-driven wallpaper swap). Nix is authoritative: every rebuild
+  # overwrites the live file with the Nix-defined content. DMS may
+  # mutate the file at runtime (mode toggle writes wallpaperPath,
+  # widget drag writes positions), but those mutations are reset on
+  # the next rebuild — change config in Nix, not in the DMS UI.
+  home.activation.dms-write-state = lib.mkIf useDms (
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      install_writable() {
+      install_authoritative() {
         local target="$1"
         local source="$2"
         run mkdir -p "$(dirname "$target")"
-        if [ -L "$target" ] || [ ! -e "$target" ]; then
-          run rm -f "$target"
-          run install -m 644 "$source" "$target"
-        fi
+        run rm -f "$target"
+        run install -m 644 "$source" "$target"
       }
-      install_writable "$HOME/.config/DankMaterialShell/settings.json" "${settingsSource}"
-      install_writable "$HOME/.local/state/DankMaterialShell/session.json" "${sessionSource}"
+      install_authoritative "$HOME/.config/DankMaterialShell/settings.json" "${settingsSource}"
+      install_authoritative "$HOME/.local/state/DankMaterialShell/session.json" "${sessionSource}"
     ''
   );
 }
