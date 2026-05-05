@@ -7,6 +7,14 @@
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
+    # version 48.x. GNOME 49 added a hard requirement on
+    # org.gnome.Mutter.ServiceChannel that the niri 26.04 in nixpkgs
+    # doesn't yet expose, which sends the gnome portal into
+    # "Non-compatible display server, exposing settings only" mode and
+    # breaks ScreenCast/RemoteDesktop/Screenshot. Drop this input once
+    # niri implements ServiceChannel.
+    nixpkgs-gnome48.url = "github:NixOS/nixpkgs/nixos-25.05";
 
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
@@ -98,7 +106,16 @@
             specialArgs = setSpecialArgs host;
             modules = [
               { nixpkgs.hostPlatform = host.platform; }
-              { nixpkgs.overlays = [ claude-code.overlays.default ]; }
+              {
+                nixpkgs.overlays = [
+                  claude-code.overlays.default
+                  # See nixpkgs-gnome48 input above for the why.
+                  (final: prev: {
+                    xdg-desktop-portal-gnome =
+                      inputs.nixpkgs-gnome48.legacyPackages.${host.platform}.xdg-desktop-portal-gnome;
+                  })
+                ];
+              }
               # Hardware configuration
               (./hardware + "/${machineName}" + /hardware-configuration.nix)
               # System configuration
