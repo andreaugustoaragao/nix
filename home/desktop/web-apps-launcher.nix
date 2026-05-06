@@ -53,11 +53,19 @@ let
     }
     {
       key = "gmail";
-      name = "Gmail";
+      name = "Gmail (Work)";
       icon = iconStore "gmail";
       url = "https://mail.google.com";
       mode = "app";
       profile = "Work";
+    }
+    {
+      key = "gmail-personal";
+      name = "Gmail (Personal)";
+      icon = iconStore "gmail";
+      url = "https://mail.google.com";
+      mode = "app";
+      profile = "Personal";
     }
     {
       key = "google-calendar";
