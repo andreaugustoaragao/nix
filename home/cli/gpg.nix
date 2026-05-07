@@ -1,5 +1,48 @@
-{ config, pkgs, lib, inputs, owner, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  owner,
+  ...
+}:
 
+let
+  # Symlink → /dev/null masks a user systemd unit (same trick as
+  # `systemctl --user mask`, but declarative).
+  maskedUnit = pkgs.runCommand "masked-systemd-unit" { } "ln -s /dev/null $out";
+
+  # ASKPASS helper. ssh-add reads the passphrase from the program's
+  # stdout; this just cats whatever passphrase file the caller picked
+  # via $KEY_PASS_FILE. Used at session start to preload both keys
+  # without prompting.
+  loadKeysAskpass = pkgs.writeShellScript "ssh-load-keys-askpass" ''
+    exec ${pkgs.coreutils}/bin/cat "$KEY_PASS_FILE"
+  '';
+
+  # Add the personal + work keys to the running ssh-agent at session
+  # start, pulling each passphrase from its sops-deployed file. With
+  # both keys cached, neither ksshaskpass nor gcr-prompter ever has a
+  # reason to fire — including for desktop-launched git callers like
+  # Fulcrum's Bun app.
+  loadKeysScript = pkgs.writeShellScript "ssh-load-keys" ''
+    set -uo pipefail
+
+    add_key() {
+      local key="$1" pass="$2"
+      [ -r "$key" ] || { echo "ssh-load-keys: $key missing"; return 0; }
+      [ -r "$pass" ] || { echo "ssh-load-keys: $pass missing"; return 0; }
+      KEY_PASS_FILE="$pass" \
+      SSH_ASKPASS="${loadKeysAskpass}" \
+      SSH_ASKPASS_REQUIRE=force \
+      DISPLAY=:0 \
+        ${pkgs.openssh}/bin/ssh-add "$key" </dev/null
+    }
+
+    add_key "/home/${owner.name}/.ssh/id_rsa_personal" "/run/secrets/ssh_passphrase_personal"
+    add_key "/home/${owner.name}/.ssh/id_rsa_work"     "/run/secrets/ssh_passphrase_work"
+  '';
+in
 {
   # GPG configuration with secure settings
   programs.gpg = {
@@ -34,8 +77,8 @@
   services.gpg-agent = {
     enable = true;
     # Cache timeout settings (long TTL for unattended agent operations)
-    defaultCacheTtl = 43200;     # 12 hours
-    maxCacheTtl = 43200;         # 12 hours
+    defaultCacheTtl = 43200; # 12 hours
+    maxCacheTtl = 43200; # 12 hours
     # Disable SSH support - we're using regular SSH keys
     enableSshSupport = false;
     # Use proper pinentry for GPG (ksshaskpass is not compatible with GPG protocol)
@@ -55,28 +98,68 @@
   services.ssh-agent = {
     enable = true;
   };
-  
+
   # Override SSH agent service to add timeout configuration and consistent socket path
   systemd.user.services.ssh-agent = {
     Service = {
       # Override the default ssh-agent command with no timeout for unattended agents
       # -t 0 = keys never expire, -a sets consistent socket path
       ExecStart = lib.mkForce "${pkgs.openssh}/bin/ssh-agent -D -t 0 -a %t/ssh-agent";
+      # Push SSH_AUTH_SOCK into the user-systemd manager environment so
+      # desktop-launched apps (Fulcrum's Bun process, browser PWAs, etc.)
+      # — which inherit user-systemd's env, NOT the shell's — talk to
+      # this agent instead of falling back to the masked gcr-ssh-agent.
+      ExecStartPost = "${pkgs.systemd}/bin/systemctl --user set-environment SSH_AUTH_SOCK=%t/ssh-agent";
     };
+  };
+
+  # Mask gcr-ssh-agent so it doesn't claim SSH_AUTH_SOCK in user-systemd
+  # env (was the sole reason desktop-launched git ops kept popping
+  # ksshaskpass / gcr-prompter on every call). Gnome-keyring's secret
+  # storage / libsecret still works — this kills only its SSH-agent role.
+  home.file.".config/systemd/user/gcr-ssh-agent.socket".source = maskedUnit;
+  home.file.".config/systemd/user/gcr-ssh-agent.service".source = maskedUnit;
+
+  # Preload both SSH keys at session start using passphrases from sops,
+  # so neither this user nor any desktop-launched child ever sees a
+  # passphrase prompt during normal use.
+  systemd.user.services.ssh-load-keys = {
+    Unit = {
+      Description = "Preload personal + work SSH keys into ssh-agent";
+      After = [ "ssh-agent.service" ];
+      Requires = [ "ssh-agent.service" ];
+      PartOf = [ "ssh-agent.service" ];
+    };
+    Service = {
+      Type = "oneshot";
+      RemainAfterExit = "yes";
+      Environment = "SSH_AUTH_SOCK=%t/ssh-agent";
+      ExecStart = "${loadKeysScript}";
+    };
+    Install.WantedBy = [ "default.target" ];
   };
 
   # Auto-preset GPG passphrases after gpg-agent starts
   systemd.user.services.gpg-preset-keys = {
     Unit = {
       Description = "Preset GPG passphrases from SOPS secrets";
-      After = [ "gpg-agent.service" "sops-nix.service" ];
+      After = [
+        "gpg-agent.service"
+        "sops-nix.service"
+      ];
       Wants = [ "gpg-agent.service" ];
     };
     Service = {
       Type = "oneshot";
       ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
       ExecStart = "${pkgs.writeShellScript "gpg-preset-keys" ''
-        export PATH="${lib.makeBinPath [ pkgs.gnupg pkgs.gawk pkgs.coreutils ]}:$PATH"
+        export PATH="${
+          lib.makeBinPath [
+            pkgs.gnupg
+            pkgs.gawk
+            pkgs.coreutils
+          ]
+        }:$PATH"
         LIBEXEC="${pkgs.gnupg}/libexec"
 
         preset_key() {
@@ -107,13 +190,13 @@
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    
+
     # Default configuration for personal machines
     extraConfig = ''
       # Enable SSH agent forwarding
       ForwardAgent yes
     '';
-    
+
     # GitHub configurations using sops-managed SSH keys
     matchBlocks = {
       "*" = {
@@ -123,18 +206,18 @@
         serverAliveInterval = 60;
         serverAliveCountMax = 3;
       };
-      
+
       "github-personal" = {
         hostname = "github.com";
         user = "git";
-        identityFile = "~/.ssh/id_rsa_personal";  # From sops
+        identityFile = "~/.ssh/id_rsa_personal"; # From sops
         identitiesOnly = true;
       };
-      
+
       "github-work" = {
         hostname = "github.com";
         user = "git";
-        identityFile = "~/.ssh/id_rsa_work";     # From sops
+        identityFile = "~/.ssh/id_rsa_work"; # From sops
         identitiesOnly = true;
       };
     };
@@ -146,7 +229,7 @@
     SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
     SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/ssh-agent";
   };
-  
+
   # Shell initialization to ensure SOPS age key and SSH askpass are available
   programs.bash.initExtra = ''
     export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
@@ -169,13 +252,13 @@
   # Install GPG-related packages
   home.packages = with pkgs; [
     gnupg
-    paperkey  # For backing up GPG keys to paper
-    kdePackages.ksshaskpass  # For SSH passphrase prompts in GUI
-    pinentry-qt  # For GPG passphrase prompts in GUI
+    paperkey # For backing up GPG keys to paper
+    kdePackages.ksshaskpass # For SSH passphrase prompts in GUI
+    pinentry-qt # For GPG passphrase prompts in GUI
   ];
 
   # Auto-import GPG keys from sops-managed secrets (if available)
-  home.activation.importGPG = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  home.activation.importGPG = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     # Import personal GPG key if it exists and is not a placeholder
     GPG_PERSONAL="/run/secrets/gpg_key_personal"
     if [[ -f "$GPG_PERSONAL" ]] && [[ "$(cat $GPG_PERSONAL)" != "placeholder" ]]; then
@@ -186,7 +269,7 @@
         echo "$PERSONAL_KEYID:6:" | ${pkgs.gnupg}/bin/gpg --batch --import-ownertrust 2>/dev/null || true
       fi
     fi
-    
+
     # Import work GPG key if it exists and is not a placeholder  
     GPG_WORK="/run/secrets/gpg_key_work"
     if [[ -f "$GPG_WORK" ]] && [[ "$(cat $GPG_WORK)" != "placeholder" ]]; then
