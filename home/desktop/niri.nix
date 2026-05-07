@@ -9,12 +9,13 @@
 }:
 
 {
-  # On non-DMS hosts we run hyprpolkitagent for polkit auth prompts.
-  # On DMS hosts, DMS's own PolkitAuthModal handles auth instead — but
-  # only when DMS lives inside niri's graphical logind session, which
-  # is why the spawn-at-startup below launches DMS directly (and the
-  # systemd dms.service is disabled in quickshell.nix).
-  home.packages = lib.optionals (!useDms) [ pkgs.hyprpolkitagent ];
+  # Always install hyprpolkitagent. DMS 1.4.6 ships a PolkitAuthModal
+  # but it logs "Polkit not available — authentication prompts disabled.
+  # This requires a newer version of Quickshell." and registers nothing
+  # against polkit. Until Quickshell exposes polkit primitives, we run
+  # hyprpolkitagent on DMS hosts too. Drop this once DMS's PolkitService
+  # actually owns the auth-agent slot.
+  home.packages = [ pkgs.hyprpolkitagent ];
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
@@ -63,17 +64,16 @@
 
     // Spawn programs on startup (others managed by systemd user services).
     // The polkit auth agent must be spawned by niri itself (not via
-    // systemd user service) so it lands in the graphical login session's
+    // systemd user service) so it lands in the graphical logind session's
     // cgroup — polkit refuses auth-agent listeners that aren't attached
-    // to a class=user logind session. For the same reason, when DMS is
-    // active it gets spawned here too so its built-in PolkitAuthModal
-    // can register the agent slot.
-    ${
-      if useDms then
-        ''spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"''
-      else
-        ''spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"''
-    }
+    // to a class=user logind session. DMS itself is also spawned here
+    // (when active) for the same scope reason, even though its
+    // PolkitService is currently a no-op on the Quickshell version we
+    // run — see home.packages above for context.
+    spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
+    ${lib.optionalString useDms ''
+      spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"
+    ''}
     // niri runs in the logind session scope (not niri.service), so the
     // user-systemd graphical-session.target is never armed and any unit
     // with Requisite=graphical-session.target (e.g. xdg-desktop-portal-gnome)
@@ -107,6 +107,12 @@
     // Input configuration (similar to Hyprland input)
     input {
         focus-follows-mouse
+        // Warp the cursor to the focused window's center on cross-window
+        // focus changes — gives a visible "which monitor am I on" cue when
+        // switching outputs via Mod+Ctrl+Arrow. center-xy only warps when
+        // the cursor is outside the newly focused window, so intra-monitor
+        // column moves stay calm.
+        warp-mouse-to-focus mode="center-xy"
         keyboard {
             xkb {
                 layout "us"
