@@ -1,11 +1,13 @@
 keys:
   - &admin_key age1d6fjy4k876qdnazftagucz96l8z0kctyxvq0t396swpr4c39wu8s4zcspg
+  - &tala_key age1duv6mr4u5vqylmasxs5cg5mcd5n29xmxklfrhcl5zp7v7ggs8syq0ef5fz
 
 creation_rules:
   - path_regex: secrets/.*\.yaml$
     key_groups:
       - age:
           - *admin_key
+          - *tala_key
           - age1fxy92eutwwhe96s24q6t68d9y2qevecv455gncgttdwmsjv8yyfsze57t9
           - age1dcna6k52x6tc2cryy9ancky0renwz4ke0rka3m73rr8g8jhrususrhywea
           - age1cw22z6uu7t425wkap97zl2q8mdj58rrhkqukc4tewuwactcqhp7sn2y5wr
