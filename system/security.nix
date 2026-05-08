@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  isServer,
   ...
 }:
 
@@ -31,11 +32,13 @@
     # Force page table isolation (Meltdown mitigation)
     forcePageTableIsolation = true;
 
-    # Real-time kit is already enabled, keep it
-    rtkit.enable = true;
+    # rtkit grants realtime scheduling — only consumed by pipewire/pulse
+    # on graphical hosts. Headless servers have no client.
+    rtkit.enable = lib.mkDefault (!isServer);
 
-    # Polkit is already enabled, keep it
-    polkit.enable = true;
+    # polkit authorizes interactive privilege escalation (niri/Hyprland
+    # auth-agents, GUI tools). Headless servers have no agent registered.
+    polkit.enable = lib.mkDefault (!isServer);
   };
 
   # ============================================================================

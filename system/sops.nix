@@ -122,38 +122,6 @@
         path = "/run/secrets/wifi_env";
       };
 
-      # Bitwarden secrets
-      "bitwarden/master_password" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
-      "bitwarden/server_url" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
-      "bitwarden/email" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
-      # Google OAuth credentials (for Google Workspace MCP)
-      "google_oauth_client_id" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
-      "google_oauth_client_secret" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
       # Matrix bot credentials — used by system/matrix-alert.nix and
       # system/auto-upgrade.nix to post failure alerts and upgrade
       # diffs to the alert room on matrix.faragao.net (homeserver
@@ -166,6 +134,36 @@
       "matrix/alert_room_id" = {
         owner = "root";
         group = "root";
+        mode = "0400";
+      };
+    }
+    // lib.optionalAttrs (!isServer) {
+      # Bitwarden + Google OAuth — only consumed by the user's
+      # graphical session (Bitwarden CLI/Google Workspace MCP).
+      # No client on a headless server, so don't materialize.
+      "bitwarden/master_password" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+      "bitwarden/server_url" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+      "bitwarden/email" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+      "google_oauth_client_id" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+      "google_oauth_client_secret" = {
+        owner = owner.name;
+        group = "users";
         mode = "0400";
       };
     }

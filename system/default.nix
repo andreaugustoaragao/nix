@@ -28,9 +28,7 @@
     ./networking.nix
     ./ssh.nix
     ./security.nix # Security hardening configuration
-    ./kmscon.nix
     ./env.nix
-    ./fonts.nix
     ./nvim.nix
     ./sops.nix
   ]
@@ -44,6 +42,8 @@
     ./browsers.nix
     ./printing.nix
     ./accounts.nix
+    ./kmscon.nix
+    ./fonts.nix
   ]
   ++ lib.optionals (hostName != "workstation" && !isServer) [
     ./loki.nix
