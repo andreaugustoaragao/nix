@@ -91,11 +91,13 @@
       # Home network - using SOPS secret
       "FARAGAO" = {
         pskRaw = "ext:wifi_password_home";
+        priority = 10;
       };
 
       # Work network - using SOPS secret
       "FARAGAO_WORK" = {
         pskRaw = "ext:wifi_password_work";
+        priority = 1;
       };
     };
 
