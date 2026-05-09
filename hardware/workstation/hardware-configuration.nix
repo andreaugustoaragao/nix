@@ -27,8 +27,6 @@
   boot.kernelModules = [
     "kvm-amd"
     "mt7925e"
-    "it87"
-    "r8126"
   ];
   boot.extraModulePackages = [ ];
   hardware.enableRedistributableFirmware = true;

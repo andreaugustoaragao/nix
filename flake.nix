@@ -31,6 +31,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     claude-code = {
       url = "github:sadjow/claude-code-nix";
     };
@@ -120,6 +125,8 @@
               (./hardware + "/${machineName}" + /hardware-configuration.nix)
               # System configuration
               ./system
+              # Prebuilt nix-index database for command-not-found lookup.
+              inputs.nix-index-database.nixosModules.nix-index
               # Secrets management
               sops-nix.nixosModules.sops
               # Home Manager configuration

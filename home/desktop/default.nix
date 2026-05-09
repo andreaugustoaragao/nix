@@ -71,8 +71,6 @@ in
     [
       pavucontrol
       easyeffects
-      xdg-desktop-portal-gnome
-      xdg-desktop-portal-gtk
       teams-for-linux
       pkgs-unstable.telegram-desktop
       bitwarden-desktop

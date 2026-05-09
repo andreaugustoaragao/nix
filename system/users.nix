@@ -1,10 +1,25 @@
-{ config, pkgs, lib, inputs, owner, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  owner,
+  ...
+}:
 
 {
   users.users.${owner.name} = {
     isNormalUser = true;
     description = owner.fullName;
-    extraGroups = [ "wheel" "audio" "video" "docker" "input" ];
+    extraGroups = [
+      "wheel"
+      "audio"
+      "video"
+      "docker"
+      "input"
+      "lp"
+      "scanner"
+    ];
     shell = pkgs.zsh;
   };
 
@@ -16,6 +31,7 @@
     enableZshIntegration = true;
     enableFishIntegration = true;
   };
+  programs.nix-index-database.comma.enable = true;
 
   security.sudo = {
     enable = true;
@@ -27,4 +43,4 @@
       ${owner.name} ALL=(root) NOPASSWD: /run/current-system/sw/bin/k3s
     '';
   };
-} 
+}
