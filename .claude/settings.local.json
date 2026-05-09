@@ -49,5 +49,6 @@
     "deny": [],
     "ask": []
   },
-  "enableAllProjectMcpServers": false
+  "enableAllProjectMcpServers": false,
+  "prefersReducedMotion": true
 }

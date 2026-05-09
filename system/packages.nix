@@ -74,9 +74,10 @@ in
       hexyl
       grex
 
-      # Audio diagnostic tools
+      # Hardware diagnostic tools
       pciutils # provides lspci
       usbutils # provides lsusb
+      dmidecode # provides dmidecode (DMI/SMBIOS table inspection)
 
       # Filesystem and encryption tools
       btrfs-progs

@@ -1,4 +1,10 @@
-{ config, pkgs, lib, bluetooth ? false, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  bluetooth ? false,
+  ...
+}:
 
 {
   config = lib.mkIf bluetooth {
@@ -6,12 +12,6 @@
     hardware.bluetooth = {
       enable = true;
       powerOnBoot = true;
-      settings = {
-        General = {
-          Enable = "Source,Sink,Media,Socket";
-          Experimental = true;
-        };
-      };
     };
 
     # Enable Bluetooth service
@@ -22,12 +22,14 @@
       bluez
       bluez-tools
       blueman
-      broadcom-bt-firmware
     ];
 
+    hardware.firmware = [ pkgs.broadcom-bt-firmware ];
+
     # Enable PulseAudio/PipeWire Bluetooth support
-    services.pulseaudio.package = lib.mkIf config.services.pulseaudio.enable 
-      (pkgs.pulseaudio.override { bluetoothSupport = true; });
+    services.pulseaudio.package = lib.mkIf config.services.pulseaudio.enable (
+      pkgs.pulseaudio.override { bluetoothSupport = true; }
+    );
 
     # For PipeWire (which is more common in modern setups)
     services.pipewire.wireplumber.extraConfig = lib.mkIf config.services.pipewire.enable {
@@ -36,7 +38,14 @@
           "bluez5.enable-sbc-xq" = true;
           "bluez5.enable-msbc" = true;
           "bluez5.enable-hw-volume" = true;
-          "bluez5.roles" = [ "a2dp_sink" "a2dp_source" "hsp_hs" "hsp_ag" "hfp_hf" "hfp_ag" ];
+          "bluez5.roles" = [
+            "a2dp_sink"
+            "a2dp_source"
+            "hsp_hs"
+            "hsp_ag"
+            "hfp_hf"
+            "hfp_ag"
+          ];
         };
       };
     };

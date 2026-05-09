@@ -525,6 +525,10 @@
           "enabled": true
         },
         {
+          "id": "recordCall",
+          "enabled": true
+        },
+        {
           "id": "network_speed_monitor",
           "enabled": true
         },

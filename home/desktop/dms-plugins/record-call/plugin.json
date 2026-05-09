@@ -1,0 +1,13 @@
+{
+  "id": "recordCall",
+  "name": "Call Recorder",
+  "description": "Toggle the record-call CLI from the DankBar; lights up while a session is active. Reflects state changes made from the CLI.",
+  "version": "1.0.0",
+  "author": "aragao",
+  "icon": "fiber_manual_record",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./RecordCallWidget.qml",
+  "permissions": ["process"],
+  "requires": ["record-call"]
+}

@@ -139,6 +139,7 @@
     extraConfig = lib.mkIf (hostName == "workstation") ''
       DNS=192.168.40.3
       Domains=faragao.net
+      MulticastDNS=no
     '';
   };
 

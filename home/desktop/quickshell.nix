@@ -44,6 +44,9 @@ let
       rev = "e4b65a207652bc3204121401fafd5566b8d22c37";
       hash = "sha256-3Cr+PzPkNGWeIrOqucEc/bLh4xndHI/M3k/srBRCdAQ=";
     };
+    # In-tree DankBar pill: toggles `record-call` and reflects state
+    # changes made from the CLI by polling its session.env state file.
+    recordCall = ./dms-plugins/record-call;
   };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
@@ -192,6 +195,18 @@ let
     wallpaperPath = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathDark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathLight = "${wallpapers}/share/wallpapers/blue-jays.png";
+    # SessionData.getMonitorWallpaper reads from `monitorWallpapers` (the
+    # active per-mode copy), not from monitorWallpapersDark/Light directly.
+    # That map is only populated by syncWallpaperForCurrentMode(), which
+    # runs on mode *change* — not on first load — so a cold boot in dark
+    # mode leaves the map empty and DP-2 silently falls back to
+    # wallpaperPath. Seed it with the dark mapping so the boot state
+    # renders correctly without a mode toggle; the first setLightMode(true)
+    # of the day overwrites it from monitorWallpapersLight.
+    monitorWallpapers = {
+      "DP-1" = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+      "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
+    };
     monitorWallpapersDark = {
       "DP-1" = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
       "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
@@ -258,7 +273,13 @@ in
     }) themes)
     // (lib.mapAttrs' (id: src: {
       name = "DankMaterialShell/plugins/${id}";
-      value.source = src;
+      value = {
+        source = src;
+        # Plugin assets are authoritative from Nix; replace any stale
+        # symlink/dir HM finds at the target. Leftovers happen when the
+        # plugin source path changes between generations.
+        force = true;
+      };
     }) dms-plugins)
   );
 

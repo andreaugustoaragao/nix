@@ -1,4 +1,11 @@
-{ config, pkgs, lib, inputs, useDms ? false, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  useDms ? false,
+  ...
+}:
 
 {
   programs.tmux = {
@@ -18,17 +25,17 @@
       set-option -g set-titles-string "tmux: #S / #(tmux-window-icons #W)"
       set-option -g default-terminal "tmux-256color"
       set -ag terminal-features "xterm-kitty:RGB"
+      set -ag terminal-features "xterm-ghostty:RGB"
       set -ag terminal-features "xterm-256color:RGB"
       set -s escape-time 0
       set-option -g focus-events on
 
       set -g base-index 1          # start indexing windows at 1 instead of 0
       set -g detach-on-destroy off # don't exit from tmux when closing a session
-      set -g escape-time 0         # zero-out escape time delay
       set -g history-limit 1000000 # increase history size (from 2,000)
       set -g mouse on              # enable mouse support
       set -g renumber-windows on   # renumber all windows when any window is closed
-      set -g set-clipboard on      # use system clipboard
+      set -g set-clipboard on      # use system clipboard (OSC 52)
 
       set -g status-interval 3     # update the status bar every 3 seconds
       set -g status-left "#[fg=blue,bold,bg=default] #S "
@@ -57,14 +64,13 @@
       set -g pane-active-border-style 'fg=magenta,bg=default'
       set -g pane-border-style 'fg=brightblack,bg=default'
 
-      set -g window-style 'fg=default,bg=default' #331d1d2e'
       set -g window-active-style 'fg=default,bg=#191724'
 
-      bind r source-file /etc/tmux.conf
-      set -g base-index 1
+      bind r source-file ~/.config/tmux/tmux.conf \; display-message "tmux.conf reloaded"
 
+      # OSC 52 via set-clipboard on — works on Wayland, X11, and over SSH
       bind -T copy-mode-vi v send-keys -X begin-selection
-      bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel 'xclip -in -selection clipboard'
+      bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel
 
       # vim-like pane switching
       bind -r ^ last-window
@@ -74,7 +80,7 @@
       bind -r l select-pane -R
 
       bind-key % split-window -h -c "#{pane_current_path}"
-      bind-key '"' split-window -p 30 -v -c "#{pane_current_path}"
+      bind-key '"' split-window -v -l 30% -c "#{pane_current_path}"
 
       #bind u split-window -p 30 -c "#{pane_current_path}"
       #bind i split-window -p 50 -h -c "#{pane_current_path}"
@@ -96,7 +102,7 @@
   home.packages = with pkgs; [
     (writeShellScriptBin "tmux-sessionizer" ''
       #!/usr/bin/env bash
-      
+
       #set -x
       set -e
       if [[ $# -eq 1 ]]; then
@@ -105,11 +111,11 @@
        #find ~/projects/personal ~/projects/work -mindepth 1 -maxdepth 1 -type d|awk -F/ '{print $(NF-1)"/"$NF}'
        selected=$(find -L ~/projects/work ~/projects/personal -mindepth 1 -maxdepth 1 -type d |awk -F/ '{print $(NF-1)"/"$NF}'| fzf --preview 'bat --color=always ~/projects/{}/README.md 2>/dev/null||bat --color=always ~/projects/{}/readme.md 2>/dev/null||tree -C ~/projects/{}' )
       fi
-      
+
       if [[ -z $selected ]]; then    
         exit 0
       fi
-      
+
       selected=~/projects/"$selected"
       selected_name=$(basename "$selected" | tr . _)
 
@@ -130,12 +136,12 @@
         tmux switch-client -t $selected_name
       fi
     '')
-    
+
     (writeShellScriptBin "tmux-window-icons" ''
       #!/bin/sh
-      
+
       declare -A icons
-      
+
       icons["fish"]="󰈺 ";
       icons["nvim"]=" ";
       icons["vi"]=" ";
@@ -145,10 +151,10 @@
       icons["k9s"]="󱃾 ";
       icons["lf"]=" ";
       icons["python"]=" ";
-      
+
       echo "''${icons[$1]}$1"
     '')
-    
+
     (writeShellScriptBin "tmux-right-status" ''
       #!/bin/sh
       # set -x
@@ -162,7 +168,7 @@
         fi
         echo $output
       }
-      
+
       function get_az_output(){
         local output
         if [ -f ~/.config/azure/azureProfile.json ]; then
@@ -173,7 +179,7 @@
         fi
         echo $output
       }
-      
+
       function get_project_output(){
         local output
         local project_dir
@@ -185,14 +191,14 @@
         fi
         echo $output
       }
-      
+
       function get_git_output(){
         echo $(tmux-git-status)
       }
-      
+
       echo $(get_git_output) $(get_k8s_output) $(get_az_output) $(get_project_output)
     '')
-    
+
     (writeShellScriptBin "tmux-git-status" ''
       #!/bin/bash
       # Function to get the current Git branch
@@ -201,12 +207,12 @@
       	local branch_name=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
       	echo "$branch_name"
       }
-      
+
       # Function to get the Git status
       get_git_status() {
       	local status=$(git status --porcelain 2>/dev/null)
       	local output=""
-      
+
       	if [[ -n $status ]]; then
       		# Check for modified files
       		if echo "$status" | grep -q '^.M\|M.$'; then
@@ -229,10 +235,10 @@
       			output+="?"
       		fi
       	fi
-      
+
       	echo "$output"
       }
-      
+
       # Main script execution
       branch=$(get_git_branch)
       if [[ -n $branch ]]; then
@@ -251,7 +257,11 @@
     exec = "tmux-sessionizer";
     terminal = true;
     type = "Application";
-    categories = [ "Utility" "TerminalEmulator" "ConsoleOnly" ];
+    categories = [
+      "Utility"
+      "TerminalEmulator"
+      "ConsoleOnly"
+    ];
     icon = "utilities-terminal";
   };
 }

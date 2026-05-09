@@ -10,10 +10,8 @@
 {
   programs.foot = {
     enable = true;
-    # When DMS owns the theme, we write foot.ini ourselves below so we
-    # can place an `include = …` at the top (home-manager's settings
-    # generator can't emit pre-section directives). The Nix-managed
-    # settings stay in charge of layout/font/etc when not in DMS mode.
+    # DMS's generated foot palette currently uses section names foot does
+    # not accept, so keep the Nix-managed palette in charge.
     settings = lib.mkIf (!useDms) {
       main = {
         font = "CaskaydiaMono Nerd Font:size=11";
@@ -51,12 +49,10 @@
     };
   };
 
-  # In DMS mode, write foot.ini directly so we can include DMS's
-  # matugen-generated palette before the [main] section.
+  # In DMS mode, write foot.ini directly so we can keep the same settings
+  # without including DMS's invalid foot palette.
   xdg.configFile."foot/foot.ini" = lib.mkIf useDms {
     text = ''
-      include=~/.config/foot/dank-colors.ini
-
       [main]
       font=CaskaydiaMono Nerd Font:size=11
       font-bold=CaskaydiaMono Nerd Font:style=Bold:size=11
@@ -67,6 +63,24 @@
 
       [colors]
       alpha=0.98
+      foreground=dcd7ba
+      background=1f1f28
+      regular0=090618
+      regular1=c34043
+      regular2=76946a
+      regular3=c0a36e
+      regular4=7e9cd8
+      regular5=957fb8
+      regular6=6a9589
+      regular7=c8c093
+      bright0=727169
+      bright1=e82424
+      bright2=98bb6c
+      bright3=e6c384
+      bright4=7fb4ca
+      bright5=938aa9
+      bright6=7aa89f
+      bright7=dcd7ba
     '';
   };
 }
