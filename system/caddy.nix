@@ -26,9 +26,9 @@
           extraConfig = "reverse_proxy 127.0.0.1:3100";
         };
       })
-      (lib.mkIf (!isVm) {
-        "http://ollama.local" = {
-          extraConfig = "reverse_proxy 127.0.0.1:11434";
+      (lib.mkIf (hostName == "workstation") {
+        "http://llm.local" = {
+          extraConfig = "reverse_proxy 127.0.0.1:8080";
         };
       })
     ];

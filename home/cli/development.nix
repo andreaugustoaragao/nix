@@ -32,12 +32,26 @@ let
     echo "Run 'gemini' to start using it"
   '';
 
+  # Script to install Pi coding agent via npm
+  install-pi-coding-agent = pkgs.writeShellScriptBin "install-pi-coding-agent" ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+    ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent
+    echo "Pi coding agent installed successfully!"
+    echo "Run 'pi --model llama-cpp/qwen3-coder-30b-a3b-local' to use the local model"
+  '';
+
   # Script to install goplay (Go Playground client) via go install
   install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
     export GOPATH="''${GOPATH:-$HOME/go}"
     export GOBIN="''${GOBIN:-$GOPATH/bin}"
     ${unstable-pkgs.go}/bin/go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
     echo "goplay installed to $GOBIN/goplay"
+  '';
+
+  nixfmt-rfc-style-command = pkgs.writeShellScriptBin "nixfmt-rfc-style" ''
+    exec ${pkgs.nixfmt-rfc-style}/bin/nixfmt "$@"
   '';
 
 in
@@ -48,7 +62,8 @@ in
     [
       # Language Servers
       nil # Nix LSP
-      nixfmt-rfc-style # Nix formatter
+      nixfmt-rfc-style # Nix formatter (provides the `nixfmt` binary)
+      nixfmt-rfc-style-command # Compatibility command for `nixfmt-rfc-style`
       statix # Nix linter (anti-pattern detection)
       deadnix # Nix dead-code detector
       bash-language-server # Bash LSP
@@ -175,6 +190,7 @@ in
       # AI/ML Development
       install-qwen-code # Script to install Qwen Code CLI tool
       install-gemini-cli # Script to install Google Gemini CLI
+      install-pi-coding-agent # Script to install Pi coding agent
     ]
     ++ [
       unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
@@ -227,10 +243,10 @@ in
     # Python
     PYTHONDONTWRITEBYTECODE = "1";
 
-    # Qwen Code configuration for local Ollama
-    OPENAI_API_KEY = "dummy_key"; # Any value works for local
-    OPENAI_BASE_URL = "http://localhost:11434/v1";
-    OPENAI_MODEL = "qwen3-coder:latest";
+    # Local OpenAI-compatible llama.cpp server.
+    OPENAI_API_KEY = "local"; # llama.cpp requires no real key
+    OPENAI_BASE_URL = "http://127.0.0.1:8080/v1";
+    OPENAI_MODEL = "qwen3-coder-30b-a3b-local";
 
     # Development paths
     PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
@@ -259,6 +275,12 @@ in
     if ! command -v codex &> /dev/null; then
       echo "Installing OpenAI Codex CLI..."
       ${pkgs.nodejs_22}/bin/npm install -g @openai/codex
+    fi
+
+    # Install Pi coding agent if not present
+    if ! command -v pi &> /dev/null; then
+      echo "Installing Pi coding agent..."
+      ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent
     fi
   '';
 

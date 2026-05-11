@@ -185,6 +185,9 @@
     window-rule {
         match is-active=false
         opacity 0.92
+        background-effect {
+            blur true
+        }
     }
 
     // Brave: opaque when focused, slight dim when unfocused
@@ -196,6 +199,11 @@
     window-rule {
         match app-id=r#"^brave"# is-active=false
         opacity 0.95
+    }
+
+    window-rule {
+        match app-id="com.mitchellh.ghostty"
+        default-column-width { proportion 0.5; }
     }
 
     window-rule {
@@ -450,7 +458,17 @@
         Mod+Shift+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww"; }
         ${lib.optionalString useDms ''
           // DMS surface toggles
-          Mod+Shift+D { spawn "dms" "ipc" "call" "theme" "toggle"; }
+          // Theme toggle does two things in sequence:
+          //   1. `dms ipc call theme toggle` flips DMS's isLightMode,
+          //      which fires SessionData.syncWallpaperForCurrentMode()
+          //      → swaps wallpapers + regenerates matugen templates.
+          //   2. `darkman toggle` writes gsettings color-scheme so the
+          //      xdg-desktop-portal Settings value reflects the new
+          //      mode. DMS itself skips that write when matugen is
+          //      available (Theme.qml:1001-1003), leaving GTK/Qt apps
+          //      that read from the portal out of sync — darkman fills
+          //      that gap.
+          Mod+Shift+D { spawn "sh" "-c" "dms ipc call theme toggle; darkman toggle"; }
           Mod+Comma   { spawn "dms" "ipc" "call" "dash" "toggle" "overview"; }
           Mod+Period  { spawn "dms" "ipc" "call" "control-center" "toggle"; }
           Mod+N       { spawn "dms" "ipc" "call" "notepad" "toggle"; }

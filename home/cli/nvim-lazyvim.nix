@@ -1,4 +1,9 @@
-{ config, pkgs, useDms ? false, ... }:
+{
+  config,
+  pkgs,
+  useDms ? false,
+  ...
+}:
 
 {
   programs.neovim = {
@@ -6,16 +11,16 @@
     defaultEditor = true;
     viAlias = true;
     vimAlias = true;
-    
+
     plugins = with pkgs.vimPlugins; [
       # Core lazy.nvim for plugin management
       lazy-nvim
-      
+
       # Essential plugins that need to be available immediately
-      rose-pine      # Colorscheme needs to be available at startup
-      plenary-nvim   # Many plugins depend on this
+      rose-pine # Colorscheme needs to be available at startup
+      plenary-nvim # Many plugins depend on this
     ];
-    
+
     extraLuaConfig = ''
       -- Bootstrap lazy.nvim
       local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -30,14 +35,14 @@
         })
       end
       vim.opt.rtp:prepend(lazypath)
-      
+
       -- Configure leader keys before lazy.nvim setup
       vim.g.mapleader = " "
       vim.g.maplocalleader = "\\"
-      
+
       -- Track startup time from the very beginning
       vim.g.start_time = vim.uv.hrtime()
-      
+
       -- Basic Neovim options
       vim.opt.number = true
       vim.opt.relativenumber = true
@@ -48,7 +53,7 @@
       vim.opt.smartindent = true
       vim.opt.autoindent = true
       vim.opt.wrap = false
-      
+
       -- GUI font configuration for Neovide
       if vim.g.neovide then
         vim.opt.guifont = "CaskaydiaMono Nerd Font:h12"
@@ -139,7 +144,7 @@
       vim.opt.foldlevel = 99  -- Start with all folds open
       vim.opt.foldlevelstart = 99
       vim.opt.foldcolumn = "1"  -- Show fold column
-      
+
       -- Fallback to treesitter folding if LSP folding is not available
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(args)
@@ -153,7 +158,7 @@
           end
         end,
       })
-      
+
       -- Folding keymaps
       vim.keymap.set("n", "zR", "zR", { desc = "Open all folds" })
       vim.keymap.set("n", "zM", "zM", { desc = "Close all folds" })
@@ -162,7 +167,7 @@
       vim.keymap.set("n", "za", "za", { desc = "Toggle fold" })
       vim.keymap.set("n", "zo", "zo", { desc = "Open fold" })
       vim.keymap.set("n", "zc", "zc", { desc = "Close fold" })
-      
+
       -- Setup lazy.nvim
       require("lazy").setup({
         rocks = {
@@ -266,10 +271,26 @@
                 ui_select = true, -- replace vim.ui.select with snacks picker
                 layout = {
                   preset = "default",
-                  layout = { position = "float" },
+                },
+                -- Per-source overrides. snacks.explorer is a picker source,
+                -- so its sidebar layout lives here — not on the top-level
+                -- `explorer` block (which only handles enable + netrw).
+                sources = {
+                  explorer = {
+                    layout = {
+                      preset = "sidebar",
+                      preview = false,
+                      layout = { position = "left" },
+                    },
+                    auto_close = false,
+                    hidden = false,
+                  },
                 },
               },
-              explorer = { enabled = true, replace_netrw = true },
+              explorer = {
+                enabled = true,
+                replace_netrw = true,
+              },
 
               dashboard = {
                 enabled = true,
@@ -1381,7 +1402,7 @@
           },
         },
       })
-      
+
       -- Better clipboard support for Wayland
       vim.g.clipboard = {
         name = "wl-clipboard",
@@ -1394,7 +1415,7 @@
           ["*"] = "wl-paste --no-newline",
         },
       }
-      
+
       -- Custom diagnostic configuration (improve on LazyVim defaults)
       vim.diagnostic.config({
         underline = true,
@@ -1414,7 +1435,7 @@
           },
         },
       })
-      
+
       -- Auto-command for loading time tracking
       vim.api.nvim_create_autocmd("User", {
         pattern = "VeryLazy",
@@ -1442,7 +1463,7 @@
           )
         end,
       })
-      
+
       -- Window-focus + float + winsep highlights, set on every
       -- colorscheme load so kanagawa or DMS's matugen-driven palette
       -- both pick them up. The previous WinEnter/WinLeave winblend=10
@@ -1468,16 +1489,16 @@
         callback = setup_window_highlights,
       })
       setup_window_highlights()
-      
+
       -- Essential keybindings.
       -- <leader>ff/fg/fb/fh/e are owned by the snacks.nvim plugin
       -- spec's `keys = {}` table (lazy-loads snacks on first press),
       -- so they're not redefined here.
       vim.keymap.set("n", "<leader>l", "<cmd>Lazy<cr>", { desc = "Lazy Plugin Manager" })
-      
+
       -- Markdown-specific settings and keybindings
       vim.api.nvim_create_augroup("MarkdownSettings", { clear = true })
-      
+
       vim.api.nvim_create_autocmd("FileType", {
         group = "MarkdownSettings",
         pattern = "markdown",
@@ -1543,7 +1564,7 @@
           vim.keymap.set("n", "[[", "?^#\\+\\s<CR>", vim.tbl_extend("force", opts, { desc = "Previous header" }))
         end,
       })
-      
+
     '';
   };
 }

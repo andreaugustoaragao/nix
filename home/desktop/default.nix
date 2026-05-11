@@ -80,6 +80,7 @@ in
       swayimg
       obsidian
       qt6.qttools
+      freelens-bin
 
       # Video-related packages
       mpv
@@ -89,5 +90,6 @@ in
     ]
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
+      aptakube
     ];
 }

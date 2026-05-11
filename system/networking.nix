@@ -40,8 +40,7 @@
           Gateway = "192.168.10.1";
           DNS = [
             "192.168.40.3"
-            "1.1.1.1"
-            "8.8.8.8"
+            "192.168.100.2"
           ];
           IPv6AcceptRA = true;
         }
@@ -112,11 +111,20 @@
       DHCP = "yes";
       IPv6AcceptRA = true;
     };
+    # On workstation only: don't accept DHCP/RA-supplied DNS on wifi.
+    # resolved's Global DNS (192.168.40.3) plus the ethernet per-link list
+    # already covers DNS, and adding the wifi router's resolver pushes the
+    # unioned nameserver count past 3, triggering kubelet's
+    # DNSConfigForming warning on every K3s pod sync (resolv.conf hard
+    # cap is 3 nameservers). hp-laptop still needs wifi DHCP DNS — it has
+    # no per-link DNS or Global resolved DNS and roams across networks.
     dhcpV4Config = {
       RouteMetric = 2048; # Higher metric than ethernet (prefers ethernet when both available)
+      UseDNS = lib.mkIf (hostName == "workstation") false;
     };
     ipv6AcceptRAConfig = {
       RouteMetric = 2048;
+      UseDNS = lib.mkIf (hostName == "workstation") false;
     };
   };
 
@@ -138,6 +146,7 @@
     enable = true;
     extraConfig = lib.mkIf (hostName == "workstation") ''
       DNS=192.168.40.3
+      FallbackDNS=1.1.1.1
       Domains=faragao.net
       MulticastDNS=no
     '';
@@ -216,7 +225,7 @@
       "fulcrum.local"
       "infinity.local"
     ]
-    ++ lib.optionals (!isVm && hostName != "workstation") [ "ollama.local" ];
+    ++ lib.optionals (hostName == "workstation") [ "llm.local" ];
 
   # ============================================================================
   # Firewall Configuration

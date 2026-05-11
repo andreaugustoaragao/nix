@@ -7,7 +7,10 @@ let
   };
 in
 {
-  home.packages = [ unstable-pkgs.k9s ];
+  home.packages = [
+    unstable-pkgs.k9s
+    unstable-pkgs.kdash
+  ];
 
   xdg.configFile."k9s/views.yaml".text = ''
     views:
