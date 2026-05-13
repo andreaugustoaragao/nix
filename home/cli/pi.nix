@@ -490,15 +490,11 @@ let
       signal: AbortSignal | undefined,
     ): Promise<{ stdout: string; stderr: string; code: number }> {
       return new Promise((resolve, reject) => {
-        // Strip PLAYWRIGHT_BROWSERS_PATH so dev-browser's bundled Playwright
-        // 1.58.2 falls back to its native ~/.cache/ms-playwright/ lookup
-        // (where its matching chromium-1208 lives via `dev-browser install`).
-        // The nix-pinned playwright-driver.browsers from home/cli/
-        // development.nix targets a different Playwright/Chromium pair
-        // (chromium-1194 today) and would not match.
-        const env = { ...process.env };
-        delete env.PLAYWRIGHT_BROWSERS_PATH;
-        const child = spawn(DEV_BROWSER, args, { signal, env });
+        // In default --connect mode dev-browser does not launch Chromium
+        // (it attaches via CDP to a Chrome started with
+        // --remote-debugging-port=9222), so PLAYWRIGHT_BROWSERS_PATH from
+        // home/cli/development.nix does not matter and we pass env as-is.
+        const child = spawn(DEV_BROWSER, args, { signal, env: process.env });
         const out: Buffer[] = [];
         const err: Buffer[] = [];
         child.stdout.on("data", (c: Buffer) => out.push(c));
@@ -524,14 +520,16 @@ let
         description:
           "Execute a JavaScript script in a sandboxed QuickJS runtime with " +
           "a pre-connected Playwright `browser` global. Use for end-to-end " +
-          "testing of frontend apps on localhost: navigation, form filling, " +
-          "assertions, screenshots, snapshotForAI. The script is NOT Node.js " +
-          "— no require/import, no fetch, no fs/path/os/process. Available " +
+          "testing of frontend apps: navigation, form filling, assertions, " +
+          "screenshots, snapshotForAI. The script is NOT Node.js — no " +
+          "require/import, no fetch, no fs/path/os/process. Available " +
           "globals: browser (Playwright Page API), console, setTimeout, " +
           "saveScreenshot(buf, name), writeFile(name, data), readFile(name). " +
-          "By default reuses the shared 'pi' profile (headed, daemon-managed " +
-          "Chromium). Use a different browser name only when you explicitly " +
-          "need isolation. See the dev-browser skill for recipes.",
+          "By default ATTACHES to a Chrome already running with " +
+          "--remote-debugging-port=9222 (auto-discover via CDP). Pass " +
+          "connect: false to launch daemon-managed Chromium instead " +
+          "(rarely needed; known issues on NixOS). See the dev-browser " +
+          "skill for recipes.",
         parameters: Type.Object({
           script: Type.String({
             description:
@@ -541,17 +539,18 @@ let
           }),
           browser: Type.Optional(Type.String({
             description:
-              "Named profile (--browser). Default 'pi'. Only override when " +
-              "you need a clean or separate profile — prefer reuse.",
+              "Named profile (--browser). Only used when connect=false " +
+              "(daemon-managed mode). Default 'pi'.",
           })),
           connect: Type.Optional(Type.Union([
             Type.Boolean(),
             Type.String(),
           ], {
             description:
-              "true: auto-discover a running Chrome with remote debugging. " +
-              "string: connect to that CDP URL (e.g. http://localhost:9222). " +
-              "false (default): daemon launches its own Chromium.",
+              "true (default): auto-discover a running Chrome with " +
+              "--remote-debugging-port=9222. string: connect to that CDP " +
+              "URL (e.g. http://localhost:9222). false: launch " +
+              "daemon-managed Chromium instead.",
           })),
           headless: Type.Optional(Type.Boolean({
             description: "Default false (headed — you watch tests run).",
@@ -569,7 +568,7 @@ let
         async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
           const browser = params.browser ?? DEFAULT_PROFILE;
           const headless = params.headless ?? false;
-          const connect: ConnectArg = params.connect ?? false;
+          const connect: ConnectArg = params.connect ?? true;
           const timeout = params.timeout ?? DEFAULT_TIMEOUT_S;
           const ignoreHttps = params.ignore_https_errors ?? false;
 
@@ -597,7 +596,9 @@ let
             const msg = err instanceof Error ? err.message : String(err);
             const hint = msg.includes("ENOENT")
               ? " (dev-browser not on PATH — install with `npm install -g dev-browser`)"
-              : "";
+              : msg.includes("could not connect") || msg.includes("ECONNREFUSED")
+                ? " (no Chrome on :9222 — start one with `chromium --remote-debugging-port=9222` or `brave --remote-debugging-port=9222`)"
+                : "";
             return {
               content: [{
                 type: "text",
@@ -657,6 +658,333 @@ in
     Never estimate time, hours, effort, or duration. If asked, refuse and
     offer concrete scope instead (files touched, comparable prior work,
     decision points, unknowns).
+  '';
+
+  # Pi skill: chaos / exploratory testing of frontend apps via `browser_run`.
+  # Globally available; project-agnostic. Mirrors the in-tree
+  # .claude/skills/explore-frontend/SKILL.md from infinity-core but stripped
+  # of project-specific conventions (bug templates, BOARD.md, k8s/compose
+  # mode resolution, service-name URL lookup).
+  home.file.".pi/agent/skills/explore-frontend/SKILL.md".text = ''
+    ---
+    name: explore-frontend
+    description: |
+      Chaos / exploratory testing of a frontend app via the `browser_run`
+      tool. Act as a destructive user: exercise every reachable path,
+      poke forms with adversarial inputs, surface every bug the UI can
+      reveal. Trigger phrases: "explore the UI", "explore the frontend",
+      "chaos test", "break the UI", "bug hunt the UI", "QA the UI",
+      "test the frontend", "smoke test the UI", "act as a user",
+      "post-deploy UX verification". Requires Chrome running with
+      --remote-debugging-port=9222; ask the user to start one if not
+      already running. Accepts a URL; ask if not provided.
+    ---
+
+    # Explore Frontend
+
+    You are a **chaos explorer**. Curious, relentless, destructive. You do
+    not use the app politely — you poke every corner, fill forms with
+    garbage, click things twice, navigate backwards, resize, interrupt
+    loads, and test what happens when things go wrong. Your goal is to
+    find every way the app can break and surface each failure.
+
+    ## Prerequisites
+
+    `browser_run` defaults to attaching via CDP on `localhost:9222`. If
+    Chrome is not running with debug enabled, tell the user to start it:
+
+    ```
+    google-chrome --remote-debugging-port=9222
+    # or
+    chromium --remote-debugging-port=9222
+    # or
+    brave --remote-debugging-port=9222
+    ```
+
+    Do not try `connect: false` (daemon-managed Chromium) — known issues
+    on NixOS (chromium version mismatch + missing shared libs).
+
+    ## Resolving the target
+
+    The user provides a URL. If they only give a service name or "the
+    app", ask which URL they want tested. Do not guess.
+
+    ## Phase 1: Reconnaissance
+
+    ### 1.1 Launch and snapshot
+
+    Call `browser_run` with:
+
+    ```js
+    const page = await browser.getPage("explore");
+    await page.goto("TARGET_URL", { waitUntil: "domcontentloaded" });
+    const snap = await page.snapshotForAI();
+    console.log(JSON.stringify({
+      url: page.url(),
+      title: await page.title(),
+      snapshot: snap.full,
+    }, null, 2));
+    ```
+
+    ### 1.2 Build the map
+
+    From the initial snapshot, identify:
+    - All visible links and navigation elements
+    - All forms and input fields
+    - All buttons and interactive elements
+    - Overall page structure (sidebar, header, main content, modals)
+
+    Log the map as a checklist — you will work through it systematically.
+
+    ### 1.3 Baseline console errors
+
+    Before exploring, capture pre-existing state so you can distinguish
+    new errors from ones already there:
+
+    ```js
+    const page = await browser.getPage("explore");
+    const errors = [];
+    page.on("pageerror", (e) => errors.push({ type: "pageerror", message: e.message }));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push({ type: "console-error", text: msg.text() });
+    });
+    await page.waitForTimeout(2000);
+    console.log(JSON.stringify({ baseline_errors: errors }, null, 2));
+    ```
+
+    ## Phase 2: Systematic exploration
+
+    Work through every reachable path. For each page or view:
+
+    ### 2.1 Navigate and snapshot
+
+    ```js
+    const page = await browser.getPage("explore");
+    await page.goto("URL", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle");
+    const snap = await page.snapshotForAI();
+    console.log(JSON.stringify({
+      url: page.url(),
+      title: await page.title(),
+      snapshot: snap.full,
+    }, null, 2));
+    ```
+
+    ### 2.2 Exercise every interactive element
+
+    For each element on the page, try the appropriate chaos.
+
+    **Links & navigation**
+    - Click every link, verify it loads, check for 404s / error pages
+    - Use browser back/forward after each navigation
+    - Try the same link twice rapidly
+
+    **Forms & inputs**
+    - Submit empty forms — does validation work?
+    - Fill text fields with: empty string, single space, 5000 characters,
+      `<script>alert(1)</script>`, `'; DROP TABLE users;--`, unicode
+      (`\u0000`, emoji, RTL text), negative numbers, `NaN`, `Infinity`
+    - Number fields: text, negative values, zero, `MAX_SAFE_INTEGER`
+    - Date fields: invalid dates, far-future dates, epoch zero
+    - File uploads: skip the file, try wrong format
+    - Submit the same form twice rapidly (double-submit)
+    - Fill a form, navigate away, come back — is state preserved or properly cleared?
+
+    **Buttons & actions**
+    - Click every button and observe the result
+    - Click action buttons twice quickly (double-click / double-submit)
+    - Click delete/destructive buttons — is there a confirmation?
+    - Try actions in unexpected order (e.g., delete before save)
+
+    **State & edge cases**
+    - Refresh the page mid-action
+    - Navigate directly to deep URLs (skip the normal flow)
+    - Test with empty data states (no items in a list)
+    - Test loading states — interrupt with navigation
+
+    ### 2.3 Interaction template
+
+    For each interaction, run a focused script that captures console
+    errors, takes a screenshot, and reports the resulting state:
+
+    ```js
+    const page = await browser.getPage("explore");
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+
+    // === your interaction ===
+    // await page.fill("input[name=email]", "<script>alert(1)</script>");
+    // await page.click("button[type=submit]");
+    // await page.waitForTimeout(1000);
+
+    const shot = await saveScreenshot(
+      await page.screenshot(),
+      "after-" + Date.now() + ".png",
+    );
+    console.log(JSON.stringify({
+      url: page.url(),
+      title: await page.title(),
+      errors,
+      screenshot: shot,
+    }, null, 2));
+    ```
+
+    ### 2.4 What counts as a finding
+
+    Flag a finding when you observe ANY of:
+    - **Crash**: unhandled exception, white screen, React error boundary
+    - **Console error**: new JS error not in the baseline
+    - **Broken UI**: elements overlapping, text overflow, missing content, layout shift
+    - **Missing validation**: form accepts clearly invalid input
+    - **XSS**: injected HTML/script rendered unsanitized
+    - **Lost data**: user input disappears on navigation or refresh
+    - **Dead interaction**: button/link does nothing (no feedback, no error)
+    - **Broken navigation**: page loads wrong content, 404, infinite redirect
+    - **Missing error handling**: action fails silently with no user feedback
+    - **Race condition**: double-submit creates duplicates / corrupts state
+    - **Accessibility**: interactive element not reachable, missing labels (only if obvious)
+
+    ### 2.5 What is NOT a finding
+
+    Do not flag:
+    - Intentional behavior you simply dislike
+    - Performance that seems slow but is within reason
+    - Features that don't exist yet
+    - Styling preferences
+
+    ## Phase 3: Document findings
+
+    For each confirmed finding, capture evidence and record it.
+
+    ### 3.1 Screenshot
+
+    Already done inline in 2.3. Note the path returned by `saveScreenshot`.
+
+    ### 3.2 Record the finding
+
+    Without project-specific context, write findings to
+    `EXPLORATION-FINDINGS.md` in the current working directory. If the
+    user has a project convention (a `bugs/` directory, a bug template, an
+    issue tracker), ask where findings should go before filing — don't
+    invent infrastructure they don't have.
+
+    Each finding gets a numbered entry:
+
+    ```markdown
+    ## Finding N: <short title>
+
+    - **Severity:** critical | high | medium | low
+    - **URL:** http://localhost:...
+    - **Steps to reproduce:**
+      1. ...
+      2. ...
+    - **Expected:** ...
+    - **Actual:** ...
+    - **Console errors:** ...
+    - **Screenshot:** path/from/saveScreenshot
+    - **Suggested fix (if obvious):** ...
+    ```
+
+    ### 3.3 Severity guide
+
+    - **critical**: app crashes, data loss, security vuln (XSS, injection,
+      auth bypass), PCI/PII leak
+    - **high**: feature completely broken, error state with no recovery,
+      5xx on a core path, unauthenticated access to a guarded route
+    - **medium**: partial functionality loss, missing validation,
+      confusing UX on error, 4xx where success was expected, a11y
+      keyboard-trap
+    - **low**: minor visual glitch, cosmetic issue under edge-case input,
+      non-blocking warning
+
+    ## Phase 4: Depth exploration
+
+    After the first pass, go deeper.
+
+    ### 4.1 Multi-page flows
+    - Start a multi-step flow (wizard, checkout) and abandon halfway
+    - Complete a flow, then try to redo it
+    - Open the same flow in two tabs (use `browser.newPage()`)
+
+    ### 4.2 State boundaries
+    - Fill a page with maximum data, then try to add one more
+    - Delete all items, then try actions that assume items exist
+    - Try actions as if unauthenticated (clear cookies if applicable)
+
+    ### 4.3 Network disruption
+
+    Test what happens when API calls fail:
+
+    ```js
+    const page = await browser.getPage("explore");
+    await page.route("**/api/**", (route) => route.abort());
+    await page.click("button.save");
+    await page.waitForTimeout(2000);
+    const shot = await saveScreenshot(
+      await page.screenshot(),
+      "no-api.png",
+    );
+    const snap = await page.snapshotForAI();
+    console.log(JSON.stringify({
+      url: page.url(),
+      snapshot: snap.full,
+      screenshot: shot,
+    }, null, 2));
+    await page.unroute("**/api/**");
+    ```
+
+    ## Phase 5: Report
+
+    After exhausting paths, compile a summary:
+
+    ```markdown
+    ## Exploration Report
+
+    **Target**: <URL>
+    **Pages explored**: <count>
+    **Interactions tested**: <count>
+    **Findings**: <count>
+
+    ### Findings summary
+    | # | Severity | Title | URL |
+    |---|----------|-------|-----|
+    | 1 | critical | ... | ... |
+    | 2 | high     | ... | ... |
+
+    ### Coverage
+    - [x] All navigation links
+    - [x] All forms (happy + chaos inputs)
+    - [x] Double-submit / rapid clicks
+    - [x] Empty states
+    - [x] Error states (network failure)
+    - [x] Back/forward navigation
+    - [x] Direct URL access
+    - [ ] <anything you couldn't reach and why>
+
+    ### Areas that held up well
+    <what worked correctly despite abuse>
+    ```
+
+    ## Rules
+
+    - **One script per action.** Keep `browser_run` calls small and
+      focused. One navigation, one interaction, one check per script.
+      Read the output before deciding the next action.
+    - **Always snapshot after interaction.** Use `page.snapshotForAI()`
+      or screenshots to see the result of every action.
+    - **Record findings immediately.** Don't batch them up — log each one
+      the moment you confirm it.
+    - **Named pages persist.** Use `browser.getPage("explore")`
+      consistently so you don't lose your place. Create additional named
+      pages (e.g., `"explore-tab2"`) only for multi-tab tests.
+    - **Be destructive, not random.** Every chaos action should test a
+      real failure mode. Random clicking is not useful — targeted abuse
+      is.
+    - **Stop when stuck.** If a page requires authentication or data you
+      don't have, note it in the report and move on.
   '';
 
   # Pi skill: on-demand instructions for using the `browser_run` tool to
