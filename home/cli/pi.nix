@@ -490,7 +490,15 @@ let
       signal: AbortSignal | undefined,
     ): Promise<{ stdout: string; stderr: string; code: number }> {
       return new Promise((resolve, reject) => {
-        const child = spawn(DEV_BROWSER, args, { signal, env: process.env });
+        // Strip PLAYWRIGHT_BROWSERS_PATH so dev-browser's bundled Playwright
+        // 1.58.2 falls back to its native ~/.cache/ms-playwright/ lookup
+        // (where its matching chromium-1208 lives via `dev-browser install`).
+        // The nix-pinned playwright-driver.browsers from home/cli/
+        // development.nix targets a different Playwright/Chromium pair
+        // (chromium-1194 today) and would not match.
+        const env = { ...process.env };
+        delete env.PLAYWRIGHT_BROWSERS_PATH;
+        const child = spawn(DEV_BROWSER, args, { signal, env });
         const out: Buffer[] = [];
         const err: Buffer[] = [];
         child.stdout.on("data", (c: Buffer) => out.push(c));
