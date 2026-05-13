@@ -453,4 +453,12 @@ in
   # (Customization → Extensions).
   home.file.".pi/agent/extensions/web-search.ts".source = webSearchExtension;
   home.file.".pi/agent/extensions/web-fetch.ts".source  = webFetchExtension;
+
+  # Global pi context file. Loaded into every pi session's system prompt.
+  # See: pi-coding-agent/README.md (Context Files).
+  home.file.".pi/agent/AGENTS.md".text = ''
+    Never estimate time, hours, effort, or duration. If asked, refuse and
+    offer concrete scope instead (files touched, comparable prior work,
+    decision points, unknowns).
+  '';
 }
