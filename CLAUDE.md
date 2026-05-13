@@ -12,7 +12,7 @@ home/                  # Home Manager modules
   cli/                 # Shell, dev tools, git, neovim, tmux
   desktop/             # GUI apps, Hyprland, waybar, browsers, terminals
   scripts/             # Custom shell scripts
-  services/            # User-level services (ollama, notes-sync)
+  services/            # User-level services (local-llm, notes-sync, darkman, fulcrum)
 hardware/              # Per-machine hardware-configuration.nix
 secrets/               # sops-encrypted secrets (YAML)
 overlays/              # Nixpkgs overlays (if any)

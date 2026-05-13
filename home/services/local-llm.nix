@@ -18,11 +18,11 @@ let
   };
 
   model = {
-    id = "qwen3-coder-30b-a3b-local";
-    name = "Qwen3 Coder 30B A3B Local";
-    repo = "byteshape/Qwen3-Coder-30B-A3B-Instruct-GGUF";
-    file = "Qwen3-Coder-30B-A3B-Instruct-IQ4_XS-4.20bpw.gguf";
-    contextWindow = 32768;
+    id = "qwen3.6-35b-a3b-local";
+    name = "Qwen3.6 35B A3B Local";
+    repo = "unsloth/Qwen3.6-35B-A3B-GGUF";
+    file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
+    contextWindow = 196608;
     maxTokens = 8192;
   };
 
@@ -43,7 +43,7 @@ let
     set -euo pipefail
 
     if [ ! -s ${pkgs.lib.escapeShellArg modelPath} ]; then
-      local-llm-download-qwen-coder
+      local-llm-download
     fi
 
     ${pkgs.systemd}/bin/systemctl --user start local-llm.service
@@ -68,7 +68,7 @@ let
 in
 {
   home.packages = [
-    (pkgs.writeShellScriptBin "local-llm-download-qwen-coder" ''
+    (pkgs.writeShellScriptBin "local-llm-download" ''
       set -euo pipefail
 
       mkdir -p ${pkgs.lib.escapeShellArg modelDir}
@@ -90,7 +90,7 @@ in
       set -euo pipefail
 
       if [ ! -s ${pkgs.lib.escapeShellArg modelPath} ]; then
-        local-llm-download-qwen-coder
+        local-llm-download
       fi
 
       exec ${pkgs.systemd}/bin/systemctl --user start local-llm.service
@@ -181,7 +181,13 @@ in
           --host 127.0.0.1 \
           --port 8080 \
           --ctx-size ${toString model.contextWindow} \
-          --n-gpu-layers 28 \
+          --n-gpu-layers 99 \
+          --cpu-moe \
+          --flash-attn on \
+          --cache-type-k q8_0 \
+          --cache-type-v q8_0 \
+          --batch-size 2048 \
+          --ubatch-size 1024 \
           --threads 16 \
           --parallel 1 \
           --cont-batching
