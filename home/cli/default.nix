@@ -28,6 +28,7 @@ in
     ./claude.nix
     ./k9s.nix
     ./fzf.nix
+    ./pi.nix
   ];
 
   home.packages =
@@ -60,6 +61,7 @@ in
       xh
       wget
       aria2
+      ddgr # DuckDuckGo search from the terminal
       rsync
       openssh
       mosh

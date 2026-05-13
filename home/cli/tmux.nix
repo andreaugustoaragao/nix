@@ -27,6 +27,11 @@
       set -ag terminal-features "xterm-kitty:RGB"
       set -ag terminal-features "xterm-ghostty:RGB"
       set -ag terminal-features "xterm-256color:RGB"
+      # Pass through CSI u modified-key sequences (Shift+Enter,
+      # Ctrl+Enter, etc.) from the outer terminal to inner apps like
+      # Claude Code and Neovim.
+      set -g extended-keys on
+      set -as terminal-features 'xterm*:extkeys'
       set -s escape-time 0
       set-option -g focus-events on
 

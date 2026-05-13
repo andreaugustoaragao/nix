@@ -375,7 +375,18 @@
               })
             end,
           },
-          
+
+          -- Transparent Ctrl+h/j/k/l navigation across nvim windows and tmux panes.
+          {
+            "christoomey/vim-tmux-navigator",
+            keys = {
+              { "<C-h>", "<cmd>TmuxNavigateLeft<cr>",  desc = "Navigate left" },
+              { "<C-j>", "<cmd>TmuxNavigateDown<cr>",  desc = "Navigate down" },
+              { "<C-k>", "<cmd>TmuxNavigateUp<cr>",    desc = "Navigate up" },
+              { "<C-l>", "<cmd>TmuxNavigateRight<cr>", desc = "Navigate right" },
+            },
+          },
+
           -- telescope.nvim was replaced by snacks.picker on 2026-05-01.
           { "nvim-telescope/telescope.nvim", enabled = false },
           { "nvim-telescope/telescope-fzf-native.nvim", enabled = false },
@@ -711,7 +722,7 @@
                   vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
                   vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
                   vim.keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
-                  vim.keymap.set("n", "<C-k>", vim.lsp.buf.signature_help, opts)
+                  vim.keymap.set("n", "<leader>ck", vim.lsp.buf.signature_help, opts)
                   vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
                   vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, opts)
                   vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
