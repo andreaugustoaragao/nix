@@ -104,6 +104,12 @@
 
       # Puppeteer / Chrome DevTools MCP
       set -gx PUPPETEER_EXECUTABLE_PATH /etc/profiles/per-user/aragao/bin/brave
+
+      # Codex talks to the Avaya LiteLLM gateway via env_key; load the
+      # decrypted token from sops if it has been deployed on this host.
+      if test -r /run/secrets/litellm_api_key
+        set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
+      end
     '';
     
     functions = {

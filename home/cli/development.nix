@@ -271,11 +271,10 @@ in
       ${pkgs.nodejs_22}/bin/npm install -g dev-browser
     fi
 
-    # Install OpenAI Codex CLI if not present
-    if ! command -v codex &> /dev/null; then
-      echo "Installing OpenAI Codex CLI..."
-      ${pkgs.nodejs_22}/bin/npm install -g @openai/codex
-    fi
+    # Always pull the latest OpenAI Codex CLI — releases move fast and
+    # the guarded "install once" pattern leaves stale binaries behind.
+    echo "Updating OpenAI Codex CLI..."
+    ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
 
     # Install Pi coding agent if not present
     if ! command -v pi &> /dev/null; then

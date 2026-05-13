@@ -172,6 +172,15 @@
         group = "users";
         mode = "0400";
       };
+
+      # Avaya LiteLLM gateway bearer token — exported as
+      # LITELLM_API_KEY by home/cli/fish.nix and consumed by codex
+      # (configured in home/cli/codex.nix).
+      "litellm_api_key" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
     }
     // lib.optionalAttrs isServer {
       # ACME — Cloudflare API token for DNS-01 challenge.

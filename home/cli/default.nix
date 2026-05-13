@@ -26,6 +26,7 @@ in
     ./nvim-lazyvim.nix
     ./development.nix
     ./claude.nix
+    ./codex.nix
     ./k9s.nix
     ./fzf.nix
     ./pi.nix
