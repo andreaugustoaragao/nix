@@ -126,9 +126,15 @@
       # system/auto-upgrade.nix to post failure alerts and upgrade
       # diffs to the alert room on matrix.faragao.net (homeserver
       # runs on maui). Loaded into units via systemd LoadCredential.
+      #
+      # bot_token is also consumed by the user-mode Fulcrum service
+      # (home/services/fulcrum.nix) via MATRIX_ACCESS_TOKEN_FILE, so
+      # we make it readable by the owner user. The systemd alert paths
+      # work the same way — LoadCredential copies into the unit's private
+      # credentials directory regardless of source file ownership.
       "matrix/bot_token" = {
-        owner = "root";
-        group = "root";
+        owner = owner.name;
+        group = "users";
         mode = "0400";
       };
       "matrix/alert_room_id" = {

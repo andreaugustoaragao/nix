@@ -1,5 +1,6 @@
 {
   config,
+  osConfig,
   pkgs,
   lib,
   ...
@@ -55,6 +56,22 @@ in
         "LD_LIBRARY_PATH=${fulcrumLibs}"
         "NODE_OPTIONS=--max-old-space-size=4096"
         "FULCRUM_PORT=3100"
+        # Matrix bot — reuses the @maui-alerts identity that already exists
+        # on matrix.faragao.net (see system/matrix-alert.nix). The access
+        # token lives in sops as matrix/bot_token; we point Fulcrum at the
+        # file path via the _FILE env-var convention so the cleartext never
+        # ends up in /proc/<pid>/environ.
+        #
+        # device_id was minted at the same time as the token; the server
+        # returns it via /_matrix/client/v3/account/whoami. Fulcrum needs
+        # it to call session.startClient — if we pass a different value the
+        # homeserver returns a fresh device on each restart which fragments
+        # E2E keys. The alert room is unencrypted so this currently doesn't
+        # bite, but we set the real device_id anyway for future-proofing.
+        "MATRIX_HOMESERVER_URL=https://matrix.faragao.net"
+        "MATRIX_USER_ID=@maui-alerts:matrix.faragao.net"
+        "MATRIX_DEVICE_ID=AeSV8hGVoC"
+        "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
       ];
       # Bun auto-loads ${projectRoot}/.env so ANTHROPIC_API_KEY + friends
       # are read without us wiring EnvironmentFile= into the unit.
