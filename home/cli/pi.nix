@@ -777,6 +777,20 @@ let
     }
   '';
 
+  # Pi extension: `lsp_query` + `lsp_diagnostics` tools.
+  # Spawns a language server process and implements the LSP JSON-RPC
+  # 2.0 protocol. Language server binaries are substituted from Nix
+  # store paths at build time.
+  lspExtension = pkgs.writeText "lsp.ts" (
+    builtins.replaceStrings
+      [ "___GOLANG_LSP___" "___TS_LSP___" "___RUST_ANALYZER___" "___NIX_LSP___" ]
+      [ "${pkgs.gopls}/bin/gopls"
+        "${pkgs.nodePackages.typescript-language-server}/bin/typescript-language-server"
+        "${pkgs.rust-analyzer}/bin/rust-analyzer"
+        "${pkgs.nil}/bin/nil" ]
+      (builtins.readFile ./lsp-extension.ts)
+  );
+
   webBrowserRunExtension = pkgs.writeText "browser-run.ts" ''
     /**
      * Pi extension: `browser_run` tool.
@@ -977,6 +991,7 @@ in
   home.file.".pi/agent/extensions/web-search.ts".source = webSearchExtension;
   home.file.".pi/agent/extensions/web-fetch.ts".source  = webFetchExtension;
   home.file.".pi/agent/extensions/context7.ts".source   = context7Extension;
+  home.file.".pi/agent/extensions/lsp.ts".source       = lspExtension;
   home.file.".pi/agent/extensions/browser-run.ts".source = webBrowserRunExtension;
 
   # Global pi context file. Loaded into every pi session's system prompt.
