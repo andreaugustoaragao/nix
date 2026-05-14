@@ -791,6 +791,15 @@ let
       (builtins.readFile ./lsp-extension.ts)
   );
 
+  # Pi extension: `astgrep` tool. Wraps ast-grep (`sg`) for structural
+  # code search. Language binaries are substituted from Nix store paths.
+  astGrepExtension = pkgs.writeText "astgrep.ts" (
+    builtins.replaceStrings
+      [ "___ASTGREP_BIN___" ]
+      [ "${pkgs.ast-grep}/bin/sg" ]
+      (builtins.readFile ./ast-grep-extension.ts)
+  );
+
   webBrowserRunExtension = pkgs.writeText "browser-run.ts" ''
     /**
      * Pi extension: `browser_run` tool.
@@ -992,6 +1001,7 @@ in
   home.file.".pi/agent/extensions/web-fetch.ts".source  = webFetchExtension;
   home.file.".pi/agent/extensions/context7.ts".source   = context7Extension;
   home.file.".pi/agent/extensions/lsp.ts".source       = lspExtension;
+  home.file.".pi/agent/extensions/astgrep.ts".source   = astGrepExtension;
   home.file.".pi/agent/extensions/browser-run.ts".source = webBrowserRunExtension;
 
   # Global pi context file. Loaded into every pi session's system prompt.

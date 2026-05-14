@@ -147,6 +147,7 @@ in
       tree-sitter # Parser generator for treesitter
 
       # Additional Development Tools
+      ast-grep # Structural code search (AST-aware grep)
       gitui # Terminal UI for Git
       lazygit # Another terminal UI for Git
       git-filter-repo # Rewrite/filter git history
