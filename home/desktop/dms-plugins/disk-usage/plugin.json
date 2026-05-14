@@ -1,0 +1,12 @@
+{
+  "id": "diskUsageBar",
+  "name": "Disk Usage (Bar)",
+  "description": "Shows disk usage in x/y (%) format on the bar. Overrides the built-in diskUsage widget with detailed format.",
+  "version": "1.0.0",
+  "author": "aragao",
+  "icon": "storage",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./DiskUsageWidget.qml",
+  "permissions": ["process"]
+}

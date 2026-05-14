@@ -1,0 +1,12 @@
+{
+  "id": "memoryUsageBar",
+  "name": "Memory Usage (Bar)",
+  "description": "Shows memory usage in x/y (%) format on the bar. Overrides the built-in memUsage widget with detailed format.",
+  "version": "1.0.0",
+  "author": "aragao",
+  "icon": "memory",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./MemoryUsageWidget.qml",
+  "permissions": ["process"]
+}

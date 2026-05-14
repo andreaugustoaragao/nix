@@ -497,16 +497,20 @@
         },
         {
           "id": "memUsage",
-          "enabled": true,
-          "minimumWidth": false,
-          "showSwap": false,
-          "showInGb": true
+          "enabled": false
         },
         {
           "id": "diskUsage",
+          "enabled": false
+        },
+        {
+          "id": "memoryUsageBar",
+          "enabled": true
+        },
+        {
+          "id": "diskUsageBar",
           "enabled": true,
-          "mountPath": "/",
-          "diskUsageMode": 0
+          "mountPath": "/"
         },
         {
           "id": "notificationButton",

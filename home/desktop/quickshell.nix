@@ -47,6 +47,10 @@ let
     # In-tree DankBar pill: toggles `record-call` and reflects state
     # changes made from the CLI by polling its session.env state file.
     recordCall = ./dms-plugins/record-call;
+    # Custom bar pill: memory usage in x/y (%) format.
+    memoryUsageBar = ./dms-plugins/memory-usage;
+    # Custom bar pill: disk usage in x/y (%) format.
+    diskUsageBar = ./dms-plugins/disk-usage;
   };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
