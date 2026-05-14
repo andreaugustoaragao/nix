@@ -14,6 +14,7 @@ in
   imports = [
     ./hyprland.nix
     ./niri.nix
+    ./portal.nix
     ./wayland-services.nix
     ./wofi.nix
     ./fuzzel.nix
