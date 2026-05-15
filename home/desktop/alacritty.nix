@@ -1,22 +1,11 @@
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  useDms ? false,
-  ...
-}:
+{ ... }:
 
 {
+  # Secondary terminal — static Tokyo Night Storm. Alacritty has no
+  # native portal-driven theme switching.
   programs.alacritty = {
     enable = true;
     settings = {
-      # Alacritty merges imports under the local config — i.e. local
-      # keys win over imports. So under DMS we drop the static Kanagawa
-      # `colors` block entirely; the imported dank-theme.toml owns the
-      # palette. The non-DMS path keeps Kanagawa as a static fallback.
-      general.import = lib.optionals useDms [ "~/.config/alacritty/dank-theme.toml" ];
-
       window = {
         opacity = 0.98;
         decorations = "none";
@@ -47,34 +36,43 @@
           program = "fish";
         };
       };
-    }
-    // lib.optionalAttrs (!useDms) {
+
       colors = {
         primary = {
-          foreground = "#dcd7ba";
-          background = "#1f1f28";
+          foreground = "#c0caf5";
+          background = "#24283b";
+        };
+
+        cursor = {
+          text = "#1d202f";
+          cursor = "#c0caf5";
+        };
+
+        selection = {
+          text = "#c0caf5";
+          background = "#2e3c64";
         };
 
         normal = {
-          black = "#090618";
-          red = "#c34043";
-          green = "#76946a";
-          yellow = "#c0a36e";
-          blue = "#7e9cd8";
-          magenta = "#957fb8";
-          cyan = "#6a9589";
-          white = "#c8c093";
+          black = "#1d202f";
+          red = "#f7768e";
+          green = "#9ece6a";
+          yellow = "#e0af68";
+          blue = "#7aa2f7";
+          magenta = "#bb9af7";
+          cyan = "#7dcfff";
+          white = "#a9b1d6";
         };
 
         bright = {
-          black = "#727169";
-          red = "#e82424";
-          green = "#98bb6c";
-          yellow = "#e6c384";
-          blue = "#7fb4ca";
-          magenta = "#938aa9";
-          cyan = "#7aa89f";
-          white = "#dcd7ba";
+          black = "#414868";
+          red = "#f7768e";
+          green = "#9ece6a";
+          yellow = "#e0af68";
+          blue = "#7aa2f7";
+          magenta = "#bb9af7";
+          cyan = "#7dcfff";
+          white = "#c0caf5";
         };
       };
     };

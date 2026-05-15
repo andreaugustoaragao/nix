@@ -496,7 +496,7 @@
           "minimumWidth": true
         },
         {
-          "id": "cpuTemp",
+          "id": "thermalMonitor",
           "enabled": true
         },
         {

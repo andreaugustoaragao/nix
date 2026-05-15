@@ -1,11 +1,4 @@
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  useDms ? false,
-  ...
-}:
+{ pkgs, ... }:
 
 {
   programs.tmux = {
@@ -43,22 +36,24 @@
       set -g set-clipboard on      # use system clipboard (OSC 52)
 
       set -g status-interval 3     # update the status bar every 3 seconds
-      set -g status-left "#[fg=blue,bold,bg=default] #S "
-      set -g status-right "#(tmux-right-status)#[fg=blue] 󱑒 %a %b %d %l:%M %p"
+      # Tokyo Night Storm palette (matches ghostty/foot/kitty/alacritty).
+      # Static — does not flip in light mode. If needed, swap colors via a
+      # darkman script that sources a different conf and `refresh-client -S`.
+      set -g status-left "#[fg=#7aa2f7,bold,bg=default] #S "
+      set -g status-right "#(tmux-right-status)#[fg=#7aa2f7] 󱑒 %a %b %d %l:%M %p"
       set -g status-justify left
-      set -g status-left-length 200    # increase length (from 10)
-      set -g status-right-length 200    # increase length (from 10)
-      set -g status-position top       # macOS / darwin style
-      #set -g status-style 'bg=#1e1e2e'
-      set -g status-style 'bg=#191724'
+      set -g status-left-length 200
+      set -g status-right-length 200
+      set -g status-position top
+      set -g status-style 'bg=#1f2335,fg=#c0caf5'
 
-      set -g window-status-current-format '#[fg=#e0def4,bold,bg=#26233a]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
-      set -g window-status-format '#[fg=#9893a5,bg=default]#(tmux-window-icons #W)'
+      set -g window-status-current-format '#[fg=#c0caf5,bold,bg=#3d59a1]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
+      set -g window-status-format '#[fg=#565f89,bg=default]#(tmux-window-icons #W)'
 
-      set -g window-status-last-style 'fg=white,bg=default'
-      set -g message-command-style bg=default,fg=yellow
-      set -g message-style bg=default,fg=yellow
-      set -g mode-style bg=default,fg=yellow
+      set -g window-status-last-style 'fg=#a9b1d6,bg=default'
+      set -g message-command-style bg=#1f2335,fg=#e0af68
+      set -g message-style bg=#1f2335,fg=#e0af68
+      set -g mode-style bg=#3d59a1,fg=#c0caf5
 
       # fix SSH agent after reconnecting
       # see also ssh/rc
@@ -66,10 +61,10 @@
       set -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
 
       setw -g mode-keys vi
-      set -g pane-active-border-style 'fg=magenta,bg=default'
-      set -g pane-border-style 'fg=brightblack,bg=default'
+      set -g pane-active-border-style 'fg=#7aa2f7,bg=default'
+      set -g pane-border-style 'fg=#414868,bg=default'
 
-      set -g window-active-style 'fg=default,bg=#191724'
+      set -g window-active-style 'fg=default,bg=#24283b'
 
       bind r source-file ~/.config/tmux/tmux.conf \; display-message "tmux.conf reloaded"
 
@@ -94,12 +89,6 @@
       bind -r D neww -c "#{pane_current_path}" "[[ -e TODO.md ]] && nvim TODO.md || nvim ~/src/notes/todo.md"
 
       bind -r f display-popup -E "tmux-sessionizer"
-      ${lib.optionalString useDms ''
-        # Source matugen-generated status-bar palette LAST so its `set`
-        # calls override the static Rosé Pine block above.
-        if-shell "test -r ~/.config/tmux/colors-matugen.conf" \
-          "source-file ~/.config/tmux/colors-matugen.conf"
-      ''}
     '';
   };
 

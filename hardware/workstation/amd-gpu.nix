@@ -5,10 +5,11 @@
   lib,
   owner,
   ...
-}: {
+}:
+{
   # AMD GPU kernel and boot configuration
   boot = {
-    initrd.kernelModules = ["amdgpu"];
+    initrd.kernelModules = [ "amdgpu" ];
     kernelParams = [
       # Enable all AMD GPU power features for RDNA3
       "amdgpu.ppfeaturemask=0xffffffff"
@@ -16,7 +17,7 @@
   };
 
   # Graphics drivers
-  services.xserver.videoDrivers = ["amdgpu"];
+  services.xserver.videoDrivers = [ "amdgpu" ];
 
   # Enhanced hardware acceleration for RX 7900 GRE
   hardware.graphics = {
@@ -75,7 +76,7 @@
   };
 
   # GPU control service for fan curves, overclocking, etc.
-  #services.lact.enable = true;
+  services.lact.enable = true;
 
   # Device permissions for GPU access
   services.udev.extraRules = ''
@@ -86,5 +87,5 @@
   '';
 
   # Add user to video group for GPU access
-  users.users.${owner.name}.extraGroups = ["video"];
+  users.users.${owner.name}.extraGroups = [ "video" ];
 }

@@ -1,0 +1,12 @@
+{
+  "id": "thermalMonitor",
+  "name": "Thermal Monitor",
+  "description": "Shows CPU temperature in the bar and opens a native sensor/fan dashboard popout.",
+  "version": "1.0.0",
+  "author": "aragao",
+  "icon": "device_thermostat",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./ThermalMonitorWidget.qml",
+  "permissions": ["process"]
+}

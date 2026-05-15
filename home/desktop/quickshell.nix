@@ -19,11 +19,6 @@ let
   # with the rest of the shell's unit setting.
   dmsPackage = inputs.dms.packages.${pkgs.stdenv.hostPlatform.system}.default.overrideAttrs (old: {
     postInstall = (old.postInstall or "") + ''
-      substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/CpuTemperature.qml \
-        --replace-fail 'text: "88°"' 'text: SettingsData.useFahrenheit ? "188°" : "88°"' \
-        --replace-fail 'return Math.round(DgopService.cpuTemperature).toString();' 'const temp = SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature; return Math.round(temp).toString();' \
-        --replace-fail 'return Math.round(DgopService.cpuTemperature) + "°";' 'const temp = SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature; return Math.round(temp) + "°";'
-
       substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/ProcessListPopout.qml \
         --replace-fail 'detail: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°") : ""' 'detail: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
 
@@ -77,6 +72,8 @@ let
     memoryUsageBar = ./dms-plugins/memory-usage;
     # Custom bar pill: disk usage in x/y (%) format.
     diskUsageBar = ./dms-plugins/disk-usage;
+    # Native DMS bar pill + popout: CPU package temps, board fans, GPU, RAM, NVMe.
+    thermalMonitor = ./dms-plugins/thermal-monitor;
   };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
@@ -114,16 +111,17 @@ let
       peaceAndQuiet = "blue";
     };
     syncModeWithPortal = true;
-    # Follow DMS mode (light/dark) for terminal palettes via matugen.
-    # When true, DMS sed-rewrites `.default.` -> `.dark.` in shipped
-    # terminal templates regardless of mode, pinning kitty/ghostty/
-    # alacritty/foot to the dark palette even in light mode.
-    terminalsAlwaysDark = false;
-    # Disable DMS's mode-aware ghostty template — our user matugen
-    # templates render `dankcolors-dark` and `dankcolors-light`
-    # unconditionally so ghostty can live-switch via
-    # `theme = dark:...,light:...` (see home/desktop/ghostty.nix).
+    # Terminals + nvim are pinned to the static Tokyo Night palette
+    # (Storm dark / Day light) — see home/desktop/{ghostty,kitty,
+    # alacritty,foot}.nix and home/cli/nvim-lazyvim.nix. Disable DMS's
+    # mode-aware matugen renders for these so they don't fight us.
+    # waybar + fuzzel still go through matugen for wallpaper-derived
+    # chrome (see home/desktop/matugen.nix).
     matugenTemplateGhostty = false;
+    matugenTemplateKitty = false;
+    matugenTemplateFoot = false;
+    matugenTemplateAlacritty = false;
+    matugenTemplateNeovim = false;
     notificationPopupPosition = -1;
     cursorSettings = {
       niri = {
@@ -133,7 +131,7 @@ let
     fontFamily = "Cantarell";
     fontWeight = 600;
     fontScale = 1.25;
-    useFahrenheit = true;
+    useFahrenheit = false;
     acLockTimeout = 1200;
     batteryLockTimeout = 1200;
     lockBeforeSuspend = true;
@@ -225,6 +223,22 @@ let
       ];
   };
 
+  desiredPluginSettings = {
+    recordCall = {
+      enabled = true;
+    };
+    memoryUsageBar = {
+      enabled = true;
+    };
+    diskUsageBar = {
+      enabled = true;
+      mountPath = "/";
+    };
+    thermalMonitor = {
+      enabled = true;
+    };
+  };
+
   desiredSession = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-session.json)) {
     perModeWallpaper = true;
     perMonitorWallpaper = true;
@@ -261,6 +275,9 @@ let
   };
 
   settingsSource = pkgs.writeText "dms-settings.json" (builtins.toJSON desiredSettings);
+  pluginSettingsSource = pkgs.writeText "dms-plugin-settings.json" (
+    builtins.toJSON desiredPluginSettings
+  );
   sessionSource = pkgs.writeText "dms-session.json" (builtins.toJSON desiredSession);
 in
 {
@@ -340,6 +357,7 @@ in
         run install -m 644 "$source" "$target"
       }
       install_authoritative "$HOME/.config/DankMaterialShell/settings.json" "${settingsSource}"
+      install_authoritative "$HOME/.config/DankMaterialShell/plugin_settings.json" "${pluginSettingsSource}"
       install_authoritative "$HOME/.local/state/DankMaterialShell/session.json" "${sessionSource}"
     ''
   );

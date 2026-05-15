@@ -1,11 +1,20 @@
 {
   config,
   pkgs,
+  lib,
   useDms ? false,
   ...
 }:
 
 {
+  # Remove the stale matugen-written colorscheme spec from prior
+  # rebuilds. DMS no longer renders this file (matugenTemplateNeovim is
+  # false in home/desktop/quickshell.nix), but lazy.nvim would still pick
+  # it up via `{ import = "plugins" }` if left behind.
+  home.activation.removeStaleDankcolors = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    ${pkgs.coreutils}/bin/rm -f "${config.home.homeDirectory}/.config/nvim/lua/plugins/dankcolors.lua"
+  '';
+
   programs.neovim = {
     enable = true;
     defaultEditor = true;
@@ -17,7 +26,7 @@
       lazy-nvim
 
       # Essential plugins that need to be available immediately
-      rose-pine # Colorscheme needs to be available at startup
+      tokyonight-nvim # Colorscheme needs to be available at startup
       plenary-nvim # Many plugins depend on this
     ];
 
@@ -178,12 +187,13 @@
         spec = {
           -- Import only specific LazyVim plugins we want, not all
           -- { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+          --
+          -- The `{ import = "plugins" }` auto-loader used to be here for
+          -- DMS's matugen-rendered dankcolors.lua; removed along with the
+          -- DMS neovim template (home/desktop/quickshell.nix). All plugin
+          -- specs now live inline below.
 
-          -- Auto-import any plugin spec in ~/.config/nvim/lua/plugins/.
-          -- DMS writes its matugen base16 colorscheme there as
-          -- dankcolors.lua when matugenTemplateNeovim is enabled.
-          { import = "plugins" },
-          
+
           -- Icon support (load early for better keymap support)
           {
             "nvim-tree/nvim-web-devicons",
@@ -217,34 +227,50 @@
             end,
           },
           
-          -- Colorscheme (load immediately)
+          -- Colorscheme. Tokyo Night Storm for dark / Day for light;
+          -- auto-dark-mode.nvim below flips background and reloads the
+          -- right variant when the system color-scheme changes.
           {
-            "rose-pine/neovim",
-            name = "rose-pine",
+            "folke/tokyonight.nvim",
             priority = 1000,
+            lazy = false,
             config = function()
-              require("rose-pine").setup({
-                variant = "main",        -- "main" (dark), "moon" (dark soft), "dawn" (light)
-                dark_variant = "main",
-                bold_vert_split = false,
-                dim_nc_background = false,
-                disable_background = false,
-                disable_float_background = false,
-                disable_italics = false,
+              require("tokyonight").setup({
+                style = "storm",
+                light_style = "day",
+                transparent = false,
+                terminal_colors = true,
                 styles = {
-                  italic = true,
-                  bold = true,
-                  transparency = false,
+                  comments = { italic = true },
+                  keywords = { italic = true },
                 },
               })
-              -- DMS's matugen integration writes a base16 plugin spec to
-              -- lua/plugins/dankcolors.lua. When present, let it own the
-              -- palette; otherwise fall back to rose-pine.
-              local dms_colors = vim.fn.stdpath("config") .. "/lua/plugins/dankcolors.lua"
-              if vim.fn.filereadable(dms_colors) ~= 1 then
-                vim.cmd("colorscheme rose-pine")
-              end
+              -- Pick the variant matching the current system mode so the
+              -- editor opens in sync. auto-dark-mode.nvim takes over from
+              -- here for live switching.
+              vim.cmd("colorscheme " .. (vim.o.background == "light" and "tokyonight-day" or "tokyonight-storm"))
             end,
+          },
+
+          -- Live light/dark switching driven by the freedesktop portal
+          -- color-scheme preference (set by DMS — see
+          -- home/desktop/quickshell.nix). Polls dbus every 3s; flips
+          -- vim.o.background and reloads the matching tokyonight variant.
+          {
+            "f-person/auto-dark-mode.nvim",
+            priority = 999,
+            lazy = false,
+            opts = {
+              update_interval = 3000,
+              set_dark_mode = function()
+                vim.o.background = "dark"
+                vim.cmd("colorscheme tokyonight-storm")
+              end,
+              set_light_mode = function()
+                vim.o.background = "light"
+                vim.cmd("colorscheme tokyonight-day")
+              end,
+            },
           },
           
           -- alpha-nvim was replaced by snacks.dashboard on 2026-05-01.
@@ -796,13 +822,11 @@
 
               return {
                 options = {
-                  -- Pinned to rose-pine instead of "auto" because the
-                  -- matugen-derived dankcolors palette occasionally
-                  -- produces a low-contrast statusline (light bg with
-                  -- light fg → invisible diagnostics/git diff numbers).
-                  -- rose-pine ships a lualine theme bundle in the
-                  -- colorscheme plugin, so no extra dependency.
-                  theme = "rose-pine",
+                  -- tokyonight ships a lualine theme bundle; "auto" would
+                  -- pick it up too, but pinning by name avoids surprises
+                  -- if the active colorscheme briefly changes (e.g. while
+                  -- auto-dark-mode swaps variants).
+                  theme = "tokyonight",
                   globalstatus = true,
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
@@ -1004,8 +1028,8 @@
           { "williamboman/mason.nvim", enabled = false },
           { "williamboman/mason-lspconfig.nvim", enabled = false },
           
-          -- Disable unwanted colorschemes (we only want Kanagawa)
-          { "folke/tokyonight.nvim", enabled = false },
+          -- Other colorschemes off — we own tokyonight via the explicit
+          -- spec above.
           { "catppuccin/nvim", name = "catppuccin", enabled = false },
           
           -- colorful-winsep.nvim disabled on 2026-05-01: native
@@ -1395,7 +1419,7 @@
           lazy = false, -- Should plugins be lazy-loaded by default?
           version = false, -- Always use the latest git commit
         },
-        install = { colorscheme = { "rose-pine" } },
+        install = { colorscheme = { "tokyonight-storm" } },
         checker = { enabled = false }, -- Don't check for plugin updates automatically
         performance = {
           rtp = {

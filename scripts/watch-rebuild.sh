@@ -15,9 +15,10 @@ set -euo pipefail
 # passwordless `nixos-rebuild` sudoers rule (system/users.nix) and primes
 # sudo once at startup so subsequent rebuilds don't prompt mid-loop.
 #
-# Watches *.nix files and machines.toml under the repo. After the first
-# event, it keeps absorbing events until DEBOUNCE_SECS (default 2) elapse
-# with no activity, then triggers one rebuild for the host.
+# Watches declarative config and source files that are referenced by the
+# flake. After the first event, it keeps absorbing events until
+# DEBOUNCE_SECS (default 2) elapse with no activity, then triggers one
+# rebuild for the host.
 #
 # Stop with Ctrl-C. Don't run this concurrently with another manual
 # `nixos-rebuild`; both will fight over the same transient activation
@@ -34,7 +35,8 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEBOUNCE_SECS="${DEBOUNCE_SECS:-2}"
 HOST="$(hostname)"
-PATTERN='.*(\.nix|machines\.toml)$'
+PATTERN='.*(\.nix|\.qml|\.js|\.ts|\.json|\.toml|\.kdl|\.conf|\.css|\.sh|\.service|\.desktop|\.lua|\.fish|\.yaml|\.yml)$'
+WATCH_EVENTS='modify,close_write,attrib,create,delete,move'
 
 cd "$REPO_DIR"
 
@@ -72,25 +74,28 @@ if [ "${#SUDO[@]}" -gt 0 ]; then
   sudo -v || log "sudo prime failed; you may be prompted at first rebuild"
 fi
 
-log "watching ${REPO_DIR} (pattern: ${PATTERN}, debounce: ${DEBOUNCE_SECS}s)"
+log "watching ${REPO_DIR} (pattern: ${PATTERN}, events: ${WATCH_EVENTS}, debounce: ${DEBOUNCE_SECS}s)"
 log "rebuilding host: ${HOST}"
 log "press Ctrl-C to stop"
 
 # The loop is wrapped so nothing inside — inotifywait hiccups, sudo prompts,
 # nixos-rebuild errors, evaluation failures — can knock the watcher out.
 while true; do
-  if ! inotifywait -r -q -e modify,create,delete,move \
-    --include "$PATTERN" "$REPO_DIR" >/dev/null 2>&1; then
+  if ! event="$(inotifywait -r -q -e "$WATCH_EVENTS" \
+    --format '%w%f %e' \
+    --include "$PATTERN" "$REPO_DIR" 2>&1)"; then
     log "inotifywait exited unexpectedly; restarting watch in 1s"
     sleep 1
     continue
   fi
 
+  log "change detected: ${event}"
+
   # Quiet-window debounce: keep waiting until DEBOUNCE_SECS pass with no
   # matching event. `-t` exits non-zero on timeout, which is our cue that
   # the burst is over.
   while inotifywait -r -q -t "$DEBOUNCE_SECS" \
-    -e modify,create,delete,move \
+    -e "$WATCH_EVENTS" \
     --include "$PATTERN" "$REPO_DIR" >/dev/null 2>&1; do
     :
   done

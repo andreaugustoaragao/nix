@@ -1,21 +1,11 @@
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  useDms ? false,
-  ...
-}:
+{ ... }:
 
 {
+  # Kitty is a secondary terminal (ghostty is daily-driver). Static Tokyo
+  # Night Storm palette only — kitty has no native live light/dark
+  # switching, but is rarely used so the dark theme is fine on its own.
   programs.kitty = {
     enable = true;
-    # When DMS owns the desktop, layer matugen-generated colors on top
-    # of the static Kanagawa fallback below (later `include` wins).
-    extraConfig = lib.optionalString useDms ''
-      include dank-theme.conf
-      include dank-tabs.conf
-    '';
     font = {
       name = "CaskaydiaMono Nerd Font";
       size = 11;
@@ -28,41 +18,30 @@
       wayland_enable_ime = "no";
       update_check_interval = 0;
 
-      # Kanagawa colors
-      foreground = "#dcd7ba";
-      background = "#1f1f28";
+      foreground = "#c0caf5";
+      background = "#24283b";
+      selection_foreground = "#c0caf5";
+      selection_background = "#2e3c64";
+      cursor = "#c0caf5";
+      cursor_text_color = "#1d202f";
+      url_color = "#7dcfff";
 
-      # Black
-      color0 = "#090618";
-      color8 = "#727169";
-
-      # Red
-      color1 = "#c34043";
-      color9 = "#e82424";
-
-      # Green
-      color2 = "#76946a";
-      color10 = "#98bb6c";
-
-      # Yellow
-      color3 = "#c0a36e";
-      color11 = "#e6c384";
-
-      # Blue
-      color4 = "#7e9cd8";
-      color12 = "#7fb4ca";
-
-      # Magenta
-      color5 = "#957fb8";
-      color13 = "#938aa9";
-
-      # Cyan
-      color6 = "#6a9589";
-      color14 = "#7aa89f";
-
-      # White
-      color7 = "#c8c093";
-      color15 = "#dcd7ba";
+      color0 = "#1d202f";
+      color8 = "#414868";
+      color1 = "#f7768e";
+      color9 = "#f7768e";
+      color2 = "#9ece6a";
+      color10 = "#9ece6a";
+      color3 = "#e0af68";
+      color11 = "#e0af68";
+      color4 = "#7aa2f7";
+      color12 = "#7aa2f7";
+      color5 = "#bb9af7";
+      color13 = "#bb9af7";
+      color6 = "#7dcfff";
+      color14 = "#7dcfff";
+      color7 = "#a9b1d6";
+      color15 = "#c0caf5";
     };
   };
 }

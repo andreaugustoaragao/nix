@@ -1,20 +1,13 @@
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  useDms ? false,
-  ...
-}:
+{ ... }:
 
 {
+  # foot reads the freedesktop color-scheme preference and picks
+  # [colors-light] vs [colors-dark] accordingly — live-switch works
+  # out of the box (no signal/SIGUSR1 needed). The bare [colors]
+  # `alpha=` applies to both modes.
   programs.foot = {
     enable = true;
-    # DMS's shipped foot template only emits a `[colors-dark]` section
-    # (with mode-aware colors), so in light mode foot falls back to its
-    # compiled defaults. We render our own colors file via matugen (see
-    # home/desktop/matugen.nix) and `include` it from foot.ini below.
-    settings = lib.mkIf (!useDms) {
+    settings = {
       main = {
         font = "CaskaydiaMono Nerd Font:size=11";
         font-bold = "CaskaydiaMono Nerd Font:style=Bold:size=11";
@@ -26,45 +19,57 @@
 
       colors = {
         alpha = "0.98";
+      };
 
-        foreground = "dcd7ba";
-        background = "1f1f28";
+      "colors-dark" = {
+        foreground = "c0caf5";
+        background = "24283b";
+        selection-foreground = "c0caf5";
+        selection-background = "2e3c64";
 
-        regular0 = "090618"; # black
-        regular1 = "c34043"; # red
-        regular2 = "76946a"; # green
-        regular3 = "c0a36e"; # yellow
-        regular4 = "7e9cd8"; # blue
-        regular5 = "957fb8"; # magenta
-        regular6 = "6a9589"; # cyan
-        regular7 = "c8c093"; # white
+        regular0 = "1d202f";
+        regular1 = "f7768e";
+        regular2 = "9ece6a";
+        regular3 = "e0af68";
+        regular4 = "7aa2f7";
+        regular5 = "bb9af7";
+        regular6 = "7dcfff";
+        regular7 = "a9b1d6";
 
-        bright0 = "727169"; # bright black
-        bright1 = "e82424"; # bright red
-        bright2 = "98bb6c"; # bright green
-        bright3 = "e6c384"; # bright yellow
-        bright4 = "7fb4ca"; # bright blue
-        bright5 = "938aa9"; # bright magenta
-        bright6 = "7aa89f"; # bright cyan
-        bright7 = "dcd7ba"; # bright white
+        bright0 = "414868";
+        bright1 = "f7768e";
+        bright2 = "9ece6a";
+        bright3 = "e0af68";
+        bright4 = "7aa2f7";
+        bright5 = "bb9af7";
+        bright6 = "7dcfff";
+        bright7 = "c0caf5";
+      };
+
+      "colors-light" = {
+        foreground = "3760bf";
+        background = "e1e2e7";
+        selection-foreground = "3760bf";
+        selection-background = "b6bfe2";
+
+        regular0 = "b4b5b9";
+        regular1 = "f52a65";
+        regular2 = "587539";
+        regular3 = "8c6c3e";
+        regular4 = "2e7de9";
+        regular5 = "9854f1";
+        regular6 = "007197";
+        regular7 = "6172b0";
+
+        bright0 = "a1a6c5";
+        bright1 = "f52a65";
+        bright2 = "587539";
+        bright3 = "8c6c3e";
+        bright4 = "2e7de9";
+        bright5 = "9854f1";
+        bright6 = "007197";
+        bright7 = "3760bf";
       };
     };
-  };
-
-  # In DMS mode write foot.ini ourselves: pull colors from the matugen-
-  # rendered include (mode-aware via `.default.` accessor), keep all
-  # non-color settings here.
-  xdg.configFile."foot/foot.ini" = lib.mkIf useDms {
-    text = ''
-      [main]
-      font=CaskaydiaMono Nerd Font:size=11
-      font-bold=CaskaydiaMono Nerd Font:style=Bold:size=11
-      font-italic=CaskaydiaMono Nerd Font:style=Italic:size=11
-      dpi-aware=no
-      pad=5x5
-      shell=fish
-
-      include=~/.config/foot/colors-matugen.ini
-    '';
   };
 }
