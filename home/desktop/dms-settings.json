@@ -496,12 +496,12 @@
           "minimumWidth": true
         },
         {
-          "id": "memUsage",
-          "enabled": false
+          "id": "cpuTemp",
+          "enabled": true
         },
         {
-          "id": "diskUsage",
-          "enabled": false
+          "id": "gpuTemp",
+          "enabled": true
         },
         {
           "id": "memoryUsageBar",

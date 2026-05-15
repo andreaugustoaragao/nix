@@ -10,8 +10,10 @@
 {
   programs.foot = {
     enable = true;
-    # DMS's generated foot palette currently uses section names foot does
-    # not accept, so keep the Nix-managed palette in charge.
+    # DMS's shipped foot template only emits a `[colors-dark]` section
+    # (with mode-aware colors), so in light mode foot falls back to its
+    # compiled defaults. We render our own colors file via matugen (see
+    # home/desktop/matugen.nix) and `include` it from foot.ini below.
     settings = lib.mkIf (!useDms) {
       main = {
         font = "CaskaydiaMono Nerd Font:size=11";
@@ -49,8 +51,9 @@
     };
   };
 
-  # In DMS mode, write foot.ini directly so we can keep the same settings
-  # without including DMS's invalid foot palette.
+  # In DMS mode write foot.ini ourselves: pull colors from the matugen-
+  # rendered include (mode-aware via `.default.` accessor), keep all
+  # non-color settings here.
   xdg.configFile."foot/foot.ini" = lib.mkIf useDms {
     text = ''
       [main]
@@ -61,26 +64,7 @@
       pad=5x5
       shell=fish
 
-      [colors]
-      alpha=0.98
-      foreground=dcd7ba
-      background=1f1f28
-      regular0=090618
-      regular1=c34043
-      regular2=76946a
-      regular3=c0a36e
-      regular4=7e9cd8
-      regular5=957fb8
-      regular6=6a9589
-      regular7=c8c093
-      bright0=727169
-      bright1=e82424
-      bright2=98bb6c
-      bright3=e6c384
-      bright4=7fb4ca
-      bright5=938aa9
-      bright6=7aa89f
-      bright7=dcd7ba
+      include=~/.config/foot/colors-matugen.ini
     '';
   };
 }

@@ -78,6 +78,7 @@ in
       pciutils # provides lspci
       usbutils # provides lsusb
       dmidecode # provides dmidecode (DMI/SMBIOS table inspection)
+      lm_sensors # provides sensors for CPU / motherboard hwmon readings
 
       # Filesystem and encryption tools
       btrfs-progs

@@ -1,24 +1,34 @@
-{ config, pkgs, lib, inputs, useDms ? false, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  useDms ? false,
+  ...
+}:
 
 {
   programs.alacritty = {
     enable = true;
     settings = {
-      # Layer DMS-generated matugen palette on top of Kanagawa fallback.
+      # Alacritty merges imports under the local config — i.e. local
+      # keys win over imports. So under DMS we drop the static Kanagawa
+      # `colors` block entirely; the imported dank-theme.toml owns the
+      # palette. The non-DMS path keeps Kanagawa as a static fallback.
       general.import = lib.optionals useDms [ "~/.config/alacritty/dank-theme.toml" ];
 
       window = {
-        opacity = 0.98;  # Match Omarchy opacity
-        decorations = "none";  # Disable window decorations
+        opacity = 0.98;
+        decorations = "none";
         padding = {
-          x = 14;  # Match Omarchy padding
+          x = 14;
           y = 14;
         };
       };
-      
+
       font = {
         normal = {
-          family = "CaskaydiaMono Nerd Font";  # Exact font name from Omarchy
+          family = "CaskaydiaMono Nerd Font";
           style = "Regular";
         };
         bold = {
@@ -29,22 +39,22 @@
           family = "CaskaydiaMono Nerd Font";
           style = "Italic";
         };
-        size = 11;  # Match Omarchy font size
+        size = 11;
       };
-      
+
       terminal = {
         shell = {
-          program = "fish";  # Match foot shell
+          program = "fish";
         };
       };
-      
-      # Kanagawa colors (matching foot configuration)
+    }
+    // lib.optionalAttrs (!useDms) {
       colors = {
         primary = {
           foreground = "#dcd7ba";
           background = "#1f1f28";
         };
-        
+
         normal = {
           black = "#090618";
           red = "#c34043";
@@ -55,7 +65,7 @@
           cyan = "#6a9589";
           white = "#c8c093";
         };
-        
+
         bright = {
           black = "#727169";
           red = "#e82424";
@@ -69,4 +79,4 @@
       };
     };
   };
-} 
+}

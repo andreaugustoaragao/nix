@@ -14,6 +14,32 @@ let
     config.allowUnfree = true;
   };
 
+  # DMS currently ignores `useFahrenheit` for CPU temperature widgets and
+  # process popouts, so patch the packaged QML to keep hardware temps aligned
+  # with the rest of the shell's unit setting.
+  dmsPackage = inputs.dms.packages.${pkgs.stdenv.hostPlatform.system}.default.overrideAttrs (old: {
+    postInstall = (old.postInstall or "") + ''
+      substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/CpuTemperature.qml \
+        --replace-fail 'text: "88°"' 'text: SettingsData.useFahrenheit ? "188°" : "88°"' \
+        --replace-fail 'return Math.round(DgopService.cpuTemperature).toString();' 'const temp = SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature; return Math.round(temp).toString();' \
+        --replace-fail 'return Math.round(DgopService.cpuTemperature) + "°";' 'const temp = SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature; return Math.round(temp) + "°";'
+
+      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/ProcessListPopout.qml \
+        --replace-fail 'detail: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°") : ""' 'detail: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
+
+      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/PerformanceView.qml \
+        --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°C") : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
+
+      # DMS writes gsettings color-scheme = "default" for light mode,
+      # which the freedesktop spec defines as "no preference" — portal
+      # clients (ghostty, etc.) treat it as a fallback to their default
+      # (usually dark). Patch to write "prefer-light" instead so ghostty's
+      # `theme = dark:...,light:...` syntax actually flips.
+      substituteInPlace $out/share/quickshell/dms/Services/PortalService.qml \
+        --replace-fail 'const targetScheme = isLightMode ? "default" : "prefer-dark";' 'const targetScheme = isLightMode ? "prefer-light" : "prefer-dark";'
+    '';
+  });
+
   # DMS plugin/theme registry — pinned to a specific commit. Themes and
   # plugin specs are mirrored into ~/.config/DankMaterialShell/themes/ so
   # DMS picks them up on startup.
@@ -88,7 +114,16 @@ let
       peaceAndQuiet = "blue";
     };
     syncModeWithPortal = true;
-    terminalsAlwaysDark = true;
+    # Follow DMS mode (light/dark) for terminal palettes via matugen.
+    # When true, DMS sed-rewrites `.default.` -> `.dark.` in shipped
+    # terminal templates regardless of mode, pinning kitty/ghostty/
+    # alacritty/foot to the dark palette even in light mode.
+    terminalsAlwaysDark = false;
+    # Disable DMS's mode-aware ghostty template — our user matugen
+    # templates render `dankcolors-dark` and `dankcolors-light`
+    # unconditionally so ghostty can live-switch via
+    # `theme = dark:...,light:...` (see home/desktop/ghostty.nix).
+    matugenTemplateGhostty = false;
     notificationPopupPosition = -1;
     cursorSettings = {
       niri = {
@@ -233,6 +268,7 @@ in
 
   programs.dank-material-shell = {
     enable = useDms;
+    package = dmsPackage;
     # Don't generate the systemd user unit. The unit lands in app.slice,
     # outside the graphical logind session — polkit refuses to register
     # DMS's PolkitAuthModal from there. Instead, niri spawns DMS via

@@ -1,4 +1,11 @@
-{ config, pkgs, lib, inputs, useDms ? false, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  inputs,
+  useDms ? false,
+  ...
+}:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
     system = pkgs.stdenv.hostPlatform.system;
@@ -16,15 +23,16 @@ in
     # Single-instance: subsequent invocations open a new window in the
     # existing process (analogous to footclient or kitty --single-instance).
     gtk-single-instance = true
-    
+
     # Shell configuration
     shell-integration = fish
     command = fish
-    
+
     # Window configuration
     window-padding-x = 5
     window-padding-y = 5
-    window-theme = dark
+    # window-theme defaults to "auto" — follows the freedesktop
+    # color-scheme preference so GTK chrome flips with DMS mode.
 
     # Translucent terminal — cells using the default bg render at this
     # opacity (so wallpaper bleeds through). Cells with explicit bg
@@ -33,19 +41,19 @@ in
     # inactive panes (bg=default) fade to wallpaper.
     background-opacity = 0.85
     background-blur-radius = 20
-    
+
     # Kanagawa color scheme
     background = 1f1f28
     foreground = dcd7ba
-    
+
     # Cursor colors
     cursor-color = dcd7ba
     cursor-text = 1f1f28
-    
+
     # Selection colors
     selection-background = 2d4f67
     selection-foreground = dcd7ba
-    
+
     # Kanagawa color palette
     palette = 0=#090618
     palette = 1=#c34043
@@ -63,7 +71,7 @@ in
     palette = 13=#938aa9
     palette = 14=#7aa89f
     palette = 15=#dcd7ba
-    
+
     # Additional settings
     window-decoration = false
     unfocused-split-opacity = 0.9
@@ -82,6 +90,6 @@ in
     notify-on-command-finish-action = no-bell,no-notify
     bell-features = no-system,no-audio,no-attention,no-title,no-border
 
-    ${lib.optionalString useDms "theme = dankcolors"}
+    ${lib.optionalString useDms "theme = dark:dankcolors-dark,light:dankcolors-light"}
   '';
 }

@@ -1,9 +1,19 @@
-_:
+{ config, pkgs, ... }:
+
+let
+  trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
+in
 
 {
   # The codex binary itself is installed by the installNpmAiTools
   # activation in home/cli/development.nix. This module owns its
   # user-level config at ~/.codex/config.toml.
+
+  # Codex shells out to `bwrap` for filesystem sandboxing; without it
+  # in PATH it falls back to a bundled copy and prints a warning at
+  # every invocation. (NixOS enables unprivileged user namespaces by
+  # default, so no setuid wrapper is needed.)
+  home.packages = [ pkgs.bubblewrap ];
   #
   # Schema: https://developers.openai.com/codex/config-reference
   #
@@ -16,11 +26,16 @@ _:
     model = "gpt-5.4"
     model_provider = "litellm"
     model_reasoning_effort = "high"
+    sandbox_mode = "workspace-write"
+    approval_policy = "on-request"
 
     [model_providers.litellm]
     name = "LiteLLM"
     base_url = "https://gateway.webai.avaya.com"
     env_key = "LITELLM_API_KEY"
     wire_api = "responses"
+
+    [projects."${trustedProjectPath}"]
+    trust_level = "trusted"
   '';
 }

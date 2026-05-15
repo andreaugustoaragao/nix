@@ -26,10 +26,20 @@
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [
     "kvm-amd"
+    "k10temp"
+    "nct6775" # ASRock X870E Taichi Super I/O sensors for board fan RPMs
     "mt7925e"
   ];
   boot.extraModulePackages = [ ];
   hardware.enableRedistributableFirmware = true;
+
+  environment.systemPackages = with pkgs; [
+    nvme-cli
+    powertop
+    smartmontools
+    s-tui
+    stress-ng
+  ];
 
   # Root filesystem on btrfs with @ subvolume
   fileSystems."/" = {

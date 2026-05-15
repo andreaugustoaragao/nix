@@ -447,10 +447,6 @@ let
     }
   '';
 
-  # Pi extension: `browser_run` tool. Thin wrapper around `dev-browser`
-  # (npm-global). Resolves the binary from PATH at spawn time, so this
-  # extension assumes `dev-browser` is installed via `npm install -g
-  # dev-browser` (and `dev-browser install` was run once to pull Chromium).
   # Pi extension: `context7` tool. Wraps the Context7 REST API to fetch
   # up-to-date, version-specific library documentation and code examples.
   #
@@ -472,10 +468,10 @@ let
      */
     import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
     import { Type } from "typebox";
+    import { StringEnum } from "@earendil-works/pi-ai";
 
     const BASE_URL = "https://context7.com/api/v2";
     const DEFAULT_TIMEOUT_MS = 30000;
-    const MAX_CHARS = 50000;
 
     const apiKey = process.env.CONTEXT7_API_KEY ?? "";
     const authHeader = apiKey ? { "Authorization": "Bearer " + apiKey } : {};
@@ -607,15 +603,13 @@ let
           "Use even when you think you know the answer — training data may " +
           "not reflect recent changes.",
         parameters: Type.Object({
-          tool: Type.Enum({
-            "resolve-library-id": "Search for a library by name and query. " +
-              "Returns matching libraries with IDs to use in query-docs.",
-            "query-docs": "Fetch documentation snippets and code examples " +
-              "for a specific library using its ID from resolve-library-id.",
-          }, {
-            description:
-              'Tool to call: "resolve-library-id" (search) or "query-docs" (fetch docs).',
-          }),
+          tool: StringEnum(
+            ["resolve-library-id", "query-docs"] as const,
+            {
+              description:
+                'Tool to call: "resolve-library-id" (search) or "query-docs" (fetch docs).',
+            },
+          ),
           libraryName: Type.Optional(Type.String({
             description:
               "Library name to search (e.g. \"Next.js\", \"React\", \"Prisma\"). " +
@@ -764,7 +758,7 @@ let
               return {
                 content: [{
                   type: "text",
-                  text: "Unknown tool: " + params.tool + ""
+                  text: "Unknown tool: " + params.tool,
                 }],
                 details: { tool: params.tool, error: "unknown_tool" },
               };
@@ -784,22 +778,27 @@ let
   lspExtension = pkgs.writeText "lsp.ts" (
     builtins.replaceStrings
       [ "___GOLANG_LSP___" "___TS_LSP___" "___RUST_ANALYZER___" "___NIX_LSP___" ]
-      [ "${pkgs.gopls}/bin/gopls"
+      [
+        "${pkgs.gopls}/bin/gopls"
         "${pkgs.nodePackages.typescript-language-server}/bin/typescript-language-server"
         "${pkgs.rust-analyzer}/bin/rust-analyzer"
-        "${pkgs.nil}/bin/nil" ]
+        "${pkgs.nil}/bin/nil"
+      ]
       (builtins.readFile ./lsp-extension.ts)
   );
 
   # Pi extension: `astgrep` tool. Wraps ast-grep (`sg`) for structural
   # code search. Language binaries are substituted from Nix store paths.
   astGrepExtension = pkgs.writeText "astgrep.ts" (
-    builtins.replaceStrings
-      [ "___ASTGREP_BIN___" ]
-      [ "${pkgs.ast-grep}/bin/sg" ]
-      (builtins.readFile ./ast-grep-extension.ts)
+    builtins.replaceStrings [ "___ASTGREP_BIN___" ] [ "${pkgs.ast-grep}/bin/sg" ] (
+      builtins.readFile ./ast-grep-extension.ts
+    )
   );
 
+  # Pi extension: `browser_run` tool. Thin wrapper around `dev-browser`
+  # (npm-global). Resolves the binary from PATH at spawn time, so this
+  # extension assumes `dev-browser` is installed via `npm install -g
+  # dev-browser` (and `dev-browser install` was run once to pull Chromium).
   webBrowserRunExtension = pkgs.writeText "browser-run.ts" ''
     /**
      * Pi extension: `browser_run` tool.
@@ -998,10 +997,10 @@ in
   # See: ~/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md
   # (Customization → Extensions).
   home.file.".pi/agent/extensions/web-search.ts".source = webSearchExtension;
-  home.file.".pi/agent/extensions/web-fetch.ts".source  = webFetchExtension;
-  home.file.".pi/agent/extensions/context7.ts".source   = context7Extension;
-  home.file.".pi/agent/extensions/lsp.ts".source       = lspExtension;
-  home.file.".pi/agent/extensions/astgrep.ts".source   = astGrepExtension;
+  home.file.".pi/agent/extensions/web-fetch.ts".source = webFetchExtension;
+  home.file.".pi/agent/extensions/context7.ts".source = context7Extension;
+  home.file.".pi/agent/extensions/lsp.ts".source = lspExtension;
+  home.file.".pi/agent/extensions/astgrep.ts".source = astGrepExtension;
   home.file.".pi/agent/extensions/browser-run.ts".source = webBrowserRunExtension;
 
   # Global pi context file. Loaded into every pi session's system prompt.
