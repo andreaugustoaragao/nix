@@ -1,8 +1,6 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
   useDms ? false,
   ...
 }:
@@ -16,10 +14,10 @@
 
   xdg.configFile."mako/config" = lib.mkIf (!useDms) {
     text = ''
-      # Kanagawa theme colors
-      background-color=#1f1f28e6
-      text-color=#dcd7ba
-      border-color=#54546d
+      # Catppuccin Mocha theme colors
+      background-color=#1e1e2ee6
+      text-color=#cdd6f4
+      border-color=#585b70
 
       # Layout and positioning
       anchor=top-right

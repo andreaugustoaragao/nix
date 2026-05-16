@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+_:
 
 {
   # Shell configuration
@@ -6,8 +6,24 @@
     enable = true;
     enableCompletion = true;
     autosuggestion.enable = true;
-    syntaxHighlighting.enable = true;
-    
+    syntaxHighlighting = {
+      enable = true;
+      styles = {
+        alias = "fg=#89b4fa";
+        builtin = "fg=#89b4fa";
+        command = "fg=#89b4fa";
+        comment = "fg=#6c7086";
+        function = "fg=#89b4fa";
+        path = "fg=#a6e3a1,underline";
+        precommand = "fg=#cba6f7";
+        single-hyphen-option = "fg=#f9e2af";
+        double-hyphen-option = "fg=#f9e2af";
+        single-quoted-argument = "fg=#a6e3a1";
+        double-quoted-argument = "fg=#a6e3a1";
+        unknown-token = "fg=#f38ba8";
+      };
+    };
+
     shellAliases = {
       # File listing
       ls = "eza -lh --group-directories-first --icons=auto";
@@ -17,16 +33,16 @@
       ll = "ls -alF";
       la = "ls -A";
       l = "ls -CF";
-      
+
       # System management
       rebuild = "sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
-      
+
       # Editor shortcuts
       v = "nvim";
       vim = "nvim";
       vi = "nvim";
-      
+
       # Git shortcuts
       g = "git";
       ga = "git add";
@@ -48,7 +64,7 @@
       gss = "git status --short";
       gst = "git stash";
       gstp = "git stash pop";
-      
+
       # Kubectl shortcuts
       k = "kubectl";
       kd = "kubectl describe";
@@ -59,10 +75,10 @@
       ka = "kubectl apply -f";
       kdel = "kubectl delete";
       kex = "kubectl exec -it";
-      
+
       # Databricks shortcuts
       db = "databricks";
-      
+
       # Common shortcuts
       c = "clear";
       h = "history";
@@ -73,15 +89,20 @@
       rm = "rm -i";
       cp = "cp -i";
       mv = "mv -i";
-      
+
       # FZF with bat preview (from nix-config)
       fz = "fzf --preview 'bat --style=numbers --color=always --line-range :500 {}'";
-      
+
     };
 
     oh-my-zsh = {
       enable = true;
-      plugins = [ "git" "sudo" "docker" "kubectl" ];
+      plugins = [
+        "git"
+        "sudo"
+        "docker"
+        "kubectl"
+      ];
       theme = "robbyrussell";
     };
 
@@ -95,4 +116,4 @@
       unsetopt xtrace verbose 2>/dev/null || true
     '';
   };
-} 
+}

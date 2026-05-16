@@ -1,7 +1,7 @@
-{ ... }:
+_:
 
 {
-  # Secondary terminal — static Tokyo Night Storm. Alacritty has no
+  # Secondary terminal — static Catppuccin Mocha. Alacritty has no
   # native portal-driven theme switching.
   programs.alacritty = {
     enable = true;
@@ -39,40 +39,40 @@
 
       colors = {
         primary = {
-          foreground = "#c0caf5";
-          background = "#24283b";
+          foreground = "#cdd6f4";
+          background = "#1e1e2e";
         };
 
         cursor = {
-          text = "#1d202f";
-          cursor = "#c0caf5";
+          text = "#1e1e2e";
+          cursor = "#f5e0dc";
         };
 
         selection = {
-          text = "#c0caf5";
-          background = "#2e3c64";
+          text = "#cdd6f4";
+          background = "#45475a";
         };
 
         normal = {
-          black = "#1d202f";
-          red = "#f7768e";
-          green = "#9ece6a";
-          yellow = "#e0af68";
-          blue = "#7aa2f7";
-          magenta = "#bb9af7";
-          cyan = "#7dcfff";
-          white = "#a9b1d6";
+          black = "#45475a";
+          red = "#f38ba8";
+          green = "#a6e3a1";
+          yellow = "#f9e2af";
+          blue = "#89b4fa";
+          magenta = "#f5c2e7";
+          cyan = "#94e2d5";
+          white = "#bac2de";
         };
 
         bright = {
-          black = "#414868";
-          red = "#f7768e";
-          green = "#9ece6a";
-          yellow = "#e0af68";
-          blue = "#7aa2f7";
-          magenta = "#bb9af7";
-          cyan = "#7dcfff";
-          white = "#c0caf5";
+          black = "#585b70";
+          red = "#f38ba8";
+          green = "#a6e3a1";
+          yellow = "#f9e2af";
+          blue = "#89b4fa";
+          magenta = "#f5c2e7";
+          cyan = "#94e2d5";
+          white = "#a6adc8";
         };
       };
     };

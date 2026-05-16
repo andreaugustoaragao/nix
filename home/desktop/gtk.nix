@@ -1,15 +1,13 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
   useDms ? false,
   ...
 }:
 
 let
   iconTheme = if useDms then "Papirus-Dark" else "Yaru-blue";
-  iconPkg   = if useDms then pkgs.papirus-icon-theme else pkgs.yaru-theme;
+  iconPkg = if useDms then pkgs.papirus-icon-theme else pkgs.yaru-theme;
 in
 {
   gtk = {

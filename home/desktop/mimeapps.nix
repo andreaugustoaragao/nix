@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+_:
 
 {
   # Desktop entry for opening URLs in Brave app mode. NoDisplay since
@@ -10,7 +10,10 @@
     exec = "browser-app %U";
     terminal = false;
     type = "Application";
-    categories = [ "Network" "WebBrowser" ];
+    categories = [
+      "Network"
+      "WebBrowser"
+    ];
     noDisplay = true;
     mimeType = [
       "text/html"
@@ -31,7 +34,7 @@
       "x-scheme-handler/https" = "brave-app-mode.desktop";
       "x-scheme-handler/about" = "brave-app-mode.desktop";
       "x-scheme-handler/unknown" = "brave-app-mode.desktop";
-      
+
       # Image viewer - swayimg (Wayland-native)
       "image/jpeg" = "swayimg.desktop";
       "image/jpg" = "swayimg.desktop";

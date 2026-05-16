@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   isServer,
@@ -39,214 +38,229 @@
     # polkit authorizes interactive privilege escalation (niri/Hyprland
     # auth-agents, GUI tools). Headless servers have no agent registered.
     polkit.enable = lib.mkDefault (!isServer);
+
+    # Raise the file-descriptor ceiling for sudo'd processes (PAM session
+    # limits). Without this, `sudo nixos-rebuild switch` hits "Too many open
+    # files" while evaluating the large flake closure.
+    pam.loginLimits = [
+      {
+        domain = "*";
+        type = "soft";
+        item = "nofile";
+        value = "524288";
+      }
+      {
+        domain = "*";
+        type = "hard";
+        item = "nofile";
+        value = "1048576";
+      }
+    ];
   };
 
   # ============================================================================
   # Intrusion Detection and Prevention
   # ============================================================================
 
-  services.fail2ban = {
-    enable = true;
-    maxretry = 3;
-    bantime = "24h";
-    bantime-increment = {
+  services = {
+    fail2ban = {
       enable = true;
-      multipliers = "1 2 4 8 16 32 64";
-      maxtime = "168h"; # 1 week max
-      overalljails = true;
+      maxretry = 3;
+      bantime = "24h";
+      bantime-increment = {
+        enable = true;
+        multipliers = "1 2 4 8 16 32 64";
+        maxtime = "168h"; # 1 week max
+        overalljails = true;
+      };
+
+      # Whitelist localhost
+      ignoreIP = [
+        "127.0.0.0/8"
+        "::1"
+      ];
+
+      # SSH protection is automatically enabled by NixOS
+      # The sshd jail is configured by default when fail2ban is enabled
     };
 
-    # Whitelist localhost
-    ignoreIP = [
-      "127.0.0.0/8"
-      "::1"
-    ];
-
-    # SSH protection is automatically enabled by NixOS
-    # The sshd jail is configured by default when fail2ban is enabled
+    # Silence per-interface log_martians. Docker/k3s create veths during
+    # service startup with log_martians=1 inherited from kernel defaults
+    # that predate our sysctl settings.
+    udev.extraRules = ''
+      SUBSYSTEM=="net", ACTION=="add", RUN+="${pkgs.bash}/bin/bash -c 'echo 0 > /proc/sys/net/ipv4/conf/%k/log_martians 2>/dev/null || true'"
+    '';
   };
 
   # ============================================================================
   # Kernel Hardening Parameters
   # ============================================================================
 
-  boot.kernel.sysctl = {
-    # -------------------------
-    # Kernel Security
-    # -------------------------
-    # Restrict dmesg access (already set, keeping it)
-    "kernel.dmesg_restrict" = 1;
-
-    # Hide kernel pointers in /proc
-    "kernel.kptr_restrict" = 2;
-
-    # Restrict ptrace to parent processes only
-    "kernel.yama.ptrace_scope" = 2;
-
-    # Disable unprivileged BPF
-    "kernel.unprivileged_bpf_disabled" = 1;
-
-    # Note: kernel.unprivileged_userns_clone is a Debian-only patch,
-    # not available on mainline kernels used by NixOS.
-
-    # -------------------------
-    # Network Security - IPv4
-    # -------------------------
-    # Enable reverse path filtering (anti-spoofing)
-    "net.ipv4.conf.all.rp_filter" = 1;
-    "net.ipv4.conf.default.rp_filter" = 1;
-
-    # Disable ICMP redirects (prevent MITM)
-    "net.ipv4.conf.all.send_redirects" = 0;
-    "net.ipv4.conf.default.send_redirects" = 0;
-    "net.ipv4.conf.all.accept_redirects" = 0;
-    "net.ipv4.conf.default.accept_redirects" = 0;
-
-    # Disable source packet routing
-    "net.ipv4.conf.all.accept_source_route" = 0;
-    "net.ipv4.conf.default.accept_source_route" = 0;
-
-    # Enable TCP SYN cookies (already enabled, keeping it)
-    "net.ipv4.tcp_syncookies" = 1;
-
-    # Disable TCP timestamps (privacy)
-    "net.ipv4.tcp_timestamps" = 0;
-
-    # Ignore ICMP broadcast requests
-    "net.ipv4.icmp_echo_ignore_broadcasts" = 1;
-
-    # Ignore bogus ICMP error responses
-    "net.ipv4.icmp_ignore_bogus_error_responses" = 1;
-
-    # Log suspicious packets (martians) — disabled because k3s flannel ARP
-    # broadcasts leak into docker container veths and spam dmesg nonstop.
-    # Note: the kernel logs when all OR the specific interface is set to 1,
-    # so new docker/k3s veths still inherit 1 when created during service
-    # startup that predates sysctl application. The udev rule below catches
-    # those as they appear.
-    "net.ipv4.conf.all.log_martians" = 0;
-    "net.ipv4.conf.default.log_martians" = 0;
-
-    # -------------------------
-    # Network Security - IPv6
-    # -------------------------
-    # Note: IPv6 RA is managed by systemd-networkd in networking.nix
-    # Uncomment these if you want to disable IPv6 RA globally:
-    # "net.ipv6.conf.all.accept_ra" = 0;
-    # "net.ipv6.conf.default.accept_ra" = 0;
-
-    # Disable IPv6 redirects
-    "net.ipv6.conf.all.accept_redirects" = 0;
-    "net.ipv6.conf.default.accept_redirects" = 0;
-
-    # Disable IPv6 source routing
-    "net.ipv6.conf.all.accept_source_route" = 0;
-    "net.ipv6.conf.default.accept_source_route" = 0;
-
-    # -------------------------
-    # Filesystem Security
-    # -------------------------
-    # Protect hardlinks and symlinks (already enabled)
-    "fs.protected_hardlinks" = 1;
-    "fs.protected_symlinks" = 1;
-
-    # Protect FIFOs and regular files
-    "fs.protected_fifos" = 2;
-    "fs.protected_regular" = 2;
-  };
-
-  # ============================================================================
-  # Secure Boot and Temporary Filesystems
-  # ============================================================================
-
   boot = {
-    # Use tmpfs for /tmp (cleared on reboot, performance boost)
-    tmp.useTmpfs = true;
-    tmp.tmpfsSize = "50%";
+    kernel.sysctl = {
+      # -------------------------
+      # Kernel Security
+      # -------------------------
+      # Restrict dmesg access (already set, keeping it)
+      "kernel.dmesg_restrict" = 1;
 
-    # configurationLimit is set in boot.nix per machine profile
+      # Hide kernel pointers in /proc
+      "kernel.kptr_restrict" = 2;
 
-    # Clean /tmp on boot
-    tmp.cleanOnBoot = true;
+      # Restrict ptrace to parent processes only
+      "kernel.yama.ptrace_scope" = 2;
+
+      # Disable unprivileged BPF
+      "kernel.unprivileged_bpf_disabled" = 1;
+
+      # Note: kernel.unprivileged_userns_clone is a Debian-only patch,
+      # not available on mainline kernels used by NixOS.
+
+      # -------------------------
+      # Network Security - IPv4
+      # -------------------------
+      # Enable reverse path filtering (anti-spoofing)
+      "net.ipv4.conf.all.rp_filter" = 1;
+      "net.ipv4.conf.default.rp_filter" = 1;
+
+      # Disable ICMP redirects (prevent MITM)
+      "net.ipv4.conf.all.send_redirects" = 0;
+      "net.ipv4.conf.default.send_redirects" = 0;
+      "net.ipv4.conf.all.accept_redirects" = 0;
+      "net.ipv4.conf.default.accept_redirects" = 0;
+
+      # Disable source packet routing
+      "net.ipv4.conf.all.accept_source_route" = 0;
+      "net.ipv4.conf.default.accept_source_route" = 0;
+
+      # Enable TCP SYN cookies (already enabled, keeping it)
+      "net.ipv4.tcp_syncookies" = 1;
+
+      # Disable TCP timestamps (privacy)
+      "net.ipv4.tcp_timestamps" = 0;
+
+      # Ignore ICMP broadcast requests
+      "net.ipv4.icmp_echo_ignore_broadcasts" = 1;
+
+      # Ignore bogus ICMP error responses
+      "net.ipv4.icmp_ignore_bogus_error_responses" = 1;
+
+      # Log suspicious packets (martians) — disabled because k3s flannel ARP
+      # broadcasts leak into docker container veths and spam dmesg nonstop.
+      # Note: the kernel logs when all OR the specific interface is set to 1,
+      # so new docker/k3s veths still inherit 1 when created during service
+      # startup that predates sysctl application. The udev rule below catches
+      # those as they appear.
+      "net.ipv4.conf.all.log_martians" = 0;
+      "net.ipv4.conf.default.log_martians" = 0;
+
+      # -------------------------
+      # Network Security - IPv6
+      # -------------------------
+      # Note: IPv6 RA is managed by systemd-networkd in networking.nix
+      # Uncomment these if you want to disable IPv6 RA globally:
+      # "net.ipv6.conf.all.accept_ra" = 0;
+      # "net.ipv6.conf.default.accept_ra" = 0;
+
+      # Disable IPv6 redirects
+      "net.ipv6.conf.all.accept_redirects" = 0;
+      "net.ipv6.conf.default.accept_redirects" = 0;
+
+      # Disable IPv6 source routing
+      "net.ipv6.conf.all.accept_source_route" = 0;
+      "net.ipv6.conf.default.accept_source_route" = 0;
+
+      # -------------------------
+      # Filesystem Security
+      # -------------------------
+      # Protect hardlinks and symlinks (already enabled)
+      "fs.protected_hardlinks" = 1;
+      "fs.protected_symlinks" = 1;
+
+      # Protect FIFOs and regular files
+      "fs.protected_fifos" = 2;
+      "fs.protected_regular" = 2;
+    };
+
+    # ============================================================================
+    # Secure Boot and Temporary Filesystems
+    # ============================================================================
+
+    tmp = {
+      # Use tmpfs for /tmp (cleared on reboot, performance boost)
+      useTmpfs = true;
+      tmpfsSize = "50%";
+
+      # configurationLimit is set in boot.nix per machine profile
+
+      # Clean /tmp on boot
+      cleanOnBoot = true;
+    };
+
+    # Restrict /proc and /sys access
+    specialFileSystems = {
+      "/proc".options = [ "hidepid=2" ];
+    };
   };
 
   # ============================================================================
   # Additional System Hardening
   # ============================================================================
 
-  # Disable core dumps (prevent information disclosure)
-  systemd.coredump.enable = false;
+  systemd = {
+    # Disable core dumps (prevent information disclosure)
+    coredump.enable = false;
 
-  # Silence per-interface log_martians. Docker/k3s create veths during
-  # service startup with log_martians=1 inherited from kernel defaults
-  # that predate our sysctl settings. The kernel logs if *either* `all`
-  # or the interface-specific value is 1, so these veths spam dmesg with
-  # martian-source warnings for otherwise benign cross-bridge ARP flood.
-  services.udev.extraRules = ''
-    SUBSYSTEM=="net", ACTION=="add", RUN+="${pkgs.bash}/bin/bash -c 'echo 0 > /proc/sys/net/ipv4/conf/%k/log_martians 2>/dev/null || true'"
-  '';
-
-  systemd.services.silence-log-martians = {
-    description = "Disable log_martians on all host and container network namespaces";
-    wantedBy = [ "multi-user.target" ];
-    after = [
-      "network-pre.target"
-      "docker.service"
-      "k3s.service"
-    ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "silence-log-martians" ''
-        # Host netns
-        for f in /proc/sys/net/ipv4/conf/*/log_martians; do
-          echo 0 > "$f" 2>/dev/null || true
-        done
-        # Every other netns on the system (docker, k3s pods, etc.)
-        declare -A seen
-        for p in /proc/[0-9]*/ns/net; do
-          ns=$(${pkgs.coreutils}/bin/readlink "$p" 2>/dev/null) || continue
-          [ -n "$ns" ] || continue
-          [ -z "''${seen[$ns]:-}" ] || continue
-          seen[$ns]=1
-          ${pkgs.util-linux}/bin/nsenter --net="$p" --no-fork -- \
-            ${pkgs.bash}/bin/bash -c '
-              for f in /proc/sys/net/ipv4/conf/*/log_martians; do
-                echo 0 > "$f" 2>/dev/null || true
-              done
-            ' 2>/dev/null || true
-        done
-      '';
+    services.silence-log-martians = {
+      description = "Disable log_martians on all host and container network namespaces";
+      wantedBy = [ "multi-user.target" ];
+      after = [
+        "network-pre.target"
+        "docker.service"
+        "k3s.service"
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = pkgs.writeShellScript "silence-log-martians" ''
+          # Host netns
+          for f in /proc/sys/net/ipv4/conf/*/log_martians; do
+            echo 0 > "$f" 2>/dev/null || true
+          done
+          # Every other netns on the system (docker, k3s pods, etc.)
+          declare -A seen
+          for p in /proc/[0-9]*/ns/net; do
+            ns=$(${pkgs.coreutils}/bin/readlink "$p" 2>/dev/null) || continue
+            [ -n "$ns" ] || continue
+            [ -z "''${seen[$ns]:-}" ] || continue
+            seen[$ns]=1
+            ${pkgs.util-linux}/bin/nsenter --net="$p" --no-fork -- \
+              ${pkgs.bash}/bin/bash -c '
+                for f in /proc/sys/net/ipv4/conf/*/log_martians; do
+                  echo 0 > "$f" 2>/dev/null || true
+                done
+              ' 2>/dev/null || true
+          done
+        '';
+      };
     };
-  };
 
-  # Re-run every 60s so new containers/pods get silenced too.
-  systemd.timers.silence-log-martians = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "1min";
-      OnUnitActiveSec = "60s";
-      Unit = "silence-log-martians.service";
+    # Re-run every 60s so new containers/pods get silenced too.
+    timers.silence-log-martians = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "1min";
+        OnUnitActiveSec = "60s";
+        Unit = "silence-log-martians.service";
+      };
     };
-  };
 
-  # Restrict /proc and /sys access
-  boot.specialFileSystems = {
-    "/proc".options = [ "hidepid=2" ];
+    # Raise the systemd manager file-descriptor defaults.
+    settings.Manager.DefaultLimitNOFILE = "1048576";
+    user.extraConfig = ''
+      DefaultLimitNOFILE=1048576
+    '';
   };
-
-  # Raise the file-descriptor ceiling for sudo'd processes (PAM session
-  # limits) and the systemd manager defaults. Without this, `sudo
-  # nixos-rebuild switch` hits "Too many open files" while evaluating the
-  # large flake closure (DMS + matugen + plugin registry).
-  security.pam.loginLimits = [
-    { domain = "*"; type = "soft"; item = "nofile"; value = "524288"; }
-    { domain = "*"; type = "hard"; item = "nofile"; value = "1048576"; }
-  ];
-  systemd.settings.Manager.DefaultLimitNOFILE = "1048576";
-  systemd.user.extraConfig = ''
-    DefaultLimitNOFILE=1048576
-  '';
 
   # Enable kernel lockdown mode (requires recent kernel)
   # boot.kernelParams = [ "lockdown=integrity" ];

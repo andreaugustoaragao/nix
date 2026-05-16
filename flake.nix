@@ -49,11 +49,8 @@
 
   outputs =
     {
-      self,
       nixpkgs,
-      nixpkgs-unstable,
       home-manager,
-      firefox-addons,
       sops-nix,
       claude-code,
 
@@ -61,17 +58,16 @@
     }@inputs:
     let
       metadata = builtins.fromTOML (builtins.readFile ./machines.toml);
-      lib = nixpkgs.lib;
 
       # Get username for the platform
-      getUserName = user: host: user.name;
+      getUserName = user: _host: user.name;
 
       # Set special args for each machine
       setSpecialArgs = host: {
-        isWorkstation = (host.profile == "workstation");
-        isLaptop = (host.profile == "laptop");
-        isVm = (host.profile == "vm");
-        isServer = (host.profile == "server");
+        isWorkstation = host.profile == "workstation";
+        isLaptop = host.profile == "laptop";
+        isVm = host.profile == "vm";
+        isServer = host.profile == "server";
         owner = metadata.user // {
           name = getUserName metadata.user host;
         };
@@ -104,37 +100,34 @@
     in
     {
       # NixOS configurations for all machines
-      nixosConfigurations = (
-        builtins.mapAttrs (
-          machineName: host:
-          nixpkgs.lib.nixosSystem {
-            specialArgs = setSpecialArgs host;
-            modules = [
-              { nixpkgs.hostPlatform = host.platform; }
-              {
-                nixpkgs.overlays = [
-                  claude-code.overlays.default
-                  # See nixpkgs-gnome48 input above for the why.
-                  (final: prev: {
-                    xdg-desktop-portal-gnome =
-                      inputs.nixpkgs-gnome48.legacyPackages.${host.platform}.xdg-desktop-portal-gnome;
-                  })
-                ];
-              }
-              # Hardware configuration
-              (./hardware + "/${machineName}" + /hardware-configuration.nix)
-              # System configuration
-              ./system
-              # Prebuilt nix-index database for command-not-found lookup.
-              inputs.nix-index-database.nixosModules.nix-index
-              # Secrets management
-              sops-nix.nixosModules.sops
-              # Home Manager configuration
-              home-manager.nixosModules.home-manager
-              (setHomeManagerTemplate host)
-            ];
-          }
-        ) metadata.machines
-      );
+      nixosConfigurations = builtins.mapAttrs (
+        machineName: host:
+        nixpkgs.lib.nixosSystem {
+          specialArgs = setSpecialArgs host;
+          modules = [
+            { nixpkgs.hostPlatform = host.platform; }
+            {
+              nixpkgs.overlays = [
+                claude-code.overlays.default
+                # See nixpkgs-gnome48 input above for the why.
+                (_final: _prev: {
+                  inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
+                })
+              ];
+            }
+            # Hardware configuration
+            (./hardware + "/${machineName}" + /hardware-configuration.nix)
+            # System configuration
+            ./system
+            # Prebuilt nix-index database for command-not-found lookup.
+            inputs.nix-index-database.nixosModules.nix-index
+            # Secrets management
+            sops-nix.nixosModules.sops
+            # Home Manager configuration
+            home-manager.nixosModules.home-manager
+            (setHomeManagerTemplate host)
+          ];
+        }
+      ) metadata.machines;
     };
 }

@@ -1,36 +1,36 @@
-{ config, pkgs, lib, inputs, ... }:
+_:
 
 {
-  # Xresources configuration with Kanagawa colors and centralized DPI
+  # Xresources configuration with Catppuccin Mocha colors and centralized DPI
   xresources = {
     properties = {
-      "*.foreground" = "#dcd7ba";
-      "*.background" = "#1f1f28";
-      "*.cursorColor" = "#dcd7ba";
+      "*.foreground" = "#cdd6f4";
+      "*.background" = "#1e1e2e";
+      "*.cursorColor" = "#f5e0dc";
 
-      "*.color0" = "#16161d";
-      "*.color8" = "#727169";
+      "*.color0" = "#45475a";
+      "*.color8" = "#585b70";
 
-      "*.color1" = "#c34043";
-      "*.color9" = "#e82424";
+      "*.color1" = "#f38ba8";
+      "*.color9" = "#f38ba8";
 
-      "*.color2" = "#76946a";
-      "*.color10" = "#98bb6c";
+      "*.color2" = "#a6e3a1";
+      "*.color10" = "#a6e3a1";
 
-      "*.color3" = "#c0a36e";
-      "*.color11" = "#e6c384";
+      "*.color3" = "#f9e2af";
+      "*.color11" = "#f9e2af";
 
-      "*.color4" = "#7e9cd8";
-      "*.color12" = "#7fb4ca";
+      "*.color4" = "#89b4fa";
+      "*.color12" = "#89b4fa";
 
-      "*.color5" = "#957fb8";
-      "*.color13" = "#938aa9";
+      "*.color5" = "#f5c2e7";
+      "*.color13" = "#f5c2e7";
 
-      "*.color6" = "#6a9589";
-      "*.color14" = "#7aa89f";
+      "*.color6" = "#94e2d5";
+      "*.color14" = "#94e2d5";
 
-      "*.color7" = "#c8c093";
-      "*.color15" = "#dcd7ba";
+      "*.color7" = "#bac2de";
+      "*.color15" = "#a6adc8";
 
       "XTerm*font" = "xft:CaskaydiaMono Nerd Font:size=10";
       "XTerm*saveLines" = "100000";
@@ -46,4 +46,4 @@
       "*.dpi" = 144;
     };
   };
-} 
+}

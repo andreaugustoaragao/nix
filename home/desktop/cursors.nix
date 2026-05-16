@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   # Cursor configuration (system-wide)
@@ -9,4 +9,4 @@
     gtk.enable = true;
     x11.enable = true;
   };
-} 
+}

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, owner, ... }:
+{ owner, ... }:
 
 {
   services.openssh = {

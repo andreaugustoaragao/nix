@@ -1,7 +1,11 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  pkgs,
+  inputs,
+  ...
+}:
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 
@@ -38,95 +42,95 @@ in
     profiles.default = {
       extensions = with pkgs.vscode-extensions; [
         # AI
-        anthropic.claude-code                     # Claude Code
+        anthropic.claude-code # Claude Code
 
         # Rust
-        rust-lang.rust-analyzer                   # Rust language server
-        tamasfe.even-better-toml                  # TOML support (Cargo.toml)
-        serayuzgur.crates                         # Crate version management in Cargo.toml
-        vadimcn.vscode-lldb                       # Rust/C++ debugger
+        rust-lang.rust-analyzer # Rust language server
+        tamasfe.even-better-toml # TOML support (Cargo.toml)
+        serayuzgur.crates # Crate version management in Cargo.toml
+        vadimcn.vscode-lldb # Rust/C++ debugger
 
         # Go
-        golang.go                                 # Go language support
+        golang.go # Go language support
 
         # TypeScript / React / HTML / CSS
-        dbaeumer.vscode-eslint                    # ESLint integration
-        esbenp.prettier-vscode                    # Prettier code formatter
-        formulahendry.auto-rename-tag             # Auto-rename paired HTML/JSX tags
-        formulahendry.auto-close-tag              # Auto-close HTML/JSX tags
-        bradlc.vscode-tailwindcss                 # Tailwind CSS IntelliSense
-        christian-kohler.path-intellisense        # File path autocomplete
-        christian-kohler.npm-intellisense         # JS module autocomplete in imports
-        wix.vscode-import-cost                    # Display import size inline
+        dbaeumer.vscode-eslint # ESLint integration
+        esbenp.prettier-vscode # Prettier code formatter
+        formulahendry.auto-rename-tag # Auto-rename paired HTML/JSX tags
+        formulahendry.auto-close-tag # Auto-close HTML/JSX tags
+        bradlc.vscode-tailwindcss # Tailwind CSS IntelliSense
+        christian-kohler.path-intellisense # File path autocomplete
+        christian-kohler.npm-intellisense # JS module autocomplete in imports
+        wix.vscode-import-cost # Display import size inline
 
         # Fish
-        bmalehorn.vscode-fish                     # Fish shell syntax highlighting
+        bmalehorn.vscode-fish # Fish shell syntax highlighting
 
         # Terraform
-        hashicorp.terraform                       # Terraform language support
+        hashicorp.terraform # Terraform language support
 
         # Nix
-        jnoortheen.nix-ide                        # Nix language support with formatting
-        bbenoist.nix                              # Classic Nix syntax support
+        jnoortheen.nix-ide # Nix language support with formatting
+        bbenoist.nix # Classic Nix syntax support
 
         # Java
-        redhat.java                               # Java language support
+        redhat.java # Java language support
 
         # YAML / JSON
-        redhat.vscode-yaml                        # YAML support
+        redhat.vscode-yaml # YAML support
 
         # Shell
-        timonwong.shellcheck                      # Shell script analysis
+        timonwong.shellcheck # Shell script analysis
 
         # Markdown
-        bierner.github-markdown-preview           # GitHub-style markdown preview
-        bierner.markdown-mermaid                   # Mermaid diagram support
-        bierner.markdown-emoji                    # Emoji rendering
-        bierner.markdown-checkbox                 # Checkbox support
-        bierner.markdown-footnotes                # Footnotes support
-        bierner.markdown-preview-github-styles    # GitHub CSS styling
-        yzhang.markdown-all-in-one               # Shortcuts, TOC, auto-preview
+        bierner.github-markdown-preview # GitHub-style markdown preview
+        bierner.markdown-mermaid # Mermaid diagram support
+        bierner.markdown-emoji # Emoji rendering
+        bierner.markdown-checkbox # Checkbox support
+        bierner.markdown-footnotes # Footnotes support
+        bierner.markdown-preview-github-styles # GitHub CSS styling
+        yzhang.markdown-all-in-one # Shortcuts, TOC, auto-preview
 
         # HTML
-        ms-vscode.live-server                     # In-editor HTML preview
+        ms-vscode.live-server # In-editor HTML preview
 
         # Git
-        eamodio.gitlens                           # Enhanced Git capabilities
+        eamodio.gitlens # Enhanced Git capabilities
 
         # Editor Enhancements
-        usernamehw.errorlens                      # Inline error/warning display
-        gruntfuggly.todo-tree                     # TODO/FIXME/HACK tree view
-        editorconfig.editorconfig                 # EditorConfig support
-        streetsidesoftware.code-spell-checker     # Spell checker for code and comments
+        usernamehw.errorlens # Inline error/warning display
+        gruntfuggly.todo-tree # TODO/FIXME/HACK tree view
+        editorconfig.editorconfig # EditorConfig support
+        streetsidesoftware.code-spell-checker # Spell checker for code and comments
 
         # Vim
-        vscodevim.vim                             # Vim keybindings
+        vscodevim.vim # Vim keybindings
 
         # Docker / Kubernetes / Azure
-        ms-azuretools.vscode-docker               # Dockerfile and docker-compose support
+        ms-azuretools.vscode-docker # Dockerfile and docker-compose support
         ms-kubernetes-tools.vscode-kubernetes-tools # Kubernetes cluster management
-        tim-koehler.helm-intellisense             # Helm chart IntelliSense
+        tim-koehler.helm-intellisense # Helm chart IntelliSense
 
         # Themes
-        enkia.tokyo-night                         # Tokyo Night color theme
-        catppuccin.catppuccin-vsc                  # Catppuccin color theme
-        catppuccin.catppuccin-vsc-icons            # Catppuccin icon theme
+        catppuccin.catppuccin-vsc # Catppuccin color theme
+        catppuccin.catppuccin-vsc-icons # Catppuccin icon theme
 
         # Database
-        sqlite-viewer                             # SQLite database viewer
+        sqlite-viewer # SQLite database viewer
 
         # Markdown
-        markdown-editor                           # WYSIWYG markdown editor
+        markdown-editor # WYSIWYG markdown editor
 
         # Productivity
-        pkief.material-icon-theme                 # Better file icons
+        pkief.material-icon-theme # Better file icons
       ];
 
       userSettings = {
-        # Theme (switch via Ctrl+Shift+P -> "Color Theme")
-        # Available: "Monokai", "Tokyo Night", "Tokyo Night Storm", "Tokyo Night Light",
-        #            "Catppuccin Mocha", "Catppuccin Macchiato", "Catppuccin Frappe", "Catppuccin Latte"
-        "workbench.colorTheme" = "Monokai";
+        # Theme follows the system light/dark mode.
+        "window.autoDetectColorScheme" = true;
+        "workbench.preferredDarkColorTheme" = "Catppuccin Mocha";
+        "workbench.preferredLightColorTheme" = "Catppuccin Latte";
+        "workbench.colorTheme" = "Catppuccin Mocha";
         "workbench.iconTheme" = "material-icon-theme";
 
         # Vim
@@ -139,30 +143,48 @@ in
         "vim.camelCaseMotion.enable" = true;
         "vim.insertModeKeyBindings" = [
           {
-            "before" = ["j" "j"];
-            "after" = ["<Esc>"];
+            "before" = [
+              "j"
+              "j"
+            ];
+            "after" = [ "<Esc>" ];
           }
         ];
         "vim.normalModeKeyBindingsNonRecursive" = [
           {
-            "before" = ["<leader>" "w"];
-            "commands" = ["workbench.action.files.save"];
+            "before" = [
+              "<leader>"
+              "w"
+            ];
+            "commands" = [ "workbench.action.files.save" ];
           }
           {
-            "before" = ["<leader>" "q"];
-            "commands" = ["workbench.action.closeActiveEditor"];
+            "before" = [
+              "<leader>"
+              "q"
+            ];
+            "commands" = [ "workbench.action.closeActiveEditor" ];
           }
           {
-            "before" = ["<leader>" "e"];
-            "commands" = ["workbench.action.toggleSidebarVisibility"];
+            "before" = [
+              "<leader>"
+              "e"
+            ];
+            "commands" = [ "workbench.action.toggleSidebarVisibility" ];
           }
           {
-            "before" = ["<leader>" "f"];
-            "commands" = ["workbench.action.quickOpen"];
+            "before" = [
+              "<leader>"
+              "f"
+            ];
+            "commands" = [ "workbench.action.quickOpen" ];
           }
           {
-            "before" = ["<leader>" "g"];
-            "commands" = ["workbench.action.findInFiles"];
+            "before" = [
+              "<leader>"
+              "g"
+            ];
+            "commands" = [ "workbench.action.findInFiles" ];
           }
         ];
 
@@ -175,7 +197,10 @@ in
         "editor.fontSize" = 14;
         "editor.fontLigatures" = true;
         "editor.renderWhitespace" = "boundary";
-        "editor.rulers" = [80 120];
+        "editor.rulers" = [
+          80
+          120
+        ];
         "editor.bracketPairColorization.enable" = true;
         "editor.guides.bracketPairs" = "active";
         "editor.stickyScroll.enabled" = true;
@@ -248,7 +273,7 @@ in
         "go.useLanguageServer" = true;
         "go.formatTool" = "goimports";
         "go.lintTool" = "golangci-lint";
-        "go.testFlags" = ["-v"];
+        "go.testFlags" = [ "-v" ];
         "go.diagnostic.vulncheck" = "Imports";
 
         # Rust
@@ -321,19 +346,41 @@ in
         "terminal.integrated.scrollback" = 10000;
 
         # Error Lens
-        "errorLens.enabledDiagnosticLevels" = ["error" "warning"];
+        "errorLens.enabledDiagnosticLevels" = [
+          "error"
+          "warning"
+        ];
         "errorLens.delay" = 500;
 
         # Todo Tree
-        "todo-tree.general.tags" = ["TODO" "FIXME" "HACK" "BUG" "XXX"];
+        "todo-tree.general.tags" = [
+          "TODO"
+          "FIXME"
+          "HACK"
+          "BUG"
+          "XXX"
+        ];
         "todo-tree.highlights.defaultHighlight" = {
           "type" = "text-and-comment";
           "foreground" = "#ffb86c";
         };
 
         # Spell Checker
-        "cSpell.enableFiletypes" = ["nix" "fish" "terraform" "toml" "markdown"];
-        "cSpell.userWords" = ["nixos" "nixpkgs" "mkif" "mkmerge" "mkdefault" "flake"];
+        "cSpell.enableFiletypes" = [
+          "nix"
+          "fish"
+          "terraform"
+          "toml"
+          "markdown"
+        ];
+        "cSpell.userWords" = [
+          "nixos"
+          "nixpkgs"
+          "mkif"
+          "mkmerge"
+          "mkdefault"
+          "flake"
+        ];
 
         # File Explorer
         "explorer.confirmDelete" = false;
@@ -345,7 +392,6 @@ in
         "git.confirmSync" = false;
         "git.autofetch" = true;
         "gitlens.codeLens.enabled" = false;
-
 
         # Claude Code
         "claudeCode.allowDangerouslySkipPermissions" = true;

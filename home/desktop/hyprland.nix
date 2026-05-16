@@ -1,34 +1,121 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
+  useDms ? false,
+  lockScreen ? false,
   ...
 }:
 
+let
+  # When DMS owns the shell, spawn it into the graphical session via
+  # uwsm so it lands in the same scope as Hyprland itself (polkit
+  # auth-agent registration needs class=user). Mirrors niri.nix.
+  dmsExecOnce = lib.optionals useDms [
+    "uwsm app -- dms run --session"
+  ];
+
+  # DMS Settings window: float + size to match the Niri equivalent.
+  dmsWindowRules = lib.optionals useDms [
+    "float, class:^(org.quickshell)$, title:^(Settings)$"
+    "center, class:^(org.quickshell)$, title:^(Settings)$"
+    "size 1200 800, class:^(org.quickshell)$, title:^(Settings)$"
+  ];
+
+  # Frosted-glass on the DMS bar (matches niri layer-rule namespace=dms:bar).
+  # DMS handles its own backdrop blur for popouts/control-center, so we only
+  # need the compositor blur for the bar itself.
+  dmsLayerRules = lib.optionals useDms [
+    "blur, dms:bar"
+  ];
+
+  powerMenuBind =
+    if useDms then
+      "$mainMod, Escape, exec, dms ipc call powermenu toggle"
+    else
+      "$mainMod, Escape, exec, wlogout";
+
+  notepadBind =
+    if useDms then "$mainMod, N, exec, dms ipc call notepad toggle" else "$mainMod, N, exec, notes";
+
+  # Lock binding (only when lockScreen is enabled).
+  lockBind = lib.optionals lockScreen [
+    (
+      if useDms then
+        "$mainMod CTRL, L, exec, dms ipc call lock lock"
+      else
+        "$mainMod CTRL, L, exec, swaylock -f"
+    )
+  ];
+
+  # DMS surface toggles. Theme toggle pairs with darkman so the
+  # xdg-desktop-portal color-scheme reflects the new mode (DMS skips
+  # the gsettings write when matugen is active — see niri.nix).
+  dmsSurfaceBinds = lib.optionals useDms [
+    "$mainMod, comma, exec, dms ipc call dash toggle overview"
+    "$mainMod, period, exec, dms ipc call control-center toggle"
+    "$mainMod SHIFT, D, exec, sh -c 'dms ipc call theme toggle; darkman toggle'"
+  ];
+
+  # Media keys: DMS shows its own OSD via pipewire monitoring, so call
+  # wpctl/brightnessctl directly. Without DMS, route through SwayOSD.
+  mediaBindel =
+    if useDms then
+      [
+        ", XF86AudioRaiseVolume, exec, wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"
+        ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+        ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+        ", XF86AudioMicMute, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+        ", XF86MonBrightnessUp, exec, brightnessctl set 5%+"
+        ", XF86MonBrightnessDown, exec, brightnessctl set 5%-"
+        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
+        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
+        "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
+        "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
+      ]
+    else
+      [
+        ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
+        ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower"
+        ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
+        ", XF86AudioMicMute, exec, pamixer --default-source -t"
+        ", XF86MonBrightnessUp, exec, swayosd-client --brightness raise"
+        ", XF86MonBrightnessDown, exec, swayosd-client --brightness lower"
+        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
+        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
+        "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
+        "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
+      ];
+in
 {
   # Hyprland configuration
   wayland.windowManager.hyprland = {
     enable = true;
 
     settings = {
-      # Monitor configuration (Omarchy style) - using 2.0 scale
+      # Monitor configuration (mirrors home/desktop/niri.nix output blocks).
+      # DP-2 is the Dell S2725QS in portrait (left of DP-1); DP-1 is the
+      # 32M2V landscape. transform=3 == niri's transform "270" (counter-
+      # clockwise 90°). Logical sizes: DP-2 1440×2560, DP-1 3072×1728.
+      # Wildcard preserves auto-detection for hp-laptop's eDP-1, etc.
       monitor = [
-        # Manual configuration with 2.0 scale:
+        "DP-2, 3840x2160@120, 0x0, 1.5, transform, 3"
+        "DP-1, 3840x2160@144, 1440x0, 1.25"
+        "Virtual-1, preferred, auto, 2.0"
         ", preferred, auto, auto"
-
-        # Previous automatic configuration:
-        #", preferred, auto, auto"
-        #"Virtual-1,2560x1600@60,0x0,1.600000"
-        #",2560x1600@59.97,auto,1"
       ];
 
-      # Startup applications (others handled by systemd user services)
+      # Startup applications (others handled by systemd user services).
+      # hyprpolkitagent is launched unconditionally even when DMS owns
+      # the shell — DMS 1.4.6's PolkitAuthModal logs "Polkit not
+      # available — authentication prompts disabled" and registers
+      # nothing against polkit. Drop this once Quickshell exposes
+      # polkit primitives. Mirrors home/desktop/niri.nix.
       exec-once = [
         "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
         "uwsm app -- ${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
         "uwsm app -- alacritty --daemon" # Terminal daemon for faster startup
-      ];
+      ]
+      ++ dmsExecOnce;
 
       # Environment variables (optimized for memory)
       env = [
@@ -70,12 +157,12 @@
         };
       };
 
-      # General settings (Omarchy + Kanagawa)
+      # General settings (Omarchy + Catppuccin)
       general = {
         gaps_in = 5;
         gaps_out = 10; # Omarchy style smaller outer gaps
         border_size = 2;
-        "col.active_border" = "rgb(dcd7ba)"; # Kanagawa foreground
+        "col.active_border" = "rgb(cdd6f4)"; # Catppuccin Mocha text
         "col.inactive_border" = "rgba(595959aa)";
         layout = "master";
         allow_tearing = true;
@@ -204,131 +291,145 @@
         "float, class:^(org.pulseaudio.pavucontrol)$"
         "center, class:^(org.pulseaudio.pavucontrol)$"
         "size 800 600, class:^(org.pulseaudio.pavucontrol)$"
-      ];
+      ]
+      ++ dmsWindowRules;
 
-      # Key bindings (Omarchy style)
+      # Layer-shell rules. Currently only used to apply blur to the DMS
+      # bar — DMS handles its own backdrop blur for popouts/modals.
+      layerrule = dmsLayerRules;
+
+      # Key bindings — mirror home/desktop/niri.nix so muscle memory
+      # is identical across compositors. Niri-specific column/tiler
+      # actions map to the closest Hyprland equivalent (group ops,
+      # fullscreen modes); divergences are flagged inline.
       "$mainMod" = "SUPER";
       bind = [
-        # Applications (matching Omarchy exactly)
-        "$mainMod, Return, exec, ghostty --working-directory=~" # Terminal (gtk-single-instance reuses the existing process)
-        "$mainMod, F, exec, thunar" # File manager
-        "$mainMod, B, exec, qutebrowser" # Qutebrowser
-        "$mainMod, M, exec, spotify" # Music
-        "$mainMod, N, exec, notes" # Notes manager
-        "$mainMod, G, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name WhatsApp -R --target window https://web.whatsapp.com" # WhatsApp
-        "$mainMod, T, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name Teams -R --target window https://teams.microsoft.com" # Microsoft Teams
-        "$mainMod, backslash, exec, bitwarden" # Password manager
-        "$mainMod, A, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name Grok_AI -R --target window https://grok.com" # Grok AI
-        "$mainMod, X, exec, qutebrowser -B ~/.config/qutebrowser-app -C ~/.config/qutebrowser/config.py --desktop-file-name X_Twitter -R --target window https://x.com" # X.com
-        "$mainMod, O, exec, web-apps-launcher" # Web Apps Launcher
-        "$mainMod, S, exec, ghostty -e btop" # System monitor
+        # Applications
+        "$mainMod, Return, exec, ghostty"
+        "$mainMod SHIFT, T, exec, thunar"
+        "$mainMod SHIFT, B, exec, browser-default"
+        "$mainMod SHIFT, M, exec, bookmarks"
+        "$mainMod SHIFT, N, exec, notes"
+        "$mainMod, backslash, exec, bitwarden"
+        "$mainMod SHIFT, A, exec, browser-app https://grok.com"
+        "$mainMod SHIFT, X, exec, browser-app https://x.com"
+        "$mainMod, S, exec, window-switcher"
 
-        # Menus (Omarchy style)
-        "$mainMod, Space, exec, fuzzel" # Launch apps
-        "$mainMod ALT, Space, exec, ghostty" # Omarchy menu (using terminal)
-        "$mainMod, Escape, exec, wlogout" # Power menu
+        # Launcher
+        "$mainMod, Space, exec, fuzzel"
+        "$mainMod, D, exec, fuzzel"
 
-        # Window management (exact Omarchy bindings)
-        "$mainMod, W, killactive," # Close active window
-        "$mainMod SHIFT, Q, exit," # Exit Hyprland
-        "SHIFT, F9, fullscreen, 0" # True full screen
-        "SHIFT, F11, fullscreen, 0" # Force full screen
-        "SHIFT, F10, fullscreen, 1" # Fake full screen
-        "$mainMod, J, togglesplit," # Toggle split
-        "$mainMod, P, pseudo," # Pseudo window
-        "$mainMod, V, togglefloating," # Toggle floating
+        # Window management. Niri: Mod+F = maximize-column (keeps bar),
+        # Mod+F9 / Mod+Ctrl+F = fullscreen-window (covers everything).
+        # Hyprland: fullscreen,1 = maximize, fullscreen,0 = true fs.
+        "$mainMod, W, killactive,"
+        "$mainMod SHIFT, Q, exit,"
+        "$mainMod, F9, fullscreen, 0"
+        "$mainMod CTRL, F, fullscreen, 0"
+        "$mainMod, F, fullscreen, 1"
+        "$mainMod, V, togglefloating,"
 
-        # Move focus with arrow keys and vim keys
+        # Focus (arrows + hjkl). Hyprland's movefocus already falls
+        # through to neighbour monitors at workspace edges, matching
+        # niri's focus-column-or-monitor-* semantics.
         "$mainMod, left, movefocus, l"
         "$mainMod, right, movefocus, r"
         "$mainMod, up, movefocus, u"
         "$mainMod, down, movefocus, d"
         "$mainMod, h, movefocus, l"
-        "$mainMod, j, movefocus, d"
-        "$mainMod, k, movefocus, u"
         "$mainMod, l, movefocus, r"
+        "$mainMod, k, movefocus, u"
+        "$mainMod, j, movefocus, d"
 
-        # Switch workspaces with number keys (using keycodes like Omarchy)
-        "$mainMod, code:10, workspace, 1" # Key 1
-        "$mainMod, code:11, workspace, 2" # Key 2
-        "$mainMod, code:12, workspace, 3" # Key 3
-        "$mainMod, code:13, workspace, 4" # Key 4
-        "$mainMod, code:14, workspace, 5" # Key 5
-        "$mainMod, code:15, workspace, 6" # Key 6
-        "$mainMod, code:16, workspace, 7" # Key 7
-        "$mainMod, code:17, workspace, 8" # Key 8
-        "$mainMod, code:18, workspace, 9" # Key 9
-        "$mainMod, code:19, workspace, 10" # Key 0
+        # Niri: toggle-column-tabbed-display. Closest Hyprland concept
+        # is a group (tabbed stack of windows in one slot).
+        "$mainMod, c, togglegroup,"
 
-        # Move window to workspace (using keycodes)
-        "$mainMod SHIFT, code:10, movetoworkspace, 1"
-        "$mainMod SHIFT, code:11, movetoworkspace, 2"
-        "$mainMod SHIFT, code:12, movetoworkspace, 3"
-        "$mainMod SHIFT, code:13, movetoworkspace, 4"
-        "$mainMod SHIFT, code:14, movetoworkspace, 5"
-        "$mainMod SHIFT, code:15, movetoworkspace, 6"
-        "$mainMod SHIFT, code:16, movetoworkspace, 7"
-        "$mainMod SHIFT, code:17, movetoworkspace, 8"
-        "$mainMod SHIFT, code:18, movetoworkspace, 9"
-        "$mainMod SHIFT, code:19, movetoworkspace, 10"
-
-        # Tab between workspaces
-        "$mainMod, Tab, workspace, e+1" # Next workspace
-        "$mainMod SHIFT, Tab, workspace, e-1" # Previous workspace
-
-        # Swap windows with arrow keys and vim keys
+        # Move windows (arrows + hjkl). Niri move-column-*-or-to-
+        # monitor-* → Hyprland swapwindow with monitor edge wrap.
         "$mainMod SHIFT, left, swapwindow, l"
         "$mainMod SHIFT, right, swapwindow, r"
         "$mainMod SHIFT, up, swapwindow, u"
         "$mainMod SHIFT, down, swapwindow, d"
         "$mainMod SHIFT, h, swapwindow, l"
-        "$mainMod SHIFT, j, swapwindow, d"
-        "$mainMod SHIFT, k, swapwindow, u"
         "$mainMod SHIFT, l, swapwindow, r"
+        "$mainMod SHIFT, k, swapwindow, u"
+        "$mainMod SHIFT, j, swapwindow, d"
 
-        # Resize windows (exact Omarchy keycodes)
-        "$mainMod, code:20, resizeactive, -100 0" # Minus key: expand left
-        "$mainMod, code:21, resizeactive, 100 0" # Equal key: shrink left
-        "$mainMod SHIFT, code:20, resizeactive, 0 -100" # Shift+Minus: shrink up
-        "$mainMod SHIFT, code:21, resizeactive, 0 100" # Shift+Equal: expand down
+        # Niri consume/expel-window-left/right. Hyprland approximation:
+        # pull the window into a group (left) or pop it out (right).
+        "$mainMod, bracketleft, moveintogroup, l"
+        "$mainMod, bracketright, moveoutofgroup,"
 
-        # Alt-Tab window cycling
-        "ALT, Tab, cyclenext,"
-        "ALT SHIFT, Tab, cyclenext, prev"
+        # Multi-monitor (arrows only — Mod+Ctrl+L collides with lock).
+        "$mainMod CTRL, left, focusmonitor, l"
+        "$mainMod CTRL, right, focusmonitor, r"
+        "$mainMod CTRL, up, focusmonitor, u"
+        "$mainMod CTRL, down, focusmonitor, d"
+        "$mainMod CTRL SHIFT, left, movewindow, mon:l"
+        "$mainMod CTRL SHIFT, right, movewindow, mon:r"
+        "$mainMod CTRL SHIFT, up, movewindow, mon:u"
+        "$mainMod CTRL SHIFT, down, movewindow, mon:d"
 
-        # Screenshots (Omarchy style)
-        "$mainMod SHIFT, S, exec, screenshot" # Region screenshot (selection)
-        "$mainMod SHIFT, F, exec, screenshot output" # Full screen screenshot
+        # Workspaces 1..10. Plain digit keys to match niri's layout-
+        # aware "Mod+1".."Mod+0" (niri doesn't use keycodes).
+        "$mainMod, 1, workspace, 1"
+        "$mainMod, 2, workspace, 2"
+        "$mainMod, 3, workspace, 3"
+        "$mainMod, 4, workspace, 4"
+        "$mainMod, 5, workspace, 5"
+        "$mainMod, 6, workspace, 6"
+        "$mainMod, 7, workspace, 7"
+        "$mainMod, 8, workspace, 8"
+        "$mainMod, 9, workspace, 9"
+        "$mainMod, 0, workspace, 10"
 
-        # Notification control
-        "$mainMod, semicolon, exec, makoctl restore --count 3" # Show last 3 notifications
+        "$mainMod SHIFT, 1, movetoworkspace, 1"
+        "$mainMod SHIFT, 2, movetoworkspace, 2"
+        "$mainMod SHIFT, 3, movetoworkspace, 3"
+        "$mainMod SHIFT, 4, movetoworkspace, 4"
+        "$mainMod SHIFT, 5, movetoworkspace, 5"
+        "$mainMod SHIFT, 6, movetoworkspace, 6"
+        "$mainMod SHIFT, 7, movetoworkspace, 7"
+        "$mainMod SHIFT, 8, movetoworkspace, 8"
+        "$mainMod SHIFT, 9, movetoworkspace, 9"
+        "$mainMod SHIFT, 0, movetoworkspace, 10"
 
-        # Waybar toggle
-        "$mainMod, Y, exec, pkill waybar || waybar -c ~/.config/waybar/hyprland-config.json -s ~/.config/waybar/style.css" # Toggle waybar
+        "$mainMod, Tab, workspace, e+1"
+        "$mainMod SHIFT, Tab, workspace, e-1"
 
-        # Scroll through workspaces with mouse
-        "$mainMod, mouse_down, workspace, e+1"
-        "$mainMod, mouse_up, workspace, e-1"
-      ];
+        # Column width / window height. Niri set-column-width ±100 and
+        # set-window-height ±100 → Hyprland resizeactive on the X / Y
+        # axis. (Niri Mod+R switch-preset-column-width has no native
+        # Hyprland equivalent and is intentionally left unbound.)
+        "$mainMod, minus, resizeactive, -100 0"
+        "$mainMod, equal, resizeactive, 100 0"
+        "$mainMod SHIFT, minus, resizeactive, 0 -100"
+        "$mainMod SHIFT, equal, resizeactive, 0 100"
 
-      # Media keys (using SwayOSD for OSD notifications)
-      bindel = [
-        # Volume controls (with SwayOSD)
-        ", XF86AudioRaiseVolume, exec, swayosd-client --output-volume raise"
-        ", XF86AudioLowerVolume, exec, swayosd-client --output-volume lower"
-        ", XF86AudioMute, exec, swayosd-client --output-volume mute-toggle"
-        ", XF86AudioMicMute, exec, pamixer --default-source -t"
+        # Screenshots. Niri Mod+Shift+S uses screenshot-niri (niri-
+        # native overlay); Hyprland uses the hyprshot-based script.
+        "$mainMod SHIFT, S, exec, screenshot"
+        "$mainMod SHIFT, F, exec, screenshot output"
 
-        # Brightness controls (with SwayOSD)
-        ", XF86MonBrightnessUp, exec, swayosd-client --brightness raise"
-        ", XF86MonBrightnessDown, exec, swayosd-client --brightness lower"
+        # Notifications
+        "$mainMod, semicolon, exec, makoctl restore"
 
-        # Precise adjustments with Alt (still direct commands for fine control)
-        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
-        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
-        "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
-        "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
-      ];
+        # Bar toggles (systemd-managed, same scripts as niri.nix)
+        "$mainMod, Y, exec, sh -c 'systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar'"
+        "$mainMod SHIFT, Y, exec, sh -c 'systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww'"
+      ]
+      ++ [
+        # Power menu / notepad — swap targets when DMS owns the shell.
+        powerMenuBind
+        notepadBind
+      ]
+      ++ lockBind
+      ++ dmsSurfaceBinds;
+
+      # Media keys: SwayOSD by default, direct wpctl/brightnessctl when
+      # DMS owns the OSD (DMS shows its own via pipewire monitoring).
+      bindel = mediaBindel;
 
       # Media control keys
       bindl = [
@@ -346,4 +447,3 @@
     };
   };
 }
-

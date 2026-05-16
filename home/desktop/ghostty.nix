@@ -54,6 +54,6 @@ in
 
     # Auto-switch via freedesktop portal color-scheme. Both themes ship
     # with ghostty — no extra files to manage.
-    theme = light:TokyoNight Day,dark:TokyoNight Storm
+    theme = light:Catppuccin Latte,dark:Catppuccin Mocha
   '';
 }

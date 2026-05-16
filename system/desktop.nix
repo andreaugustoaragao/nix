@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   inputs,
@@ -8,26 +7,32 @@
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
 {
-  # Hyprland compositor
-  programs.hyprland = {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
+  programs = {
+    # Hyprland compositor
+    hyprland = {
+      enable = true;
+      withUWSM = true;
+      xwayland.enable = true;
+    };
+
+    niri = {
+      enable = true;
+      package = pkgs-unstable.niri;
+    };
+
+    dconf.enable = true;
   };
 
-  programs.niri = {
-    enable = true;
-    package = pkgs-unstable.niri;
-  };
-
-  environment.systemPackages = with pkgs; [ xwayland-satellite ];
-  environment.sessionVariables = {
-    WLR_NO_HARDWARE_CURSORS = "0";
+  environment = {
+    systemPackages = with pkgs; [ xwayland-satellite ];
+    sessionVariables = {
+      WLR_NO_HARDWARE_CURSORS = "0";
+    };
   };
 
   # Screen sharing on niri requires xdg-desktop-portal-gnome to handle
@@ -57,41 +62,43 @@ in
     "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
   };
 
-  systemd.user.services.niri-graphical-session = {
-    description = "Pull graphical-session.target up for niri (started outside niri.service)";
-    bindsTo = [ "graphical-session.target" ];
-    before = [ "graphical-session.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = "yes";
-      ExecStart = "${pkgs.coreutils}/bin/true";
+  systemd = {
+    user.services.niri-graphical-session = {
+      description = "Pull graphical-session.target up for niri (started outside niri.service)";
+      bindsTo = [ "graphical-session.target" ];
+      before = [ "graphical-session.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = "yes";
+        ExecStart = "${pkgs.coreutils}/bin/true";
+      };
+    };
+
+    # SwayOSD LibInput backend needs to run as system service for proper D-Bus access
+    services.swayosd-libinput-backend = {
+      description = "SwayOSD LibInput backend for input device events";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "dbus.service" ];
+      requires = [ "dbus.service" ];
+      serviceConfig = {
+        Type = "simple";
+        ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
+        Restart = "on-failure";
+        RestartSec = 2;
+        User = "root";
+        Group = "input";
+      };
     };
   };
 
-  programs.dconf.enable = true;
+  services = {
+    upower.enable = true;
+    power-profiles-daemon.enable = true;
+    fwupd.enable = true;
 
-  services.upower.enable = true;
-  services.power-profiles-daemon.enable = true;
-  services.fwupd.enable = true;
+    flatpak.enable = lib.mkForce false;
 
-  services.flatpak.enable = lib.mkForce false;
-
-  # SwayOSD D-Bus policy (required for libinput backend)
-  services.dbus.packages = [ pkgs.swayosd ];
-
-  # SwayOSD LibInput backend needs to run as system service for proper D-Bus access
-  systemd.services.swayosd-libinput-backend = {
-    description = "SwayOSD LibInput backend for input device events";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "dbus.service" ];
-    requires = [ "dbus.service" ];
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
-      Restart = "on-failure";
-      RestartSec = 2;
-      User = "root";
-      Group = "input";
-    };
+    # SwayOSD D-Bus policy (required for libinput backend)
+    dbus.packages = [ pkgs.swayosd ];
   };
 }

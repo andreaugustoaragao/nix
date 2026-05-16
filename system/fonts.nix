@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   fonts.packages = with pkgs; [
@@ -10,4 +10,4 @@
     fira-code-symbols
     yaru-theme
   ];
-} 
+}

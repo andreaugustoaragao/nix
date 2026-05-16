@@ -1,14 +1,37 @@
 { pkgs, inputs, ... }:
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
+
+  # Wrap zed-editor without rebuilding it from source: symlinkJoin the
+  # cached binary into a thin wrapper derivation, then makeWrapper only
+  # the `zed` entry point. Keeps cache.nixos.org hits intact — only this
+  # 30-second wrapper rebuilds when the injection script changes.
+  zedWrapped =
+    let
+      zedPkg = unstable-pkgs.zed-editor;
+    in
+    pkgs.symlinkJoin {
+      name = "zed-editor-${zedPkg.version}-wrapped";
+      paths = [ zedPkg ];
+      nativeBuildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/zeditor \
+          --run 'if [ -z "''${ANTHROPIC_API_KEY:-}" ] && [ -r /run/secrets/anthropic_api_key ]; then zed_anthropic_key="$(cat /run/secrets/anthropic_api_key)"; case "$zed_anthropic_key" in ANTHROPIC_API_KEY=*) export ANTHROPIC_API_KEY="''${zed_anthropic_key#ANTHROPIC_API_KEY=}" ;; *) export ANTHROPIC_API_KEY="$zed_anthropic_key" ;; esac; unset zed_anthropic_key; fi'
+        # Convenience alias: the cached nixpkgs build only ships
+        # `zeditor`, but historical muscle memory + the desktop file
+        # both expect `zed` to work too.
+        ln -s zeditor $out/bin/zed
+      '';
+      inherit (zedPkg) version meta;
+    };
 in
 {
   programs.zed-editor = {
     enable = true;
-    package = unstable-pkgs.zed-editor;
+    package = zedWrapped;
 
     # Nix owns settings.json — Zed cannot modify it at runtime.
     mutableUserSettings = false;
@@ -21,18 +44,20 @@ in
       "helm"
       "markdown-oxide"
       "markdownlint"
+      "git-firefly" # syntax highlighting for git commit/config/rebase/diff/ignore/attributes
+      "log" # tree-sitter syntax highlighting for .log files
 
       # Languages
       "html"
       "bash"
       "fish"
       "make"
+      "toml"
       "gosum"
       "proto"
 
       # Color schemes
       "catppuccin"
-      "tokyo-night"
       "rose-pine-theme"
       "kanagawa-themes"
 
@@ -54,12 +79,27 @@ in
         trust_all_worktrees = true;
       };
       vim_mode = true;
-      ui_font_size = 16;
-      buffer_font_size = 15;
+      ui_font_size = 20;
+      buffer_font_size = 16;
+      bottom_dock_layout = "full";
+      project_panel = {
+        dock = "left";
+        show_diagnostics = "all";
+      };
+      tabs = {
+        file_icons = true;
+        show_diagnostics = "all";
+      };
+      diagnostics = {
+        inline = {
+          enabled = true;
+          max_severity = null;
+        };
+      };
       theme = {
         mode = "system";
-        light = "Rosé Pine Dawn";
-        dark = "Rosé Pine";
+        light = "Catppuccin Latte";
+        dark = "Catppuccin Mocha";
       };
       icon_theme = {
         mode = "system";

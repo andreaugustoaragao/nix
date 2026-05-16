@@ -1,14 +1,13 @@
 {
   config,
   pkgs,
-  lib,
   inputs,
   ...
 }:
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
@@ -49,10 +48,11 @@ in
           default_area = "menupanel";
           permissions = [ "<all_urls>" ];
         };
-        # Kanagawa Theme
-        "{26690e10-862d-456f-8bf2-50117a3cb206}" = {
+        # Catppuccin Mocha Theme
+        "{7aa7c68a-141f-45c9-a1c6-6e7382debbe1}" = {
           installation_mode = "force_installed";
           allowed_types = [ "theme" ];
+          install_url = "https://addons.mozilla.org/firefox/downloads/file/4147586/catppuccin_mocha-1.0.xpi";
         };
         # Disable configuration prompts and setup wizard
         "*" = {

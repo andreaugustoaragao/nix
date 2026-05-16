@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # Multi-shell completion engine — knows ~1200 CLIs out of the box

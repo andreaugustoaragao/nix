@@ -2,7 +2,6 @@
   config,
   pkgs,
   lib,
-  inputs,
   owner,
   isServer,
   ...
@@ -177,6 +176,14 @@
       # LITELLM_API_KEY by home/cli/fish.nix and consumed by codex
       # (configured in home/cli/codex.nix).
       "litellm_api_key" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # Anthropic API key for desktop apps like Zed. The Zed wrapper
+      # reads this at launch and exports ANTHROPIC_API_KEY.
+      "anthropic_api_key" = {
         owner = owner.name;
         group = "users";
         mode = "0400";

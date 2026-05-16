@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, lib, ... }:
 
 {
   environment.sessionVariables = {
@@ -15,4 +15,4 @@
   # Revert by removing this line if anything upstream assumes bash at
   # /bin/sh and breaks.
   environment.binsh = "${pkgs.dash}/bin/dash";
-} 
+}

@@ -1,10 +1,13 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  pkgs,
+  ...
+}:
 
 {
   # Fish shell configuration
   programs.fish = {
     enable = true;
-    
+
     # Aliases are commands fish silently substitutes — used here for
     # cases that override or transform a real command (eza-as-ls,
     # safer rm/cp/mv) where seeing the expansion every time is noise.
@@ -87,7 +90,7 @@
       h = "history";
       y = "yazi";
     };
-    
+
     interactiveShellInit = ''
       # Any-nix-shell integration for better nix-shell experience
       ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
@@ -96,6 +99,19 @@
       # the default `z` alias (so non-interactive scripts and CLI
       # agents that source those shells keep POSIX cd semantics).
       ${pkgs.zoxide}/bin/zoxide init fish --cmd cd | source
+
+      # Catppuccin Mocha shell syntax colors.
+      set -g fish_color_autosuggestion 6c7086
+      set -g fish_color_command 89b4fa
+      set -g fish_color_comment 6c7086
+      set -g fish_color_cwd a6e3a1
+      set -g fish_color_error f38ba8
+      set -g fish_color_escape f5c2e7
+      set -g fish_color_operator f5c2e7
+      set -g fish_color_param cdd6f4
+      set -g fish_color_quote a6e3a1
+      set -g fish_color_redirection f9e2af
+      set -g fish_color_valid_path --underline
 
       # Use local k3s kubeconfig when no KUBECONFIG is set
       if test -r /etc/rancher/k3s/k3s.yaml; and not set -q KUBECONFIG
@@ -111,14 +127,14 @@
         set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
       end
     '';
-    
+
     functions = {
       fish_greeting = {
         description = "Show fastfetch and colorful fortune on startup";
         body = ''
           # Display system information first
           fastfetch
-          
+
           # Display a colorful random fortune below
           if command -v fortune >/dev/null 2>&1 && command -v lolcat >/dev/null 2>&1
             echo
@@ -130,16 +146,16 @@
         '';
       };
     };
-    
+
     plugins = [
       {
         name = "fzf-fish";
-        src = pkgs.fishPlugins.fzf-fish.src;
+        inherit (pkgs.fishPlugins.fzf-fish) src;
       }
       {
         name = "autopair";
-        src = pkgs.fishPlugins.autopair.src;
+        inherit (pkgs.fishPlugins.autopair) src;
       }
     ];
   };
-} 
+}

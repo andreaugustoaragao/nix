@@ -1,4 +1,10 @@
-{ config, osConfig, pkgs, lib, inputs, ... }:
+{
+  config,
+  osConfig,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   niriEnabled = osConfig.programs.niri.enable or false;
@@ -6,7 +12,7 @@ in
 {
   home.packages =
     lib.optionals (config.wayland.windowManager.hyprland.enable || niriEnabled) [
-      pkgs.wl-clipboard  # Provides wl-copy and wl-paste for clipboard operations
+      pkgs.wl-clipboard # Provides wl-copy and wl-paste for clipboard operations
       (pkgs.writeShellScriptBin "screenshot" ''
         # Omarchy-style screenshot script for NixOS (Wayland-only)
         [[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
@@ -102,4 +108,4 @@ in
           --copy-command '${pkgs.wl-clipboard}/bin/wl-copy'
       '')
     ];
-} 
+}

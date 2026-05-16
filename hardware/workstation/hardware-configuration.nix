@@ -14,25 +14,33 @@
     ./amd-gpu.nix
   ];
 
-  boot.initrd.availableKernelModules = [
-    "nvme"
-    "xhci_pci"
-    "ahci"
-    "thunderbolt"
-    "usbhid"
-    "usb_storage"
-    "sd_mod"
-  ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [
-    "kvm-amd"
-    "k10temp"
-    "nct6775" # ASRock X870E Taichi Super I/O sensors for board fan RPMs
-    "mt7925e"
-  ];
-  boot.extraModulePackages = [ ];
-  hardware.enableRedistributableFirmware = true;
+  boot = {
+    initrd = {
+      availableKernelModules = [
+        "nvme"
+        "xhci_pci"
+        "ahci"
+        "thunderbolt"
+        "usbhid"
+        "usb_storage"
+        "sd_mod"
+      ];
+      kernelModules = [ ];
+    };
+    kernelModules = [
+      "kvm-amd"
+      "k10temp"
+      "nct6775" # ASRock X870E Taichi Super I/O sensors for board fan RPMs
+      "mt7925e"
+    ];
+    extraModulePackages = [ ];
+    # Use the modern AMD P-State driver in active mode (EPP-based) for the 9950X
+    # instead of acpi-cpufreq — gives finer-grained boost behavior on Zen 5.
+    kernelParams = [ "amd_pstate=active" ];
 
+    # 186 GiB of RAM — strongly prefer dropping page cache over swapping anon pages.
+    kernel.sysctl."vm.swappiness" = 10;
+  };
   environment.systemPackages = with pkgs; [
     nvme-cli
     powertop
@@ -41,36 +49,38 @@
     stress-ng
   ];
 
-  # Root filesystem on btrfs with @ subvolume
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
-    fsType = "btrfs";
-    options = [
-      "subvol=@"
-      "compress=zstd:1"
-      "noatime"
-    ];
-  };
+  fileSystems = {
+    # Root filesystem on btrfs with @ subvolume
+    "/" = {
+      device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
+      fsType = "btrfs";
+      options = [
+        "subvol=@"
+        "compress=zstd:1"
+        "noatime"
+      ];
+    };
 
-  # Boot partition
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/79B2-0CFC";
-    fsType = "vfat";
-    options = [
-      "fmask=0077"
-      "dmask=0077"
-    ];
-  };
+    # Boot partition
+    "/boot" = {
+      device = "/dev/disk/by-uuid/79B2-0CFC";
+      fsType = "vfat";
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
+    };
 
-  # Nix store on btrfs subvolume @nix (compressed)
-  fileSystems."/nix" = {
-    device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
-    fsType = "btrfs";
-    options = [
-      "subvol=@nix"
-      "compress=zstd:1"
-      "noatime"
-    ];
+    # Nix store on btrfs subvolume @nix (compressed)
+    "/nix" = {
+      device = "/dev/disk/by-uuid/f557ae50-374c-4c65-934a-d71356d119db";
+      fsType = "btrfs";
+      options = [
+        "subvol=@nix"
+        "compress=zstd:1"
+        "noatime"
+      ];
+    };
   };
 
   # Monthly scrub of the btrfs pool catches silent bitrot on the
@@ -91,18 +101,14 @@
   # networking.interfaces.enp108s0f0.useDHCP = lib.mkDefault true;
   # networking.interfaces.enp108s0f1.useDHCP = lib.mkDefault true;
 
-  # AMD-specific optimizations
-  hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
-
-  # Use the modern AMD P-State driver in active mode (EPP-based) for the 9950X
-  # instead of acpi-cpufreq — gives finer-grained boost behavior on Zen 5.
-  boot.kernelParams = [ "amd_pstate=active" ];
+  hardware = {
+    enableRedistributableFirmware = true;
+    # AMD-specific optimizations
+    cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+  };
 
   # No power constraints on a desktop — pin governor to performance.
   powerManagement.cpuFreqGovernor = "performance";
-
-  # 186 GiB of RAM — strongly prefer dropping page cache over swapping anon pages.
-  boot.kernel.sysctl."vm.swappiness" = 10;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }

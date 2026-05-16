@@ -2,7 +2,7 @@
 
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
@@ -142,9 +142,19 @@ in
       pastel
       ouch
       unzip
+      zip
       yazi
       inkscape
       imagemagick # provides convert command
+
+      # Snacks.image inline-render dependencies (nvim opens images
+      # rendered through these CLIs via the kitty graphics protocol):
+      #   - ghostscript → `gs` for embedded PDF rendering
+      #   - tectonic    → lightweight LaTeX engine for math expressions
+      #   - mermaid-cli → `mmdc` for Mermaid diagrams (pulls Chromium)
+      ghostscript
+      tectonic
+      mermaid-cli
 
       # Development tools that moved to development.nix:
       # - All language servers, compilers, and dev tools
@@ -157,6 +167,11 @@ in
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
     ];
+
+  programs.bat = {
+    enable = true;
+    config.theme = "Catppuccin Mocha";
+  };
 
   # Local .desktop overrides for packages whose Icon= references a name
   # not in the active icon theme (Papirus-Dark). User-local entries win
@@ -206,5 +221,37 @@ in
       ];
       icon = "blueman";
     };
-  };
+  }
+  // (
+    # CLI/TUI .desktop entries shipped by various packages that pollute
+    # fuzzel without being useful as no-arg launches. `noDisplay = true`
+    # hides them from launchers (user override beats package-provided in
+    # the XDG search path) while keeping MIME handlers intact.
+    let
+      hide = name: {
+        inherit name;
+        noDisplay = true;
+        # `exec` is mandatory in HM's xdg.desktopEntries schema even when
+        # the entry is hidden; point at /bin/true so the file is well-formed.
+        exec = "true";
+      };
+    in
+    {
+      vim = hide "Vim";
+      tectonic = hide "Tectonic";
+      "amdgpu_top-tui" = hide "AMDGPU TOP (TUI)";
+      bottom = hide "bottom";
+      btop = hide "btop++";
+      htop = hide "Htop";
+      # `nvim.desktop` is the package-provided "Neovim wrapper" entry —
+      # not a wrapper for Neovide, just stock terminal nvim with a
+      # misleading upstream name. Neovide stays visible for the genuine
+      # GUI-launch case.
+      nvim = hide "Neovim wrapper";
+      # Foot terminal — keep the plain `foot.desktop` for at-will use;
+      # hide the server/client pair (daemon mode, unused here).
+      footclient = hide "Foot Client";
+      foot-server = hide "Foot Server";
+    }
+  );
 }

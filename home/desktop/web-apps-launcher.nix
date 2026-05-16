@@ -296,7 +296,7 @@ let
   mkEntry =
     app:
     {
-      name = app.name;
+      inherit (app) name;
       # Per the freedesktop .desktop spec, Exec reserves characters
       # like `?`, `&`, `#`, `;` outside of quotes — quote the URL (and
       # profile, for symmetry) so URLs with query strings are valid.

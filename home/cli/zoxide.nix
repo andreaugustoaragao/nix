@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+_:
 
 {
   # Default integrations add a `z` command without touching `cd`. We
@@ -11,4 +11,4 @@
     enableFishIntegration = false;
     enableZshIntegration = true;
   };
-} 
+}

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, ... }:
 
 {
   home.packages = with pkgs; [ eww ];
@@ -17,4 +17,4 @@
     categories = [ "Utility" ];
     icon = "applications-system";
   };
-} 
+}

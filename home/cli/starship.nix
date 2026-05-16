@@ -1,10 +1,4 @@
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  ...
-}:
+_:
 
 {
   # Starship prompt (from nix-config)
@@ -24,8 +18,7 @@
         home_symbol = "";
       };
       golang = {
-        #style = "bg:#79d4fd fg:#000000";
-        style = "fg:#79d4fd";
+        style = "fg:#89b4fa";
         format = "[$symbol($version)]($style)";
         symbol = "";
       };
@@ -35,29 +28,26 @@
       git_branch = {
         disabled = true;
         symbol = " ";
-        #style = "bg:#f34c28 fg:#413932";
-        style = "fg:#f34c28";
+        style = "fg:#f38ba8";
         format = "[  $symbol$branch(:$remote_branch)]($style)";
       };
       azure = {
         disabled = true;
-        #style = "fg:#ffffff bg:#0078d4";
-        style = "fg:#0078d4";
+        style = "fg:#89b4fa";
         format = "[  ($subscription)]($style)";
       };
       java = {
         format = "[ ($version)]($style)";
       };
       kubernetes = {
-        #style = "bg:#303030 fg:#ffffff";
-        style = "fg:#2e6ce6";
+        style = "fg:#89b4fa";
         #format = "\\[[󱃾 :($cluster)]($style)\\]";
         format = "[ 󱃾 ($cluster)]($style)";
         disabled = true;
       };
       docker_context = {
         disabled = false;
-        #style = "fg:#1d63ed";
+        style = "fg:#89b4fa";
         format = "[ 󰡨 ($context) ]($style)";
       };
       gcloud = {
@@ -81,4 +71,3 @@
     };
   };
 }
-

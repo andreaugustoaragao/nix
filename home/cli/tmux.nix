@@ -24,6 +24,7 @@
       # Ctrl+Enter, etc.) from the outer terminal to inner apps like
       # Claude Code and Neovim.
       set -g extended-keys on
+      set -g extended-keys-format csi-u
       set -as terminal-features 'xterm*:extkeys'
       set -s escape-time 0
       set-option -g focus-events on
@@ -36,24 +37,24 @@
       set -g set-clipboard on      # use system clipboard (OSC 52)
 
       set -g status-interval 3     # update the status bar every 3 seconds
-      # Tokyo Night Storm palette (matches ghostty/foot/kitty/alacritty).
+      # Catppuccin Mocha palette (matches ghostty/foot/kitty/alacritty).
       # Static — does not flip in light mode. If needed, swap colors via a
       # darkman script that sources a different conf and `refresh-client -S`.
-      set -g status-left "#[fg=#7aa2f7,bold,bg=default] #S "
-      set -g status-right "#(tmux-right-status)#[fg=#7aa2f7] 󱑒 %a %b %d %l:%M %p"
+      set -g status-left "#[fg=#89b4fa,bold,bg=default] #S "
+      set -g status-right "#(tmux-right-status)#[fg=#89b4fa] 󱑒 %a %b %d %l:%M %p"
       set -g status-justify left
       set -g status-left-length 200
       set -g status-right-length 200
       set -g status-position top
-      set -g status-style 'bg=#1f2335,fg=#c0caf5'
+      set -g status-style 'bg=#181825,fg=#cdd6f4'
 
-      set -g window-status-current-format '#[fg=#c0caf5,bold,bg=#3d59a1]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
-      set -g window-status-format '#[fg=#565f89,bg=default]#(tmux-window-icons #W)'
+      set -g window-status-current-format '#[fg=#1e1e2e,bold,bg=#89b4fa]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
+      set -g window-status-format '#[fg=#6c7086,bg=default]#(tmux-window-icons #W)'
 
-      set -g window-status-last-style 'fg=#a9b1d6,bg=default'
-      set -g message-command-style bg=#1f2335,fg=#e0af68
-      set -g message-style bg=#1f2335,fg=#e0af68
-      set -g mode-style bg=#3d59a1,fg=#c0caf5
+      set -g window-status-last-style 'fg=#bac2de,bg=default'
+      set -g message-command-style bg=#181825,fg=#f9e2af
+      set -g message-style bg=#181825,fg=#f9e2af
+      set -g mode-style bg=#89b4fa,fg=#1e1e2e
 
       # fix SSH agent after reconnecting
       # see also ssh/rc
@@ -61,10 +62,10 @@
       set -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
 
       setw -g mode-keys vi
-      set -g pane-active-border-style 'fg=#7aa2f7,bg=default'
-      set -g pane-border-style 'fg=#414868,bg=default'
+      set -g pane-active-border-style 'fg=#89b4fa,bg=default'
+      set -g pane-border-style 'fg=#585b70,bg=default'
 
-      set -g window-active-style 'fg=default,bg=#24283b'
+      set -g window-active-style 'fg=default,bg=#1e1e2e'
 
       bind r source-file ~/.config/tmux/tmux.conf \; display-message "tmux.conf reloaded"
 
@@ -157,7 +158,7 @@
         if [ -f ~/.kube/config ]; then
           output="$(grep 'current-context:' ~/.kube/config | awk '{print $2}')"
           if [ -n "$output" ]; then
-            output="#[fg=#2e6ce6,bold,bg=default]󱃾 $output"
+            output="#[fg=#89b4fa,bold,bg=default]󱃾 $output"
           fi
         fi
         echo $output
@@ -168,7 +169,7 @@
         if [ -f ~/.config/azure/azureProfile.json ]; then
           output=$(jq -r '.subscriptions[] | select(.isDefault==true) | .name' ~/.config/azure/azureProfile.json)
           if [ -n "$output" ]; then
-            output="#[fg=#0078d4,bold,bg=default] $output"
+            output="#[fg=#89b4fa,bold,bg=default] $output"
           fi
         fi
         echo $output
@@ -179,9 +180,9 @@
         local project_dir
         project_dir="$(tmux show-environment TMUX_SESSION_ROOT_DIR|cut -d'=' -f2|awk -F/ '{print $(NF-1)"/"$NF}')"
         if [ -n "$project_dir" ]; then
-          output="#[fg=#ebbcba] $project_dir"
+          output="#[fg=#f5e0dc] $project_dir"
         else
-          output="#[fg=#ebbcba] $(pwd)"
+          output="#[fg=#f5e0dc] $(pwd)"
         fi
         echo $output
       }
@@ -237,7 +238,7 @@
       branch=$(get_git_branch)
       if [[ -n $branch ]]; then
       	git_status=$(get_git_status)
-      	echo "#[fg=#f34c28]  $branch#[fg=#eb6f92][$git_status]"
+      	echo "#[fg=#f38ba8]  $branch#[fg=#fab387][$git_status]"
       else
       	echo ""
       fi

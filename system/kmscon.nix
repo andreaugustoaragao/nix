@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   services.kmscon = {
@@ -9,12 +9,11 @@
         package = pkgs.nerd-fonts.caskaydia-mono;
       }
     ];
-    extraOptions = ''
-    '';
-    hwRender = false;  # Disable hardware rendering to avoid DRM conflicts with X server
+    extraOptions = "";
+    hwRender = false; # Disable hardware rendering to avoid DRM conflicts with X server
     extraConfig = ''
       font-size=12
       font-dpi=144
     '';
   };
-} 
+}

@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # Auto-correct mistyped commands. After a failed command, type `f`

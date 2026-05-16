@@ -1,18 +1,8 @@
 {
-  config,
-  pkgs,
   lib,
-  inputs,
-  isWorkstation,
-  isLaptop,
-  isVm,
   isServer,
-  owner,
   hostName,
   stateVersion,
-  profile,
-  bluetooth ? false,
-  lockScreen ? false,
   ...
 }:
 

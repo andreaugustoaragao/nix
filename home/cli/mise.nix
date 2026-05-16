@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # Polyglot runtime version manager (replaces nvm/pyenv/asdf/goenv).

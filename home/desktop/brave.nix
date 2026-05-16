@@ -1,8 +1,8 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, inputs, ... }:
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
@@ -15,9 +15,9 @@ in
       # Wayland flags for proper Wayland support
       "--enable-features=UseOzonePlatform"
       "--ozone-platform=wayland"
-      "--disable-features=BraveRewards"  # Disable Brave Rewards
-      "--disable-brave-ads"              # Disable Brave Ads
-      "--disable-background-mode"        # Prevent running in background
+      "--disable-features=BraveRewards" # Disable Brave Rewards
+      "--disable-brave-ads" # Disable Brave Ads
+      "--disable-background-mode" # Prevent running in background
       "--password-store=gnome-libsecret"
     ];
     extensions = [
@@ -40,4 +40,4 @@ in
     ];
   };
 
-} 
+}

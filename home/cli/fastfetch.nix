@@ -1,7 +1,15 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  pkgs,
+  inputs,
+  ...
+}:
 
 {
-  home.packages = [ inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch pkgs.fortune pkgs.lolcat ];
+  home.packages = [
+    inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch
+    pkgs.fortune
+    pkgs.lolcat
+  ];
 
   # Fastfetch configuration (Omarchy style adapted for NixOS)
   xdg.configFile."fastfetch/config.jsonc".text = ''
@@ -10,7 +18,7 @@
       "logo": {
         "type": "builtin",
         "source": "nixos",
-        "color": { "1": "blue" },
+        "color": { "1": "magenta" },
         "padding": {
           "top": 2,
           "right": 6,
@@ -104,7 +112,7 @@
           "type": "custom",
           "key": "󰸌 Icons",
           "keyColor": "blue",
-          "format": "Kanagawa"
+          "format": "Catppuccin Mocha"
         },
         {
           "type": "terminalfont",
@@ -131,4 +139,4 @@
       ]
     }
   '';
-} 
+}

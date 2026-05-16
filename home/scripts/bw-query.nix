@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, ... }:
 
 {
   home.packages = [
@@ -40,7 +40,7 @@
       # Try to load existing session first and test it quickly
       BW_SESSION=""
       SKIP_FULL_SETUP=false
-      
+
       if [[ -f ~/.cache/bw_session ]]; then
         CACHED_SESSION=$(cat ~/.cache/bw_session 2>/dev/null || echo "")
         if [[ -n "$CACHED_SESSION" ]]; then

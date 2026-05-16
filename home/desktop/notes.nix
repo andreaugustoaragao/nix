@@ -1,11 +1,21 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  pkgs,
+  ...
+}:
 
 {
   # Notes management script with wofi integration
   home.packages = [
     (pkgs.writeShellApplication {
       name = "notes";
-      runtimeInputs = with pkgs; [ wofi findutils coreutils gnused neovim foot ];
+      runtimeInputs = with pkgs; [
+        wofi
+        findutils
+        coreutils
+        gnused
+        neovim
+        foot
+      ];
       text = ''
         #!/usr/bin/env bash
 
@@ -18,7 +28,7 @@
         # Configuration
         NOTES_DIR="''${HOME}/projects/work/notes"
 
-        # Colors for wofi (Kanagawa theme)
+        # Colors for wofi (Catppuccin Mocha theme)
         WOFI_CONFIG=(--width=600 --height=400 --prompt="Notes" --insensitive --cache-file=/dev/null)
 
         # Ensure notes directory exists
@@ -30,7 +40,7 @@
                 find "$NOTES_DIR" -name "*.md" -type f -printf "%P\n" | sed 's/\.md$//' | sort
             fi
         }
-        
+
         # Function to extract note name from selection
         extract_note_name() {
             local input="$1"
@@ -41,7 +51,7 @@
         sanitize_filename() {
             echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._/-]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g'
         }
-        
+
         # Function to ensure directory exists for a file path
         ensure_directory() {
             local file_path="$1"

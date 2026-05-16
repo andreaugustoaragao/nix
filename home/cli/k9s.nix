@@ -16,107 +16,109 @@ in
     unstable-pkgs.kdash
   ];
 
-  xdg.configFile."k9s/views.yaml".text = ''
-    views:
-      v1/pods:
-        columns:
-          - NAME
-          - CPU
-          - MEM
-          - STATUS
-  '';
-
-  xdg.configFile."k9s/config.yaml".text = ''
-    k9s:
-      ui:
-        skin: tokyonight
-  '';
-
-  # Tokyo Night Storm skin. Static — doesn't follow system mode.
-  xdg.configFile."k9s/skins/tokyonight.yaml".text = ''
-    k9s:
-      body:
-        fgColor:    "#c0caf5"
-        bgColor:    "#24283b"
-        logoColor:  "#7aa2f7"
-      prompt:
-        fgColor:      "#c0caf5"
-        bgColor:      "#24283b"
-        suggestColor: "#565f89"
-      info:
-        fgColor:      "#bb9af7"
-        sectionColor: "#a9b1d6"
-      dialog:
-        fgColor:            "#c0caf5"
-        bgColor:            "#24283b"
-        buttonFgColor:      "#1d202f"
-        buttonBgColor:      "#7aa2f7"
-        buttonFocusFgColor: "#1d202f"
-        buttonFocusBgColor: "#bb9af7"
-        labelFgColor:       "#e0af68"
-        fieldFgColor:       "#c0caf5"
-      frame:
-        border:
-          fgColor:    "#414868"
-          focusColor: "#7aa2f7"
-        menu:
-          fgColor:     "#c0caf5"
-          keyColor:    "#e0af68"
-          numKeyColor: "#7aa2f7"
-        crumbs:
-          fgColor:     "#1d202f"
-          bgColor:     "#7aa2f7"
-          activeColor: "#1d202f"
-        status:
-          newColor:       "#7aa2f7"
-          modifyColor:    "#e0af68"
-          addColor:       "#9ece6a"
-          pendingColor:   "#bb9af7"
-          errorColor:     "#f7768e"
-          highlightColor: "#bb9af7"
-          killColor:      "#f7768e"
-          completedColor: "#a9b1d6"
-        title:
-          fgColor:        "#c0caf5"
-          bgColor:        "#24283b"
-          highlightColor: "#7aa2f7"
-          counterColor:   "#bb9af7"
-          filterColor:    "#e0af68"
+  xdg.configFile = {
+    "k9s/views.yaml".text = ''
       views:
-        charts:
-          bgColor: "#24283b"
-          defaultDialColors:
-            - "#7aa2f7"
-            - "#f7768e"
-          defaultChartColors:
-            - "#7aa2f7"
-            - "#f7768e"
-        table:
-          fgColor:       "#c0caf5"
-          bgColor:       "#24283b"
-          cursorFgColor: "#1d202f"
-          cursorBgColor: "#7aa2f7"
-          header:
-            fgColor:     "#e0af68"
-            bgColor:     "#24283b"
-            sorterColor: "#7aa2f7"
-        xray:
-          fgColor:         "#c0caf5"
-          bgColor:         "#24283b"
-          cursorColor:     "#3d59a1"
-          cursorTextColor: "#c0caf5"
-          graphicColor:    "#bb9af7"
-        yaml:
-          keyColor:   "#7aa2f7"
-          colonColor: "#565f89"
-          valueColor: "#c0caf5"
-        logs:
-          fgColor: "#c0caf5"
-          bgColor: "#24283b"
-          indicator:
-            fgColor:        "#7aa2f7"
-            bgColor:        "#24283b"
-            toggleOnColor:  "#9ece6a"
-            toggleOffColor: "#565f89"
-  '';
+        v1/pods:
+          columns:
+            - NAME
+            - CPU
+            - MEM
+            - STATUS
+    '';
+
+    "k9s/config.yaml".text = ''
+      k9s:
+        ui:
+          skin: catppuccin-mocha
+    '';
+
+    # Catppuccin Mocha skin. Static — doesn't follow system mode.
+    "k9s/skins/catppuccin-mocha.yaml".text = ''
+      k9s:
+        body:
+          fgColor:    "#cdd6f4"
+          bgColor:    "#1e1e2e"
+          logoColor:  "#89b4fa"
+        prompt:
+          fgColor:      "#cdd6f4"
+          bgColor:      "#1e1e2e"
+          suggestColor: "#6c7086"
+        info:
+          fgColor:      "#cba6f7"
+          sectionColor: "#bac2de"
+        dialog:
+          fgColor:            "#cdd6f4"
+          bgColor:            "#1e1e2e"
+          buttonFgColor:      "#1e1e2e"
+          buttonBgColor:      "#89b4fa"
+          buttonFocusFgColor: "#1e1e2e"
+          buttonFocusBgColor: "#cba6f7"
+          labelFgColor:       "#f9e2af"
+          fieldFgColor:       "#cdd6f4"
+        frame:
+          border:
+            fgColor:    "#585b70"
+            focusColor: "#89b4fa"
+          menu:
+            fgColor:     "#cdd6f4"
+            keyColor:    "#f9e2af"
+            numKeyColor: "#89b4fa"
+          crumbs:
+            fgColor:     "#1e1e2e"
+            bgColor:     "#89b4fa"
+            activeColor: "#1e1e2e"
+          status:
+            newColor:       "#89b4fa"
+            modifyColor:    "#f9e2af"
+            addColor:       "#a6e3a1"
+            pendingColor:   "#cba6f7"
+            errorColor:     "#f38ba8"
+            highlightColor: "#cba6f7"
+            killColor:      "#f38ba8"
+            completedColor: "#bac2de"
+          title:
+            fgColor:        "#cdd6f4"
+            bgColor:        "#1e1e2e"
+            highlightColor: "#89b4fa"
+            counterColor:   "#cba6f7"
+            filterColor:    "#f9e2af"
+        views:
+          charts:
+            bgColor: "#1e1e2e"
+            defaultDialColors:
+              - "#89b4fa"
+              - "#f38ba8"
+            defaultChartColors:
+              - "#89b4fa"
+              - "#f38ba8"
+          table:
+            fgColor:       "#cdd6f4"
+            bgColor:       "#1e1e2e"
+            cursorFgColor: "#1e1e2e"
+            cursorBgColor: "#89b4fa"
+            header:
+              fgColor:     "#f9e2af"
+              bgColor:     "#1e1e2e"
+              sorterColor: "#89b4fa"
+          xray:
+            fgColor:         "#cdd6f4"
+            bgColor:         "#1e1e2e"
+            cursorColor:     "#313244"
+            cursorTextColor: "#cdd6f4"
+            graphicColor:    "#cba6f7"
+          yaml:
+            keyColor:   "#89b4fa"
+            colonColor: "#6c7086"
+            valueColor: "#cdd6f4"
+          logs:
+            fgColor: "#cdd6f4"
+            bgColor: "#1e1e2e"
+            indicator:
+              fgColor:        "#89b4fa"
+              bgColor:        "#1e1e2e"
+              toggleOnColor:  "#a6e3a1"
+              toggleOffColor: "#6c7086"
+    '';
+  };
 }

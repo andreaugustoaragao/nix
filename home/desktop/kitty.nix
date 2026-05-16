@@ -1,8 +1,8 @@
-{ ... }:
+_:
 
 {
-  # Kitty is a secondary terminal (ghostty is daily-driver). Static Tokyo
-  # Night Storm palette only — kitty has no native live light/dark
+  # Kitty is a secondary terminal (ghostty is daily-driver). Static
+  # Catppuccin Mocha palette only — kitty has no native live light/dark
   # switching, but is rarely used so the dark theme is fine on its own.
   programs.kitty = {
     enable = true;
@@ -18,30 +18,30 @@
       wayland_enable_ime = "no";
       update_check_interval = 0;
 
-      foreground = "#c0caf5";
-      background = "#24283b";
-      selection_foreground = "#c0caf5";
-      selection_background = "#2e3c64";
-      cursor = "#c0caf5";
-      cursor_text_color = "#1d202f";
-      url_color = "#7dcfff";
+      foreground = "#cdd6f4";
+      background = "#1e1e2e";
+      selection_foreground = "#cdd6f4";
+      selection_background = "#45475a";
+      cursor = "#f5e0dc";
+      cursor_text_color = "#1e1e2e";
+      url_color = "#89b4fa";
 
-      color0 = "#1d202f";
-      color8 = "#414868";
-      color1 = "#f7768e";
-      color9 = "#f7768e";
-      color2 = "#9ece6a";
-      color10 = "#9ece6a";
-      color3 = "#e0af68";
-      color11 = "#e0af68";
-      color4 = "#7aa2f7";
-      color12 = "#7aa2f7";
-      color5 = "#bb9af7";
-      color13 = "#bb9af7";
-      color6 = "#7dcfff";
-      color14 = "#7dcfff";
-      color7 = "#a9b1d6";
-      color15 = "#c0caf5";
+      color0 = "#45475a";
+      color8 = "#585b70";
+      color1 = "#f38ba8";
+      color9 = "#f38ba8";
+      color2 = "#a6e3a1";
+      color10 = "#a6e3a1";
+      color3 = "#f9e2af";
+      color11 = "#f9e2af";
+      color4 = "#89b4fa";
+      color12 = "#89b4fa";
+      color5 = "#f5c2e7";
+      color13 = "#f5c2e7";
+      color6 = "#94e2d5";
+      color14 = "#94e2d5";
+      color7 = "#bac2de";
+      color15 = "#a6adc8";
     };
   };
 }

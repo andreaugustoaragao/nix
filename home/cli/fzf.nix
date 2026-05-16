@@ -1,21 +1,21 @@
-{ ... }:
+_:
 
 {
-  # Tokyo Night Storm palette via FZF_DEFAULT_OPTS. fzf reads it on every
+  # Catppuccin Mocha palette via FZF_DEFAULT_OPTS. fzf reads it on every
   # invocation — no live-reload needed.
   home.sessionVariables.FZF_DEFAULT_OPTS = builtins.concatStringsSep "," [
-    "--color=fg:#a9b1d6"
+    "--color=fg:#bac2de"
     "bg:-1"
-    "hl:#7aa2f7"
-    "fg+:#c0caf5"
-    "bg+:#3d59a1"
-    "hl+:#7dcfff"
-    "info:#bb9af7"
-    "prompt:#7dcfff"
-    "pointer:#f7768e"
-    "marker:#9ece6a"
-    "spinner:#bb9af7"
-    "header:#565f89"
-    "border:#414868"
+    "hl:#89b4fa"
+    "fg+:#cdd6f4"
+    "bg+:#313244"
+    "hl+:#94e2d5"
+    "info:#cba6f7"
+    "prompt:#94e2d5"
+    "pointer:#f38ba8"
+    "marker:#a6e3a1"
+    "spinner:#cba6f7"
+    "header:#6c7086"
+    "border:#585b70"
   ];
 }

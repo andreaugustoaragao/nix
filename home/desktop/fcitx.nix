@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   # Install fcitx5 components
@@ -20,4 +20,4 @@
   xdg.configFile."fcitx5/conf/xcb.conf".text = ''
     Allow Overriding System XKB Settings=False
   '';
-} 
+}

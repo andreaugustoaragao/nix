@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   inputs,
@@ -105,14 +104,16 @@ let
   # symlink to /nix/store. To force a reset to Nix-defined state,
   # delete the live file and rebuild.
   desiredSettings = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-settings.json)) {
-    currentThemeName = "dynamic";
-    currentThemeCategory = "dynamic";
+    # DMS Catppuccin uses Mocha as the dark base and Latte as the light
+    # base; this selects the canonical mauve accent.
+    currentThemeName = "cat-mauve";
+    currentThemeCategory = "catppuccin";
     registryThemeVariants = {
       peaceAndQuiet = "blue";
     };
     syncModeWithPortal = true;
-    # Terminals + nvim are pinned to the static Tokyo Night palette
-    # (Storm dark / Day light) — see home/desktop/{ghostty,kitty,
+    # Terminals + nvim are pinned to the Catppuccin palette
+    # (Mocha dark / Latte light) — see home/desktop/{ghostty,kitty,
     # alacritty,foot}.nix and home/cli/nvim-lazyvim.nix. Disable DMS's
     # mode-aware matugen renders for these so they don't fight us.
     # waybar + fuzzel still go through matugen for wallpaper-derived

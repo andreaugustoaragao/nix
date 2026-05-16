@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # Reverse-proxy vhosts for the auth stack. The wildcard cert is

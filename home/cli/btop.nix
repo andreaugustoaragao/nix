@@ -1,4 +1,7 @@
-{ config, pkgs, lib, ... }:
+{
+  pkgs,
+  ...
+}:
 
 {
   home.packages = [ pkgs.btop ];
@@ -9,7 +12,7 @@
 
     #* Name of a btop++/bpytop/bashtop formatted ".theme" file, "Default" and "TTY" for builtin themes.
     #* Themes should be placed in "../share/btop/themes" relative to binary or "$HOME/.config/btop/themes"
-    color_theme = "current"
+    color_theme = "catppuccin_mocha"
 
     #* If the theme set background should be shown, set to False if you want terminal background transparency.
     theme_background = True
@@ -205,7 +208,7 @@
 
     #* Set fixed values for network graphs in Mebibits. Is only used if net_auto is also set to False.
     net_download = 100
-    
+
     net_upload = 100
 
     #* Use network graphs auto rescaling mode, ignores any values set above and rescales down to 10 Kibibytes at the lowest.
@@ -250,5 +253,50 @@
 
     #* Custom gpu5 model name, empty string to disable.
     custom_gpu_name5 = ""
+  '';
+
+  xdg.configFile."btop/themes/catppuccin_mocha.theme".text = ''
+    theme[main_bg]="#1e1e2e"
+    theme[main_fg]="#cdd6f4"
+    theme[title]="#cdd6f4"
+    theme[hi_fg]="#89b4fa"
+    theme[selected_bg]="#313244"
+    theme[selected_fg]="#89b4fa"
+    theme[inactive_fg]="#6c7086"
+    theme[graph_text]="#f5e0dc"
+    theme[meter_bg]="#313244"
+    theme[proc_misc]="#f5e0dc"
+    theme[cpu_box]="#89b4fa"
+    theme[mem_box]="#a6e3a1"
+    theme[net_box]="#f9e2af"
+    theme[proc_box]="#cba6f7"
+    theme[div_line]="#6c7086"
+    theme[temp_start]="#a6e3a1"
+    theme[temp_mid]="#f9e2af"
+    theme[temp_end]="#f38ba8"
+    theme[cpu_start]="#94e2d5"
+    theme[cpu_mid]="#89b4fa"
+    theme[cpu_end]="#cba6f7"
+    theme[free_start]="#f38ba8"
+    theme[free_mid]="#fab387"
+    theme[free_end]="#a6e3a1"
+    theme[cached_start]="#f9e2af"
+    theme[cached_mid]="#89b4fa"
+    theme[cached_end]="#cba6f7"
+    theme[available_start]="#f38ba8"
+    theme[available_mid]="#fab387"
+    theme[available_end]="#a6e3a1"
+    theme[used_start]="#a6e3a1"
+    theme[used_mid]="#f9e2af"
+    theme[used_end]="#f38ba8"
+    theme[download_start]="#89b4fa"
+    theme[download_mid]="#cba6f7"
+    theme[download_end]="#f5c2e7"
+    theme[upload_start]="#a6e3a1"
+    theme[upload_mid]="#f9e2af"
+    theme[upload_end]="#fab387"
+    theme[process_start]="#89b4fa"
+    theme[process_mid]="#cba6f7"
+    theme[process_end]="#f38ba8"
   '';
 }

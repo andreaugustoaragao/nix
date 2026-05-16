@@ -1,4 +1,7 @@
-{ config, pkgs, lib, inputs, ... }:
+{
+  pkgs,
+  ...
+}:
 
 {
   # Install SwayOSD package
@@ -6,7 +9,7 @@
     swayosd
   ];
 
-  # SwayOSD configuration (Omarchy style with Kanagawa theme)
+  # SwayOSD configuration (Omarchy style with Catppuccin theme)
   xdg.configFile."swayosd/config.toml".text = ''
     [server]
     show_percentage = true
@@ -15,12 +18,12 @@
   '';
 
   xdg.configFile."swayosd/style.css".text = ''
-    /* Kanagawa colors for SwayOSD */
-    @define-color background-color #1f1f28;
-    @define-color border-color #dcd7ba;
-    @define-color label #dcd7ba;
-    @define-color image #dcd7ba;
-    @define-color progress #dcd7ba;
+    /* Catppuccin Mocha colors for SwayOSD */
+    @define-color background-color #1e1e2e;
+    @define-color border-color #cdd6f4;
+    @define-color label #cdd6f4;
+    @define-color image #cdd6f4;
+    @define-color progress #cdd6f4;
 
     window {
       border-radius: 0;
@@ -41,7 +44,7 @@
     }
 
     progressbar trough {
-      background-color: rgba(220, 215, 186, 0.2);
+      background-color: rgba(205, 214, 244, 0.2);
     }
 
     progressbar progress {

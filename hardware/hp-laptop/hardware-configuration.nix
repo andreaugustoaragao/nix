@@ -3,7 +3,6 @@
 {
   config,
   lib,
-  pkgs,
   modulesPath,
   ...
 }:
@@ -14,32 +13,36 @@
   ];
 
   # Hardware configuration from actual HP laptop
-  boot.initrd.availableKernelModules = [
-    "xhci_pci"
-    "ahci"
-    "usb_storage"
-    "sd_mod"
-    "rtsx_pci_sdmmc"
-  ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ ];
-  boot.extraModulePackages = [ ];
-
-  boot.kernelParams = [
-  ];
-  # Actual filesystem configuration from HP laptop
-  fileSystems."/" = {
-    device = "/dev/disk/by-uuid/db8305bf-3643-4c31-9d63-df347361f2df";
-    fsType = "ext4";
+  boot = {
+    initrd = {
+      availableKernelModules = [
+        "xhci_pci"
+        "ahci"
+        "usb_storage"
+        "sd_mod"
+        "rtsx_pci_sdmmc"
+      ];
+      kernelModules = [ ];
+    };
+    kernelModules = [ ];
+    extraModulePackages = [ ];
+    kernelParams = [ ];
   };
+  # Actual filesystem configuration from HP laptop
+  fileSystems = {
+    "/" = {
+      device = "/dev/disk/by-uuid/db8305bf-3643-4c31-9d63-df347361f2df";
+      fsType = "ext4";
+    };
 
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/3010-B95B";
-    fsType = "vfat";
-    options = [
-      "fmask=0077"
-      "dmask=0077"
-    ];
+    "/boot" = {
+      device = "/dev/disk/by-uuid/3010-B95B";
+      fsType = "vfat";
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
+    };
   };
 
   swapDevices = [
@@ -47,12 +50,14 @@
   ];
 
   # Laptop-specific optimizations
-  hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+  hardware = {
+    cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 
-  # Enable integrated graphics
-  hardware.graphics = {
-    enable = true;
-    enable32Bit = true;
+    # Enable integrated graphics
+    graphics = {
+      enable = true;
+      enable32Bit = true;
+    };
   };
 
   # Power management for laptop

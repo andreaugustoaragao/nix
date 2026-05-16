@@ -264,6 +264,68 @@ in
             STATE_FILE="$STATE_DIR/session.env"
             mkdir -p "$STATE_DIR"
 
+            kill_tree() {
+              local pid="''${1:-}"
+              [ -n "$pid" ] || return 0
+              pkill -TERM -P "$pid" 2>/dev/null || true
+              kill -TERM "$pid" 2>/dev/null || true
+            }
+
+            cleanup_capture_processes() {
+              local out="''${1:-}"
+              local calls_root="$HOME/recordings/calls"
+              local ffmpeg_pattern
+
+              # record-call's pw-record commands are intentionally distinctive.
+              # Reap any stale capture readers first so ffmpeg segmenters get EOF
+              # and can flush their final partial file before we escalate.
+              pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
+                | while read -r pid; do
+                    kill -TERM "$pid" 2>/dev/null || true
+                  done
+
+              if [ -n "$out" ]; then
+                ffmpeg_pattern="ffmpeg .*$(printf '%s' "$out" | sed 's/[][\.^$*+?{}|()]/\\&/g')/chunks/.*_%06d\\.wav"
+              else
+                ffmpeg_pattern="ffmpeg .*$calls_root/.*/chunks/.*_%06d\\.wav"
+              fi
+
+              pgrep -f "$ffmpeg_pattern" \
+                | while read -r pid; do
+                    kill -TERM "$pid" 2>/dev/null || true
+                  done
+
+              for _ in $(seq 1 20); do
+                pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' >/dev/null 2>&1 || \
+                  ! pgrep -f "$ffmpeg_pattern" >/dev/null 2>&1 || true
+                if ! pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' >/dev/null 2>&1 \
+                   && ! pgrep -f "$ffmpeg_pattern" >/dev/null 2>&1; then
+                  return 0
+                fi
+                sleep 0.25
+              done
+
+              pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
+                | while read -r pid; do
+                    kill -KILL "$pid" 2>/dev/null || true
+                  done
+              pgrep -f "$ffmpeg_pattern" \
+                | while read -r pid; do
+                    kill -KILL "$pid" 2>/dev/null || true
+                  done
+            }
+
+            unload_record_call_modules() {
+              if [ -n "''${LOOPBACK_ID:-}" ]; then
+                pactl unload-module "$LOOPBACK_ID" 2>/dev/null || true
+              fi
+              if [ -n "''${SINK_ID:-}" ]; then
+                pactl unload-module "$SINK_ID" 2>/dev/null || true
+              fi
+              pactl list short modules 2>/dev/null | awk '/null-sink|loopback/{print $1}' \
+                | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
+            }
+
             ensure_model() {
               if [ ! -f "$MODEL_PATH" ]; then
                 echo "Downloading Whisper model ($MODEL_NAME, ~1.6GB)..."
@@ -378,11 +440,11 @@ in
                 fi
                 echo "Removing stale session state..." >&2
                 if [ -n "''${AUTOROUTE_PID:-}" ]; then
-                  pkill -TERM -P "$AUTOROUTE_PID" 2>/dev/null || true
-                  kill -TERM "$AUTOROUTE_PID" 2>/dev/null || true
+                  kill_tree "$AUTOROUTE_PID"
                 fi
-                pactl list short modules 2>/dev/null | awk '/null-sink|loopback/{print $1}' \
-                  | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
+                [ -n "''${WATCHER_PID:-}" ] && kill_tree "$WATCHER_PID"
+                cleanup_capture_processes "''${OUTPUT_DIR:-}"
+                unload_record_call_modules
                 rm -f "$STATE_FILE"
                 unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID FFMPEG_MIC_PID WATCHER_PID AUTOROUTE_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
               fi
@@ -494,21 +556,27 @@ in
             }
 
             cmd_stop() {
-              [ -f "$STATE_FILE" ] || { echo "No active recording." >&2; exit 1; }
+              if [ ! -f "$STATE_FILE" ]; then
+                echo "No active recording state; cleaning stale record-call captures if any..." >&2
+                cleanup_capture_processes
+                unload_record_call_modules
+                exit 0
+              fi
               # shellcheck disable=SC1090
               . "$STATE_FILE"
 
               echo "Stopping auto-router..."
               if [ -n "''${AUTOROUTE_PID:-}" ]; then
-                pkill -TERM -P "$AUTOROUTE_PID" 2>/dev/null || true
-                kill -TERM "$AUTOROUTE_PID" 2>/dev/null || true
+                kill_tree "$AUTOROUTE_PID"
               fi
 
               echo "Stopping ffmpeg captures (flushing last fragment)..."
-              kill -TERM "$FFMPEG_CALL_PID" "$FFMPEG_MIC_PID" 2>/dev/null || true
+              cleanup_capture_processes "$OUTPUT_DIR"
+              kill_tree "''${FFMPEG_CALL_PID:-}"
+              kill_tree "''${FFMPEG_MIC_PID:-}"
               for _ in $(seq 1 20); do
-                kill -0 "$FFMPEG_CALL_PID" 2>/dev/null \
-                  || kill -0 "$FFMPEG_MIC_PID" 2>/dev/null \
+                kill -0 "''${FFMPEG_CALL_PID:-}" 2>/dev/null \
+                  || kill -0 "''${FFMPEG_MIC_PID:-}" 2>/dev/null \
                   || break
                 sleep 0.25
               done
@@ -524,8 +592,7 @@ in
                 sleep 1
               done
               # Terminate the watcher and its children (inotifywait, pipe subshell).
-              pkill -TERM -P "$WATCHER_PID" 2>/dev/null || true
-              kill -TERM "$WATCHER_PID" 2>/dev/null || true
+              kill_tree "''${WATCHER_PID:-}"
 
               # Flush the final (partial) window so no audio after the last
               # processed window is lost.
@@ -537,13 +604,25 @@ in
               fi
 
               echo "Unloading PipeWire modules..."
-              pactl unload-module "$LOOPBACK_ID" 2>/dev/null || true
-              pactl unload-module "$SINK_ID" 2>/dev/null || true
+              unload_record_call_modules
 
               # Preserve the raw transcript, then dedupe Me:/Them: bleed-through.
               if [ -s "$OUTPUT_DIR/transcript.txt" ]; then
                 cp -f "$OUTPUT_DIR/transcript.txt" "$OUTPUT_DIR/transcript.raw.txt"
                 python3 ${dedupePy} "$OUTPUT_DIR/transcript.txt" || true
+              fi
+
+              DIARIZED=""
+              if [ -n "''${HF_TOKEN:-}" ] || [ -n "''${HUGGINGFACE_HUB_TOKEN:-}" ]; then
+                echo "Running speaker diarization..."
+                if cmd_diarize "$OUTPUT_DIR"; then
+                  DIARIZED="$OUTPUT_DIR/transcript.diarized.txt"
+                else
+                  echo "Diarization failed; transcript.txt is still finalized." >&2
+                fi
+              else
+                echo "Skipping diarization: HF_TOKEN/HUGGINGFACE_HUB_TOKEN is not set." >&2
+                echo "Run later with: record-call diarize '$OUTPUT_DIR'" >&2
               fi
 
               ELAPSED=$(( $(date +%s) - STARTED_AT ))
@@ -553,6 +632,7 @@ in
       Stopped.
         Duration:   ''${ELAPSED}s
         Transcript: $OUTPUT_DIR/transcript.txt (raw: transcript.raw.txt)
+        Diarized:   ''${DIARIZED:-not generated}
         Chunks:     $OUTPUT_DIR/chunks/
       EOF
             }

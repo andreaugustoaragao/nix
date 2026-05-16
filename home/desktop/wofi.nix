@@ -1,14 +1,8 @@
 # test change
-{
-  config,
-  pkgs,
-  lib,
-  inputs,
-  ...
-}:
+_:
 
 {
-  # Application launcher with Kanagawa theming
+  # Application launcher with Catppuccin Mocha theming
 
   programs.wofi = {
     enable = true;
@@ -37,8 +31,8 @@
     style = ''
       window {
         margin: 0px;
-        border: 2px solid #dcd7ba;
-        background-color: rgba(31, 31, 40, 0.95);
+        border: 2px solid #cdd6f4;
+        background-color: rgba(30, 30, 46, 0.95);
         border-radius: 8px;
       }
 
@@ -46,9 +40,9 @@
         margin: 8px;
         padding: 8px;
         border: none;
-        color: #dcd7ba;
+        color: #cdd6f4;
         font-size: 14px;
-        background-color: rgba(84, 84, 109, 0.3);
+        background-color: rgba(88, 91, 112, 0.3);
         border-radius: 6px;
         font-weight: 600;
       }
@@ -78,13 +72,13 @@
         margin: 2px;
         border: none;
         background-color: transparent;
-        color: #dcd7ba;
+        color: #cdd6f4;
         border-radius: 6px;
       }
 
       #entry:selected {
-        background-color: rgba(220, 215, 186, 0.2);
-        color: #dcd7ba;
+        background-color: rgba(205, 214, 244, 0.2);
+        color: #cdd6f4;
         font-weight: 600;
         border: none;
         outline: none;

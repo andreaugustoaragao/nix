@@ -9,15 +9,17 @@
 #
 # Terminals (ghostty/kitty/alacritty/foot), the editor (neovim), and the
 # TUI tools that run inside them (tmux, k9s, fzf, etc.) are now pinned to
-# the static Tokyo Night palette — Storm for dark, Day for light. The
+# the static Catppuccin palette — Mocha for dark, Latte for light. The
 # matugen-derived dank16 palette was visually inconsistent across modes
 # and added an extra reload step on every wallpaper change. See the
 # per-tool nix modules under home/desktop/ and home/cli/.
 #
-# Matugen still drives the wallpaper-derived chrome (waybar pills,
-# fuzzel launcher) because that's where Material You's tonal palettes
-# actually look good — and they aren't bound to any text-readability
-# constraints the way a terminal palette is.
+# Matugen still drives the wallpaper-derived chrome (waybar pills)
+# because that's where Material You's tonal palettes actually look
+# good — and they aren't bound to any text-readability constraints the
+# way a terminal palette is. The launcher (fuzzel) used to be on this
+# list but was moved to a static Catppuccin Mocha/Latte pair (see
+# home/desktop/fuzzel.nix) for consistency with the rest of the stack.
 #
 # DMS picks up these templates automatically because
 # `runUserMatugenTemplates = true`. Paths must be absolute since DMS
@@ -39,11 +41,6 @@ lib.mkIf useDms {
       input_path  = "~/.config/matugen/templates/waybar.css"
       output_path = "~/.config/waybar/colors-matugen.css"
       post_hook   = "systemctl --user is-active --quiet wl-waybar && systemctl --user restart wl-waybar; true"
-
-      [templates.fuzzel]
-      input_path  = "~/.config/matugen/templates/fuzzel.ini"
-      output_path = "~/.config/fuzzel/fuzzel.ini"
-      # fuzzel re-reads on next launch
     '';
 
     "matugen/templates/waybar.css".text = ''
@@ -88,31 +85,5 @@ lib.mkIf useDms {
       #battery.critical   { background-color: @m_error;     color: @m_fg; }
     '';
 
-    "matugen/templates/fuzzel.ini".text = ''
-      [main]
-      layer=overlay
-      width=50
-      lines=12
-      horizontal-pad=16
-      vertical-pad=12
-      inner-pad=8
-      line-height=22
-      icon-theme=Papirus-Dark
-      terminal=ghostty -e
-      fields=name,generic,comment,categories,filename,keywords
-
-      [colors]
-      background={{colors.surface.default.hex_stripped}}f2
-      text={{colors.on_surface.default.hex_stripped}}ff
-      match={{colors.primary.default.hex_stripped}}ff
-      selection={{colors.surface_container_high.default.hex_stripped}}ff
-      selection-text={{colors.on_surface.default.hex_stripped}}ff
-      selection-match={{colors.primary.default.hex_stripped}}ff
-      border={{colors.outline.default.hex_stripped}}ff
-
-      [border]
-      width=2
-      radius=8
-    '';
   };
 }

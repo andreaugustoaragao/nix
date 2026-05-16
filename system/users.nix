@@ -1,8 +1,5 @@
 {
-  config,
   pkgs,
-  lib,
-  inputs,
   owner,
   ...
 }:
@@ -23,15 +20,17 @@
     shell = pkgs.zsh;
   };
 
-  programs.zsh.enable = true;
-  programs.command-not-found.enable = false;
-  programs.nix-index = {
-    enable = true;
-    enableBashIntegration = true;
-    enableZshIntegration = true;
-    enableFishIntegration = true;
+  programs = {
+    zsh.enable = true;
+    command-not-found.enable = false;
+    nix-index = {
+      enable = true;
+      enableBashIntegration = true;
+      enableZshIntegration = true;
+      enableFishIntegration = true;
+    };
+    nix-index-database.comma.enable = true;
   };
-  programs.nix-index-database.comma.enable = true;
 
   security.sudo = {
     enable = true;

@@ -2,7 +2,6 @@
   config,
   pkgs,
   lib,
-  useDms ? false,
   ...
 }:
 
@@ -26,9 +25,37 @@
       lazy-nvim
 
       # Essential plugins that need to be available immediately
-      tokyonight-nvim # Colorscheme needs to be available at startup
+      catppuccin-nvim # Colorscheme needs to be available at startup
       plenary-nvim # Many plugins depend on this
+
+      # Treesitter parsers shipped via nix so :checkhealth doesn't nag
+      # about missing grammars for filetypes we open + the languages
+      # snacks.image renders inline. `withPlugins` builds a thin runtime
+      # plugin containing only these parsers + their queries — no full
+      # nvim-treesitter plugin needed for managed lazy specs.
+      (nvim-treesitter.withPlugins (
+        p: with p; [
+          regex # snacks.picker scans regex literals when building queries
+          css
+          html
+          javascript
+          latex
+          scss
+          svelte
+          tsx
+          typst
+          vue
+          # `norg` (Neorg org-mode) intentionally omitted — not in
+          # nixpkgs's nvim-treesitter-parsers set and we don't use Neorg.
+        ]
+      ))
     ];
+
+    # Native Lua dependencies provided declaratively via nixpkgs's
+    # luajitPackages set (luajit is what neovim embeds, so 5.1 ABI).
+    #   sqlite — backs snacks.picker frecency scoring (otherwise falls
+    #            back to a flat-file ranking which doesn't learn well).
+    extraLuaPackages = ps: with ps; [ sqlite ];
 
     extraLuaConfig = ''
       -- Bootstrap lazy.nvim
@@ -70,7 +97,7 @@
         vim.g.neovide_scale_factor = 1.0
         vim.g.neovide_opacity = 0.0  -- For unified transparency
         vim.g.transparency = 0.95    -- Set transparency level
-        vim.g.neovide_background_color = "#1f1f28" .. string.format("%x", math.floor(255 * (vim.g.transparency or 0.95)))
+        vim.g.neovide_background_color = "#1e1e2e" .. string.format("%x", math.floor(255 * (vim.g.transparency or 0.95)))
       end
       vim.opt.ignorecase = true
       vim.opt.smartcase = true
@@ -90,7 +117,7 @@
       vim.opt.undofile = true
 
       -- Hide the EndOfBuffer "~" markers, give the window-split
-      -- separator a solid Kanagawa-violet line (replaces what
+      -- separator a solid Catppuccin mauve line (replaces what
       -- colorful-winsep.nvim used to render).
       vim.opt.fillchars = { eob = " ", vert = "│" }
 
@@ -179,11 +206,12 @@
 
       -- Setup lazy.nvim
       require("lazy").setup({
-        rocks = {
-          enabled = true,
-          root = vim.fn.stdpath("data") .. "/lazy-rocks",
-          server = "https://luarocks.org/", 
-        },
+        -- No plugins in this spec require luarocks, and reaching for a
+        -- rock on demand is cleaner via `programs.neovim.extraLuaPackages`
+        -- (pure Nix, no hererocks bootstrap). Fully disable lazy.nvim's
+        -- rocks subsystem so :checkhealth stops nagging about a missing
+        -- luarocks/lua5.1 toolchain we don't want.
+        rocks = { enabled = false },
         spec = {
           -- Import only specific LazyVim plugins we want, not all
           -- { "LazyVim/LazyVim", import = "lazyvim.plugins" },
@@ -227,35 +255,39 @@
             end,
           },
           
-          -- Colorscheme. Tokyo Night Storm for dark / Day for light;
+          -- Colorscheme. Catppuccin Mocha for dark / Latte for light;
           -- auto-dark-mode.nvim below flips background and reloads the
           -- right variant when the system color-scheme changes.
           {
-            "folke/tokyonight.nvim",
+            "catppuccin/nvim",
+            name = "catppuccin",
             priority = 1000,
             lazy = false,
             config = function()
-              require("tokyonight").setup({
-                style = "storm",
-                light_style = "day",
+              require("catppuccin").setup({
+                flavour = "mocha",
+                background = {
+                  light = "latte",
+                  dark = "mocha",
+                },
                 transparent = false,
-                terminal_colors = true,
+                term_colors = true,
                 styles = {
-                  comments = { italic = true },
-                  keywords = { italic = true },
+                  comments = { "italic" },
+                  keywords = { "italic" },
                 },
               })
               -- Pick the variant matching the current system mode so the
               -- editor opens in sync. auto-dark-mode.nvim takes over from
               -- here for live switching.
-              vim.cmd("colorscheme " .. (vim.o.background == "light" and "tokyonight-day" or "tokyonight-storm"))
+              vim.cmd.colorscheme("catppuccin")
             end,
           },
 
           -- Live light/dark switching driven by the freedesktop portal
           -- color-scheme preference (set by DMS — see
           -- home/desktop/quickshell.nix). Polls dbus every 3s; flips
-          -- vim.o.background and reloads the matching tokyonight variant.
+          -- vim.o.background and reloads the matching Catppuccin variant.
           {
             "f-person/auto-dark-mode.nvim",
             priority = 999,
@@ -264,11 +296,11 @@
               update_interval = 3000,
               set_dark_mode = function()
                 vim.o.background = "dark"
-                vim.cmd("colorscheme tokyonight-storm")
+                vim.cmd.colorscheme("catppuccin")
               end,
               set_light_mode = function()
                 vim.o.background = "light"
-                vim.cmd("colorscheme tokyonight-day")
+                vim.cmd.colorscheme("catppuccin")
               end,
             },
           },
@@ -292,6 +324,27 @@
               statuscolumn = { enabled = true },
               scroll = { enabled = true },
               indent = { enabled = true },
+              -- Inline image rendering in markdown/etc. via kitty graphics
+              -- protocol (works in ghostty + kitty + tmux). PNG/JPG/SVG/GIF
+              -- render out of the box; PDF/LaTeX/Mermaid need extra CLIs
+              -- (gs, tectonic, mmdc — install separately if wanted).
+              image = { enabled = true },
+              -- Distraction-free mode (Snacks.zen()) and focus-dimming
+              -- of code outside the current scope (Snacks.dim()).
+              zen = { enabled = true },
+              dim = { enabled = true },
+              -- LSP-driven highlight + jumps for symbol references under
+              -- the cursor. Uses `textDocument/documentHighlight`, so
+              -- it's semantic (no false positives in strings/comments).
+              words = { enabled = true },
+              -- Override default snacks.terminal shell. Defaults to
+              -- vim.o.shell (zsh on this system); pin to fish so `:lua
+              -- Snacks.terminal()` and the toggleable terminal use the
+              -- user's interactive shell of choice without altering
+              -- vim.o.shell (which keeps `:!` POSIX-compatible).
+              terminal = {
+                shell = "${pkgs.fish}/bin/fish",
+              },
               picker = {
                 enabled = true,
                 ui_select = true, -- replace vim.ui.select with snacks picker
@@ -321,7 +374,7 @@
               dashboard = {
                 enabled = true,
                 preset = {
-                  -- Custom ASCII art header (Kanagawa-inspired wave).
+                  -- Custom ASCII art header (Catppuccin-inspired dashboard).
                   header = table.concat({
                     "",
                     "  ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗ ",
@@ -331,13 +384,15 @@
                     "  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║ ",
                     "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝ ",
                     "",
-                    "           🌊 Kanagawa Theme - Like the Great Wave    ",
+                    "           Catppuccin Mocha / Latte Theme             ",
                     "",
                   }, "\n"),
                   keys = {
                     { icon = " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
                     { icon = " ", key = "n", desc = "New File", action = ":ene | startinsert" },
-                    { icon = " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('grep')" },
+                    -- `t` (text) instead of `g` to avoid shadowing the
+                    -- whole built-in `g{x,rr,ra,rt,ri,rn,O,c,cc}` cluster.
+                    { icon = " ", key = "t", desc = "Find Text", action = ":lua Snacks.dashboard.pick('grep')" },
                     { icon = " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
                     { icon = " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', { cwd = vim.fn.stdpath('config') })" },
                     { icon = " ", key = "s", desc = "Restore Session", section = "session" },
@@ -352,9 +407,9 @@
                   {
                     text = {
                       { "", hl = "Comment" },
-                      { "The Great Wave off Kanagawa inspires this colorful journey", hl = "SnacksDashboardFooter" },
+                      { "Soothing pastel colors for focused editing", hl = "SnacksDashboardFooter" },
                       { "", hl = "Comment" },
-                      { "~ Katsushika Hokusai ~", hl = "SnacksDashboardFooter" },
+                      { "~ Catppuccin ~", hl = "SnacksDashboardFooter" },
                     },
                     align = "center",
                   },
@@ -378,7 +433,13 @@
               -- Explorer (replaces nvim-tree)
               { "<leader>e",  function() Snacks.explorer() end,             desc = "Toggle file explorer" },
               -- Notifications
-              { "<leader>n",  function() Snacks.notifier.show_history() end, desc = "Notification history" },
+              -- `<leader>nn` (doubled) so the `<leader>n*` cluster stays
+              -- free for package-info.nvim's npm-management chords.
+              { "<leader>nn", function() Snacks.notifier.show_history() end, desc = "Notification history" },
+              -- Focus / zen
+              { "<leader>z",  function() Snacks.zen() end,                   desc = "Toggle zen mode" },
+              { "<leader>Z",  function() Snacks.zen.zoom() end,              desc = "Toggle zoom (zen w/o chrome hide)" },
+              { "<leader>ud", function() Snacks.dim() end,                   desc = "Toggle scope dim" },
             },
             init = function()
               -- Use snacks for vim.notify so toasts get the styled UI.
@@ -389,14 +450,14 @@
                 end,
               })
 
-              -- Dashboard header palette (Kanagawa colours).
+              -- Dashboard header palette (Catppuccin Mocha colors).
               vim.api.nvim_create_autocmd("ColorScheme", {
                 pattern = "*",
                 callback = function()
-                  vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { fg = "#957fb8" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardKey",    { fg = "#7e9cd8" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardDesc",   { fg = "#dcd7ba" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardFooter", { fg = "#727169", italic = true })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { fg = "#cba6f7" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardKey",    { fg = "#89b4fa" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardDesc",   { fg = "#cdd6f4" })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardFooter", { fg = "#6c7086", italic = true })
                 end,
               })
             end,
@@ -822,11 +883,13 @@
 
               return {
                 options = {
-                  -- tokyonight ships a lualine theme bundle; "auto" would
-                  -- pick it up too, but pinning by name avoids surprises
-                  -- if the active colorscheme briefly changes (e.g. while
-                  -- auto-dark-mode swaps variants).
-                  theme = "tokyonight",
+                  -- Catppuccin ships `catppuccin-{frappe,latte,macchiato,mocha,nvim}`
+                  -- as lualine themes — there is no plain `catppuccin`.
+                  -- `catppuccin-nvim` is the auto-tracking variant: it reads
+                  -- `vim.g.colors_name` and re-derives colors on every
+                  -- :colorscheme reload, so it follows auto-dark-mode's
+                  -- mocha↔latte swap without manual intervention.
+                  theme = "catppuccin-nvim",
                   globalstatus = true,
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
@@ -870,7 +933,7 @@
                     {
                       require("lazy.status").updates,
                       cond = require("lazy.status").has_updates,
-                      color = { fg = "#ff9e64" },
+                      color = { fg = "#fab387" },
                     },
                     -- Git diff
                     {
@@ -1028,9 +1091,9 @@
           { "williamboman/mason.nvim", enabled = false },
           { "williamboman/mason-lspconfig.nvim", enabled = false },
           
-          -- Other colorschemes off — we own tokyonight via the explicit
+          -- Other colorschemes off — we own Catppuccin via the explicit
           -- spec above.
-          { "catppuccin/nvim", name = "catppuccin", enabled = false },
+          { "folke/tokyonight.nvim", enabled = false },
           
           -- colorful-winsep.nvim disabled on 2026-05-01: native
           -- WinSeparator highlight + fillchars.vert give the same
@@ -1147,19 +1210,19 @@
             config = function(_, opts)
               require("render-markdown").setup(opts)
               
-              -- Set up custom highlight groups for Kanagawa theme
+              -- Set up custom highlight groups for Catppuccin theme
               local function setup_markdown_highlights()
                 local colors = {
-                  h1 = "#957fb8", -- Spring violet
-                  h2 = "#7e9cd8", -- Crystal blue  
-                  h3 = "#7fb4ca", -- Light blue
-                  h4 = "#a3d4d5", -- Wave aqua
-                  h5 = "#98bb6c", -- Spring green
-                  h6 = "#e6c384", -- Autumn yellow
-                  code_bg = "#223249",
-                  table_head = "#2d4f67",
-                  table_row = "#1f1f28",
-                  quote = "#7aa89f",
+                  h1 = "#cba6f7", -- Mauve
+                  h2 = "#89b4fa", -- Blue
+                  h3 = "#89dceb", -- Sky
+                  h4 = "#94e2d5", -- Teal
+                  h5 = "#a6e3a1", -- Green
+                  h6 = "#f9e2af", -- Yellow
+                  code_bg = "#313244",
+                  table_head = "#45475a",
+                  table_row = "#1e1e2e",
+                  quote = "#94e2d5",
                 }
                 
                 vim.api.nvim_set_hl(0, "RenderMarkdownH1", { fg = colors.h1, bold = true })
@@ -1371,8 +1434,8 @@
             dependencies = { "MunifTanjim/nui.nvim" },
             opts = {
               colors = {
-                up_to_date = "#3C4048",
-                outdated = "#d19a66",
+                up_to_date = "#45475a",
+                outdated = "#fab387",
               },
               icons = {
                 enable = true,
@@ -1419,7 +1482,7 @@
           lazy = false, -- Should plugins be lazy-loaded by default?
           version = false, -- Always use the latest git commit
         },
-        install = { colorscheme = { "tokyonight-storm" } },
+        install = { colorscheme = { "catppuccin" } },
         checker = { enabled = false }, -- Don't check for plugin updates automatically
         performance = {
           rtp = {
@@ -1500,15 +1563,15 @@
       })
 
       -- Window-focus + float + winsep highlights, set on every
-      -- colorscheme load so kanagawa or DMS's matugen-driven palette
+      -- colorscheme load so Catppuccin or DMS's matugen-driven palette
       -- both pick them up. The previous WinEnter/WinLeave winblend=10
       -- dimming was removed (uncommon, distracting on inactive windows);
       -- the active/inactive distinction comes from NormalNC instead.
       local function setup_window_highlights()
-        local violet = "#957FB8" -- Kanagawa spring violet
-        local crystal_blue = "#7E9CD8"
-        local wave_bg = "#1F1F28"
-        local sumi_bg = "#16161D"
+        local violet = "#CBA6F7" -- Catppuccin mauve
+        local crystal_blue = "#89B4FA"
+        local wave_bg = "#1E1E2E"
+        local sumi_bg = "#11111B"
 
         vim.api.nvim_set_hl(0, "NormalFloat", { bg = wave_bg })
         vim.api.nvim_set_hl(0, "FloatBorder", { fg = crystal_blue, bg = wave_bg })

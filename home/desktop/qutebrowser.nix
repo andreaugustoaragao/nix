@@ -1,14 +1,12 @@
 {
-  config,
   pkgs,
-  lib,
   inputs,
   ...
 }:
 
 let
   pkgs-unstable = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 in
@@ -22,9 +20,11 @@ in
       # General settings
       auto_save.session = true;
       changelog_after_upgrade = "major";
-      completion.height = "50%";
-      completion.show = "always";
-      completion.shrink = true;
+      completion = {
+        height = "50%";
+        show = "always";
+        shrink = true;
+      };
 
       # Content settings
       content = {
@@ -42,216 +42,216 @@ in
         headers.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
         javascript.enabled = true;
         javascript.clipboard = "access"; # Allow clipboard access
-        
+
         # Note: Site-specific permissions are configured in extraConfig section below
-        
+
         register_protocol_handler = "ask";
         tls.certificate_errors = "ask";
       };
 
-      # Colors - Kanagawa theme
+      # Colors - Catppuccin Mocha theme
       colors = {
         #webpage.darkmode.enabled = true;
         webpage.preferred_color_scheme = "dark";
 
         # Completion menu
         completion = {
-          fg = "#dcd7ba"; # fujiWhite
-          odd.bg = "#1f1f28"; # sumiInk1
-          even.bg = "#16161d"; # sumiInk0
+          fg = "#cdd6f4"; # fujiWhite
+          odd.bg = "#1e1e2e"; # sumiInk1
+          even.bg = "#11111b"; # sumiInk0
           category = {
-            fg = "#7e9cd8"; # crystalBlue
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#89b4fa"; # crystalBlue
+            bg = "#1e1e2e"; # sumiInk1
             border = {
-              top = "#54546d"; # sumiInk4
-              bottom = "#54546d"; # sumiInk4
+              top = "#585b70"; # sumiInk4
+              bottom = "#585b70"; # sumiInk4
             };
           };
           item.selected = {
-            fg = "#c0a36e"; # boatYellow2
-            bg = "#2d4f67"; # waveBlue2
+            fg = "#f9e2af"; # boatYellow2
+            bg = "#313244"; # waveBlue2
             border = {
-              top = "#7e9cd8"; # crystalBlue
-              bottom = "#7e9cd8"; # crystalBlue
+              top = "#89b4fa"; # crystalBlue
+              bottom = "#89b4fa"; # crystalBlue
             };
-            match.fg = "#76946a"; # springGreen
+            match.fg = "#a6e3a1"; # springGreen
           };
-          match.fg = "#76946a"; # springGreen
+          match.fg = "#a6e3a1"; # springGreen
           scrollbar = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#1e1e2e"; # sumiInk1
           };
         };
 
         # Context menu
         contextmenu = {
           disabled = {
-            fg = "#727169"; # fujiGray
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#6c7086"; # fujiGray
+            bg = "#1e1e2e"; # sumiInk1
           };
           menu = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#1e1e2e"; # sumiInk1
           };
           selected = {
-            fg = "#c0a36e"; # boatYellow2
-            bg = "#2d4f67"; # waveBlue2
+            fg = "#f9e2af"; # boatYellow2
+            bg = "#313244"; # waveBlue2
           };
         };
 
         # Downloads
         downloads = {
-          bar.bg = "#1f1f28"; # sumiInk1
+          bar.bg = "#1e1e2e"; # sumiInk1
           start = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#7e9cd8"; # crystalBlue
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#89b4fa"; # crystalBlue
           };
           stop = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#76946a"; # springGreen
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#a6e3a1"; # springGreen
           };
-          error.fg = "#e82424"; # samuraiRed
+          error.fg = "#f38ba8"; # samuraiRed
         };
 
         # Hints
         hints = {
-          fg = "#1f1f28"; # sumiInk1
-          bg = "#c0a36e"; # boatYellow2
-          match.fg = "#76946a"; # springGreen
+          fg = "#1e1e2e"; # sumiInk1
+          bg = "#f9e2af"; # boatYellow2
+          match.fg = "#a6e3a1"; # springGreen
         };
 
         # Keyhint widget
         keyhint = {
-          fg = "#dcd7ba"; # fujiWhite
-          suffix.fg = "#c0a36e"; # boatYellow2
-          bg = "#1f1f28"; # sumiInk1
+          fg = "#cdd6f4"; # fujiWhite
+          suffix.fg = "#f9e2af"; # boatYellow2
+          bg = "#1e1e2e"; # sumiInk1
         };
 
         # Messages
         messages = {
           error = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#e82424"; # samuraiRed
-            border = "#e82424"; # samuraiRed
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#f38ba8"; # samuraiRed
+            border = "#f38ba8"; # samuraiRed
           };
           warning = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#ff9e3b"; # roninYellow
-            border = "#ff9e3b"; # roninYellow
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#fab387"; # roninYellow
+            border = "#fab387"; # roninYellow
           };
           info = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#1f1f28"; # sumiInk1
-            border = "#54546d"; # sumiInk4
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#1e1e2e"; # sumiInk1
+            border = "#585b70"; # sumiInk4
           };
         };
 
         # Prompts
         prompts = {
-          fg = "#dcd7ba"; # fujiWhite
-          border = "#54546d"; # sumiInk4
-          bg = "#1f1f28"; # sumiInk1
-          selected.bg = "#2d4f67"; # waveBlue2
-          selected.fg = "#c0a36e"; # boatYellow2
+          fg = "#cdd6f4"; # fujiWhite
+          border = "#585b70"; # sumiInk4
+          bg = "#1e1e2e"; # sumiInk1
+          selected.bg = "#313244"; # waveBlue2
+          selected.fg = "#f9e2af"; # boatYellow2
         };
 
         # Statusbar
         statusbar = {
           normal = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#1e1e2e"; # sumiInk1
           };
           insert = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#76946a"; # springGreen
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#a6e3a1"; # springGreen
           };
           passthrough = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#7e9cd8"; # crystalBlue
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#89b4fa"; # crystalBlue
           };
           private = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#363646"; # sumiInk3
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#313244"; # sumiInk3
           };
           command = {
-            fg = "#dcd7ba"; # fujiWhite
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#cdd6f4"; # fujiWhite
+            bg = "#1e1e2e"; # sumiInk1
             private = {
-              fg = "#dcd7ba"; # fujiWhite
-              bg = "#363646"; # sumiInk3
+              fg = "#cdd6f4"; # fujiWhite
+              bg = "#313244"; # sumiInk3
             };
           };
           caret = {
-            fg = "#1f1f28"; # sumiInk1
-            bg = "#c0a36e"; # boatYellow2
+            fg = "#1e1e2e"; # sumiInk1
+            bg = "#f9e2af"; # boatYellow2
             selection = {
-              fg = "#1f1f28"; # sumiInk1
-              bg = "#957fb8"; # oniViolet
+              fg = "#1e1e2e"; # sumiInk1
+              bg = "#cba6f7"; # oniViolet
             };
           };
-          progress.bg = "#7e9cd8"; # crystalBlue
+          progress.bg = "#89b4fa"; # crystalBlue
           url = {
-            fg = "#dcd7ba"; # fujiWhite
-            error.fg = "#e82424"; # samuraiRed
-            hover.fg = "#7fb4ca"; # lightBlue
-            success.http.fg = "#c0a36e"; # boatYellow2
-            success.https.fg = "#76946a"; # springGreen
-            warn.fg = "#ff9e3b"; # roninYellow
+            fg = "#cdd6f4"; # fujiWhite
+            error.fg = "#f38ba8"; # samuraiRed
+            hover.fg = "#89dceb"; # lightBlue
+            success.http.fg = "#f9e2af"; # boatYellow2
+            success.https.fg = "#a6e3a1"; # springGreen
+            warn.fg = "#fab387"; # roninYellow
           };
         };
 
         # Tabs
         tabs = {
-          bar.bg = "#1f1f28"; # sumiInk1
+          bar.bg = "#1e1e2e"; # sumiInk1
           indicator = {
-            start = "#7e9cd8"; # crystalBlue
-            stop = "#76946a"; # springGreen
-            error = "#e82424"; # samuraiRed
+            start = "#89b4fa"; # crystalBlue
+            stop = "#a6e3a1"; # springGreen
+            error = "#f38ba8"; # samuraiRed
           };
           odd = {
-            fg = "#727169"; # fujiGray
-            bg = "#16161d"; # sumiInk0
+            fg = "#6c7086"; # fujiGray
+            bg = "#11111b"; # sumiInk0
           };
           even = {
-            fg = "#727169"; # fujiGray
-            bg = "#1f1f28"; # sumiInk1
+            fg = "#6c7086"; # fujiGray
+            bg = "#1e1e2e"; # sumiInk1
           };
           pinned = {
             even = {
-              fg = "#dcd7ba"; # fujiWhite
-              bg = "#1f1f28"; # sumiInk1
+              fg = "#cdd6f4"; # fujiWhite
+              bg = "#1e1e2e"; # sumiInk1
             };
             odd = {
-              fg = "#dcd7ba"; # fujiWhite
-              bg = "#16161d"; # sumiInk0
+              fg = "#cdd6f4"; # fujiWhite
+              bg = "#11111b"; # sumiInk0
             };
             selected = {
               even = {
-                fg = "#c0a36e"; # boatYellow2
-                bg = "#2d4f67"; # waveBlue2
+                fg = "#f9e2af"; # boatYellow2
+                bg = "#313244"; # waveBlue2
               };
               odd = {
-                fg = "#c0a36e"; # boatYellow2
-                bg = "#2d4f67"; # waveBlue2
+                fg = "#f9e2af"; # boatYellow2
+                bg = "#313244"; # waveBlue2
               };
             };
           };
           selected = {
             odd = {
-              fg = "#c0a36e"; # boatYellow2
-              bg = "#2d4f67"; # waveBlue2
+              fg = "#f9e2af"; # boatYellow2
+              bg = "#313244"; # waveBlue2
             };
             even = {
-              fg = "#c0a36e"; # boatYellow2
-              bg = "#2d4f67"; # waveBlue2
+              fg = "#f9e2af"; # boatYellow2
+              bg = "#313244"; # waveBlue2
             };
           };
         };
 
         # Tooltip
         tooltip = {
-          fg = "#dcd7ba"; # fujiWhite
-          bg = "#1f1f28"; # sumiInk1
+          fg = "#cdd6f4"; # fujiWhite
+          bg = "#1e1e2e"; # sumiInk1
         };
       };
 
@@ -269,30 +269,38 @@ in
         "{}"
       ];
 
-      # Fonts (matching system theme with Kanagawa Nerd Font)
+      # Fonts (matching system theme with Catppuccin palette)
       fonts = {
         default_family = "CaskaydiaCove Nerd Font";
         default_size = "11pt";
-        web.family.standard = "Inter";
-        web.family.serif = "Noto Serif";
-        web.family.sans_serif = "Inter";
-        web.family.fixed = "CaskaydiaCove Nerd Font";
-        web.size.default = 16;
-        web.size.default_fixed = 13;
+        web = {
+          family = {
+            standard = "Inter";
+            serif = "Noto Serif";
+            sans_serif = "Inter";
+            fixed = "CaskaydiaCove Nerd Font";
+          };
+          size = {
+            default = 16;
+            default_fixed = 13;
+          };
+        };
       };
 
       # Hints
       hints = {
-        border = "1px solid #dcd7ba"; # Kanagawa foreground
+        border = "1px solid #cdd6f4"; # Catppuccin Mocha text
         chars = "asdfghjkl";
         uppercase = true;
       };
 
       # Input
       input = {
-        insert_mode.auto_enter = true;
-        insert_mode.auto_leave = true;
-        insert_mode.plugins = true;
+        insert_mode = {
+          auto_enter = true;
+          auto_leave = true;
+          plugins = true;
+        };
       };
 
       # New instance handling for web apps
@@ -432,21 +440,21 @@ in
       config.set('content.media.audio_capture', 'ask', '*')
       config.set('content.media.video_capture', 'ask', '*')
       config.set('content.media.audio_video_capture', 'ask', '*')
-      
+
       # Site-specific notifications permissions
       config.set('content.notifications.enabled', True, 'https://web.whatsapp.com')
       config.set('content.notifications.enabled', True, 'https://teams.microsoft.com')
       config.set('content.notifications.enabled', True, 'https://grok.com')
-      
+
       # Site-specific media permissions for video conferencing
       config.set('content.media.audio_capture', True, 'https://teams.microsoft.com')
       config.set('content.media.audio_capture', True, 'https://meet.google.com')
       config.set('content.media.audio_capture', True, 'https://zoom.us')
-      
+
       config.set('content.media.video_capture', True, 'https://teams.microsoft.com')
       config.set('content.media.video_capture', True, 'https://meet.google.com')
       config.set('content.media.video_capture', True, 'https://zoom.us')
-      
+
       config.set('content.media.audio_video_capture', True, 'https://teams.microsoft.com')
       config.set('content.media.audio_video_capture', True, 'https://meet.google.com')
       config.set('content.media.audio_video_capture', True, 'https://zoom.us')
@@ -454,4 +462,3 @@ in
   };
 
 }
-

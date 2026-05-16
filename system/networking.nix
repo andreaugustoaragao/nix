@@ -1,8 +1,6 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
   wirelessInterface,
   hostName,
   isVm,
@@ -15,93 +13,101 @@
   environment.systemPackages = lib.mkIf (wirelessInterface != null) [
     pkgs.wpa_supplicant_gui
   ];
-  # hostname is now set in system/default.nix from metadata
-  systemd.network.enable = true;
-  networking.useNetworkd = true;
-  networking.useDHCP = false;
-
-  systemd.network.networks."10-ethernet" = {
-    matchConfig.Name = "en*";
-    networkConfig =
-      if hostName == "prl-dev-vm" then
-        {
-          Address = "10.211.55.4/24";
-          Gateway = "10.211.55.1";
-          DNS = [
-            "10.211.55.1"
-            "1.1.1.1"
-            "8.8.8.8"
+  systemd = {
+    network = {
+      # hostname is now set in system/default.nix from metadata
+      enable = true;
+      networks = {
+        "10-ethernet" = {
+          matchConfig.Name = "en*";
+          networkConfig =
+            if hostName == "prl-dev-vm" then
+              {
+                Address = "10.211.55.4/24";
+                Gateway = "10.211.55.1";
+                DNS = [
+                  "10.211.55.1"
+                  "1.1.1.1"
+                  "8.8.8.8"
+                ];
+                IPv6AcceptRA = true;
+              }
+            else if hostName == "workstation" then
+              {
+                Address = "192.168.10.75/24";
+                Gateway = "192.168.10.1";
+                DNS = [
+                  "192.168.40.3"
+                  "192.168.100.2"
+                ];
+                IPv6AcceptRA = true;
+              }
+            else if hostName == "tala" then
+              {
+                Address = "192.168.40.10/24";
+                Gateway = "192.168.40.1";
+                DNS = [
+                  "192.168.40.3"
+                  "1.1.1.1"
+                  "8.8.8.8"
+                ];
+                IPv6AcceptRA = true;
+              }
+            else
+              {
+                DHCP = "yes";
+                IPv6AcceptRA = true;
+              };
+          dhcpV4Config = lib.mkIf (hostName == "hp-laptop") {
+            RouteMetric = 1024;
+          };
+          dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
+            "1.1.1.1#cloudflare-dns.com"
+            "8.8.8.8#dns.google"
           ];
-          IPv6AcceptRA = true;
-        }
-      else if hostName == "workstation" then
-        {
-          Address = "192.168.10.75/24";
-          Gateway = "192.168.10.1";
-          DNS = [
-            "192.168.40.3"
-            "192.168.100.2"
-          ];
-          IPv6AcceptRA = true;
-        }
-      else if hostName == "tala" then
-        {
-          Address = "192.168.40.10/24";
-          Gateway = "192.168.40.1";
-          DNS = [
-            "192.168.40.3"
-            "1.1.1.1"
-            "8.8.8.8"
-          ];
-          IPv6AcceptRA = true;
-        }
-      else
-        {
-          DHCP = "yes";
-          IPv6AcceptRA = true;
+          ipv6AcceptRAConfig = {
+            RouteMetric = 1024;
+          };
         };
-    dhcpV4Config = lib.mkIf (hostName == "hp-laptop") ({
-      RouteMetric = 1024;
-    });
-    dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
-      "1.1.1.1#cloudflare-dns.com"
-      "8.8.8.8#dns.google"
-    ];
-    ipv6AcceptRAConfig = {
-      RouteMetric = 1024;
+
+        # Tell networkd to ignore container/K3s veth interfaces — their constant
+        # creation/destruction floods the journal with carrier-change noise.
+        "01-veth-ignore" = {
+          matchConfig.Name = "veth*";
+          linkConfig.Unmanaged = true;
+        };
+      };
     };
   };
 
-  # Tell networkd to ignore container/K3s veth interfaces — their constant
-  # creation/destruction floods the journal with carrier-change noise.
-  systemd.network.networks."01-veth-ignore" = {
-    matchConfig.Name = "veth*";
-    linkConfig.Unmanaged = true;
-  };
+  networking = {
+    useNetworkd = true;
+    useDHCP = false;
 
-  # Conditional wireless configuration
-  networking.wireless = lib.mkIf (wirelessInterface != null) {
-    enable = true;
-    interfaces = [ wirelessInterface ];
-    userControlled.enable = true; # Allow user-space configuration
+    # Conditional wireless configuration
+    wireless = lib.mkIf (wirelessInterface != null) {
+      enable = true;
+      interfaces = [ wirelessInterface ];
+      userControlled.enable = true; # Allow user-space configuration
 
-    # Networks configured via SOPS secrets
-    networks = {
-      # Home network - using SOPS secret
-      "FARAGAO" = {
-        pskRaw = "ext:wifi_password_home";
-        priority = 10;
+      # Networks configured via SOPS secrets
+      networks = {
+        # Home network - using SOPS secret
+        "FARAGAO" = {
+          pskRaw = "ext:wifi_password_home";
+          priority = 10;
+        };
+
+        # Work network - using SOPS secret
+        "FARAGAO_WORK" = {
+          pskRaw = "ext:wifi_password_work";
+          priority = 1;
+        };
       };
 
-      # Work network - using SOPS secret
-      "FARAGAO_WORK" = {
-        pskRaw = "ext:wifi_password_work";
-        priority = 1;
-      };
+      # Secrets file containing SOPS secrets for wpa_supplicant
+      secretsFile = "/run/secrets/wifi_env";
     };
-
-    # Secrets file containing SOPS secrets for wpa_supplicant
-    secretsFile = "/run/secrets/wifi_env";
   };
 
   # Wireless network configuration for systemd-networkd

@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # foot reads the freedesktop color-scheme preference and picks
@@ -22,53 +22,53 @@
       };
 
       "colors-dark" = {
-        foreground = "c0caf5";
-        background = "24283b";
-        selection-foreground = "c0caf5";
-        selection-background = "2e3c64";
+        foreground = "cdd6f4";
+        background = "1e1e2e";
+        selection-foreground = "cdd6f4";
+        selection-background = "45475a";
 
-        regular0 = "1d202f";
-        regular1 = "f7768e";
-        regular2 = "9ece6a";
-        regular3 = "e0af68";
-        regular4 = "7aa2f7";
-        regular5 = "bb9af7";
-        regular6 = "7dcfff";
-        regular7 = "a9b1d6";
+        regular0 = "45475a";
+        regular1 = "f38ba8";
+        regular2 = "a6e3a1";
+        regular3 = "f9e2af";
+        regular4 = "89b4fa";
+        regular5 = "f5c2e7";
+        regular6 = "94e2d5";
+        regular7 = "bac2de";
 
-        bright0 = "414868";
-        bright1 = "f7768e";
-        bright2 = "9ece6a";
-        bright3 = "e0af68";
-        bright4 = "7aa2f7";
-        bright5 = "bb9af7";
-        bright6 = "7dcfff";
-        bright7 = "c0caf5";
+        bright0 = "585b70";
+        bright1 = "f38ba8";
+        bright2 = "a6e3a1";
+        bright3 = "f9e2af";
+        bright4 = "89b4fa";
+        bright5 = "f5c2e7";
+        bright6 = "94e2d5";
+        bright7 = "a6adc8";
       };
 
       "colors-light" = {
-        foreground = "3760bf";
-        background = "e1e2e7";
-        selection-foreground = "3760bf";
-        selection-background = "b6bfe2";
+        foreground = "4c4f69";
+        background = "eff1f5";
+        selection-foreground = "4c4f69";
+        selection-background = "ccd0da";
 
-        regular0 = "b4b5b9";
-        regular1 = "f52a65";
-        regular2 = "587539";
-        regular3 = "8c6c3e";
-        regular4 = "2e7de9";
-        regular5 = "9854f1";
-        regular6 = "007197";
-        regular7 = "6172b0";
+        regular0 = "5c5f77";
+        regular1 = "d20f39";
+        regular2 = "40a02b";
+        regular3 = "df8e1d";
+        regular4 = "1e66f5";
+        regular5 = "ea76cb";
+        regular6 = "179299";
+        regular7 = "acb0be";
 
-        bright0 = "a1a6c5";
-        bright1 = "f52a65";
-        bright2 = "587539";
-        bright3 = "8c6c3e";
-        bright4 = "2e7de9";
-        bright5 = "9854f1";
-        bright6 = "007197";
-        bright7 = "3760bf";
+        bright0 = "6c6f85";
+        bright1 = "d20f39";
+        bright2 = "40a02b";
+        bright3 = "df8e1d";
+        bright4 = "1e66f5";
+        bright5 = "ea76cb";
+        bright6 = "179299";
+        bright7 = "4c4f69";
       };
     };
   };

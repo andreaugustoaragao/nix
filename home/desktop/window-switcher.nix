@@ -1,11 +1,16 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   # Window switcher script with fuzzel integration for niri
   home.packages = [
     (pkgs.writeShellApplication {
       name = "window-switcher";
-      runtimeInputs = with pkgs; [ fuzzel coreutils gnused gawk ];
+      runtimeInputs = with pkgs; [
+        fuzzel
+        coreutils
+        gnused
+        gawk
+      ];
       text = ''
         #!/usr/bin/env bash
 

@@ -16,10 +16,11 @@ in
   # icons/<user> and exposes it via D-Bus; DMS picks it up from there. C+
   # clears the destination first so the image refreshes whenever the source
   # store-path changes.
-  systemd.tmpfiles.settings."10-accounts-avatar"."/var/lib/AccountsService/icons/${owner.name}"."C+" = {
-    argument = avatar;
-    user = "root";
-    group = "root";
-    mode = "0644";
-  };
+  systemd.tmpfiles.settings."10-accounts-avatar"."/var/lib/AccountsService/icons/${owner.name}"."C+" =
+    {
+      argument = avatar;
+      user = "root";
+      group = "root";
+      mode = "0644";
+    };
 }

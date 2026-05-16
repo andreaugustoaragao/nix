@@ -1,34 +1,34 @@
 {
-  config,
-  pkgs,
-  lib,
-  inputs,
   owner,
   ...
 }:
 
 {
+  nix = {
+    settings = {
+      experimental-features = [
+        "nix-command"
+        "flakes"
+      ];
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+      # Use all CPU cores per build, pick parallel build count automatically.
+      cores = 0;
+      max-jobs = "auto";
 
-  # Use all CPU cores per build, pick parallel build count automatically.
-  nix.settings.cores = 0;
-  nix.settings.max-jobs = "auto";
+      # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
+      auto-optimise-store = true;
+    };
 
-  # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
-  nix.settings.auto-optimise-store = true;
-  nix.optimise = {
-    automatic = true;
-    dates = [ "weekly" ];
-  };
+    optimise = {
+      automatic = true;
+      dates = [ "weekly" ];
+    };
 
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
+    gc = {
+      automatic = true;
+      dates = "weekly";
+      options = "--delete-older-than 30d";
+    };
   };
 
   # Bubble GC failures (lock contention, ENOSPC, /nix store inconsistency)

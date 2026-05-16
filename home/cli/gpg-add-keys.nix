@@ -1,11 +1,15 @@
-{ config, pkgs, lib, ... }:
+{ pkgs, ... }:
 
 {
   # Create a script to preload GPG keys into the agent cache
   home.packages = [
     (pkgs.writeShellApplication {
       name = "gpg-add-keys";
-      runtimeInputs = with pkgs; [ gnupg gawk coreutils ];
+      runtimeInputs = with pkgs; [
+        gnupg
+        gawk
+        coreutils
+      ];
       text = ''
         # GPG key preloading script
         # Uses gpg-preset-passphrase to cache passphrases indefinitely

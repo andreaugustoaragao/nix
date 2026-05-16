@@ -1,8 +1,6 @@
 {
   config,
-  pkgs,
   lib,
-  inputs,
   owner,
   isServer ? false,
   ...
@@ -20,14 +18,32 @@
     ./desktop
   ];
 
-  home.username = owner.name;
-  home.homeDirectory = "/home/${owner.name}";
-  home.stateVersion = "24.11"; # Auto-rebuild test
+  home = {
+    username = owner.name;
+    homeDirectory = "/home/${owner.name}";
+    stateVersion = "24.11"; # Auto-rebuild test
 
-  # Prioritize ~/.local/bin in PATH
-  home.sessionPath = [
-    "$HOME/.local/bin"
-  ];
+    # Prioritize ~/.local/bin in PATH
+    sessionPath = [
+      "$HOME/.local/bin"
+    ];
+
+    activation = {
+      # Ensure project directories are created via Home Manager activation
+      createProjectDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        # Create project directories
+        $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/work"
+        $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/personal"
+        echo "Created project directories"
+      '';
+
+      # Prevent Home Manager backup collisions (e.g., .gtkrc-2.0.hm-backup2)
+      cleanupHmBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        # Remove stale Home Manager backup files that can block activation
+        rm -f "$HOME/.gtkrc-2.0.hm-backup"* || true
+      '';
+    };
+  };
 
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
@@ -52,20 +68,6 @@
       XDG_PERSONAL_DIR = "${config.home.homeDirectory}/projects/personal";
     };
   };
-
-  # Ensure project directories are created via Home Manager activation
-  home.activation.createProjectDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    # Create project directories
-    $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/work"
-    $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/personal"
-    echo "Created project directories"
-  '';
-
-  # Prevent Home Manager backup collisions (e.g., .gtkrc-2.0.hm-backup2)
-  home.activation.cleanupHmBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    # Remove stale Home Manager backup files that can block activation
-    rm -f "$HOME/.gtkrc-2.0.hm-backup"* || true
-  '';
 
 }
 # verify Fri Sep 12 04:54:13 PM MDT 2025

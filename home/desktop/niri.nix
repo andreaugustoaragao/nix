@@ -2,7 +2,6 @@
   config,
   pkgs,
   lib,
-  inputs,
   lockScreen ? false,
   useDms ? false,
   ...
@@ -144,7 +143,7 @@
 
         focus-ring {
             width 4
-            active-color "#dcd7ba"  // Kanagawa foreground
+            active-color "#cdd6f4"  // Catppuccin Mocha text
             inactive-color "#595959"
         }
         

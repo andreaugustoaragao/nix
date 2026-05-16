@@ -1,4 +1,10 @@
-{ config, pkgs, lib, lockScreen ? false, useDms ? false, ... }:
+{
+  pkgs,
+  lib,
+  lockScreen ? false,
+  useDms ? false,
+  ...
+}:
 
 lib.mkIf (lockScreen && !useDms) {
   # Lock screen configuration for desktop machines
@@ -7,47 +13,47 @@ lib.mkIf (lockScreen && !useDms) {
     swayidle
   ];
 
-  # Swaylock configuration with Kanagawa theme
+  # Swaylock configuration with Catppuccin Mocha theme
   xdg.configFile."swaylock/config".text = ''
-    # Kanagawa-themed lock screen with screenshot background
+    # Catppuccin-themed lock screen with screenshot background
     screenshots
     clock
     font=CaskaydiaCove Nerd Font
     font-size=14
-    
+
     # Visual effects (screenshot + blur for modern look)
     effect-blur=7x5
     effect-vignette=0.5:0.5
     fade-in=0.2
-    
-    # Ring colors (Kanagawa palette)
-    ring-color=54546d
-    key-hl-color=7fb4ca
-    line-color=1f1f28
-    
+
+    # Ring colors (Catppuccin Mocha palette)
+    ring-color=585b70
+    key-hl-color=89b4fa
+    line-color=1e1e2e
+
     # Inside colors
-    inside-color=1f1f2888
-    inside-clear-color=7fb4ca88
-    inside-ver-color=98bb6c88
-    inside-wrong-color=e82424aa
-    
+    inside-color=1e1e2e88
+    inside-clear-color=89b4fa88
+    inside-ver-color=a6e3a188
+    inside-wrong-color=f38ba8aa
+
     # Text colors
-    text-color=dcd7ba
-    text-clear-color=1f1f28
-    text-ver-color=1f1f28
-    text-wrong-color=dcd7ba
-    
+    text-color=cdd6f4
+    text-clear-color=1e1e2e
+    text-ver-color=1e1e2e
+    text-wrong-color=cdd6f4
+
     # Ring verification/wrong colors
-    ring-clear-color=7fb4ca
-    ring-ver-color=98bb6c
-    ring-wrong-color=e82424
-    
+    ring-clear-color=89b4fa
+    ring-ver-color=a6e3a1
+    ring-wrong-color=f38ba8
+
     # Separator color
     separator-color=00000000
-    
+
     # Show failed attempts
     show-failed-attempts
-    
+
     # Grace period
     grace=2
     grace-no-mouse
@@ -78,7 +84,6 @@ lib.mkIf (lockScreen && !useDms) {
       # }
     ];
   };
-
 
   # Add lock screen keybinding to existing window managers
   # This will be picked up by niri configuration if it imports this

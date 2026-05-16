@@ -1,7 +1,7 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 let
-  kanagawa-wallpaper = pkgs.runCommand "kanagawa-wallpaper" {} ''
+  kanagawa-wallpaper = pkgs.runCommand "kanagawa-wallpaper" { } ''
     mkdir -p $out/share/wallpapers
     cp ${../../assets/wallpapers/kanagawa.jpg} $out/share/wallpapers/kanagawa.jpg
   '';

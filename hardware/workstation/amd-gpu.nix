@@ -1,6 +1,5 @@
 # AMD RX 7900 GRE GPU Configuration for Workstation
 {
-  config,
   pkgs,
   lib,
   owner,
@@ -75,16 +74,18 @@
     ];
   };
 
-  # GPU control service for fan curves, overclocking, etc.
-  services.lact.enable = true;
+  services = {
+    # GPU control service for fan curves, overclocking, etc.
+    lact.enable = true;
 
-  # Device permissions for GPU access
-  services.udev.extraRules = ''
-    # DRM devices for graphics
-    SUBSYSTEM=="drm", GROUP="video", MODE="0664"
-    # ROCm/OpenCL devices for compute workloads
-    SUBSYSTEM=="kfd", KERNEL=="kfd", TAG+="uaccess", GROUP="video"
-  '';
+    # Device permissions for GPU access
+    udev.extraRules = ''
+      # DRM devices for graphics
+      SUBSYSTEM=="drm", GROUP="video", MODE="0664"
+      # ROCm/OpenCL devices for compute workloads
+      SUBSYSTEM=="kfd", KERNEL=="kfd", TAG+="uaccess", GROUP="video"
+    '';
+  };
 
   # Add user to video group for GPU access
   users.users.${owner.name}.extraGroups = [ "video" ];

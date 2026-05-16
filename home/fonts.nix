@@ -1,19 +1,22 @@
-{ config, pkgs, lib, inputs, ... }:
+{ pkgs, ... }:
 
 {
   # Font packages used across desktop and CLI
-  home.packages = with pkgs; [
-    jetbrains-mono
-    liberation_ttf
-    font-awesome
-    noto-fonts-color-emoji
-    cantarell-fonts
-  ] ++ (with pkgs.nerd-fonts; [
-    cascadia-code
-    caskaydia-mono
-    jetbrains-mono
-    symbols-only
-  ]);
+  home.packages =
+    with pkgs;
+    [
+      jetbrains-mono
+      liberation_ttf
+      font-awesome
+      noto-fonts-color-emoji
+      cantarell-fonts
+    ]
+    ++ (with pkgs.nerd-fonts; [
+      cascadia-code
+      caskaydia-mono
+      jetbrains-mono
+      symbols-only
+    ]);
 
   # System-wide fontconfig defaults
   fonts.fontconfig = {
@@ -53,4 +56,4 @@
       </match>
     </fontconfig>
   '';
-} 
+}

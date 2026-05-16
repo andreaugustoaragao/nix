@@ -1,18 +1,10 @@
 {
-  config,
   pkgs,
   lib,
-  inputs,
   isServer,
   ...
 }:
 
-let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    system = pkgs.stdenv.hostPlatform.system;
-    config.allowUnfree = true;
-  };
-in
 {
   # Enable nix-ld for running unpatched dynamic binaries (needed for VSCode/Cursor server)
   programs.nix-ld.enable = true;

@@ -29,5 +29,15 @@ lib.mkIf useDms {
     lightModeScripts.gnome-color-scheme = ''
       ${pkgs.glib}/bin/gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
     '';
+
+    # Flip fuzzel's active config between the two Catppuccin variants
+    # (see home/desktop/fuzzel.nix). fuzzel re-reads its config on each
+    # launch, so no signal/reload step is needed.
+    darkModeScripts.fuzzel = ''
+      ${pkgs.coreutils}/bin/ln -sfn fuzzel.mocha.ini "$HOME/.config/fuzzel/fuzzel.ini"
+    '';
+    lightModeScripts.fuzzel = ''
+      ${pkgs.coreutils}/bin/ln -sfn fuzzel.latte.ini "$HOME/.config/fuzzel/fuzzel.ini"
+    '';
   };
 }

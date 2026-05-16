@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
   # Searchable shell history (Ctrl+R replacement). Records cwd, exit

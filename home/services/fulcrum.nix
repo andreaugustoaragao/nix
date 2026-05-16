@@ -21,9 +21,9 @@ let
   # small to avoid pulling the world, but expand if something new
   # complains about a missing .so at boot.
   fulcrumLibs = lib.makeLibraryPath [
-    pkgs.stdenv.cc.cc.lib    # libstdc++.so.6
-    pkgs.zlib                # libz.so.1
-    pkgs.glib                # libglib-2.0.so.0 (occasionally pulled by image libs)
+    pkgs.stdenv.cc.cc.lib # libstdc++.so.6
+    pkgs.zlib # libz.so.1
+    pkgs.glib # libglib-2.0.so.0 (occasionally pulled by image libs)
   ];
 
   # Tools the service shell needs — bun to run, git so the process can
