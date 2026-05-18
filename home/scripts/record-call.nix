@@ -279,10 +279,15 @@ in
               # record-call's pw-record commands are intentionally distinctive.
               # Reap any stale capture readers first so ffmpeg segmenters get EOF
               # and can flush their final partial file before we escalate.
+              # The `|| true` is mandatory: the script runs under `set -euo
+              # pipefail`, and `pgrep | while` returns the rightmost non-zero
+              # exit when pgrep finds nothing — which aborts the whole script
+              # mid-stop. Until 2026-05-18 this silently broke every stop
+              # invocation where the captures had already died.
               pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
                 | while read -r pid; do
                     kill -TERM "$pid" 2>/dev/null || true
-                  done
+                  done || true
 
               if [ -n "$out" ]; then
                 ffmpeg_pattern="ffmpeg .*$(printf '%s' "$out" | sed 's/[][\.^$*+?{}|()]/\\&/g')/chunks/.*_%06d\\.wav"
@@ -293,7 +298,7 @@ in
               pgrep -f "$ffmpeg_pattern" \
                 | while read -r pid; do
                     kill -TERM "$pid" 2>/dev/null || true
-                  done
+                  done || true
 
               for _ in $(seq 1 20); do
                 pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' >/dev/null 2>&1 || \
@@ -308,11 +313,11 @@ in
               pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
                 | while read -r pid; do
                     kill -KILL "$pid" 2>/dev/null || true
-                  done
+                  done || true
               pgrep -f "$ffmpeg_pattern" \
                 | while read -r pid; do
                     kill -KILL "$pid" 2>/dev/null || true
-                  done
+                  done || true
             }
 
             unload_record_call_modules() {
@@ -454,6 +459,10 @@ in
               OUTPUT_DIR="''${1:-$HOME/recordings/calls/$(date +%Y%m%d-%H%M%S)}"
               mkdir -p "$OUTPUT_DIR/chunks"
               touch "$OUTPUT_DIR/transcript.txt"
+              # Defensive: previous session may have crashed without
+              # clearing this sentinel, which would make the new capture
+              # supervisor exit immediately.
+              rm -f "$OUTPUT_DIR/.shutdown"
 
               # Null-sink captures browser audio; loopback plays it back to
               # the user's default output so they still hear the call.
@@ -488,27 +497,59 @@ in
               # pw-record piped to ffmpeg segment muxer avoids the pulse-
               # compat "Generic error" bug `ffmpeg -f pulse` hits against
               # null-sink monitors with a loopback attached.
-              ( set -o pipefail
-                exec pw-record --target="$MON_ID" --format=s16 --rate=16000 --channels=1 - \
-                  2>> "$OUTPUT_DIR/pw-call.log" \
-                | exec ffmpeg -hide_banner -loglevel warning -y \
-                    -f s16le -ar 16000 -ac 1 -i - \
-                    -c:a pcm_s16le \
-                    -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
-                    "$OUTPUT_DIR/chunks/call_%06d.wav" \
-                    > "$OUTPUT_DIR/ffmpeg-call.log" 2>&1
+              #
+              # Wrapped in a supervisor loop so a transient pw-record death
+              # (observed mid-session on 2026-05-18 with no error left in
+              # any log) auto-restarts capture from the next available
+              # chunk index instead of leaving the watcher waiting forever
+              # on inotify for chunks that never come.
+              ( while [ ! -f "$OUTPUT_DIR/.shutdown" ]; do
+                  start_idx=$(find "$OUTPUT_DIR/chunks" -maxdepth 1 -name 'call_*.wav' -type f 2>/dev/null \
+                    | sed -n 's|.*/call_0*\([0-9][0-9]*\)\.wav$|\1|p' \
+                    | sort -n | tail -1)
+                  start_idx=$(( ''${start_idx:--1} + 1 ))
+                  echo "$(date -Is) call capture starting at segment $start_idx" >> "$OUTPUT_DIR/capture-call.log"
+                  set -o pipefail
+                  pw-record --target="$MON_ID" --format=s16 --rate=16000 --channels=1 - \
+                    2>> "$OUTPUT_DIR/pw-call.log" \
+                  | ffmpeg -hide_banner -loglevel warning -y \
+                      -f s16le -ar 16000 -ac 1 -i - \
+                      -c:a pcm_s16le \
+                      -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
+                      -segment_start_number "$start_idx" \
+                      "$OUTPUT_DIR/chunks/call_%06d.wav" \
+                      >> "$OUTPUT_DIR/ffmpeg-call.log" 2>&1
+                  rc=$?
+                  set +o pipefail
+                  [ -f "$OUTPUT_DIR/.shutdown" ] && break
+                  echo "$(date -Is) call capture exited rc=$rc, restarting in 1s" >> "$OUTPUT_DIR/capture-call.log"
+                  sleep 1
+                done
               ) &
               FFMPEG_CALL_PID=$!
 
-              ( set -o pipefail
-                exec pw-record --target="$MIC_ID" --format=s16 --rate=16000 --channels=1 - \
-                  2>> "$OUTPUT_DIR/pw-mic.log" \
-                | exec ffmpeg -hide_banner -loglevel warning -y \
-                    -f s16le -ar 16000 -ac 1 -i - \
-                    -c:a pcm_s16le \
-                    -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
-                    "$OUTPUT_DIR/chunks/mic_%06d.wav" \
-                    > "$OUTPUT_DIR/ffmpeg-mic.log" 2>&1
+              ( while [ ! -f "$OUTPUT_DIR/.shutdown" ]; do
+                  start_idx=$(find "$OUTPUT_DIR/chunks" -maxdepth 1 -name 'mic_*.wav' -type f 2>/dev/null \
+                    | sed -n 's|.*/mic_0*\([0-9][0-9]*\)\.wav$|\1|p' \
+                    | sort -n | tail -1)
+                  start_idx=$(( ''${start_idx:--1} + 1 ))
+                  echo "$(date -Is) mic capture starting at segment $start_idx" >> "$OUTPUT_DIR/capture-mic.log"
+                  set -o pipefail
+                  pw-record --target="$MIC_ID" --format=s16 --rate=16000 --channels=1 - \
+                    2>> "$OUTPUT_DIR/pw-mic.log" \
+                  | ffmpeg -hide_banner -loglevel warning -y \
+                      -f s16le -ar 16000 -ac 1 -i - \
+                      -c:a pcm_s16le \
+                      -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
+                      -segment_start_number "$start_idx" \
+                      "$OUTPUT_DIR/chunks/mic_%06d.wav" \
+                      >> "$OUTPUT_DIR/ffmpeg-mic.log" 2>&1
+                  rc=$?
+                  set +o pipefail
+                  [ -f "$OUTPUT_DIR/.shutdown" ] && break
+                  echo "$(date -Is) mic capture exited rc=$rc, restarting in 1s" >> "$OUTPUT_DIR/capture-mic.log"
+                  sleep 1
+                done
               ) &
               FFMPEG_MIC_PID=$!
 
@@ -571,6 +612,9 @@ in
               fi
 
               echo "Stopping ffmpeg captures (flushing last fragment)..."
+              # Tell the capture supervisors to exit cleanly instead of
+              # auto-restarting when we kill pw-record/ffmpeg below.
+              touch "$OUTPUT_DIR/.shutdown" 2>/dev/null || true
               cleanup_capture_processes "$OUTPUT_DIR"
               kill_tree "''${FFMPEG_CALL_PID:-}"
               kill_tree "''${FFMPEG_MIC_PID:-}"
@@ -728,18 +772,34 @@ in
                 [ -n "$TARGET" ] && break
                 sleep 0.1
               done
-              [ -n "$TARGET" ] || { echo "record-call sink never appeared" >&2; exit 1; }
-              do_route "$TARGET" >/dev/null
-              pactl subscribe 2>/dev/null | while read -r line; do
-                case "$line" in
-                  *"on sink-input"*)
-                    # Brief settle delay — a freshly-created stream often
-                    # reports its application properties a beat after the
-                    # event fires, and we need those to match the filter.
-                    sleep 0.1
-                    do_route "$TARGET" >/dev/null
-                    ;;
-                esac
+              [ -n "$TARGET" ] || { echo "$(date -Is) record-call sink never appeared" >&2; exit 1; }
+
+              echo "$(date -Is) autoroute started, target=$TARGET" >&2
+              do_route "$TARGET" >&2
+
+              # pactl subscribe can exit on its own (PA daemon hiccup,
+              # transient pipe break) — observed on 2026-05-18 with no
+              # error left in autoroute.log. Without this retry loop the
+              # auto-router stays dead, browser streams revert to the
+              # default sink, and all captured "call" audio is silence.
+              while true; do
+                if [ -z "$(sink_index)" ]; then
+                  echo "$(date -Is) record-call sink gone, exiting autoroute" >&2
+                  return 0
+                fi
+                pactl subscribe 2>&1 | while read -r line; do
+                  case "$line" in
+                    *"on sink-input"*)
+                      # Brief settle delay — a freshly-created stream often
+                      # reports its application properties a beat after the
+                      # event fires, and we need those to match the filter.
+                      sleep 0.1
+                      do_route "$TARGET" >/dev/null
+                      ;;
+                  esac
+                done || true
+                echo "$(date -Is) pactl subscribe exited, restarting in 0.5s" >&2
+                sleep 0.5
               done
             }
 

@@ -8,6 +8,7 @@ PluginComponent {
     id: root
 
     property bool recording: false
+    property bool toggleBusy: false
     property int startedAt: 0
     property string outputDir: ""
     property int now: Math.floor(Date.now() / 1000)
@@ -22,6 +23,9 @@ PluginComponent {
         return h > 0 ? (h + ":" + pad(m) + ":" + pad(sec)) : (pad(m) + ":" + pad(sec));
     }
     function tooltipText() {
+        if (root.toggleBusy) {
+            return root.recording ? "Stopping recording..." : "Starting recording...";
+        }
         return root.recording
             ? "Recording " + root.elapsedText() + " — click to stop"
             : "Start recording";
@@ -83,14 +87,32 @@ PluginComponent {
         id: toggleProc
         command: ["true"]
         running: false
+        onStarted: {
+            root.toggleBusy = true;
+        }
         onExited: (exitCode, exitStatus) => {
+            root.toggleBusy = false;
+            if (exitCode !== 0) {
+                console.warn("[record-call] toggle exited rc=" + exitCode + " — see /tmp/record-call-widget.log");
+            }
             kickPoll.start();
         }
     }
 
+    // `record-call stop` can take 30+s when it flushes the final whisper
+    // window. Without this guard, a second click while the first is still
+    // in flight would set running=true on an already-running Process, which
+    // does nothing — the user sees an unresponsive button.
     function toggle() {
+        if (root.toggleBusy) {
+            console.warn("[record-call] toggle ignored — previous invocation still running");
+            return;
+        }
         var sub = root.recording ? "stop" : "start";
-        toggleProc.command = ["sh", "-c", "record-call " + sub];
+        toggleProc.command = ["bash", "-c",
+            "exec >>/tmp/record-call-widget.log 2>&1; " +
+            "echo \"[$(date -Is)] widget invoked: record-call " + sub + "\"; " +
+            "exec record-call " + sub];
         toggleProc.running = true;
     }
 
