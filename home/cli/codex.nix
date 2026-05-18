@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
@@ -9,11 +9,13 @@ in
   # activation in home/cli/development.nix. This module owns its
   # user-level config at ~/.codex/config.toml.
 
-  # Codex shells out to `bwrap` for filesystem sandboxing; without it
-  # in PATH it falls back to a bundled copy and prints a warning at
-  # every invocation. (NixOS enables unprivileged user namespaces by
-  # default, so no setuid wrapper is needed.)
-  home.packages = [ pkgs.bubblewrap ];
+  # Codex shells out to `bwrap` for filesystem sandboxing on Linux;
+  # without it in PATH it falls back to a bundled copy and prints a
+  # warning at every invocation. On macOS codex uses Seatbelt/sandbox-exec
+  # directly, so bubblewrap is irrelevant (and unbuildable).
+  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+    pkgs.bubblewrap
+  ];
   #
   # Schema: https://developers.openai.com/codex/config-reference
   #

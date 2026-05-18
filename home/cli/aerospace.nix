@@ -1,0 +1,156 @@
+{ ... }:
+
+# AeroSpace tiling-WM config, mirroring the niri keymap from
+# home/desktop/niri.nix as closely as an i3-style tiler permits.
+#
+# Key differences from niri (impossible to mirror exactly):
+#   - niri is *scrollable*-tiling (columns slide horizontally, infinite
+#     row); AeroSpace is BSP/tiles. There is no analog for
+#     consume-or-expel, switch-preset-column-width, or
+#     toggle-column-tabbed-display. We approximate `Mod+c` with
+#     `layout accordion horizontal` (collapses siblings into a tab-like
+#     strip).
+#   - niri uses `Mod` = Super (the macOS Cmd key). On macOS, Cmd
+#     conflicts heavily with system shortcuts (Cmd+W closes app,
+#     Cmd+Q quits, Cmd+Space is Spotlight). We use **Alt (Option)** as
+#     the mod so Cmd-based shortcuts in apps keep working unchanged.
+#     If you want a Super-like feel, change `alt-` to `cmd-` below and
+#     accept the conflicts.
+#   - macOS reserves Mission Control / Mac workspaces; AeroSpace
+#     advises disabling "Automatically rearrange Spaces based on most
+#     recent use" in System Settings → Desktop & Dock before use.
+
+{
+  xdg.configFile."aerospace/aerospace.toml".text = ''
+    # Start AeroSpace at login. brew installs a launchd agent; this
+    # toggle makes it active on first activation.
+    start-at-login = true
+
+    # macOS "Spaces" interferes with multi-monitor focus. AeroSpace
+    # docs recommend disabling the corresponding system setting; this
+    # flag avoids fighting it when it's on.
+    after-startup-command = []
+
+    # Smart gaps roughly approximating niri's column spacing.
+    [gaps]
+    inner.horizontal = 8
+    inner.vertical   = 8
+    outer.left       = 8
+    outer.bottom     = 8
+    outer.top        = 8
+    outer.right      = 8
+
+    # Niri-style: new windows become a new column to the right of focus.
+    # AeroSpace's nearest equivalent — new windows are placed as a
+    # sibling of the focused window in the parent container.
+    [mode.main.binding]
+
+    # --- Launching apps (parity with niri Mod+Return / Mod+Shift+* /
+    #     Mod+Space) ---
+    alt-enter        = "exec-and-forget /Applications/Ghostty.app/Contents/MacOS/ghostty"
+    alt-space        = "exec-and-forget open -a Raycast"
+    alt-d            = "exec-and-forget open -a Raycast"
+
+    # --- Window actions ---
+    alt-w            = "close"
+    alt-shift-q      = "reload-config"
+    alt-f            = "fullscreen"
+    alt-f9           = "fullscreen"
+
+    # Floating toggle — niri's Mod+V → toggle-window-floating.
+    alt-v            = "layout floating tiling"
+
+    # Tabbed column emulation — niri's Mod+c
+    # (toggle-column-tabbed-display).
+    alt-c            = "layout accordion horizontal"
+
+    # --- Focus (Mod+hjkl and Mod+arrows) ---
+    alt-h            = "focus left"
+    alt-j            = "focus down"
+    alt-k            = "focus up"
+    alt-l            = "focus right"
+    alt-left         = "focus left"
+    alt-down         = "focus down"
+    alt-up           = "focus up"
+    alt-right        = "focus right"
+
+    # --- Move windows (Mod+Shift+hjkl / Mod+Shift+arrows) ---
+    alt-shift-h      = "move left"
+    alt-shift-j      = "move down"
+    alt-shift-k      = "move up"
+    alt-shift-l      = "move right"
+    alt-shift-left   = "move left"
+    alt-shift-down   = "move down"
+    alt-shift-up     = "move up"
+    alt-shift-right  = "move right"
+
+    # --- Workspaces 1..10 (Mod+1..0) ---
+    alt-1            = "workspace 1"
+    alt-2            = "workspace 2"
+    alt-3            = "workspace 3"
+    alt-4            = "workspace 4"
+    alt-5            = "workspace 5"
+    alt-6            = "workspace 6"
+    alt-7            = "workspace 7"
+    alt-8            = "workspace 8"
+    alt-9            = "workspace 9"
+    alt-0            = "workspace 10"
+
+    # --- Move container to workspace (Mod+Shift+1..0) ---
+    alt-shift-1      = "move-node-to-workspace 1"
+    alt-shift-2      = "move-node-to-workspace 2"
+    alt-shift-3      = "move-node-to-workspace 3"
+    alt-shift-4      = "move-node-to-workspace 4"
+    alt-shift-5      = "move-node-to-workspace 5"
+    alt-shift-6      = "move-node-to-workspace 6"
+    alt-shift-7      = "move-node-to-workspace 7"
+    alt-shift-8      = "move-node-to-workspace 8"
+    alt-shift-9      = "move-node-to-workspace 9"
+    alt-shift-0      = "move-node-to-workspace 10"
+
+    # --- Workspace cycling (Mod+Tab / Mod+Shift+Tab) ---
+    alt-tab          = "workspace-back-and-forth"
+    alt-shift-tab    = "workspace-back-and-forth"
+
+    # --- Monitor focus (Mod+Ctrl+arrows) ---
+    alt-ctrl-left    = "focus-monitor --wrap-around left"
+    alt-ctrl-right   = "focus-monitor --wrap-around right"
+    alt-ctrl-up      = "focus-monitor --wrap-around up"
+    alt-ctrl-down    = "focus-monitor --wrap-around down"
+
+    # --- Move column to other monitor (Mod+Ctrl+Shift+arrows) ---
+    alt-ctrl-shift-left  = "move-node-to-monitor --wrap-around left"
+    alt-ctrl-shift-right = "move-node-to-monitor --wrap-around right"
+    alt-ctrl-shift-up    = "move-node-to-monitor --wrap-around up"
+    alt-ctrl-shift-down  = "move-node-to-monitor --wrap-around down"
+
+    # --- Resize (Mod+Minus / Mod+Equal / Mod+Shift+Minus / Mod+Shift+Equal) ---
+    alt-minus            = "resize smart -50"
+    alt-equal            = "resize smart +50"
+    alt-shift-minus      = "resize height -50"
+    alt-shift-equal      = "resize height +50"
+
+    # Reset to even split (niri's Mod+R → switch-preset-column-width)
+    alt-r            = "balance-sizes"
+
+    # Sublayout toggles — accordion (tab-like) vs tiles vertical/horizontal.
+    # No niri analog beyond Mod+c (above); these are AeroSpace idioms.
+    alt-bracketLeft  = "layout tiles horizontal vertical"
+    alt-bracketRight = "layout accordion horizontal vertical"
+
+    # --- Workspace bindings: glue each workspace to a monitor when
+    #     two displays are connected. AeroSpace will only enforce this
+    #     when both monitor patterns match; otherwise workspaces float.
+    [workspace-to-monitor-force-assignment]
+    1 = "main"
+    2 = "main"
+    3 = "main"
+    4 = "main"
+    5 = "main"
+    6 = "secondary"
+    7 = "secondary"
+    8 = "secondary"
+    9 = "secondary"
+    10 = "secondary"
+  '';
+}

@@ -153,7 +153,8 @@ in
         git-filter-repo # Rewrite/filter git history
         gh # GitHub CLI
         docker-compose # Container orchestration
-        nerdctl # Docker-compatible CLI for containerd
+        # nerdctl is Linux-only (talks to containerd via runc); see the
+        # `linuxOnly` block below where we re-add it via lib.optionals.
         tilt # Local Kubernetes development tool
         lazydocker # Terminal UI for Docker
         sqlite # Database for development
@@ -209,7 +210,12 @@ in
         unstable-pkgs.go-licenses # Go dependency license checker
         unstable-pkgs.gotests # Generate Go tests from source code
         unstable-pkgs.impl # Generate method stubs for implementing an interface
-      ];
+      ]
+      ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
+        # Linux-only containerd CLI; Darwin uses Docker Desktop /
+        # podman-machine instead.
+        nerdctl
+      ]);
 
     # Development environment variables
     sessionVariables = {

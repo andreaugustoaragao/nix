@@ -1,9 +1,24 @@
-_:
+{ pkgs, lib, ... }:
 
+let
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+in
 {
   # Shell configuration
   programs.zsh = {
     enable = true;
+
+    # On Darwin, Homebrew installs to /opt/homebrew (Apple Silicon) and
+    # exposes its tools via `brew shellenv`. This is the declarative
+    # replacement for the imperative two-line block brew prints at the
+    # end of its installer:
+    #
+    #   echo 'eval "$(/opt/homebrew/bin/brew shellenv zsh)"' >> ~/.zprofile
+    #
+    # profileExtra is written to ~/.zprofile by home-manager.
+    profileExtra = lib.mkIf isDarwin ''
+      eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+    '';
     enableCompletion = true;
     autosuggestion.enable = true;
     syntaxHighlighting = {

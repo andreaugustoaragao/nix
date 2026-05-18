@@ -245,18 +245,8 @@
     '')
   ];
 
-  xdg.desktopEntries.tmux-sessionizer = {
-    name = "Tmux Project";
-    genericName = "Tmux session picker";
-    comment = "Pick a project and attach or create its tmux session";
-    exec = "tmux-sessionizer";
-    terminal = true;
-    type = "Application";
-    categories = [
-      "Utility"
-      "TerminalEmulator"
-      "ConsoleOnly"
-    ];
-    icon = "utilities-terminal";
-  };
+  # NOTE: the `tmux-sessionizer` xdg.desktopEntry was moved to
+  # home/cli/desktop-entries.nix — that module is only imported on
+  # Linux because home-manager's xdg.desktopEntries option does not
+  # exist on Darwin.
 }

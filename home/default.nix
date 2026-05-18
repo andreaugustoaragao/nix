@@ -1,8 +1,13 @@
 {
   config,
   lib,
+  pkgs,
   owner,
   isServer ? false,
+  # Comes from flake.nix specialArgs. Using pkgs.stdenv.hostPlatform here
+  # would recurse: imports must evaluate before _module.args resolves pkgs.
+  isDarwinHost ? false,
+  homePrefix ? "/home",
   ...
 }:
 
@@ -10,17 +15,24 @@
   # Import LazyVim configuration
   imports = [
     ./cli
-    ./services
-    ./scripts
     ./fonts.nix
   ]
-  ++ lib.optionals (!isServer) [
+  ++ lib.optionals (!isDarwinHost) [
+    # systemd-user services + Linux-only daemons (darkman, fulcrum,
+    # notes-sync, local-llm).
+    ./services
+    # Desktop helper scripts — eww/notify-send/Linux paths, including
+    # /run/secrets/. Port piecemeal if needed.
+    ./scripts
+  ]
+  ++ lib.optionals (!isServer && !isDarwinHost) [
+    # Wayland desktop stack — Hyprland, niri, waybar, fcitx, etc.
     ./desktop
   ];
 
   home = {
     username = owner.name;
-    homeDirectory = "/home/${owner.name}";
+    homeDirectory = "${homePrefix}/${owner.name}";
     stateVersion = "24.11"; # Auto-rebuild test
 
     # Prioritize ~/.local/bin in PATH
@@ -48,20 +60,21 @@
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
 
-  # Enable XDG user directories - only the directories you want
-  xdg.userDirs = {
+  # XDG user directories are a Linux desktop concept (~/.config/user-dirs.dirs
+  # consumed by GNOME/KDE/file managers). macOS has its own ~/Pictures,
+  # ~/Downloads layout managed by the OS — leave it alone there.
+  xdg.userDirs = lib.mkIf (!isDarwinHost) {
     enable = true;
     createDirectories = true;
-    desktop = null; # Disable Desktop folder
-    templates = null; # Disable Templates folder
-    publicShare = null; # Disable Public folder
-    documents = null; # Disable Documents folder
+    desktop = null;
+    templates = null;
+    publicShare = null;
+    documents = null;
     download = "${config.home.homeDirectory}/downloads";
     music = "${config.home.homeDirectory}/music";
     pictures = "${config.home.homeDirectory}/pictures";
     videos = "${config.home.homeDirectory}/videos";
 
-    # Custom project directories
     extraConfig = {
       XDG_PROJECTS_DIR = "${config.home.homeDirectory}/projects";
       XDG_WORK_DIR = "${config.home.homeDirectory}/projects/work";

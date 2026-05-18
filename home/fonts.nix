@@ -1,7 +1,12 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
+let
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+in
 {
-  # Font packages used across desktop and CLI
+  # Font packages used across desktop and CLI. On Darwin home-manager
+  # links these into ~/Library/Fonts automatically; on Linux fontconfig
+  # picks them up from the nix profile.
   home.packages =
     with pkgs;
     [
@@ -18,16 +23,18 @@
       symbols-only
     ]);
 
-  # System-wide fontconfig defaults
-  fonts.fontconfig = {
+  # fonts.fontconfig (HM option) is Linux-only — fontconfig itself
+  # isn't part of the macOS rendering stack.
+  fonts.fontconfig = lib.mkIf isLinux {
     enable = true;
     defaultFonts = {
       monospace = [ "CaskaydiaMono Nerd Font" ];
     };
   };
 
-  # Niri-specific Fontconfig: prefer CaskaydiaMono Nerd Font for titles/labels
-  xdg.configFile."fontconfig/conf.d/50-niri-fonts.conf".text = ''
+  # Niri-specific fontconfig — Linux + Wayland only.
+  xdg.configFile."fontconfig/conf.d/50-niri-fonts.conf" = lib.mkIf isLinux {
+    text = ''
     <?xml version='1.0'?>
     <!DOCTYPE fontconfig SYSTEM 'urn:fontconfig:fonts.dtd'>
     <fontconfig>
@@ -55,5 +62,6 @@
         </edit>
       </match>
     </fontconfig>
-  '';
+    '';
+  };
 }

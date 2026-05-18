@@ -1,10 +1,24 @@
-{ pkgs, inputs, ... }:
+{
+  pkgs,
+  lib,
+  inputs,
+  # Provided via specialArgs in flake.nix; safe to use in `imports`.
+  # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
+  # recursion since pkgs comes from _module.args, which depends on
+  # config, which depends on imports being resolved.
+  isDarwinHost ? false,
+  ...
+}:
 
 let
   unstable-pkgs = import inputs.nixpkgs-unstable {
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
+  # pkgs.stdenv.hostPlatform.isLinux IS safe inside `config = { ... }`
+  # (post-evaluation), so we keep this binding for the home.packages
+  # and xdg.desktopEntries gates below.
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
 in
 {
   imports = [
@@ -18,9 +32,6 @@ in
     ./carapace.nix
     ./pay-respects.nix
     ./git.nix
-    ./gpg.nix
-    ./ssh-add-keys.nix
-    ./gpg-add-keys.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix
@@ -30,13 +41,30 @@ in
     ./k9s.nix
     ./fzf.nix
     ./pi.nix
+  ]
+  ++ lib.optionals (!isDarwinHost) [
+    # gpg/ssh-agent management here is built on systemd-user units +
+    # Linux paths (pinentry-qt, gcr-ssh-agent masking). macOS uses
+    # launchd + the system keychain; wire that separately if needed.
+    ./gpg.nix
+    ./ssh-add-keys.nix
+    ./gpg-add-keys.nix
+    # `xdg.desktopEntries` is a Linux-only HM option (the option name
+    # itself is undefined on Darwin), so the entire feature lives in a
+    # separately-imported module.
+    ./desktop-entries.nix
+  ]
+  ++ lib.optionals isDarwinHost [
+    # AeroSpace tiling-WM config — niri's closest macOS analog. The
+    # binary itself is installed via the homebrew cask in
+    # darwin/homebrew.nix; this module only owns ~/.config/aerospace.
+    ./aerospace.nix
   ];
 
   home.packages =
     with pkgs;
     [
       # System utilities
-      libnotify # provides notify-send
       file
       fzf
 
@@ -53,7 +81,6 @@ in
       terragrunt
       ansible
       packer
-      podman-compose
 
       # General tools
       code2prompt # CLI tool with token counting functionality
@@ -69,18 +96,13 @@ in
       tmux
       screen
       htop
-      iotop
-      nethogs
-      iftop
       nmap
       tcpdump
-      wireshark-cli
       socat
       netcat
       dig
       whois
       mtr
-      traceroute
       iperf
       speedtest-cli
       neofetch
@@ -90,22 +112,17 @@ in
       toilet
       cowsay
       fortune
-      sl
       cmatrix
       tree
       ncdu
       gdu
       duf
-      dfc
       progress
       pv
       moreutils
       entr
       watchman
-      inotify-tools
-      lorri
       cachix
-      mesa-demos # provides glxinfo for OpenGL debugging
 
       # Rust-based coreutils and modern replacements
       ripgrep
@@ -165,92 +182,29 @@ in
       # channel ships 1.91.1; use unstable until the channel revert
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
-    ];
+    ]
+    ++ lib.optionals isLinux (with pkgs; [
+      # Linux-only / not built on Darwin in nixpkgs. Anything here
+      # either needs procfs, an X server, OpenGL, or a Linux kernel
+      # API (inotify, BPF, etc.).
+      libnotify # notify-send (uses dbus)
+      iotop
+      nethogs
+      iftop
+      wireshark-cli
+      sl
+      dfc
+      inotify-tools
+      lorri
+      mesa-demos # glxinfo for OpenGL debugging
+      podman-compose
+      # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
+      # build is Linux-only.
+      traceroute
+    ]);
 
   programs.bat = {
     enable = true;
     config.theme = "Catppuccin Mocha";
   };
-
-  # Local .desktop overrides for packages whose Icon= references a name
-  # not in the active icon theme (Papirus-Dark). User-local entries win
-  # over the package-provided ones in the XDG search path.
-  xdg.desktopEntries = {
-    yazi = {
-      name = "Yazi";
-      comment = "Blazing fast terminal file manager written in Rust";
-      exec = "yazi %u";
-      terminal = true;
-      type = "Application";
-      mimeType = [ "inode/directory" ];
-      categories = [
-        "Utility"
-        "FileTools"
-        "FileManager"
-        "ConsoleOnly"
-      ];
-      icon = "system-file-manager";
-    };
-
-    # khal ships no Icon= field at all.
-    khal = {
-      name = "ikhal";
-      genericName = "Calendar application";
-      comment = "Terminal CLI calendar application";
-      exec = "ikhal";
-      terminal = true;
-      type = "Application";
-      categories = [
-        "Calendar"
-        "ConsoleOnly"
-      ];
-      icon = "office-calendar";
-    };
-
-    # blueman ships Icon=blueman-device which isn't in Papirus.
-    blueman-adapters = {
-      name = "Bluetooth Adapters";
-      comment = "Set Bluetooth Adapter Properties";
-      exec = "blueman-adapters";
-      terminal = false;
-      type = "Application";
-      categories = [
-        "Settings"
-        "HardwareSettings"
-      ];
-      icon = "blueman";
-    };
-  }
-  // (
-    # CLI/TUI .desktop entries shipped by various packages that pollute
-    # fuzzel without being useful as no-arg launches. `noDisplay = true`
-    # hides them from launchers (user override beats package-provided in
-    # the XDG search path) while keeping MIME handlers intact.
-    let
-      hide = name: {
-        inherit name;
-        noDisplay = true;
-        # `exec` is mandatory in HM's xdg.desktopEntries schema even when
-        # the entry is hidden; point at /bin/true so the file is well-formed.
-        exec = "true";
-      };
-    in
-    {
-      vim = hide "Vim";
-      tectonic = hide "Tectonic";
-      "amdgpu_top-tui" = hide "AMDGPU TOP (TUI)";
-      bottom = hide "bottom";
-      btop = hide "btop++";
-      htop = hide "Htop";
-      # `nvim.desktop` is the package-provided "Neovim wrapper" entry —
-      # not a wrapper for Neovide, just stock terminal nvim with a
-      # misleading upstream name. Neovide stays visible for the genuine
-      # GUI-launch case.
-      nvim = hide "Neovim wrapper";
-      # Foot terminal — keep the plain `foot.desktop` for at-will use;
-      # hide the server/client pair (daemon mode, unused here).
-      footclient = hide "Foot Client";
-      foot-server = hide "Foot Server";
-    }
-  );
 }

@@ -44,3 +44,22 @@ bluetooth = false
 lockScreen = false
 autoLogin = false
 useDms = false
+
+# Work-issued MacBook (Apple Silicon). Built with nix-darwin instead of
+# NixOS — see darwinConfigurations in flake.nix. "profile = darwin" is
+# a sentinel: system/ modules are not imported, so the legacy
+# isWorkstation/isLaptop/isVm/isServer booleans all stay false.
+[machines.mac-work]
+hostName = "mac-work"
+platform = "aarch64-darwin"
+profile = "darwin"
+stateVersion = "25.11"
+bluetooth = false
+lockScreen = false
+autoLogin = false
+useDms = false
+# Declarative Homebrew casks. nix-darwin runs `brew install/upgrade` to
+# match this list on every activation. Homebrew itself must be installed
+# manually once (see https://brew.sh) — nix-darwin does not bootstrap it.
+homebrewCasks = ["ghostty", "raycast", "parallels", "aerospace"]
+homebrewBrews = []

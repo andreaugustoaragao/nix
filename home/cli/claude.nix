@@ -5,6 +5,14 @@
 }:
 
 let
+  # Cross-platform notification for the Claude Code "Notification" hook.
+  # Linux: notify-send via libnotify. macOS: osascript display notification.
+  notifyCmd =
+    if pkgs.stdenv.hostPlatform.isDarwin then
+      "/usr/bin/osascript -e 'display notification \"Waiting for your input\" with title \"Claude Code\"'"
+    else
+      "${pkgs.libnotify}/bin/notify-send -i ${../../assets/icons/claude.png} -a 'Claude Code' 'Claude Code' 'Waiting for your input'";
+
   # Claude in Chrome native messaging host manifest
   claudeBrowserHost = builtins.toJSON {
     name = "com.anthropic.claude_code_browser_extension";
@@ -88,7 +96,7 @@ in
             hooks = [
               {
                 type = "command";
-                command = "${pkgs.libnotify}/bin/notify-send -i ${../../assets/icons/claude.png} -a 'Claude Code' 'Claude Code' 'Waiting for your input'";
+                command = notifyCmd;
               }
             ];
           }

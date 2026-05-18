@@ -1,6 +1,6 @@
 {
+  config,
   pkgs,
-  owner,
   ...
 }:
 
@@ -59,10 +59,12 @@
         };
       };
 
-      # Conditional includes for different directories
+      # Conditional includes for different directories. Path is taken
+      # from config.home.homeDirectory so the same module works on
+      # Linux (/home/aragao) and Darwin (/Users/aragao).
       includes = [
         {
-          condition = "gitdir:/home/${owner.name}/projects/personal/";
+          condition = "gitdir:${config.home.homeDirectory}/projects/personal/";
           contents = {
             user = {
               name = "andreaugustoaragao";
@@ -72,7 +74,7 @@
           };
         }
         {
-          condition = "gitdir:/home/${owner.name}/projects/work/";
+          condition = "gitdir:${config.home.homeDirectory}/projects/work/";
           contents = {
             user = {
               name = "andrearagao";

@@ -1,5 +1,5 @@
 {
-  description = "NixOS configuration for Parallels VM with Hyprland";
+  description = "NixOS + nix-darwin configuration for a fleet of machines";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -24,6 +24,11 @@
 
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    nix-darwin = {
+      url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -68,6 +73,7 @@
     {
       nixpkgs,
       home-manager,
+      nix-darwin,
       sops-nix,
       claude-code,
 
@@ -79,12 +85,22 @@
       # Get username for the platform
       getUserName = user: _host: user.name;
 
+      # Darwin-platform predicate. macOS hosts live under
+      # /Users/<name> and are built with darwinSystem; everywhere else
+      # we assume Linux and use nixosSystem.
+      isDarwinPlatform =
+        platform: platform == "aarch64-darwin" || platform == "x86_64-darwin";
+
+      homePrefixFor = platform: if isDarwinPlatform platform then "/Users" else "/home";
+
       # Set special args for each machine
       setSpecialArgs = host: {
         isWorkstation = host.profile == "workstation";
         isLaptop = host.profile == "laptop";
         isVm = host.profile == "vm";
         isServer = host.profile == "server";
+        isDarwinHost = isDarwinPlatform host.platform;
+        homePrefix = homePrefixFor host.platform;
         owner = metadata.user // {
           name = getUserName metadata.user host;
         };
@@ -101,10 +117,16 @@
         # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
         # hyprpolkitagent) are not autostarted so DMS owns the screen.
         useDms = host.useDms or false;
+        # Optional homebrew casks / brews for Darwin hosts. Ignored on
+        # Linux where the darwin/homebrew.nix module isn't imported.
+        homebrewCasks = host.homebrewCasks or [ ];
+        homebrewBrews = host.homebrewBrews or [ ];
         inherit inputs;
       };
 
-      # Set Home Manager template
+      # Set Home Manager template (works for both NixOS and nix-darwin
+      # since both expose `home-manager = { useUserPackages, useGlobalPkgs,
+      # ... }` once the corresponding HM module is imported).
       setHomeManagerTemplate = host: {
         home-manager = {
           useUserPackages = true;
@@ -114,9 +136,15 @@
           backupFileExtension = "hm-backup";
         };
       };
+
+      # Partition machines.toml entries by platform.
+      machinesBy =
+        pred: nixpkgs.lib.filterAttrs (_: host: pred host.platform) metadata.machines;
+      linuxMachines = machinesBy (p: !isDarwinPlatform p);
+      darwinMachines = machinesBy isDarwinPlatform;
     in
     {
-      # NixOS configurations for all machines
+      # NixOS configurations for Linux machines
       nixosConfigurations = builtins.mapAttrs (
         machineName: host:
         nixpkgs.lib.nixosSystem {
@@ -145,6 +173,30 @@
             (setHomeManagerTemplate host)
           ];
         }
-      ) metadata.machines;
+      ) linuxMachines;
+
+      # nix-darwin configurations for macOS machines. The Darwin module
+      # set (./darwin) is intentionally small: no boot/audio/wireless/
+      # display-manager, and the home-manager module set under ./home
+      # gates its Linux-only pieces on pkgs.stdenv.isLinux.
+      darwinConfigurations = builtins.mapAttrs (
+        _machineName: host:
+        nix-darwin.lib.darwinSystem {
+          specialArgs = setSpecialArgs host;
+          modules = [
+            { nixpkgs.hostPlatform = host.platform; }
+            {
+              nixpkgs.overlays = [
+                claude-code.overlays.default
+              ];
+            }
+            ./darwin
+            inputs.nix-index-database.darwinModules.nix-index
+            sops-nix.darwinModules.sops
+            home-manager.darwinModules.home-manager
+            (setHomeManagerTemplate host)
+          ];
+        }
+      ) darwinMachines;
     };
 }
