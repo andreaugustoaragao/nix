@@ -39,5 +39,16 @@ lib.mkIf useDms {
     lightModeScripts.fuzzel = ''
       ${pkgs.coreutils}/bin/ln -sfn fuzzel.latte.ini "$HOME/.config/fuzzel/fuzzel.ini"
     '';
+
+    # Flip starship's active config the same way (see
+    # home/cli/starship.nix). starship reads STARSHIP_CONFIG on every
+    # prompt eval, so existing shells pick up the swap on the next
+    # prompt with no reload.
+    darkModeScripts.starship = ''
+      ${pkgs.coreutils}/bin/ln -sfn starship.mocha.toml "$HOME/.config/starship/starship.toml"
+    '';
+    lightModeScripts.starship = ''
+      ${pkgs.coreutils}/bin/ln -sfn starship.latte.toml "$HOME/.config/starship/starship.toml"
+    '';
   };
 }

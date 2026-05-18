@@ -130,7 +130,6 @@ in
       zoxide
       skim
       tealdeer
-      starship
       just
       watchexec
       onefetch
