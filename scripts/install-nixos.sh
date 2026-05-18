@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # NixOS Automated Installation Script
-# This script fully automates NixOS installation with LUKS encryption and btrfs
+# This script fully automates NixOS installation with btrfs (no LUKS — host
+# volume is already encrypted on the Parallels host).
 
 # Configuration
 DISK="${DISK:-/dev/sda}"  # Override with DISK=/dev/nvme0n1 ./install-nixos.sh
@@ -67,33 +68,21 @@ sudo parted $DISK --script -- set 1 esp on
 
 # Create root partition (rest of disk) with label
 sudo parted $DISK --script -- mkpart primary 513MiB 100%
-sudo parted $DISK --script -- name 2 nixos-crypt
+sudo parted $DISK --script -- name 2 nixos
 
 # Format EFI partition
 log "Formatting EFI partition"
 sudo mkfs.fat -F 32 -n nixos-boot ${DISK}1
 
-# Setup LUKS encryption
-log "Setting up LUKS encryption on ${DISK}2"
-echo "Enter passphrase for disk encryption (you'll need this to unlock the system):"
-sudo cryptsetup luksFormat ${DISK}2
-
-echo "Enter the passphrase again to unlock the encrypted partition:"
-sudo cryptsetup luksOpen ${DISK}2 cryptroot
-
-# Set LUKS partition label for boot configuration
-log "Setting LUKS partition label to nixos-crypt"
-sudo cryptsetup config --label=nixos-crypt ${DISK}2
-
-# Format root partition with btrfs
-log "Creating btrfs filesystem"
-sudo mkfs.btrfs -L nixos /dev/mapper/cryptroot
+# Format root partition with btrfs (no LUKS — host volume is already encrypted).
+log "Creating btrfs filesystem on ${DISK}2"
+sudo mkfs.btrfs -f -L nixos ${DISK}2
 
 # Step 2: Create btrfs subvolumes
 log "Creating btrfs subvolumes"
 
 # Mount the root btrfs filesystem
-sudo mount /dev/mapper/cryptroot /mnt
+sudo mount /dev/disk/by-label/nixos /mnt
 
 # Create subvolumes
 log "Creating btrfs subvolumes"
@@ -116,17 +105,17 @@ log "Mounting btrfs subvolumes"
 BTRFS_OPTS="compress=zstd:1,noatime,space_cache=v2"
 
 # Mount root subvolume
-sudo mount -o subvol=@root,$BTRFS_OPTS /dev/mapper/cryptroot /mnt
+sudo mount -o subvol=@root,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt
 
 # Create mount points
 sudo mkdir -p /mnt/{home,nix,tmp,swap,boot,.snapshots}
 sudo mkdir -p /mnt/home/$USERNAME
 
 # Mount user-specific home subvolume directly
-sudo mount -o subvol=@home-$USERNAME,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/home/$USERNAME
-sudo mount -o subvol=@nix,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/nix
-sudo mount -o subvol=@tmp,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/tmp
-sudo mount -o subvol=@snapshots,$BTRFS_OPTS /dev/mapper/cryptroot /mnt/.snapshots
+sudo mount -o subvol=@home-$USERNAME,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/home/$USERNAME
+sudo mount -o subvol=@nix,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/nix
+sudo mount -o subvol=@tmp,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/tmp
+sudo mount -o subvol=@snapshots,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/.snapshots
 
 # Mount EFI partition
 sudo mount ${DISK}1 /mnt/boot
@@ -154,7 +143,7 @@ sudo chown -R 1000:100 /mnt/home/$USERNAME/projects/personal/nix
 sudo ln -sf /mnt/home/$USERNAME/projects/personal/nix /mnt/etc/nixos
 
 # Using partition labels instead of UUIDs for cleaner configuration
-log "Using partition labels: nixos-crypt (encrypted) and nixos-boot (EFI)"
+log "Using filesystem labels: nixos (btrfs root) and nixos-boot (EFI)"
 
 # Step 6: Check if machine exists in machines.toml
 log "Checking if machine $HOSTNAME exists in configuration"
@@ -179,8 +168,7 @@ cat <<EOF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Your NixOS system has been installed with:
-  • Full disk encryption (LUKS)
-  • Btrfs with optimized subvolumes
+  • Btrfs with optimized subvolumes (host volume is encrypted)
   • Your flake configuration from: $FLAKE_REPO
   • Flake location: /home/$USERNAME/projects/personal/nix
   • Hostname: $HOSTNAME
@@ -188,9 +176,8 @@ Your NixOS system has been installed with:
 
 Next steps:
 1. Reboot: sudo reboot
-2. Enter your disk encryption password at boot
-3. Login with your configured credentials
-4. Your Home Manager configuration will be applied automatically
+2. Login with your configured credentials
+3. Your Home Manager configuration will be applied automatically
 
 Note: User accounts and passwords are managed by your flake configuration.
 

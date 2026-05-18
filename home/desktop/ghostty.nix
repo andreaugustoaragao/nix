@@ -1,5 +1,6 @@
 {
   pkgs,
+  lib,
   inputs,
   ...
 }:
@@ -8,19 +9,40 @@ let
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
 in
 {
-  home.packages = [ pkgs-unstable.ghostty ];
+  # Ghostty binary: installed via nix on Linux, via the homebrew cask on
+  # macOS (declared in darwin/homebrew.nix). The brew build is
+  # notarized + signed and integrates with the macOS keychain in ways
+  # the nixpkgs darwin build currently does not.
+  home.packages = lib.optionals isLinux [ pkgs-unstable.ghostty ];
+
+  # Ghostty reads $XDG_CONFIG_HOME/ghostty/config on both Linux and
+  # macOS, so a single declarative config covers both platforms.
   xdg.configFile."ghostty/config".text = ''
     font-family = CaskaydiaMono Nerd Font
     font-size = 11
 
-    # Single-instance: subsequent invocations open a new window in the
-    # existing process (analogous to footclient or kitty --single-instance).
-    gtk-single-instance = true
+    ${lib.optionalString isLinux ''
+      # Single-instance: subsequent invocations open a new window in
+      # the existing process (analogous to footclient or kitty
+      # --single-instance). GTK-only — macOS Ghostty is already
+      # single-process by default.
+      gtk-single-instance = true
+    ''}
 
     shell-integration = fish
-    command = fish
+    # Absolute path: on macOS Ghostty wraps `command` in
+    # `/usr/bin/login -fl <user> /bin/bash --noprofile --norc -c "exec -l <command>"`,
+    # so bash never sees the nix PATH and a bare `fish` resolves to nothing.
+    command = ${pkgs.fish}/bin/fish
+
+    # Always open new windows/tabs/surfaces in $HOME, regardless of
+    # the launcher's cwd. AeroSpace inherits cwd=/ from launchd and
+    # passes that to Ghostty when binding `exec-and-forget`, which
+    # would otherwise drop new shells at the filesystem root.
+    working-directory = home
 
     window-padding-x = 5
     window-padding-y = 5
@@ -35,11 +57,29 @@ in
     background-opacity = 0.85
     background-blur-radius = 20
 
-    window-decoration = false
+    # No window chrome. On Linux we drop the decoration entirely; on
+    # macOS the borderless NSWindow path forces square corners (which
+    # JankyBorders then traces as a square outline), so keep the
+    # standard window and just hide the titlebar strip.
+    ${lib.optionalString isLinux ''
+      window-decoration = false
+    ''}
+    ${lib.optionalString (!isLinux) ''
+      macos-titlebar-style = hidden
+    ''}
+
     unfocused-split-opacity = 0.9
     copy-on-select = false
     # Close windows/splits without the "are you sure?" prompt.
     confirm-close-surface = false
+
+    # Disable Ghostty's built-in update path. On Linux the package
+    # manager owns upgrades; on macOS the homebrew cask + nix-darwin
+    # activation upgrades on every rebuild (see
+    # darwin/homebrew.nix:onActivation.upgrade). Setting this to
+    # `off` also suppresses Sparkle's first-launch "enable automatic
+    # updates?" dialog on macOS.
+    auto-update = off
 
     # Tame mouse-wheel scroll speed (default 1.0 jumps several lines
     # per notch on high-resolution wheels). 0.4 matches niri's

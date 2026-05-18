@@ -13,10 +13,18 @@
   users.users.${owner.name} = {
     name = owner.name;
     home = "${homePrefix}/${owner.name}";
-    shell = pkgs.zsh;
+    shell = pkgs.fish;
   };
 
-  # Make zsh the system default and let nix-darwin manage its rc bits
-  # so /etc/zshrc sources /nix-installed completions and PATH.
+  # Register fish as the system login shell. `programs.fish.enable`
+  # adds the binary to /etc/shells (macOS refuses to use unlisted
+  # shells via `chsh` / loginwindow) and wires nix-darwin's vendor
+  # functions/completions into XDG_DATA_DIRS so home-manager's
+  # programs.fish picks them up.
+  programs.fish.enable = true;
+
+  # zsh stays enabled so /etc/zshrc still sources the nix profile
+  # PATH — useful when a brew cask or installer pkg invokes `sh -c
+  # 'zsh -i …'` during its postinstall script.
   programs.zsh.enable = true;
 }

@@ -59,6 +59,22 @@ in
     # binary itself is installed via the homebrew cask in
     # darwin/homebrew.nix; this module only owns ~/.config/aerospace.
     ./aerospace.nix
+    # Ghostty config — same font/theme/opacity as the Linux side. The
+    # module is platform-aware and skips the nixpkgs ghostty install on
+    # Darwin (where the homebrew cask provides it).
+    ../desktop/ghostty.nix
+    # Wallpaper image derivation. Linux pulls this in via
+    # home/desktop/default.nix; on macOS we need it for
+    # ./macos-wallpaper.nix to reference.
+    ../desktop/wallpapers.nix
+    # Apply the macOS desktop wallpaper via AppleScript on every HM
+    # activation. Pulls from the wallpapers derivation above.
+    ./macos-wallpaper.nix
+    # Generate one `.app` bundle per entry in
+    # home/desktop/web-apps-data.nix so each web app gets a Spotlight
+    # / Raycast / Launchpad / AeroSpace launcher. Ships a Darwin
+    # `browser-app` script alongside.
+    ../desktop/web-apps-macos.nix
   ];
 
   home.packages =
@@ -77,10 +93,12 @@ in
       kubernetes-helm
       kubectx
       stern
-      terraform
-      terragrunt
       ansible
-      packer
+      # terraform, terragrunt, packer: HashiCorp relicensed all three to
+      # BSL in 2023. nixpkgs treats BSL as unfree → cache.nixos.org has
+      # no prebuilt binaries → builds from source → packer's go test
+      # suite SIGABRTs on aarch64-darwin in 25.11. Linux-only block
+      # below re-adds them where the cache works.
 
       # General tools
       code2prompt # CLI tool with token counting functionality
@@ -201,6 +219,12 @@ in
       # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
       # build is Linux-only.
       traceroute
+      # HashiCorp BSL-licensed tools — see comment above. Re-added
+      # here so they keep working on Linux where nixpkgs CI does push
+      # binary substitutes despite the unfree flag.
+      terraform
+      terragrunt
+      packer
     ]);
 
   programs.bat = {

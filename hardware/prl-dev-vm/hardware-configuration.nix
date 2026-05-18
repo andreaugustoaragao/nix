@@ -24,11 +24,7 @@
         "virtio_mmio"
         "virtio_net"
       ];
-      kernelModules = [ "dm-crypt" ];
-      luks.devices."cryptroot" = {
-        device = "/dev/disk/by-label/nixos-crypt";
-        preLVM = true;
-      };
+      kernelModules = [ ];
     };
     kernelModules = [ ];
     extraModulePackages = [ ];
@@ -50,7 +46,7 @@
   # Filesystem configuration
   fileSystems = {
     "/" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@root"
@@ -62,7 +58,7 @@
     };
 
     "/home/aragao" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@home-aragao"
@@ -74,7 +70,7 @@
     };
 
     "/nix" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@nix"
@@ -86,7 +82,7 @@
     };
 
     "/tmp" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@tmp"
@@ -98,7 +94,7 @@
     };
 
     "/.snapshots" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@snapshots"
@@ -115,7 +111,7 @@
     };
 
     "/swap" = {
-      device = "/dev/mapper/cryptroot";
+      device = "/dev/disk/by-label/nixos";
       fsType = "btrfs";
       options = [
         "subvol=@swap"

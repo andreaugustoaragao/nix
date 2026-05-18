@@ -18,6 +18,15 @@
       upgrade = true;
     };
 
+    # Third-party taps. AeroSpace is shipped from its author's tap
+    # rather than homebrew-cask. nix-darwin runs `brew tap` for each
+    # of these on activation, so the casks below can reference them
+    # without fully-qualified names.
+    taps = [
+      "nikitabobko/tap" # aerospace tiling window manager
+      "FelixKratz/formulae" # JankyBorders (focused-window outline daemon)
+    ];
+
     # Formulae and casks come from machines.toml so the Linux side of
     # the flake stays unaware of brew. Defaults are empty lists.
     brews = homebrewBrews;

@@ -3,45 +3,56 @@ set -euo pipefail
 
 # watch-rebuild.sh
 #
-# Interactive file watcher that runs `nixos-rebuild switch` after edits
-# settle. Intended to live in an open terminal pane while you iterate on
-# the flake.
+# Interactive file watcher that runs `{nixos,darwin}-rebuild switch`
+# after edits settle. Intended to live in an open terminal pane while
+# you iterate on the flake.
 #
 # Usage:
 #   ./scripts/watch-rebuild.sh             # watcher runs as you, sudo for rebuild
 #   sudo ./scripts/watch-rebuild.sh        # watcher itself runs as root
 #
 # When invoked as a normal user, the script relies on the existing
-# passwordless `nixos-rebuild` sudoers rule (system/users.nix) and primes
-# sudo once at startup so subsequent rebuilds don't prompt mid-loop.
+# passwordless rebuild sudoers rule and primes sudo once at startup so
+# subsequent rebuilds don't prompt mid-loop.
 #
-# Watches declarative config and source files that are referenced by the
-# flake. After the first event, it keeps absorbing events until
-# DEBOUNCE_SECS (default 2) elapse with no activity, then triggers one
-# rebuild for the host.
+# Watches declarative config and source files referenced by the flake.
+# Debouncing (default 2s) is delegated to watchexec; bursts collapse
+# into a single rebuild.
 #
 # Stop with Ctrl-C. Don't run this concurrently with another manual
-# `nixos-rebuild`; both will fight over the same transient activation
-# unit.
+# rebuild; both will fight over the same activation.
 #
 # Caveats (see also feedback_auto_rebuild_race in agent memory):
 #  - Every editor save eventually triggers a real activation. Uncommitted
 #    work in the tree WILL be applied — flake builds use the working
 #    copy, not HEAD.
 #  - Don't leave it running while a system.autoUpgrade timer might fire.
-#  - The flake.lock file is intentionally NOT watched, so background
-#    updates from the auto-flake-update timer don't trigger rebuilds.
+#  - flake.lock is excluded below so background flake-update timers
+#    don't trigger rebuilds.
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEBOUNCE_SECS="${DEBOUNCE_SECS:-2}"
-HOST="$(hostname)"
-PATTERN='.*(\.nix|\.qml|\.js|\.ts|\.json|\.toml|\.kdl|\.conf|\.css|\.sh|\.service|\.desktop|\.lua|\.fish|\.yaml|\.yml)$'
-WATCH_EVENTS='modify,close_write,attrib,create,delete,move'
+HOST="$(hostname -s)"
+EXTS="nix,qml,js,ts,json,toml,kdl,conf,css,sh,service,desktop,lua,fish,yaml,yml"
 
 cd "$REPO_DIR"
 
-if ! command -v inotifywait >/dev/null; then
-  echo "watch-rebuild: inotifywait not on PATH; install pkgs.inotify-tools" >&2
+case "$(uname -s)" in
+  Darwin) REBUILD_BIN=darwin-rebuild ;;
+  Linux)  REBUILD_BIN=nixos-rebuild ;;
+  *)
+    echo "watch-rebuild: unsupported platform $(uname -s)" >&2
+    exit 1
+    ;;
+esac
+
+if ! command -v watchexec >/dev/null; then
+  echo "watch-rebuild: watchexec not on PATH; install pkgs.watchexec" >&2
+  exit 1
+fi
+
+if ! command -v "$REBUILD_BIN" >/dev/null; then
+  echo "watch-rebuild: $REBUILD_BIN not on PATH" >&2
   exit 1
 fi
 
@@ -57,15 +68,6 @@ log() {
   printf '\033[1;34m[watch-rebuild %s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"
 }
 
-rebuild() {
-  log "rebuilding .#${HOST}"
-  if "${SUDO[@]}" nixos-rebuild switch --flake ".#${HOST}"; then
-    log "rebuild succeeded"
-  else
-    log "rebuild failed — still watching, fix and save again"
-  fi
-}
-
 # Prime the sudo credential cache up front so the first rebuild after a
 # save doesn't stall on a password prompt. No-op when running as root.
 # Auth failure here must not abort the script — the user can retype on
@@ -74,31 +76,19 @@ if [ "${#SUDO[@]}" -gt 0 ]; then
   sudo -v || log "sudo prime failed; you may be prompted at first rebuild"
 fi
 
-log "watching ${REPO_DIR} (pattern: ${PATTERN}, events: ${WATCH_EVENTS}, debounce: ${DEBOUNCE_SECS}s)"
-log "rebuilding host: ${HOST}"
+log "watching ${REPO_DIR} (exts: ${EXTS}, debounce: ${DEBOUNCE_SECS}s)"
+log "rebuild: ${SUDO[*]:-}${SUDO[*]:+ }${REBUILD_BIN} switch --flake .#${HOST}"
 log "press Ctrl-C to stop"
 
-# The loop is wrapped so nothing inside — inotifywait hiccups, sudo prompts,
-# nixos-rebuild errors, evaluation failures — can knock the watcher out.
-while true; do
-  if ! event="$(inotifywait -r -q -e "$WATCH_EVENTS" \
-    --format '%w%f %e' \
-    --include "$PATTERN" "$REPO_DIR" 2>&1)"; then
-    log "inotifywait exited unexpectedly; restarting watch in 1s"
-    sleep 1
-    continue
-  fi
-
-  log "change detected: ${event}"
-
-  # Quiet-window debounce: keep waiting until DEBOUNCE_SECS pass with no
-  # matching event. `-t` exits non-zero on timeout, which is our cue that
-  # the burst is over.
-  while inotifywait -r -q -t "$DEBOUNCE_SECS" \
-    -e "$WATCH_EVENTS" \
-    --include "$PATTERN" "$REPO_DIR" >/dev/null 2>&1; do
-    :
-  done
-
-  rebuild || log "rebuild() returned non-zero; continuing"
-done
+# --on-busy-update=queue: if changes land mid-rebuild, queue exactly
+#   one follow-up rather than killing the in-flight activation.
+# --no-vcs-ignore disabled (default honors .gitignore) so generated
+#   files in ignored paths don't trigger rebuilds.
+# flake.lock is excluded explicitly so the auto-flake-update timer
+#   doesn't kick off interactive rebuilds.
+exec watchexec \
+  --debounce "${DEBOUNCE_SECS}s" \
+  --exts "$EXTS" \
+  --ignore flake.lock \
+  --on-busy-update=queue \
+  -- "${SUDO[@]}" "$REBUILD_BIN" switch --flake ".#${HOST}"

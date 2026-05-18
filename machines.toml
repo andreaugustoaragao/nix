@@ -61,5 +61,13 @@ useDms = false
 # Declarative Homebrew casks. nix-darwin runs `brew install/upgrade` to
 # match this list on every activation. Homebrew itself must be installed
 # manually once (see https://brew.sh) — nix-darwin does not bootstrap it.
-homebrewCasks = ["ghostty", "raycast", "parallels", "aerospace"]
-homebrewBrews = []
+#
+# NOTE on Parallels Desktop: deliberately NOT in this list. Its cask
+# runs a post-install `inittool` that needs to chown files inside
+# /Applications/Parallels Desktop.app/, which macOS's App Management
+# TCC layer blocks even under `sudo` unless the calling shell has been
+# granted "App Management" permission. Install Parallels via the
+# official .pkg installer from parallels.com instead — leaving it
+# unmanaged here so brew bundle's `cleanup = "zap"` does not touch it.
+homebrewCasks = ["ghostty", "raycast", "aerospace", "brave-browser", "chromium"]
+homebrewBrews = ["borders"]

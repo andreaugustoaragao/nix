@@ -29,12 +29,24 @@
     # macOS "Spaces" interferes with multi-monitor focus. AeroSpace
     # docs recommend disabling the corresponding system setting; this
     # flag avoids fighting it when it's on.
-    after-startup-command = []
+    #
+    # Also launches JankyBorders (`borders`, from FelixKratz/formulae,
+    # declared in machines.toml/darwin/homebrew.nix) — a tiny daemon
+    # that paints a colored outline around the focused window. Tying
+    # it to AeroSpace startup means borders comes up and goes down
+    # with the WM; no separate LaunchAgent to manage.
+    #
+    # Colors are Catppuccin Mocha:
+    #   - lavender #b4befe → active (focused window)
+    #   - surface1 #45475a → inactive (any other tile)
+    after-startup-command = [
+      'exec-and-forget /opt/homebrew/bin/borders active_color=0xffb4befe inactive_color=0xff45475a width=4.0 style=round hidpi=on'
+    ]
 
     # Smart gaps roughly approximating niri's column spacing.
     [gaps]
-    inner.horizontal = 8
-    inner.vertical   = 8
+    inner.horizontal = 16
+    inner.vertical   = 16
     outer.left       = 8
     outer.bottom     = 8
     outer.top        = 8
@@ -135,8 +147,8 @@
 
     # Sublayout toggles — accordion (tab-like) vs tiles vertical/horizontal.
     # No niri analog beyond Mod+c (above); these are AeroSpace idioms.
-    alt-bracketLeft  = "layout tiles horizontal vertical"
-    alt-bracketRight = "layout accordion horizontal vertical"
+    alt-leftSquareBracket  = "layout tiles horizontal vertical"
+    alt-rightSquareBracket = "layout accordion horizontal vertical"
 
     # --- Workspace bindings: glue each workspace to a monitor when
     #     two displays are connected. AeroSpace will only enforce this

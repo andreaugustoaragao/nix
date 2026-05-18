@@ -49,8 +49,14 @@ in
       la = "ls -A";
       l = "ls -CF";
 
-      # System management
-      rebuild = "sudo nixos-rebuild switch --flake .";
+      # System management — platform-aware. Both rebuild tools accept
+      # `--flake .` and default to the current hostname for the
+      # configuration attribute, so the same command works on every
+      # machine in this flake without hand-rolling the hostname.
+      rebuild =
+        if isDarwin
+        then "sudo darwin-rebuild switch --flake ."
+        else "sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
 
       # Editor shortcuts
