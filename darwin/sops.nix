@@ -19,6 +19,10 @@
     age = {
       keyFile = "${homePrefix}/${owner.name}/.config/sops/age/keys.txt";
       generateKey = false; # generated out-of-band, see guide
+      # Suppress the default probe of /etc/ssh/ssh_host_{rsa,ed25519}_key
+      # — those don't exist on macOS and produce a "Cannot read ssh key"
+      # warning at every activation.
+      sshKeyPaths = [ ];
     };
 
     # Mirror the user-facing secrets from system/sops.nix so the same
