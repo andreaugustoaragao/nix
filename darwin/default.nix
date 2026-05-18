@@ -12,12 +12,7 @@
     ./packages.nix
     ./homebrew.nix
     ./macos-defaults.nix
-    # ./sops.nix
-    #   ^ Disabled for first-boot bootstrap on mac-work. secrets.yaml is
-    #     not yet re-encrypted to this host's age key, so activation
-    #     would fail trying to decrypt. Re-enable after running
-    #     `sops updatekeys secrets/secrets.yaml` on a host that holds
-    #     an existing admin/tala age key, committing, and pulling here.
+    ./sops.nix
     ./certs.nix
   ];
 
