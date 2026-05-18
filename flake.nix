@@ -7,6 +7,12 @@
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Pinned to the nixpkgs commit that bumped llama-cpp to b9190, the
+    # first build to include MTP speculative decoding (PR ggml-org/llama.cpp#22673,
+    # merged 2026-05-16). Drop this input once the nixpkgs-unstable channel
+    # branch catches up past b9190 — at that point home/services/local-llm.nix
+    # can switch back to using `unstable-pkgs.llama-cpp`.
+    nixpkgs-llama.url = "github:NixOS/nixpkgs/dea49413a4cf3be31dc2afb836a90eeee4a5d3c2";
     # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
     # version 48.x. GNOME 49 added a hard requirement on
     # org.gnome.Mutter.ServiceChannel that the niri 26.04 in nixpkgs
@@ -42,6 +48,17 @@
 
     dms = {
       url = "github:AvengeMedia/DankMaterialShell/stable";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # CachyOS-tuned kernels for NixOS. Following our nixpkgs because
+    # Lantian's binary cache only holds the build deps (LLVM, patched
+    # source) — never the final kernel — so the cache-hash argument
+    # for an unfollowed input doesn't apply. Following dedupes the
+    # nixpkgs eval and keeps the kernel build aligned with the rest of
+    # the system.
+    cachyos-kernel = {
+      url = "github:xddxdd/nix-cachyos-kernel/release";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

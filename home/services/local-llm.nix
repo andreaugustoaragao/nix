@@ -6,12 +6,14 @@
 }:
 
 let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
+  # Pinned to a nixpkgs rev with llama-cpp b9190 (first build with MTP
+  # speculative decoding). See flake.nix nixpkgs-llama input.
+  llama-pkgs = import inputs.nixpkgs-llama {
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
 
-  llama-cpp-rocm = unstable-pkgs.llama-cpp.override {
+  llama-cpp-rocm = llama-pkgs.llama-cpp.override {
     rocmSupport = true;
     rocmGpuTargets = [ "gfx1100" ];
   };
@@ -19,7 +21,7 @@ let
   model = {
     id = "qwen3.6-35b-a3b-local";
     name = "Qwen3.6 35B A3B Local";
-    repo = "unsloth/Qwen3.6-35B-A3B-GGUF";
+    repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
     file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
     contextWindow = 196608;
     maxTokens = 8192;
@@ -193,7 +195,9 @@ in
           --ubatch-size 1024 \
           --threads 16 \
           --parallel 1 \
-          --cont-batching
+          --cont-batching \
+          --spec-type draft-mtp \
+          --spec-draft-n-max 3
       '';
       Restart = "on-failure";
       RestartSec = "5s";
