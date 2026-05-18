@@ -2,191 +2,192 @@
 
 set -euo pipefail
 
-# NixOS Automated Installation Script
-# This script fully automates NixOS installation with btrfs (no LUKS — host
-# volume is already encrypted on the Parallels host).
+# NixOS installer
+#
+# Picks a target machine from machines.toml at runtime, filtering to
+# hosts whose hardware/<host>/hardware-configuration.nix matches the
+# disk layout this script produces: GPT + EFI + btrfs root at
+# /dev/disk/by-label/nixos, no LUKS.
+#
+# For hosts with a different layout (LUKS, UUID-pinned configs, etc.)
+# the partitioning code below would need to grow new branches first.
+#
+# Override knobs:
+#   DISK=/dev/vda  ./install-nixos.sh   # default is /dev/sda
+#   TARGET_HOSTNAME=foo ./install-nixos.sh   # skip the menu
 
-# Configuration
-DISK="${DISK:-/dev/sda}"  # Override with DISK=/dev/nvme0n1 ./install-nixos.sh
-HOSTNAME="${HOSTNAME:-prl-dev-vm}"  # Override with HOSTNAME=laptop ./install-nixos.sh
+DISK="${DISK:-/dev/sda}"
 FLAKE_REPO="${FLAKE_REPO:-https://github.com/andreaugustoaragao/nix.git}"
-USERNAME="${USERNAME:-aragao}"
-USER_FULLNAME="${USER_FULLNAME:-Andre Aragao}"
+USERNAME="aragao"
+USER_FULLNAME="Andre Aragao"
+TMP_FLAKE="/tmp/nix-installer-flake"
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-log() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+log()   { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-    exit 1
-}
-
-# Check if running as root
+# Pre-flight
 if [[ $EUID -eq 0 ]]; then
     error "This script should not be run as root. It will use sudo when needed."
 fi
-
-# Check if we're in a NixOS installer environment
-if ! command -v nixos-install &> /dev/null; then
+if ! command -v nixos-install >/dev/null; then
     error "This script must be run from a NixOS installer environment"
 fi
-
-log "Starting automated NixOS installation"
-log "Target disk: $DISK"
-log "Hostname: $HOSTNAME"
-log "Username: $USERNAME"
-
-# Confirm before proceeding
-read -p "This will DESTROY ALL DATA on $DISK. Continue? (yes/no): " -r
-if [[ ! $REPLY =~ ^yes$ ]]; then
-    error "Installation cancelled"
+if ! command -v git >/dev/null; then
+    error "git is required (the NixOS installer ships it)"
 fi
 
-# Step 1: Partition the disk
-log "Partitioning disk $DISK"
+# Step 0: clone the flake to a temp location so we can read machines.toml
+# and hardware/ before deciding what to install.
+log "Fetching flake metadata from $FLAKE_REPO"
+rm -rf "$TMP_FLAKE"
+git clone --depth=1 "$FLAKE_REPO" "$TMP_FLAKE" >/dev/null
 
-# Unmount any existing mounts
+# Step 1: discover candidate hosts. A candidate is a directory under
+# hardware/ whose hardware-configuration.nix references
+# /dev/disk/by-label/nixos (this installer's btrfs layout) and lacks
+# any LUKS configuration, AND has a matching entry in machines.toml.
+discover_candidates() {
+    local hwc host
+    for hwc in "$TMP_FLAKE"/hardware/*/hardware-configuration.nix; do
+        [[ -f $hwc ]] || continue
+        host="$(basename "$(dirname "$hwc")")"
+        grep -q '/dev/disk/by-label/nixos' "$hwc" || continue
+        ! grep -qE 'luks\.|cryptroot' "$hwc" || continue
+        grep -q "^\[machines\.${host}\]" "$TMP_FLAKE/machines.toml" || continue
+        echo "$host"
+    done
+}
+
+mapfile -t candidates < <(discover_candidates)
+if [[ ${#candidates[@]} -eq 0 ]]; then
+    error "no compatible hosts in $FLAKE_REPO (need hardware-configuration.nix using /dev/disk/by-label/nixos and no LUKS)"
+fi
+
+# Step 2: pick a host. Honor TARGET_HOSTNAME if it's a candidate;
+# otherwise prompt.
+if [[ -n "${TARGET_HOSTNAME:-}" ]]; then
+    found=0
+    for h in "${candidates[@]}"; do
+        [[ $h == "$TARGET_HOSTNAME" ]] && { found=1; break; }
+    done
+    [[ $found -eq 1 ]] || error "TARGET_HOSTNAME='$TARGET_HOSTNAME' is not a candidate. Available: ${candidates[*]}"
+    log "TARGET_HOSTNAME=$TARGET_HOSTNAME (from env)"
+else
+    echo
+    echo "Available machines for this installer (btrfs root, no LUKS):"
+    for i in "${!candidates[@]}"; do
+        printf "  %d) %s\n" "$((i + 1))" "${candidates[$i]}"
+    done
+    echo
+    read -p "Pick a machine [1-${#candidates[@]}]: " -r choice
+    [[ $choice =~ ^[0-9]+$ ]] || error "expected a number"
+    (( choice >= 1 && choice <= ${#candidates[@]} )) || error "out of range"
+    TARGET_HOSTNAME="${candidates[$((choice - 1))]}"
+    log "selected: $TARGET_HOSTNAME"
+fi
+
+# Final summary + confirmation
+echo
+log "Target disk:     $DISK"
+log "Target host:     $TARGET_HOSTNAME"
+log "Username:        $USERNAME"
+log "Flake source:    $FLAKE_REPO"
+echo
+read -p "This will DESTROY ALL DATA on $DISK. Continue? (yes/no): " -r
+[[ $REPLY =~ ^yes$ ]] || error "Installation cancelled"
+
+# Step 3: Partition
+log "Partitioning $DISK"
 sudo umount -R /mnt 2>/dev/null || true
 
-# Create partition table
-sudo parted $DISK --script -- mklabel gpt
+sudo parted "$DISK" --script -- mklabel gpt
+sudo parted "$DISK" --script -- mkpart ESP fat32 1MiB 513MiB
+sudo parted "$DISK" --script -- set 1 esp on
+sudo parted "$DISK" --script -- mkpart primary 513MiB 100%
+sudo parted "$DISK" --script -- name 2 nixos
 
-# Create EFI partition (512MB)
-sudo parted $DISK --script -- mkpart ESP fat32 1MiB 513MiB
-sudo parted $DISK --script -- set 1 esp on
-
-# Create root partition (rest of disk) with label
-sudo parted $DISK --script -- mkpart primary 513MiB 100%
-sudo parted $DISK --script -- name 2 nixos
-
-# Format EFI partition
 log "Formatting EFI partition"
-sudo mkfs.fat -F 32 -n nixos-boot ${DISK}1
+sudo mkfs.fat -F 32 -n nixos-boot "${DISK}1"
 
-# Format root partition with btrfs (no LUKS — host volume is already encrypted).
 log "Creating btrfs filesystem on ${DISK}2"
-sudo mkfs.btrfs -f -L nixos ${DISK}2
+sudo mkfs.btrfs -f -L nixos "${DISK}2"
 
-# Step 2: Create btrfs subvolumes
+# Step 4: btrfs subvolumes
 log "Creating btrfs subvolumes"
-
-# Mount the root btrfs filesystem
 sudo mount /dev/disk/by-label/nixos /mnt
-
-# Create subvolumes
-log "Creating btrfs subvolumes"
 sudo btrfs subvolume create /mnt/@root
 sudo btrfs subvolume create /mnt/@nix
 sudo btrfs subvolume create /mnt/@tmp
 sudo btrfs subvolume create /mnt/@swap
 sudo btrfs subvolume create /mnt/@snapshots
-
-# Create user-specific home subvolume
-sudo btrfs subvolume create /mnt/@home-$USERNAME
-
-# Unmount root filesystem
+sudo btrfs subvolume create "/mnt/@home-$USERNAME"
 sudo umount /mnt
 
-# Step 3: Mount subvolumes
+# Step 5: mount everything for install
 log "Mounting btrfs subvolumes"
-
-# Mount options for btrfs
 BTRFS_OPTS="compress=zstd:1,noatime,space_cache=v2"
-
-# Mount root subvolume
-sudo mount -o subvol=@root,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt
-
-# Create mount points
+sudo mount -o "subvol=@root,$BTRFS_OPTS" /dev/disk/by-label/nixos /mnt
 sudo mkdir -p /mnt/{home,nix,tmp,swap,boot,.snapshots}
-sudo mkdir -p /mnt/home/$USERNAME
+sudo mkdir -p "/mnt/home/$USERNAME"
+sudo mount -o "subvol=@home-$USERNAME,$BTRFS_OPTS" /dev/disk/by-label/nixos "/mnt/home/$USERNAME"
+sudo mount -o "subvol=@nix,$BTRFS_OPTS"       /dev/disk/by-label/nixos /mnt/nix
+sudo mount -o "subvol=@tmp,$BTRFS_OPTS"       /dev/disk/by-label/nixos /mnt/tmp
+sudo mount -o "subvol=@snapshots,$BTRFS_OPTS" /dev/disk/by-label/nixos /mnt/.snapshots
+sudo mount "${DISK}1" /mnt/boot
+sudo chown 1000:100 "/mnt/home/$USERNAME"
 
-# Mount user-specific home subvolume directly
-sudo mount -o subvol=@home-$USERNAME,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/home/$USERNAME
-sudo mount -o subvol=@nix,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/nix
-sudo mount -o subvol=@tmp,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/tmp
-sudo mount -o subvol=@snapshots,$BTRFS_OPTS /dev/disk/by-label/nixos /mnt/.snapshots
-
-# Mount EFI partition
-sudo mount ${DISK}1 /mnt/boot
-
-# Set permissions
-sudo chown 1000:100 /mnt/home/$USERNAME  # Assuming UID 1000 for first user
-
-# Step 4: Generate hardware configuration
+# Step 6: generate hardware config (mostly for fallback / inspection;
+# the install uses the flake's per-host hardware-configuration.nix)
 log "Generating hardware configuration"
 sudo nixos-generate-config --root /mnt
 
-# Step 5: Download and setup flake configuration
-log "Downloading flake configuration from $FLAKE_REPO"
+# Step 7: place the flake on the target. Move the pre-cloned tree
+# rather than re-fetching from the network.
+log "Installing flake into /mnt/home/$USERNAME/projects/personal/nix"
+sudo mkdir -p "/mnt/home/$USERNAME/projects/personal"
+sudo cp -a "$TMP_FLAKE" "/mnt/home/$USERNAME/projects/personal/nix"
+sudo chown -R 1000:100 "/mnt/home/$USERNAME/projects"
 
-# Create the user's projects directory structure
-sudo mkdir -p /mnt/home/$USERNAME/projects/personal
-sudo chown -R 1000:100 /mnt/home/$USERNAME/projects
+# /etc/nixos symlink for convenience inside the chroot.
+sudo ln -sf "/home/$USERNAME/projects/personal/nix" /mnt/etc/nixos
 
-# Clone the configuration repository to user's home
-cd /mnt/home/$USERNAME/projects/personal
-sudo -u "#1000" git clone $FLAKE_REPO nix
-sudo chown -R 1000:100 /mnt/home/$USERNAME/projects/personal/nix
-
-# Create symlink from /etc/nixos to the user's nix config for nixos-install
-sudo ln -sf /mnt/home/$USERNAME/projects/personal/nix /mnt/etc/nixos
-
-# Using partition labels instead of UUIDs for cleaner configuration
 log "Using filesystem labels: nixos (btrfs root) and nixos-boot (EFI)"
 
-# Step 6: Check if machine exists in machines.toml
-log "Checking if machine $HOSTNAME exists in configuration"
-
-if ! grep -q "\\[machines\\.$HOSTNAME\\]" /mnt/home/$USERNAME/projects/personal/nix/machines.toml; then
-    error "Machine '$HOSTNAME' not found in machines.toml. Please add it to the configuration first."
-fi
-
-log "Machine $HOSTNAME found in configuration, proceeding with installation"
-
-# Step 7: Install NixOS
-log "Installing NixOS with flake configuration"
-sudo nixos-install --root /mnt --flake "/mnt/home/$USERNAME/projects/personal/nix#$HOSTNAME"
+# Step 8: install
+log "Installing NixOS for host $TARGET_HOSTNAME"
+sudo nixos-install --root /mnt --flake "/mnt/home/$USERNAME/projects/personal/nix#$TARGET_HOSTNAME"
 
 log "Installation completed successfully!"
 
-# Step 8: Final setup instructions
 cat <<EOF
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                             INSTALLATION COMPLETE!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Your NixOS system has been installed with:
-  • Btrfs with optimized subvolumes (host volume is encrypted)
-  • Your flake configuration from: $FLAKE_REPO
-  • Flake location: /home/$USERNAME/projects/personal/nix
-  • Hostname: $HOSTNAME
-  • Username: $USERNAME
+Host:           $TARGET_HOSTNAME
+Disk:           $DISK
+Flake location: /home/$USERNAME/projects/personal/nix
+Username:       $USERNAME
 
 Next steps:
 1. Reboot: sudo reboot
-2. Login with your configured credentials
-3. Your Home Manager configuration will be applied automatically
+2. Log in with your configured credentials
+3. Home Manager runs automatically on first login
 
-Note: User accounts and passwords are managed by your flake configuration.
-
-BTRFS Subvolumes created:
-  • @root      -> /
-  • @home-$USERNAME -> /home/$USERNAME
-  • @nix       -> /nix
-  • @tmp       -> /tmp
-  • @snapshots -> /.snapshots
+BTRFS subvolumes created:
+  • @root             -> /
+  • @home-$USERNAME   -> /home/$USERNAME
+  • @nix              -> /nix
+  • @tmp              -> /tmp
+  • @snapshots        -> /.snapshots
 
 To create snapshots:
   sudo btrfs subvolume snapshot /home/$USERNAME /.snapshots/home-\$(date +%Y%m%d-%H%M%S)
