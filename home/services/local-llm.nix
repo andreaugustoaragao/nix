@@ -187,13 +187,14 @@ in
           --port 8080 \
           --ctx-size ${toString model.contextWindow} \
           --n-gpu-layers 99 \
-          --cpu-moe \
+          -fit off \
+          --n-cpu-moe 28 \
           --flash-attn on \
           --cache-type-k q8_0 \
           --cache-type-v q8_0 \
           --batch-size 2048 \
           --ubatch-size 1024 \
-          --threads 16 \
+          --threads 24 \
           --parallel 1 \
           --cont-batching \
           --spec-type draft-mtp \
