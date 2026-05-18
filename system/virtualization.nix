@@ -93,12 +93,16 @@
           Type = "oneshot";
           TimeoutStartSec = "60s";
         };
-        # Add a delay to not interfere with desktop startup
+        # Add a delay to not interfere with desktop startup.
+        # --no-block: enqueue the start and return immediately. k3s
+        # takes longer to activate than this wrapper's TimeoutStartSec,
+        # so blocking here would make the wrapper time out even though
+        # k3s itself starts fine. k3s.service tracks its own status.
         script = ''
           echo "Starting K3s lazy-load in 30 seconds..."
           sleep 30  # Wait 30 seconds after graphical.target
           echo "Starting K3s service..."
-          ${pkgs.systemd}/bin/systemctl start k3s.service
+          ${pkgs.systemd}/bin/systemctl start --no-block k3s.service
         '';
       };
     };
