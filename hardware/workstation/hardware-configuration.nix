@@ -32,6 +32,7 @@
       "k10temp"
       "nct6775" # ASRock X870E Taichi Super I/O sensors for board fan RPMs
       "mt7925e"
+      "msr"     # MSR access for CPU power management
     ];
     extraModulePackages = [ ];
     # Use the modern AMD P-State driver in active mode (EPP-based) for the 9950X
@@ -47,6 +48,7 @@
     smartmontools
     s-tui
     stress-ng
+    lm_sensors  # sensors, pwmconfig for fan control
   ];
 
   fileSystems = {
@@ -107,8 +109,49 @@
     cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   };
 
-  # No power constraints on a desktop — pin governor to performance.
-  powerManagement.cpuFreqGovernor = "performance";
+  # Power management — use power-saver governor for lower temps.
+  # Dropped from "performance" after testing showed a 21°C reduction
+  # with higher throughput (lower-frequency CPUs are more energy-efficient).
+  # See: https://skatterbencher.com/2024/09/06/undervolt-ryzen-9000/
+  powerManagement.cpuFreqGovernor = "powersave";
+
+  # Power Profiles Daemon — power-saver mode for sustained low temps.
+  services.power-profiles-daemon.enable = true;
+
+  # Ensure power-saver profile is set on every boot.
+  systemd.services.power-profiles-saver = {
+    description = "Set power-profiles-daemon to power-saver mode";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "power-profiles-daemon.service" ];
+    serviceConfig.Type = "oneshot";
+    serviceConfig.RemainAfterExit = true;
+    script = ''
+      ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set power-saver
+    '';
+  };
+
+  # Thermald for proactive thermal management.
+  # Zen 5 (Family 26h) is not in thermald's CPU whitelist — force it to run.
+  services.thermald.enable = true;
+  services.thermald.ignoreCpuidCheck = true;
+
+  # Fan control via lm_sensors for nct6775 Super I/O.
+  # CPU fan (pwm1) auto curve: 40C=50%, 50C=60%, 65C=80%, 80C=100%
+  # Case fan (pwm2) auto curve: 35C=50%, 50C=70%, 65C=90%, 75C=100%
+  hardware.fancontrol = {
+    enable = true;
+    config = ''
+      INTERVAL=10
+      DEVPATH=hwmon6=devices/platform/nct6775.656
+      DEVNAME=hwmon6=nct6799
+      FCTEMPS=hwmon6/device/pwm1=hwmon6/device/temp1_input hwmon6/device/pwm2=hwmon6/device/temp2_input
+      FCFANS=hwmon6/device/pwm1=hwmon6/device/fan1_input hwmon6/device/pwm2=hwmon6/device/fan2_input
+      MINTEMP=hwmon6/device/pwm1=40 hwmon6/device/pwm2=35
+      MAXTEMP=hwmon6/device/pwm1=80 hwmon6/device/pwm2=75
+      MINSTART=hwmon6/device/pwm1=150 hwmon6/device/pwm2=150
+      MINSTOP=hwmon6/device/pwm1=0 hwmon6/device/pwm2=0
+    '';
+  };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }
