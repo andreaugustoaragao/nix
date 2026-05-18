@@ -41,6 +41,16 @@ _:
         identityFile = "~/.ssh/id_rsa_work"; # From sops
         identitiesOnly = true;
       };
+
+      # Parallels dev VM. Reached over the Parallels Shared Network at
+      # whatever DHCP/static IP it ends up with — resolved via Bonjour
+      # so we don't have to track the address. avahi-daemon publishes
+      # `prl-dev-vm.local` from the VM (see system/mdns.nix). Agent
+      # forwarding is on globally via extraConfig above.
+      "prl-dev-vm" = {
+        hostname = "prl-dev-vm.local";
+        user = "aragao";
+      };
     };
   };
 }

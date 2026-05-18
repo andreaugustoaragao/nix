@@ -11,12 +11,10 @@
       ];
     };
 
-    # mDNS for auto-discovering network printers (Bonjour / IPP).
-    avahi = {
-      enable = true;
-      nssmdns4 = true;
-      openFirewall = true;
-    };
+    # avahi/mDNS now lives in system/mdns.nix (imported unconditionally
+    # by system/default.nix). CUPS + IPP printer discovery still works
+    # because the daemon's still running — just owned by the more
+    # general module.
 
     # cups-pk-helper exposes printer admin (add/remove/configure) via the
     # D-Bus / polkit interface DankMaterialShell talks to.
