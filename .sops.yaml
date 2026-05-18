@@ -2,6 +2,7 @@ keys:
   - &admin_key age1d6fjy4k876qdnazftagucz96l8z0kctyxvq0t396swpr4c39wu8s4zcspg
   - &tala_key age1duv6mr4u5vqylmasxs5cg5mcd5n29xmxklfrhcl5zp7v7ggs8syq0ef5fz
   - &mac_work_key age19t38gfv96p76sx7x56qlhclwdnejna73k6qslletrjh6j97f34zqwhd302
+  - &prl_dev_vm_key age124a5zdlqgqpgxqsz0k7yljzf7haavch863y63qlrx2mkqlgcn33sl4du4s
 
 creation_rules:
   - path_regex: secrets/.*\.yaml$
@@ -10,6 +11,8 @@ creation_rules:
           - *admin_key
           - *tala_key
           - *mac_work_key
+          - *prl_dev_vm_key
           - age1fxy92eutwwhe96s24q6t68d9y2qevecv455gncgttdwmsjv8yyfsze57t9
           - age1dcna6k52x6tc2cryy9ancky0renwz4ke0rka3m73rr8g8jhrususrhywea
           - age1cw22z6uu7t425wkap97zl2q8mdj58rrhkqukc4tewuwactcqhp7sn2y5wr
+          - age124a5zdlqgqpgxqsz0k7yljzf7haavch863y63qlrx2mkqlgcn33sl4du4s
