@@ -80,6 +80,10 @@ in
     # / Raycast / Launchpad / AeroSpace launcher. Ships a Darwin
     # `browser-app` script alongside.
     ../desktop/web-apps-macos.nix
+    # macOS ssh-agent launchd job that preloads the sops-managed keys
+    # at login. Mirrors the Linux ssh-agent + ssh-add-keys setup in
+    # home/cli/gpg.nix.
+    ./ssh-agent-macos.nix
   ];
 
   home.packages =
