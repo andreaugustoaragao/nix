@@ -2,6 +2,7 @@
   pkgs,
   lib,
   inputs,
+  isVm,
   ...
 }:
 let
@@ -10,13 +11,31 @@ let
     config.allowUnfree = true;
   };
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
+
+  # Parallels' guest 3D driver tops out at OpenGL 4.0/4.1, but ghostty
+  # >=1.3 requires 4.3. Force Mesa to use llvmpipe (software, OpenGL
+  # 4.5+) for ghostty only — scoped via wrapper so other GL apps keep
+  # using the accelerated guest driver.
+  ghosttyPkg =
+    if isVm then
+      pkgs.symlinkJoin {
+        name = "ghostty-vm-${pkgs-unstable.ghostty.version}";
+        paths = [ pkgs-unstable.ghostty ];
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        postBuild = ''
+          wrapProgram $out/bin/ghostty \
+            --set LIBGL_ALWAYS_SOFTWARE 1
+        '';
+      }
+    else
+      pkgs-unstable.ghostty;
 in
 {
   # Ghostty binary: installed via nix on Linux, via the homebrew cask on
   # macOS (declared in darwin/homebrew.nix). The brew build is
   # notarized + signed and integrates with the macOS keychain in ways
   # the nixpkgs darwin build currently does not.
-  home.packages = lib.optionals isLinux [ pkgs-unstable.ghostty ];
+  home.packages = lib.optionals isLinux [ ghosttyPkg ];
 
   # Ghostty reads $XDG_CONFIG_HOME/ghostty/config on both Linux and
   # macOS, so a single declarative config covers both platforms.

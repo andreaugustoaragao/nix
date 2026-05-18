@@ -2,11 +2,93 @@
   config,
   pkgs,
   lib,
+  isVm ? false,
   lockScreen ? false,
   useDms ? false,
   ...
 }:
 
+let
+  # Single-output hosts (the VM) don't have DP-1/DP-2, so pinning
+  # workspaces to those outputs makes niri stack all 18 named
+  # workspaces onto the lone Virtual-1 output. Declare a smaller,
+  # unpinned set instead — niri places them on whichever output is
+  # present.
+  workspaceBlock =
+    if isVm then
+      ''
+        // Single-output VM: 5 persistent workspaces, no open-on-output
+        // (only Virtual-1 exists, so niri places them there anyway).
+        workspace "1" { }
+        workspace "2" { }
+        workspace "3" { }
+        workspace "4" { }
+        workspace "5" { }
+      ''
+    else
+      ''
+        // 9 persistent workspaces per output. The Mod+1..9 bindings use
+        // niri's per-output index (focus-workspace <int>), so the names
+        // below are just unique labels — Mod+1 on DP-1 lands on "1", on
+        // DP-2 it lands on "p1". DP-1 = landscape (right), DP-2 = portrait
+        // (left); without open-on-output niri stacks every workspace on
+        // the first-enumerated output.
+        workspace "1" {
+            open-on-output "DP-1"
+        }
+        workspace "2" {
+            open-on-output "DP-1"
+        }
+        workspace "3" {
+            open-on-output "DP-1"
+        }
+        workspace "4" {
+            open-on-output "DP-1"
+        }
+        workspace "5" {
+            open-on-output "DP-1"
+        }
+        workspace "6" {
+            open-on-output "DP-1"
+        }
+        workspace "7" {
+            open-on-output "DP-1"
+        }
+        workspace "8" {
+            open-on-output "DP-1"
+        }
+        workspace "9" {
+            open-on-output "DP-1"
+        }
+        workspace "p1" {
+            open-on-output "DP-2"
+        }
+        workspace "p2" {
+            open-on-output "DP-2"
+        }
+        workspace "p3" {
+            open-on-output "DP-2"
+        }
+        workspace "p4" {
+            open-on-output "DP-2"
+        }
+        workspace "p5" {
+            open-on-output "DP-2"
+        }
+        workspace "p6" {
+            open-on-output "DP-2"
+        }
+        workspace "p7" {
+            open-on-output "DP-2"
+        }
+        workspace "p8" {
+            open-on-output "DP-2"
+        }
+        workspace "p9" {
+            open-on-output "DP-2"
+        }
+      '';
+in
 {
   # Always install hyprpolkitagent. DMS 1.4.6 ships a PolkitAuthModal
   # but it logs "Polkit not available — authentication prompts disabled.
@@ -18,66 +100,7 @@
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
-    // 9 persistent workspaces per output. The Mod+1..9 bindings use
-    // niri's per-output index (focus-workspace <int>), so the names
-    // below are just unique labels — Mod+1 on DP-1 lands on "1", on
-    // DP-2 it lands on "p1". DP-1 = landscape (right), DP-2 = portrait
-    // (left); without open-on-output niri stacks every workspace on
-    // the first-enumerated output.
-    workspace "1" {
-        open-on-output "DP-1"
-    }
-    workspace "2" {
-        open-on-output "DP-1"
-    }
-    workspace "3" {
-        open-on-output "DP-1"
-    }
-    workspace "4" {
-        open-on-output "DP-1"
-    }
-    workspace "5" {
-        open-on-output "DP-1"
-    }
-    workspace "6" {
-        open-on-output "DP-1"
-    }
-    workspace "7" {
-        open-on-output "DP-1"
-    }
-    workspace "8" {
-        open-on-output "DP-1"
-    }
-    workspace "9" {
-        open-on-output "DP-1"
-    }
-    workspace "p1" {
-        open-on-output "DP-2"
-    }
-    workspace "p2" {
-        open-on-output "DP-2"
-    }
-    workspace "p3" {
-        open-on-output "DP-2"
-    }
-    workspace "p4" {
-        open-on-output "DP-2"
-    }
-    workspace "p5" {
-        open-on-output "DP-2"
-    }
-    workspace "p6" {
-        open-on-output "DP-2"
-    }
-    workspace "p7" {
-        open-on-output "DP-2"
-    }
-    workspace "p8" {
-        open-on-output "DP-2"
-    }
-    workspace "p9" {
-        open-on-output "DP-2"
-    }
+    ${workspaceBlock}
 
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
     output "Virtual-1" {

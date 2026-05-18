@@ -48,6 +48,14 @@
         # GPG program path
         gpg.program = "${pkgs.gnupg}/bin/gpg";
 
+        # Let gh broker HTTPS credentials for github.com so we never
+        # need a stored PAT or `git config --global credential.helper`
+        # (the latter fails on Home Manager since ~/.config/git/config
+        # is a /nix/store symlink). After `gh auth login --with-token`
+        # this kicks in automatically for push/fetch over HTTPS.
+        credential."https://github.com".helper = "!${pkgs.gh}/bin/gh auth git-credential";
+        credential."https://gist.github.com".helper = "!${pkgs.gh}/bin/gh auth git-credential";
+
         alias = {
           st = "status";
           co = "checkout";
