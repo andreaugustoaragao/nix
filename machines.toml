@@ -32,7 +32,7 @@ stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
 autoLogin = true
-useDms = false
+useDms = true
 
 [machines.tala]
 hostName = "tala"

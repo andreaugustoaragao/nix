@@ -4,6 +4,7 @@
   inputs,
   wallpapers,
   useDms ? false,
+  isVm ? false,
   ...
 }:
 
@@ -31,6 +32,13 @@ let
       # `theme = dark:...,light:...` syntax actually flips.
       substituteInPlace $out/share/quickshell/dms/Services/PortalService.qml \
         --replace-fail 'const targetScheme = isLightMode ? "default" : "prefer-dark";' 'const targetScheme = isLightMode ? "prefer-light" : "prefer-dark";'
+
+      # DMS bar clock renders children in source order: time, dot, date.
+      # Flip the Row to RightToLeft so it visually reads "date • time"
+      # without touching the inner time/date StyledTexts (text content
+      # within each child still flows LTR).
+      substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/Clock.qml \
+        --replace-fail 'spacing: Theme.spacingS' 'spacing: Theme.spacingS; layoutDirection: Qt.RightToLeft'
     '';
   });
 
@@ -173,7 +181,22 @@ let
     # (battery, idleInhibitor).
     barConfigs =
       let
-        base = builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0;
+        baseRaw = builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0;
+        # VMs have no real temperature sensors, so drop CPU/GPU temp widgets.
+        base =
+          if isVm then
+            baseRaw
+            // {
+              rightWidgets = builtins.filter (
+                w:
+                !(builtins.elem w.id [
+                  "thermalMonitor"
+                  "gpuTemp"
+                ])
+              ) baseRaw.rightWidgets;
+            }
+          else
+            baseRaw;
       in
       [
         (
@@ -190,10 +213,10 @@ let
             screenPreferences = [ "DP-2" ];
             showOnLastDisplay = false;
             leftWidgets = [
-              "launcherButton"
+              "clock"
               "workspaceSwitcher"
             ];
-            centerWidgets = [ "clock" ];
+            centerWidgets = [ ];
             rightWidgets = [
               {
                 id = "clipboard";

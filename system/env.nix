@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  isVm,
+  ...
+}:
 
 {
   environment.sessionVariables = {
@@ -7,6 +12,10 @@
     # Make Node.js (used by Claude Code, etc.) use the system CA bundle with enterprise certs
     NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
     ENABLE_TOOL_SEARCH = "true";
+  }
+  // lib.optionalAttrs isVm {
+    # Parallels exposes OpenGL but no Vulkan — Zed otherwise refuses to start on lavapipe.
+    ZED_ALLOW_EMULATED_GPU = "1";
   };
 
   # Use dash for /bin/sh — small, fast, POSIX. Affects systemd ExecStart

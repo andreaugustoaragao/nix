@@ -476,15 +476,13 @@
       ],
       "showOnLastDisplay": true,
       "leftWidgets": [
-        "launcherButton",
-        "workspaceSwitcher",
-        "focusedWindow"
-      ],
-      "centerWidgets": [
-        "music",
         "clock",
-        "weather"
+        "weather",
+        "workspaceSwitcher",
+        "focusedWindow",
+        "music"
       ],
+      "centerWidgets": [],
       "rightWidgets": [
         {
           "id": "clipboard",
