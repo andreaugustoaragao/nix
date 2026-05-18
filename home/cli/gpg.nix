@@ -184,42 +184,8 @@ in
     };
   };
 
-  # SSH configuration with sops-sourced identity files
-  programs.ssh = {
-    enable = true;
-    enableDefaultConfig = false;
-
-    # Default configuration for personal machines
-    extraConfig = ''
-      # Enable SSH agent forwarding
-      ForwardAgent yes
-    '';
-
-    # GitHub configurations using sops-managed SSH keys
-    matchBlocks = {
-      "*" = {
-        # Default SSH settings for all hosts
-        addKeysToAgent = "yes";
-        compression = true;
-        serverAliveInterval = 60;
-        serverAliveCountMax = 3;
-      };
-
-      "github-personal" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/id_rsa_personal"; # From sops
-        identitiesOnly = true;
-      };
-
-      "github-work" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/id_rsa_work"; # From sops
-        identitiesOnly = true;
-      };
-    };
-  };
+  # Cross-platform programs.ssh lives in home/cli/ssh-config.nix so the
+  # github-personal / github-work aliases also apply on macOS.
 
   # Environment setup for SOPS age key and SSH agent
   home.sessionVariables = {

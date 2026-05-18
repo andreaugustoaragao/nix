@@ -41,6 +41,11 @@ in
     ./k9s.nix
     ./fzf.nix
     ./pi.nix
+    # Cross-platform programs.ssh — defines the github-personal /
+    # github-work host aliases that point at sops-decrypted identity
+    # files. Loaded on Linux and macOS; agent/askpass wiring stays
+    # platform-specific (see gpg.nix on Linux).
+    ./ssh-config.nix
   ]
   ++ lib.optionals (!isDarwinHost) [
     # gpg/ssh-agent management here is built on systemd-user units +
