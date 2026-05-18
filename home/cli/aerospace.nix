@@ -63,6 +63,13 @@
     alt-space        = "exec-and-forget open -a Raycast"
     alt-d            = "exec-and-forget open -a Raycast"
 
+    # Window switcher — niri's Mod+s equivalent. Built on
+    # `aerospace list-windows --all` + choose-gui as the fuzzy picker.
+    # Script ships from home/cli/aerospace-window-switcher.nix.
+    # Note: cmd-s globally would shadow every app's Save shortcut, so
+    # we stick with the alt- mod used by the rest of this config.
+    alt-s            = "exec-and-forget aerospace-window-switcher"
+
     # --- Window actions ---
     alt-w            = "close"
     alt-shift-q      = "reload-config"

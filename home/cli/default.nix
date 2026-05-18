@@ -84,6 +84,9 @@ in
     # at login. Mirrors the Linux ssh-agent + ssh-add-keys setup in
     # home/cli/gpg.nix.
     ./ssh-agent-macos.nix
+    # alt-s window switcher: aerospace list-windows + choose-gui +
+    # aerospace focus. macOS counterpart to home/desktop/window-switcher.nix.
+    ./aerospace-window-switcher.nix
   ];
 
   home.packages =
