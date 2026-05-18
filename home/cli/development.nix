@@ -264,11 +264,11 @@ in
         echo "Updating OpenAI Codex CLI..."
         ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
 
-        # Install Pi coding agent if not present
-        if ! command -v pi &> /dev/null; then
-          echo "Installing Pi coding agent..."
-          ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent
-        fi
+        # Always pull the latest Pi coding agent — same reasoning as Codex
+        # above: releases move fast and a guarded install leaves stale
+        # binaries behind.
+        echo "Updating Pi coding agent..."
+        ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
       '';
 
       # Auto-install Cursor Agent CLI.
