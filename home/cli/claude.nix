@@ -68,6 +68,7 @@ in
     ".claude/settings.json".text = builtins.toJSON {
       model = "opus[1m]";
       effortLevel = "max";
+      editorMode = "vim";
       teammateMode = "auto";
       chrome = false;
       skipAutoPermissionPrompt = true;

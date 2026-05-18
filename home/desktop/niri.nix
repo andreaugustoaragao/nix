@@ -18,9 +18,12 @@
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
-    // Named workspaces pinned to the main landscape display. Without
-    // open-on-output, niri assigns them to the first-enumerated output
-    // (DP-2 at position 0,0), leaving DP-1 empty.
+    // 9 persistent workspaces per output. The Mod+1..9 bindings use
+    // niri's per-output index (focus-workspace <int>), so the names
+    // below are just unique labels — Mod+1 on DP-1 lands on "1", on
+    // DP-2 it lands on "p1". DP-1 = landscape (right), DP-2 = portrait
+    // (left); without open-on-output niri stacks every workspace on
+    // the first-enumerated output.
     workspace "1" {
         open-on-output "DP-1"
     }
@@ -32,6 +35,48 @@
     }
     workspace "4" {
         open-on-output "DP-1"
+    }
+    workspace "5" {
+        open-on-output "DP-1"
+    }
+    workspace "6" {
+        open-on-output "DP-1"
+    }
+    workspace "7" {
+        open-on-output "DP-1"
+    }
+    workspace "8" {
+        open-on-output "DP-1"
+    }
+    workspace "9" {
+        open-on-output "DP-1"
+    }
+    workspace "p1" {
+        open-on-output "DP-2"
+    }
+    workspace "p2" {
+        open-on-output "DP-2"
+    }
+    workspace "p3" {
+        open-on-output "DP-2"
+    }
+    workspace "p4" {
+        open-on-output "DP-2"
+    }
+    workspace "p5" {
+        open-on-output "DP-2"
+    }
+    workspace "p6" {
+        open-on-output "DP-2"
+    }
+    workspace "p7" {
+        open-on-output "DP-2"
+    }
+    workspace "p8" {
+        open-on-output "DP-2"
+    }
+    workspace "p9" {
+        open-on-output "DP-2"
     }
 
     // Monitor/Output configuration (matching Hyprland 2.0 scale)
