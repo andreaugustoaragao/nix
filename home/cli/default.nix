@@ -95,12 +95,9 @@ in
     # at login. Mirrors the Linux ssh-agent + ssh-add-keys setup in
     # home/cli/gpg.nix.
     ./ssh-agent-macos.nix
-    # alt-s window switcher: aerospace list-windows + choose-gui +
+    # alt-s window switcher: aerospace list-windows + mac-menu +
     # aerospace focus. macOS counterpart to home/desktop/window-switcher.nix.
     ./aerospace-window-switcher.nix
-    # alt-space app launcher: choose-gui-based fuzzel clone, replaces
-    # Raycast. macOS counterpart to home/desktop/fuzzel.nix.
-    ./app-launcher.nix
   ];
 
   home.packages =

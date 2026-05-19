@@ -71,10 +71,8 @@ in
     # --- Launching apps (parity with niri Mod+Return / Mod+Shift+* /
     #     Mod+Space) ---
     alt-enter        = "exec-and-forget /Applications/Ghostty.app/Contents/MacOS/ghostty"
-    # alt-space / alt-d → choose-gui-based fuzzel clone. Script ships
-    # from home/cli/app-launcher.nix.
-    alt-space        = "exec-and-forget ${binPath}/app-launcher"
-    alt-d            = "exec-and-forget ${binPath}/app-launcher"
+    alt-space        = "exec-and-forget open -a Raycast"
+    alt-d            = "exec-and-forget open -a Raycast"
 
     # Window switcher — niri's Mod+s equivalent. Built on
     # `aerospace list-windows --all` + choose-gui as the fuzzy picker.
