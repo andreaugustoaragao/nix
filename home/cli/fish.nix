@@ -47,9 +47,7 @@ in
       # configuration attribute, so the same command works on every
       # machine in this flake without hand-rolling the hostname.
       rebuild =
-        if isDarwin
-        then "sudo darwin-rebuild switch --flake ."
-        else "sudo nixos-rebuild switch --flake .";
+        if isDarwin then "sudo darwin-rebuild switch --flake ." else "sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
       nixf = "nix search nixpkgs";
 
@@ -134,6 +132,15 @@ in
       # decrypted token from sops if it has been deployed on this host.
       if test -r /run/secrets/litellm_api_key
         set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
+      end
+
+      # Anthropic API key consumed by `pi` / `pi-opus` and any other tool
+      # that reads ANTHROPIC_API_KEY from the environment. The secret file
+      # may be either bare key bytes or `ANTHROPIC_API_KEY=...` shell form;
+      # strip the prefix if present.
+      if test -r /run/secrets/anthropic_api_key
+        set -l anthropic_key_raw (cat /run/secrets/anthropic_api_key)
+        set -gx ANTHROPIC_API_KEY (string replace -r '^ANTHROPIC_API_KEY=' "" -- $anthropic_key_raw)
       end
     '';
 
