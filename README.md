@@ -13,34 +13,49 @@ Declarative NixOS + Home Manager setup for multiple machines (x86_64 and aarch64
 
 ## Machines
 Defined in `machines.toml` and wired via `flake.nix`:
-- `workstation` (x86_64-linux)
-- `hp-laptop` (x86_64-linux)
-- `prl-dev-vm` (aarch64-linux)
+
+| Host | Platform | Role |
+|---|---|---|
+| `workstation` | x86_64-linux | Primary desktop, k3s, LLM serving |
+| `hp-laptop` | x86_64-linux | Portable laptop, WiFi |
+| `tala` | x86_64-linux | Headless server (LLDAP, Authelia, Caddy, ACME) |
+| `prl-dev-vm` | aarch64-linux | Parallels Desktop dev VM (mac-work) |
+| `vmw-dev-vm` | aarch64-linux | VMware Fusion dev VM (mac-work) |
+| `mac-work` | aarch64-darwin | nix-darwin on the work MacBook |
+
+For setting up a new dev VM (Parallels or VMware Fusion), see [`VM-SETUP.md`](VM-SETUP.md).
 
 ## Layout
 ```text
 nix/
   flake.nix
   machines.toml
-  hardware/
-    hp-laptop/
-    prl-dev-vm/
-    workstation/
-  system/           # System-wide modules
-  home/             # Home Manager modules
+  hardware/         # Per-host hardware-configuration.nix
+  system/           # NixOS system modules
+  darwin/           # nix-darwin modules (mac-work)
+  home/             # Home Manager modules (Linux + macOS)
+  scripts/          # install-nixos.sh, sops helpers, dev-loop scripts
   secrets/          # Encrypted with sops-nix
   keys/             # age public keys (recipients)
-  README.md
+  certs/            # Corporate root CAs
+  VM-SETUP.md       # Parallels / VMware Fusion VM walkthrough
+  SOPS-SETUP-GUIDE.md
 ```
 
 ## Usage
-Prereqs: NixOS with flakes enabled.
+Prereqs: NixOS with flakes enabled (or nix-darwin for `mac-work`).
 
-- Switch the current host to a specific machine profile:
+- Switch the current host to its machine profile:
 ```bash
+# Linux hosts
 sudo nixos-rebuild switch --flake .#workstation
 sudo nixos-rebuild switch --flake .#hp-laptop
+sudo nixos-rebuild switch --flake .#tala
 sudo nixos-rebuild switch --flake .#prl-dev-vm
+sudo nixos-rebuild switch --flake .#vmw-dev-vm
+
+# macOS (mac-work)
+darwin-rebuild switch --flake .#mac-work
 ```
 
 - Update inputs and rebuild:

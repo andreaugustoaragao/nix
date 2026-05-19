@@ -1,109 +1,80 @@
-# NixOS Automated Installation
+# NixOS installer scripts
 
-This directory contains scripts for fully automated NixOS installation with LUKS encryption and btrfs.
+## `install-nixos.sh`
 
-## Usage
+One-shot installer that runs from a NixOS minimal ISO. Picks a target machine from `machines.toml`, partitions the disk, copies the flake into place, and runs `nixos-install --flake .#<host>`.
 
-### Basic Installation
+For the end-to-end Parallels / VMware Fusion VM walkthrough (boot the ISO, SSH in, run this script, bootstrap sops), see [`../VM-SETUP.md`](../VM-SETUP.md).
 
-Boot from NixOS ISO and run:
+### What it does
+
+1. **Discover candidates.** Clones the flake to `/tmp/nix-installer-flake` and lists every host whose `hardware/<host>/hardware-configuration.nix`:
+   - references `/dev/disk/by-label/nixos` (this script's btrfs layout), **and**
+   - contains no LUKS configuration, **and**
+   - has a matching `[machines.<host>]` entry in `machines.toml`.
+2. **Prompt** for the target host (or honor `$TARGET_HOSTNAME`) and confirm the disk wipe.
+3. **Partition.** GPT label, 512 MiB FAT32 ESP labelled `nixos-boot`, remainder labelled `nixos`. NVMe / mmcblk / loop devices get the kernel's `p` separator (`/dev/nvme0n1p1`) automatically.
+4. **Format + subvolume layout.** btrfs root with subvolumes `@root`, `@home-aragao`, `@nix`, `@tmp`, `@snapshots`, `@swap` — mounted with `compress=zstd:1,noatime,space_cache=v2`.
+5. **Stage the flake.** Copies `/tmp/nix-installer-flake` into `/mnt/home/aragao/projects/personal/nix` and symlinks `/etc/nixos → /home/aragao/projects/personal/nix` for convenience.
+6. **Install.** `nixos-install --root /mnt --flake .../#<host>`.
+
+The script does **not** set up LUKS, encrypt secrets, or apply any post-install Home Manager changes — Home Manager runs as part of `nixos-rebuild switch` on first activation.
+
+### Usage
+
+Boot the NixOS minimal ISO, SSH in (see `../VM-SETUP.md` Phase 2), then:
 
 ```bash
-# Download and run the installer
-curl -L https://raw.githubusercontent.com/your-username/nix-config/main/scripts/install-nixos.sh | bash
+curl -L https://raw.githubusercontent.com/andreaugustoaragao/nix/main/scripts/install-nixos.sh -o /tmp/install.sh
+chmod +x /tmp/install.sh
+/tmp/install.sh
 ```
 
-### Custom Installation
+Do **not** pipe to `bash` — the script's interactive menu and destroy-confirmation prompt need a real stdin.
+
+### Environment knobs
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DISK` | `/dev/sda` | Target block device. Set to `/dev/nvme0n1` for VMware Fusion on Apple Silicon. |
+| `TARGET_HOSTNAME` | (unset) | Skip the interactive menu and use this host. Must already be in `machines.toml` + `hardware/`. |
+| `FLAKE_REPO` | `https://github.com/andreaugustoaragao/nix.git` | Where to clone the flake from. |
+
+Examples:
 
 ```bash
-# Download the script
-wget https://raw.githubusercontent.com/your-username/nix-config/main/scripts/install-nixos.sh
-chmod +x install-nixos.sh
+# VMware Fusion VM, pick host from menu
+DISK=/dev/nvme0n1 /tmp/install.sh
 
-# Customize variables
-export DISK="/dev/nvme0n1"           # Target disk
-export HOSTNAME="my-laptop"          # Machine hostname  
-export USERNAME="myuser"             # Username
-export USER_FULLNAME="My Name"       # Full name
-export FLAKE_REPO="https://github.com/my-user/my-nix-config.git"
-
-# Run installation
-./install-nixos.sh
+# Fully scripted (still confirms destroy)
+TARGET_HOSTNAME=vmw-dev-vm DISK=/dev/nvme0n1 /tmp/install.sh
 ```
 
-## What the Script Does
-
-1. **Disk Setup**:
-   - Creates GPT partition table
-   - 512MB EFI boot partition  
-   - Remaining space for LUKS encrypted root
-
-2. **Encryption**:
-   - Sets up LUKS encryption on root partition
-   - Prompts for encryption passphrase
-
-3. **Btrfs Layout**:
-   - Creates optimized subvolume structure:
-     - `@root` → `/`
-     - `@home` → `/home`
-     - `@home-username` → `/home/username`
-     - `@nix` → `/nix`
-     - `@tmp` → `/tmp`
-     - `@snapshots` → `/.snapshots`
-
-4. **Configuration**:
-   - Downloads your flake configuration from GitHub
-   - Checks that the specified hostname exists in machines.toml
-
-5. **Installation**:
-   - Installs NixOS using your existing flake configuration
-   - Uses pre-configured hardware settings for the machine
-
-## Features
-
-- **Fully Declarative**: Everything managed through Nix configuration
-- **Full Disk Encryption**: LUKS encryption with secure boot
-- **Btrfs**: Modern filesystem with compression and snapshots
-- **Automated**: Zero manual configuration needed
-- **Reproducible**: Same result every time
-- **Flexible**: Easy to customize via environment variables
-
-## Requirements
-
-- NixOS ISO environment
-- Internet connection for downloading configuration
-- Git repository with your flake configuration
-- Machine hostname must exist in machines.toml
-- Corresponding hardware configuration file must exist
-
-## Security Features
-
-- LUKS encryption for data at rest
-- Secure boot compatible
-- Separate encrypted subvolumes for different system areas
-- Snapshot capability for easy backups and rollbacks
-
-## Post-Installation
-
-After reboot:
-1. Enter disk encryption password
-2. Login with your username
-3. Set user password: `passwd`
-4. System is ready to use!
-
-## Creating Snapshots
+### Post-install
 
 ```bash
-# Snapshot your home directory
-sudo btrfs subvolume snapshot /home/username /.snapshots/home-$(date +%Y%m%d-%H%M%S)
+sudo reboot
+# from mac-work:
+ssh <host>           # mDNS alias, see home/cli/ssh-config.nix
+```
 
-# List snapshots
+Then bootstrap sops — see `../VM-SETUP.md` Phase 5.
+
+### Snapshots
+
+The btrfs subvolume layout supports manual snapshots:
+
+```bash
+sudo btrfs subvolume snapshot /home/aragao /.snapshots/home-$(date +%Y%m%d-%H%M%S)
 sudo btrfs subvolume list /.snapshots
 ```
 
-## Troubleshooting
+There is no automatic snapshot service wired up in the flake yet.
 
-- **Script fails**: Check disk path and permissions
-- **Boot fails**: Verify UEFI settings and secure boot
-- **Flake errors**: Ensure your GitHub repository is accessible
-- **Encryption issues**: Check passphrase and LUKS setup
+## `add-age-host-recipient.sh`
+
+Adds a new host's age public key as a sops recipient. Run from a trusted machine that can already decrypt `secrets/secrets.yaml`. See the script header for usage.
+
+## `watch-rebuild.sh`
+
+Tails the journal and re-runs `nixos-rebuild switch` on file changes — convenient when iterating on a flake module locally. See the script header for usage.
