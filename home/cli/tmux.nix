@@ -6,7 +6,9 @@
     keyMode = "vi";
     shell = "${pkgs.fish}/bin/fish";
     plugins = with pkgs; [
-      tmuxPlugins.better-mouse-mode
+      # better-mouse-mode existed to backport mouse scrolling and
+      # copy-mode entry to tmux < 2.1. Modern tmux + `mouse on` covers
+      # everything it used to add, so we drop it.
       tmuxPlugins.sensible
       tmuxPlugins.vim-tmux-navigator
       tmuxPlugins.resurrect
@@ -36,12 +38,22 @@
       set -g renumber-windows on   # renumber all windows when any window is closed
       set -g set-clipboard on      # use system clipboard (OSC 52)
 
-      set -g status-interval 3     # update the status bar every 3 seconds
+      # 15s is the right interval for a status bar that displays no
+      # real-time data — the clock only ticks per minute, and the rest
+      # (k8s context, azure sub, git branch) changes on human-action
+      # timescales. The k8s/az probes inside tmux-right-status are
+      # mtime-cached on their config files, so even when the refresh
+      # fires they don't re-fork jq/grep on every tick.
+      set -g status-interval 15
       # Catppuccin Mocha palette (matches ghostty/foot/kitty/alacritty).
       # Static — does not flip in light mode. If needed, swap colors via a
       # darkman script that sources a different conf and `refresh-client -S`.
       set -g status-left "#[fg=#89b4fa,bold,bg=default] #S "
-      set -g status-right "#(tmux-right-status)#[fg=#89b4fa] 󱑒 %a %b %d %l:%M %p"
+      # Pass the active pane's cwd into the script so per-pane probes
+      # (git branch, project label) resolve against where the user
+      # actually is, not the tmux server's startup cwd. Single-quoted
+      # so paths containing spaces survive the sh -c expansion.
+      set -g status-right "#(tmux-right-status '#{pane_current_path}')#[fg=#89b4fa] 󱑒 %a %b %d %l:%M %p"
       set -g status-justify left
       set -g status-left-length 200
       set -g status-right-length 200
@@ -59,7 +71,11 @@
       # fix SSH agent after reconnecting
       # see also ssh/rc
       # https://blog.testdouble.com/posts/2016-11-18-reconciling-tmux-and-ssh-agent-forwarding/
-      set -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_CONNECTION WINDOWID XAUTHORITY"
+      # SSH_AUTH_SOCK is the variable that actually matters for
+      # `ssh-add -l` / `git push` to work in pre-existing panes after
+      # re-attaching over a new SSH connection. Without it, every old
+      # pane keeps a stale socket path pointing at a dead agent.
+      set -g update-environment "DISPLAY SSH_ASKPASS SSH_AGENT_PID SSH_AUTH_SOCK SSH_CONNECTION WINDOWID XAUTHORITY"
 
       setw -g mode-keys vi
       set -g pane-active-border-style 'fg=#89b4fa,bg=default'
@@ -90,6 +106,18 @@
       bind -r D neww -c "#{pane_current_path}" "[[ -e TODO.md ]] && nvim TODO.md || nvim ~/src/notes/todo.md"
 
       bind -r f display-popup -E "tmux-sessionizer"
+
+      # vim-style pane resizing. -r makes them repeatable so you can
+      # hold the direction key after a single prefix press.
+      bind -r H resize-pane -L 5
+      bind -r J resize-pane -D 3
+      bind -r K resize-pane -U 3
+      bind -r L resize-pane -R 5
+
+      # Nested tmux: outer prefix + outer-prefix-key sends the prefix
+      # through to the inner session. Without this, the inner tmux
+      # never sees C-b because the outer one always intercepts it.
+      bind C-b send-prefix
     '';
   };
 
@@ -151,97 +179,109 @@
     '')
 
     (writeShellScriptBin "tmux-right-status" ''
-      #!/bin/sh
-      # set -x
-      function get_k8s_output(){
-        local output
-        if [ -f ~/.kube/config ]; then
-          output="$(grep 'current-context:' ~/.kube/config | awk '{print $2}')"
-          if [ -n "$output" ]; then
-            output="#[fg=#89b4fa,bold,bg=default]󱃾 $output"
-          fi
+      #!/usr/bin/env bash
+      # Active pane's cwd, passed in by the status-right format string.
+      # All per-pane probes (git, project label fallback) resolve
+      # against this rather than the tmux server's startup cwd.
+      pane_path=$1
+
+      cache_dir=/tmp/tmux-status-cache-$UID
+      mkdir -p "$cache_dir"
+
+      # k8s current-context, cached on the mtime of ~/.kube/config so
+      # the status loop doesn't re-grep on every refresh. Context
+      # changes are user actions (kubectx, kubectl config use-context)
+      # that bump the file's mtime, so this stays accurate.
+      get_k8s_output() {
+        local src=$HOME/.kube/config
+        local cache=$cache_dir/k8s
+        [ -f "$src" ] || return 0
+        if [ ! -f "$cache" ] || [ "$src" -nt "$cache" ]; then
+          grep 'current-context:' "$src" | awk '{print $2}' > "$cache"
         fi
-        echo $output
+        local ctx; ctx=$(cat "$cache")
+        [ -z "$ctx" ] && return 0
+        printf '#[fg=#89b4fa,bold,bg=default]󱃾 %s' "$ctx"
       }
 
-      function get_az_output(){
-        local output
-        if [ -f ~/.config/azure/azureProfile.json ]; then
-          output=$(jq -r '.subscriptions[] | select(.isDefault==true) | .name' ~/.config/azure/azureProfile.json)
-          if [ -n "$output" ]; then
-            output="#[fg=#89b4fa,bold,bg=default] $output"
-          fi
+      # Same mtime-cache pattern for the Azure default subscription.
+      # `jq` was the heaviest single fork in the original status loop;
+      # this drops it to roughly one invocation per `az account set`.
+      get_az_output() {
+        local src=$HOME/.config/azure/azureProfile.json
+        local cache=$cache_dir/az
+        [ -f "$src" ] || return 0
+        if [ ! -f "$cache" ] || [ "$src" -nt "$cache" ]; then
+          jq -r '.subscriptions[] | select(.isDefault==true) | .name' "$src" 2>/dev/null > "$cache"
         fi
-        echo $output
+        local sub; sub=$(cat "$cache")
+        [ -z "$sub" ] && return 0
+        printf '#[fg=#89b4fa,bold,bg=default] %s' "$sub"
       }
 
-      function get_project_output(){
-        local output
-        local project_dir
-        project_dir="$(tmux show-environment TMUX_SESSION_ROOT_DIR|cut -d'=' -f2|awk -F/ '{print $(NF-1)"/"$NF}')"
-        if [ -n "$project_dir" ]; then
-          output="#[fg=#f5e0dc] $project_dir"
+      # Project label. Prefer the per-session TMUX_SESSION_ROOT_DIR
+      # that tmux-sessionizer stashes so the label persists even when
+      # the user cds elsewhere in the session. Fall back to the active
+      # pane's cwd — not the tmux server's cwd, which was the previous
+      # bug here. `show-environment FOO` prints `-FOO` when unset, so
+      # we grep for the `KEY=` shape to detect a real value.
+      get_project_output() {
+        local root label
+        root=$(tmux show-environment TMUX_SESSION_ROOT_DIR 2>/dev/null \
+               | grep -E '^TMUX_SESSION_ROOT_DIR=' \
+               | cut -d= -f2-)
+        if [ -n "$root" ]; then
+          label=$(basename "$(dirname "$root")")/$(basename "$root")
         else
-          output="#[fg=#f5e0dc] $(pwd)"
+          label=$pane_path
         fi
-        echo $output
+        printf '#[fg=#f5e0dc] %s' "$label"
       }
 
-      function get_git_output(){
-        echo $(tmux-git-status)
+      get_git_output() {
+        tmux-git-status "$pane_path"
       }
 
-      echo $(get_git_output) $(get_k8s_output) $(get_az_output) $(get_project_output)
+      # Build the bar incrementally so unavailable probes (no kube
+      # config, no azure profile) collapse cleanly rather than leaving
+      # double spaces. Quoting preserves whitespace inside each part.
+      out=""
+      for fn in get_git_output get_k8s_output get_az_output get_project_output; do
+        part=$($fn)
+        if [ -n "$part" ]; then
+          out="''${out:+$out }$part"
+        fi
+      done
+      printf '%s' "$out"
     '')
 
     (writeShellScriptBin "tmux-git-status" ''
-      #!/bin/bash
-      # Function to get the current Git branch
-      get_git_branch() {
-      	# Use git symbolic-ref or git rev-parse to retrieve the branch name
-      	local branch_name=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-      	echo "$branch_name"
-      }
+      #!/usr/bin/env bash
+      # Operate on the caller-supplied path (active pane's cwd) rather
+      # than the tmux server's startup cwd. Previous behavior silently
+      # reported the branch of whatever directory tmux was launched
+      # from, regardless of where the user actually was.
+      cd "''${1:-$PWD}" 2>/dev/null || exit 0
 
-      # Function to get the Git status
-      get_git_status() {
-      	local status=$(git status --porcelain 2>/dev/null)
-      	local output=""
+      branch=$(git symbolic-ref --short HEAD 2>/dev/null \
+               || git rev-parse --short HEAD 2>/dev/null)
+      [ -z "$branch" ] && exit 0
 
-      	if [[ -n $status ]]; then
-      		# Check for modified files
-      		if echo "$status" | grep -q '^.M\|M.$'; then
-      			output+="*"
-      		fi
-      		# Check for added files
-      		if echo "$status" | grep -q '^A'; then
-      			output+="+"
-      		fi
-      		# Check for deleted files
-      		if echo "$status" | grep -q '^.D\|D.$'; then
-      			output+="-"
-      		fi
-      		# Check for renamed files
-      		if echo "$status" | grep -q '^.R\|R.$'; then
-      			output+=">"
-      		fi
-      		# Check for untracked files
-      		if echo "$status" | grep -q '^??'; then
-      			output+="?"
-      		fi
-      	fi
-
-      	echo "$output"
-      }
-
-      # Main script execution
-      branch=$(get_git_branch)
-      if [[ -n $branch ]]; then
-      	git_status=$(get_git_status)
-      	echo "#[fg=#f38ba8]  $branch#[fg=#fab387][$git_status]"
-      else
-      	echo ""
+      # Porcelain v1 emits `XY filename` per entry where X is the
+      # staged-side status and Y is the worktree-side status. The
+      # checks below catch the marker char in either column. ERE
+      # alternation (`|`) is clearer than BRE's `\|`.
+      status=$(git status --porcelain 2>/dev/null)
+      flags=""
+      if [ -n "$status" ]; then
+        printf '%s\n' "$status" | grep -qE '^.M|^M.' && flags+="*"
+        printf '%s\n' "$status" | grep -qE '^A.|^.A' && flags+="+"
+        printf '%s\n' "$status" | grep -qE '^.D|^D.' && flags+="-"
+        printf '%s\n' "$status" | grep -qE '^.R|^R.' && flags+=">"
+        printf '%s\n' "$status" | grep -qE '^\?\?'   && flags+="?"
       fi
+
+      printf '#[fg=#f38ba8]  %s#[fg=#fab387][%s]' "$branch" "$flags"
     '')
   ];
 
