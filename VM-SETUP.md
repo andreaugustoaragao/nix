@@ -1,32 +1,54 @@
-# Creating a NixOS Parallels VM from Scratch
+# Creating a NixOS VM (Parallels or VMware Fusion)
 
-Step-by-step guide for setting up a new NixOS virtual machine on Parallels Desktop (Apple Silicon Mac) and bootstrapping it with this flake configuration.
+End-to-end guide for setting up a NixOS dev VM on Apple Silicon mac-work, under either Parallels Desktop or VMware Fusion. Both hypervisors land at the same flake configuration — only Phase 1 (hypervisor setup) and the install-time `DISK=` value differ.
+
+The flake already ships a one-shot installer at [`scripts/install-nixos.sh`](scripts/install-nixos.sh). It partitions, formats, copies the flake onto the target, and runs `nixos-install --flake .#<host>`. You only do the bits before and after.
 
 ## Prerequisites
 
-- Parallels Desktop installed on macOS (Apple Silicon)
-- NixOS minimal ISO for aarch64 — download from [nixos.org/download](https://nixos.org/download/#nixos-iso)
-  - Choose **Minimal ISO image** under the **aarch64** tab
+- mac-work (or any Apple Silicon Mac) with Parallels Desktop **or** VMware Fusion 13+
+- NixOS minimal **aarch64** ISO — [nixos.org/download](https://nixos.org/download/#nixos-iso) → *Minimal ISO image*, aarch64 tab
+- The host name you want to install must already exist in the flake:
+  - `machines.toml` has a `[machines.<host>]` entry
+  - `hardware/<host>/hardware-configuration.nix` exists and points its filesystems at `/dev/disk/by-label/nixos` (plus `nixos-boot` for EFI)
+  - The flake has been pushed to GitHub so the installer can `git clone` it
 
-## Phase 1: Create the VM in Parallels
+  Currently satisfied hosts: **`prl-dev-vm`** (Parallels), **`vmw-dev-vm`** (VMware Fusion). If you want a different name, see [Adding a brand-new host](#adding-a-brand-new-host) at the bottom.
 
-1. Open Parallels Desktop and choose **File > New**
-2. Select **Install Windows or another OS from a DVD or image file**
-3. Browse to the NixOS `.iso` you downloaded
-4. Parallels won't auto-detect NixOS — select **Other Linux** manually
-5. Name the VM (e.g. `prl-dev-vm`) and choose where to store it
-6. Configure hardware before starting:
-   - **CPU**: 4+ cores recommended
-   - **RAM**: 8 GB minimum (16 GB recommended for development)
-   - **Disk**: 80+ GB (NixOS store grows with packages)
-   - **Network**: Shared Network (NAT) — default
-7. Start the VM — it boots into the NixOS installer shell
+## Phase 1: Create the VM
 
-## Phase 2: SSH into the Installer
+### Parallels Desktop
 
-Driving the rest of the install over SSH from a real terminal on mac-work is far less painful than typing partition commands into the Parallels console. The minimal aarch64 ISO auto-logs you in as the `nixos` user (passwordless `sudo`); openssh and avahi are available but not running.
+1. **File > New** → *Install Windows or another OS from a DVD or image file*
+2. Browse to the NixOS `.iso`. Parallels won't auto-detect — select **Other Linux** manually.
+3. Name the VM (e.g. `prl-dev-vm`)
+4. Configure before starting:
+   - CPU: 4+ cores
+   - RAM: 8 GB minimum (16 GB for development)
+   - Disk: 80+ GB
+   - Network: Shared Network (NAT) — default
+5. Start the VM.
 
-**In the Parallels console (one time):**
+Disk shows up inside the guest as **`/dev/sda`** (SCSI emulation).
+
+### VMware Fusion
+
+1. **File > New** → *Install from disc or image* → drag in the NixOS ISO
+2. Pick **Other Linux 5.x or later kernel ARM 64-bit** when prompted
+3. *Customize Settings* before starting:
+   - Processors & Memory: 4+ cores, 8 GB+
+   - Hard Disk: 80 GB+, default controller (NVMe on Apple Silicon)
+   - Network Adapter: NAT (default)
+   - Boot firmware: UEFI (required for `systemd-boot`)
+4. Start the VM.
+
+Disk shows up inside the guest as **`/dev/nvme0n1`**. The installer needs `DISK=/dev/nvme0n1` (see Phase 3).
+
+## Phase 2: SSH into the installer
+
+Driving the install over SSH from a terminal on mac-work beats typing into the cramped hypervisor console. The minimal aarch64 ISO auto-logs you in as `nixos` (passwordless `sudo`); `openssh` is available but not running.
+
+**In the hypervisor console (one time):**
 
 ```bash
 # Set a password for the nixos user so we can SSH in
@@ -35,19 +57,20 @@ sudo passwd nixos
 # Start sshd
 sudo systemctl start sshd
 
-# Find the VM's IP on the Parallels Shared network (typically 10.211.55.x)
+# Find the VM's IP
 ip -4 -br addr show
 ```
+
+- Parallels NAT typically hands out `10.211.55.x`
+- VMware Fusion NAT typically hands out `192.168.x.y` (the subnet is configurable)
 
 **From mac-work:**
 
 ```bash
-ssh nixos@<ip-from-ip-addr>
-# or, if avahi is up in the installer:
-ssh nixos@nixos.local
+ssh nixos@<ip>
 ```
 
-The installer also disables host-key checking complaints if you blow the VM away and recreate it, but you may want to clear stale entries:
+If you recreate the VM later and SSH complains about a changed host key:
 
 ```bash
 ssh-keygen -R <ip>
@@ -55,226 +78,77 @@ ssh-keygen -R <ip>
 
 Everything below this point runs in that SSH session.
 
-## Phase 3: Partition and Install NixOS
-
-Plain btrfs with subvolumes (no LUKS — the `prl-dev-vm` setup this mirrors stopped using LUKS; full-disk encryption is unnecessary on a guest whose disk image already lives on the Mac's encrypted APFS volume).
+## Phase 3: Run the installer
 
 ```bash
-# Identify the disk — Parallels on Apple Silicon exposes the virtual
-# disk as /dev/sda (SCSI emulation, no virtio-blk).
-lsblk
+# Download (don't pipe to bash — the script needs an interactive stdin
+# for its menu and the destroy-confirmation prompt)
+curl -L https://raw.githubusercontent.com/andreaugustoaragao/nix/main/scripts/install-nixos.sh -o /tmp/install.sh
+chmod +x /tmp/install.sh
 
-# Partition: EFI + one big btrfs partition
-sudo parted /dev/sda -- mklabel gpt
-sudo parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
-sudo parted /dev/sda -- set 1 esp on
-sudo parted /dev/sda -- mkpart primary 512MiB 100%
+# Parallels (defaults to /dev/sda)
+/tmp/install.sh
 
-# Format
-sudo mkfs.fat -F 32 -n nixos-boot /dev/sda1
-sudo mkfs.btrfs -L nixos /dev/sda2
-
-# Create btrfs subvolumes (matches hardware/prl-dev-vm/hardware-configuration.nix)
-sudo mount /dev/sda2 /mnt
-sudo btrfs subvolume create /mnt/@root
-sudo btrfs subvolume create /mnt/@home-aragao
-sudo btrfs subvolume create /mnt/@nix
-sudo btrfs subvolume create /mnt/@tmp
-sudo btrfs subvolume create /mnt/@snapshots
-sudo btrfs subvolume create /mnt/@swap
-sudo umount /mnt
-
-# Mount subvolumes with compression
-MOUNT_OPTS="compress=zstd:1,noatime,space_cache=v2,discard=async"
-sudo mount -o subvol=@root,$MOUNT_OPTS /dev/sda2 /mnt
-sudo mkdir -p /mnt/{boot,home/aragao,nix,tmp,.snapshots,swap}
-
-sudo mount /dev/sda1 /mnt/boot
-sudo mount -o subvol=@home-aragao,$MOUNT_OPTS /dev/sda2 /mnt/home/aragao
-sudo mount -o subvol=@nix,$MOUNT_OPTS         /dev/sda2 /mnt/nix
-sudo mount -o subvol=@tmp,$MOUNT_OPTS         /dev/sda2 /mnt/tmp
-sudo mount -o subvol=@snapshots,$MOUNT_OPTS   /dev/sda2 /mnt/.snapshots
-sudo mount -o subvol=@swap,$MOUNT_OPTS        /dev/sda2 /mnt/swap
-
-# Create swap file (16 GB)
-sudo btrfs filesystem mkswapfile --size 16g /mnt/swap/swapfile
-sudo swapon /mnt/swap/swapfile
+# VMware Fusion
+DISK=/dev/nvme0n1 /tmp/install.sh
 ```
 
-### Generate and Install the Base System
+The script:
+
+1. Clones the flake to `/tmp/nix-installer-flake`
+2. Lists installable hosts (anything with a matching `machines.toml` entry and a `hardware/<host>/hardware-configuration.nix` that points at `/dev/disk/by-label/nixos`)
+3. Asks you to pick one and confirm the disk wipe
+4. Partitions GPT + EFI + btrfs, creates the six subvolumes (`@root`, `@home-aragao`, `@nix`, `@tmp`, `@snapshots`, `@swap`), mounts everything under `/mnt`
+5. Copies the flake into `/mnt/home/aragao/projects/personal/nix`
+6. Runs `nixos-install --flake .../#<host>`
+
+When it finishes, `sudo reboot`.
+
+### Skipping the menu
 
 ```bash
-# Generate hardware config
-sudo nixos-generate-config --root /mnt
-
-# Edit the generated config for a minimal bootable system
-sudo nano /mnt/etc/nixos/configuration.nix
+TARGET_HOSTNAME=vmw-dev-vm DISK=/dev/nvme0n1 /tmp/install.sh
 ```
 
-Replace the contents of `/mnt/etc/nixos/configuration.nix` with this minimal bootstrap. Note that SSH is enabled here too, with your existing pubkeys baked in, so you can SSH back into the installed system right after the first reboot — before the flake takes over.
+You still get the destroy-confirmation prompt.
 
-```nix
-{ config, pkgs, lib, ... }:
+## Phase 4: First boot
 
-{
-  imports = [ ./hardware-configuration.nix ];
-
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  networking.hostName = "your-vm-name";
-  networking.useDHCP = true;
-
-  # SSH stays on — matches what system/ssh.nix will enforce post-flake
-  services.openssh = {
-    enable = true;
-    settings.PasswordAuthentication = true;  # relaxed during bootstrap
-  };
-
-  # mDNS so `ssh your-vm-name.local` works from mac-work immediately
-  services.avahi = {
-    enable = true;
-    nssmdns4 = true;
-    publish = { enable = true; addresses = true; workstation = true; };
-  };
-
-  users.users.aragao = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    initialPassword = "changeme";
-    openssh.authorizedKeys.keys = [
-      # Same keys that system/ssh.nix authorizes post-flake
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAb7TATctV9ege4yZoT8lZpLbvtvFE/TE1B3xFwxgnE4 penguin"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIECX5xCCeHXtKMa98SL3Z6ZLDVkQdLKD7hcywXNjlWcm andrearag@gmail.com"
-    ];
-  };
-
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  environment.systemPackages = with pkgs; [ git vim ];
-
-  system.stateVersion = "25.05";
-}
-```
+After reboot the system advertises itself over mDNS (avahi, configured in `system/mdns.nix`). From mac-work:
 
 ```bash
-# Install
-sudo nixos-install --no-root-passwd
-
-# Reboot into the new system
-sudo reboot
+ssh prl-dev-vm           # alias in home/cli/ssh-config.nix → prl-dev-vm.local
+ssh vmw-dev-vm           # alias → vmw-dev-vm.local
 ```
 
-After reboot, the VM should pick up the same DHCP lease (or, more reliably, advertise itself over mDNS). Reconnect from mac-work:
+The login password is whatever's in your sops `user_password` field — but **secrets aren't decryptable yet** because the new VM's host key isn't an age recipient. That's Phase 5.
+
+In the meantime you can still get in: the flake's `system/ssh.nix` pre-authorizes the `penguin` and `andrearag@gmail.com` SSH keys, so key-based login works immediately if you have either key on mac-work.
+
+## Phase 5: Bootstrap sops-nix
+
+You have another machine (mac-work or workstation) that can already decrypt `secrets/secrets.yaml`, so the "Path A" flow applies. Bootstrap-from-scratch isn't covered here — see `SOPS-SETUP-GUIDE.md`.
+
+**1. On the new VM — get its age public key:**
+
+sops-nix auto-generates a host key at `/var/lib/sops-nix/key.txt` on first activation.
 
 ```bash
-ssh aragao@your-vm-name.local
-```
-
-## Phase 4: Bootstrap the Flake Configuration
-
-After the VM boots into the minimal NixOS install (you should be SSH'd in as `aragao`):
-
-```bash
-# Clone the configuration repo (HTTPS for now — the github-personal SSH
-# alias needs sops-decrypted keys, which we don't have yet)
-nix-shell -p git --run "git clone https://github.com/andreaugustoaragao/nix.git ~/projects/personal/nix"
-cd ~/projects/personal/nix
-```
-
-### Add the New Machine to the Flake
-
-If this is a **new** machine not yet in `machines.toml`, you need to register it:
-
-**1. Add the machine entry to `machines.toml`:**
-
-```toml
-[machines.your-vm-name]
-hostName = "your-vm-name"
-platform = "aarch64-linux"
-profile = "vm"
-stateVersion = "25.05"
-bluetooth = false
-lockScreen = false
-autoLogin = true
-useDms = true
-```
-
-**2. Create the hardware configuration directory:**
-
-```bash
-mkdir -p hardware/your-vm-name
-
-# Copy the hardware config generated during install
-cp /etc/nixos/hardware-configuration.nix hardware/your-vm-name/
-```
-
-**3. Edit `hardware/your-vm-name/hardware-configuration.nix`:**
-
-Add Parallels guest support and the QEMU guest profile. Use `hardware/prl-dev-vm/hardware-configuration.nix` as a reference. The key additions are:
-
-```nix
-{ config, lib, pkgs, modulesPath, inputs, ... }:
-
-{
-  imports = [
-    (modulesPath + "/profiles/qemu-guest.nix")
-  ];
-
-  # ... keep the auto-generated kernel modules and filesystem entries ...
-
-  # Add Parallels Tools
-  hardware.parallels = {
-    enable = true;
-    package = pkgs.prl-tools;
-  };
-
-  nixpkgs.config.allowUnfreePredicate = pkg:
-    builtins.elem (lib.getName pkg) [ "prl-tools" ];
-}
-```
-
-**4. Build and switch:**
-
-```bash
-sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
-```
-
-The first rebuild will take a while as it downloads and builds the full desktop environment.
-
-## Phase 5: Set Up Secrets (sops-nix)
-
-The configuration uses sops-nix for secret management. Without secrets bootstrapped, the system will work but SSH keys, GPG keys, and passwords won't be managed.
-
-Choose the path that matches your situation:
-
-- **Path A** — You have another machine that can already decrypt the secrets (the common case when adding a VM to an existing setup)
-- **Path B** — This is your first machine or you have no access to a machine with decryption keys (full bootstrap from scratch)
-
-### Path A: Add to Existing Secrets
-
-This requires a trusted machine — one whose age key is already in `.sops.yaml` and can decrypt `secrets/secrets.yaml`. The new VM cannot add itself; you need to register its key from the trusted machine.
-
-**1. Get the new VM's host key (on the new VM):**
-
-sops-nix auto-generates a host key at `/var/lib/sops-nix/key.txt` on first activation. Extract its public key:
-
-```bash
-# Get this machine's age public key
 sudo cat /var/lib/sops-nix/key.txt | nix-shell -p age --run "age-keygen -y"
 ```
 
-Copy the `age1...` output — you'll need it on the trusted machine.
+Copy the `age1…` output.
 
-**2. Register the key (on the trusted machine):**
+**2. On a trusted machine (mac-work) — register the key:**
 
 ```bash
 cd ~/projects/personal/nix
 
 # Save the new VM's public key
-echo "age1..." > keys/your-vm-name.age.pub
+echo "age1..." > keys/<host>.age.pub
 ```
 
-Add the key to `.sops.yaml` under `creation_rules`:
+Add it to `.sops.yaml` under `creation_rules`:
 
 ```yaml
 creation_rules:
@@ -283,174 +157,71 @@ creation_rules:
       - age:
           - *admin_key
           # ... existing keys ...
-          - age1...  # your-vm-name
+          - age1...  # <host>
 ```
 
-**3. Re-encrypt secrets (on the trusted machine):**
+**3. Re-encrypt secrets:**
 
 ```bash
 sops updatekeys secrets/secrets.yaml
 ```
 
-Commit and push the changes to `.sops.yaml`, `keys/`, and `secrets/secrets.yaml`.
+Commit `.sops.yaml`, `keys/<host>.age.pub`, and `secrets/secrets.yaml`; push.
 
-**4. Pull and rebuild (on the new VM):**
+**4. On the new VM — pull and rebuild:**
 
 ```bash
 cd ~/projects/personal/nix
 git pull
-sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+sudo nixos-rebuild switch --flake .#<host>
 ```
 
-### Path B: Bootstrap from Scratch
+`/run/secrets/` should now be populated and password / SSH-key / GPG-key login should work end-to-end.
 
-Use this when no existing machine can decrypt the secrets — you need to create a new admin age key and new secrets from the ground up.
-
-**1. Generate an admin age key (on the new VM):**
+## Phase 6: Verification
 
 ```bash
-# Generate the admin age key used for sops encryption/decryption
-age-keygen -o ~/.ssh/id_ed25519_nixos-agenix
-chmod 600 ~/.ssh/id_ed25519_nixos-agenix
+# Guest agent
+systemctl status prl-tools.service   # Parallels
+# (VMware: open-vm-tools runs under vmtoolsd)
+systemctl status vmtoolsd.service    # VMware
 
-# Display the public key — this becomes the admin_key in .sops.yaml
-grep "^age1" ~/.ssh/id_ed25519_nixos-agenix
-```
+# Desktop session
+# Log out / back in — niri auto-login should land you in the WM
+# (autoLogin = true for both VM profiles)
 
-**2. Get the host key:**
-
-```bash
-sudo cat /var/lib/sops-nix/key.txt | nix-shell -p age --run "age-keygen -y"
-```
-
-Save it:
-
-```bash
-echo "age1..." > keys/your-vm-name.age.pub
-```
-
-**3. Create `.sops.yaml`:**
-
-```yaml
-keys:
-  - &admin_key age1...YOUR_ADMIN_PUBLIC_KEY...
-
-creation_rules:
-  - path_regex: secrets/.*\.yaml$
-    key_groups:
-      - age:
-          - *admin_key
-          - age1...  # your-vm-name host key
-```
-
-**4. Create and populate the secrets file:**
-
-```bash
-sops secrets/secrets.yaml
-```
-
-This opens an editor. All keys below are required — the NixOS configuration expects every one of them in `system/sops.nix`. Missing keys will cause the rebuild to fail.
-
-```yaml
-# ── Login ────────────────────────────────────────────────────────────
-# Generate with: mkpasswd -m SHA-512
-user_password: "$6$..."       # hashed password for your user account
-root_password: "$6$..."       # hashed password for root
-
-# ── SSH keys (GitHub) ────────────────────────────────────────────────
-# Generate with: ssh-keygen -t ed25519
-# Paste the full private key (including BEGIN/END lines)
-ssh_key_github_personal: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  ...
-  -----END OPENSSH PRIVATE KEY-----
-ssh_key_github_work: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  ...
-  -----END OPENSSH PRIVATE KEY-----
-
-# Matching public keys (single line each)
-ssh_pubkey_github_personal: "ssh-ed25519 AAAA... email@example.com"
-ssh_pubkey_github_work: "ssh-ed25519 AAAA... email@work.com"
-
-# Passphrases for automatic SSH key loading (empty string if none)
-ssh_passphrase_personal: ""
-ssh_passphrase_work: ""
-
-# ── GPG keys (commit signing) ───────────────────────────────────────
-# Generate with: gpg --full-generate-key
-# Export with: gpg --export-secret-keys KEY_ID
-gpg_key_personal: |
-  -----BEGIN PGP PRIVATE KEY BLOCK-----
-  ...
-  -----END PGP PRIVATE KEY BLOCK-----
-gpg_key_work: |
-  -----BEGIN PGP PRIVATE KEY BLOCK-----
-  ...
-  -----END PGP PRIVATE KEY BLOCK-----
-
-# Passphrases for automatic GPG key unlocking (empty string if none)
-gpg_passphrase_personal: ""
-gpg_passphrase_work: ""
-
-# ── WiFi ─────────────────────────────────────────────────────────────
-# wpa_supplicant env file with PSK values (used by hp-laptop)
-# For VMs this is still required but won't be used
-wifi_env: |
-  wifi_password_home=...
-  wifi_password_work=...
-
-# ── Bitwarden ────────────────────────────────────────────────────────
-bitwarden:
-  master_password: "..."
-  server_url: "https://..."
-  email: "you@example.com"
-
-# ── Google OAuth (for Google Workspace MCP) ──────────────────────────
-google_oauth_client_id: "...apps.googleusercontent.com"
-google_oauth_client_secret: "GOCSPX-..."
-```
-
-See `SOPS-SETUP-GUIDE.md` for detailed steps on generating each value (password hashes, SSH keys, GPG keys, etc.).
-
-**5. Rebuild:**
-
-```bash
-sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
-```
-
-## Phase 6: Post-Install Verification
-
-```bash
-# Verify Parallels Tools are running
-systemctl status prl-tools.service
-
-# Verify the desktop session works
-# Log out and back in — greetd should present a login screen
-# (or auto-login to Niri if autoLogin = true)
-
-# Verify secrets are decrypted (after sops setup)
+# Secrets
 ls -la /run/secrets/
 
-# Verify SSH keys work
+# GitHub SSH (uses sops-managed keys)
 ssh -T github-personal
 
-# Test a rebuild
-sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
+# Idempotent rebuild
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#<host>
 ```
 
-## Networking Notes
+## Networking notes
 
-- VMs default to DHCP on ethernet interfaces via systemd-networkd
-- `prl-dev-vm` is special-cased with a static IP (`10.211.55.4/24`) in `system/networking.nix` — if your new VM needs a static IP, add a similar conditional there
-- Parallels NAT DNS can drop some records, so VMs override DNS to `1.1.1.1` and `8.8.8.8`
+- All VMs use DHCP on ethernet by default. `prl-dev-vm` is the lone exception: it pins a static IP (`10.211.55.4/24`) in `system/networking.nix:24-34` because k3s wants stable cluster networking on that one host. `vmw-dev-vm` is DHCP — k3s falls back to its auto-detected node IP.
+- Hypervisor NAT DNS is unreliable. `system/networking.nix:64-67` overrides VM resolvers to `1.1.1.1` / `8.8.8.8` for every VM except `prl-dev-vm` (which has its own static-IP DNS list).
+- mDNS publishing is on across the flake (`system/mdns.nix`), so `ssh <host>.local` works from peers on the same LAN segment without chasing DHCP leases.
 
-## Quick Reference
+## Quick reference
 
 | Step | Command |
-|------|---------|
-| Rebuild | `sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name` |
+|---|---|
+| Rebuild | `sudo nixos-rebuild switch --flake ~/projects/personal/nix#<host>` |
 | Check eval | `nix flake check` |
-| Get host age key | `sudo cat /var/lib/sops-nix/key.txt \| age-keygen -y` |
+| Get host age key | `sudo cat /var/lib/sops-nix/key.txt \| nix-shell -p age --run "age-keygen -y"` |
 | Re-encrypt secrets | `sops updatekeys secrets/secrets.yaml` |
-| Format nix files | `nixfmt *.nix` |
+| Format Nix files | `nixfmt <file>` |
+
+## Adding a brand-new host
+
+If the host you want doesn't exist in `machines.toml`, the installer's menu won't show it. To add one (e.g. an x86 Fusion install or a second VMware VM):
+
+1. Add a `[machines.<host>]` block to `machines.toml`. Use `prl-dev-vm` (Parallels) or `vmw-dev-vm` (VMware Fusion) as the template.
+2. Create `hardware/<host>/hardware-configuration.nix`. Copy whichever existing VM file matches your hypervisor — the layouts are fully label-addressed and generic.
+3. If the new VM should host the same dev services (fulcrum, caddy reverse proxy, /etc/hosts entries), extend the conditions in `system/networking.nix:230` and `system/caddy.nix:22`.
+4. Add an SSH alias in `home/cli/ssh-config.nix`.
+5. Commit and push, then proceed from Phase 1 above.

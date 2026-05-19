@@ -2,9 +2,61 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 
+let
+  # Neovim 0.12 + its plugin set come from nixpkgs-unstable so the
+  # treesitter parser ABI stays paired with the runtime. Nixpkgs 25.11
+  # is still on neovim 0.11, and the nvim-treesitter `main` branch (now
+  # default on unstable) is incompatible with the 0.11 runtime's
+  # treesitter API.
+  unstable-pkgs = import inputs.nixpkgs-unstable {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+  };
+
+  # Treesitter parsers we want available to vim.treesitter. Each entry
+  # here resolves to an nvim-treesitter.grammarPlugins.<lang> derivation
+  # whose layout is `<out>/parser/<lang>.so`. We symlink those files
+  # into ~/.config/nvim/parser/ via xdg.configFile (below) so they're
+  # discoverable through nvim's user-config runtimepath entry —
+  # sidestepping lazy.nvim's `performance.rtp.reset` default which
+  # otherwise wipes the home-manager-built pack dir from rtp at
+  # startup. `withPlugins` is not used: on the `main` branch (now the
+  # default on unstable) it produces a bundle with queries only, no
+  # .so files.
+  tsLangs = [
+    "bash"
+    "css"
+    "dockerfile"
+    "go"
+    "html"
+    "java"
+    "javascript"
+    "json"
+    "latex"
+    "lua"
+    "markdown"
+    "markdown_inline"
+    "nix"
+    "python"
+    "regex" # snacks.picker scans regex literals when building queries
+    "rust"
+    "scss"
+    "svelte"
+    "terraform"
+    "toml"
+    "tsx"
+    "typescript"
+    "typst"
+    "vim"
+    "vimdoc"
+    "vue"
+    "yaml"
+  ];
+in
 {
   # Remove the stale matugen-written colorscheme spec from prior
   # rebuilds. DMS no longer renders this file (matugenTemplateNeovim is
@@ -14,48 +66,61 @@
     ${pkgs.coreutils}/bin/rm -f "${config.home.homeDirectory}/.config/nvim/lua/plugins/dankcolors.lua"
   '';
 
+  # Ship treesitter parsers + queries into the user config tree so
+  # they're always on runtimepath (rtp[0] = ~/.config/nvim), regardless
+  # of what lazy.nvim does with packpath. See the tsLangs binding above
+  # for rationale.
+  xdg.configFile = lib.mkMerge [
+    (lib.listToAttrs (
+      map (
+        lang:
+        let
+          grammar = unstable-pkgs.vimPlugins.nvim-treesitter.grammarPlugins.${lang};
+        in
+        lib.nameValuePair "nvim/parser/${lang}.so" {
+          source = "${grammar}/parser/${lang}.so";
+        }
+      ) tsLangs
+    ))
+    {
+      # All upstream queries — covers every language whose parser we
+      # ship plus a few extras (norg, etc.) that snacks/render-markdown
+      # reference. Languages without a parser cost nothing.
+      "nvim/queries".source = "${unstable-pkgs.vimPlugins.nvim-treesitter}/runtime/queries";
+
+      # Norg parser lives outside nvim-treesitter's grammarPlugins set
+      # and has a different layout — the .so file is the `parser`
+      # output itself, not `parser/<lang>.so`. snacks.image references
+      # norg to render images inside Neorg docs; queries come from
+      # snacks.nvim's own bundled queries.
+      "nvim/parser/norg.so".source = "${unstable-pkgs.tree-sitter-grammars.tree-sitter-norg}/parser";
+    }
+  ];
+
   programs.neovim = {
     enable = true;
     defaultEditor = true;
     viAlias = true;
     vimAlias = true;
+    package = unstable-pkgs.neovim-unwrapped;
 
-    plugins = with pkgs.vimPlugins; [
-      # Core lazy.nvim for plugin management
-      lazy-nvim
-
-      # Essential plugins that need to be available immediately
-      catppuccin-nvim # Colorscheme needs to be available at startup
-      plenary-nvim # Many plugins depend on this
-
-      # Treesitter parsers shipped via nix so :checkhealth doesn't nag
-      # about missing grammars for filetypes we open + the languages
-      # snacks.image renders inline. `withPlugins` builds a thin runtime
-      # plugin containing only these parsers + their queries — no full
-      # nvim-treesitter plugin needed for managed lazy specs.
-      (nvim-treesitter.withPlugins (
-        p: with p; [
-          regex # snacks.picker scans regex literals when building queries
-          css
-          html
-          javascript
-          latex
-          scss
-          svelte
-          tsx
-          typst
-          vue
-          # `norg` (Neorg org-mode) intentionally omitted — not in
-          # nixpkgs's nvim-treesitter-parsers set and we don't use Neorg.
-        ]
-      ))
-    ];
+    # lazy.nvim is the only plugin we need available before the
+    # bootstrap clone fires; everything else is managed by lazy from
+    # its own clones under ~/.local/share/nvim/lazy/. Parsers and
+    # queries are shipped via xdg.configFile above, not via packpath.
+    plugins = [ unstable-pkgs.vimPlugins.lazy-nvim ];
 
     # Native Lua dependencies provided declaratively via nixpkgs's
     # luajitPackages set (luajit is what neovim embeds, so 5.1 ABI).
-    #   sqlite — backs snacks.picker frecency scoring (otherwise falls
-    #            back to a flat-file ranking which doesn't learn well).
-    extraLuaPackages = ps: with ps; [ sqlite ];
+    #   sqlite  — backs snacks.picker frecency scoring (otherwise falls
+    #             back to a flat-file ranking which doesn't learn well).
+    #   jsregexp — enables luasnip's JS-style transform syntax
+    #             (e.g. `${1/foo/bar/g}` in snippet bodies).
+    extraLuaPackages =
+      ps: with ps; [
+        sqlite
+        jsregexp
+      ];
 
     extraLuaConfig = ''
       -- Bootstrap lazy.nvim
@@ -185,12 +250,12 @@
       vim.api.nvim_create_autocmd("LspAttach", {
         callback = function(args)
           local client = vim.lsp.get_client_by_id(args.data.client_id)
-          if client and client.server_capabilities.foldingRangeProvider then
+          if client and client:supports_method("textDocument/foldingRange") then
             -- LSP supports folding, keep LSP folding
             vim.opt_local.foldexpr = "v:lua.vim.lsp.foldexpr()"
           else
             -- LSP doesn't support folding, use treesitter
-            vim.opt_local.foldexpr = "nvim_treesitter#foldexpr()"
+            vim.opt_local.foldexpr = "v:lua.vim.treesitter.foldexpr()"
           end
         end,
       })
@@ -205,6 +270,39 @@
       vim.keymap.set("n", "zc", "zc", { desc = "Close fold" })
 
       -- Setup lazy.nvim
+      -- Treesitter highlighting. Parsers + queries are shipped via nix
+      -- (see xdg.configFile in nvim-lazyvim.nix), so we just need to
+      -- start the highlighter per filetype. nvim-treesitter's `main`
+      -- branch no longer exposes `configs.setup{}`; this is the
+      -- replacement.
+      do
+        local ts_filetypes = {
+          "nix", "bash", "sh", "markdown", "markdown_inline",
+          "lua", "vim", "help",
+          "python", "go", "rust",
+          "javascript", "javascriptreact",
+          "typescript", "typescriptreact",
+          "json", "jsonc", "yaml",
+          "java", "dockerfile", "terraform", "tf", "toml",
+        }
+        vim.api.nvim_create_autocmd("FileType", {
+          pattern = ts_filetypes,
+          callback = function(args)
+            pcall(vim.treesitter.start, args.buf)
+          end,
+        })
+        -- Start treesitter for any buffer already loaded by the time
+        -- this code runs (e.g. the buffer that opened nvim).
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.api.nvim_buf_is_loaded(buf) then
+            local ft = vim.bo[buf].filetype
+            if vim.tbl_contains(ts_filetypes, ft) then
+              pcall(vim.treesitter.start, buf)
+            end
+          end
+        end
+      end
+
       require("lazy").setup({
         -- No plugins in this spec require luarocks, and reaching for a
         -- rock on demand is cleaner via `programs.neovim.extraLuaPackages`
@@ -818,7 +916,7 @@
                   -- here — keeps the keymap unambiguous.
 
                   local client = vim.lsp.get_client_by_id(ev.data.client_id)
-                  if client and client.server_capabilities.inlayHintProvider then
+                  if client and client:supports_method("textDocument/inlayHint") then
                     vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
                   end
                 end,
@@ -973,38 +1071,6 @@
                 },
                 extensions = { "lazy", "quickfix" },
               }
-            end,
-          },
-          
-          -- Treesitter (lazy-loaded based on filetype)
-          {
-            "nvim-treesitter/nvim-treesitter",
-            build = ":TSUpdate",
-            event = { "BufReadPost", "BufNewFile" },
-            config = function()
-              require("nvim-treesitter.configs").setup({
-                ensure_installed = {
-                  "nix", "bash", "markdown", "markdown_inline", "lua", "vim", "vimdoc",
-                  "python", "go", "rust", "javascript", "typescript", "tsx", "json", "yaml",
-                  "java", "dockerfile", "terraform", "toml"
-                },
-                sync_install = false,
-                -- Don't silently install grammars at runtime; rely on
-                -- the explicit ensure_installed list above so the closure
-                -- stays reproducible.
-                auto_install = false,
-                highlight = {
-                  enable = true,
-                  additional_vim_regex_highlighting = false,
-                },
-                indent = {
-                  enable = true,
-                },
-                -- Enable folding based on treesitter
-                fold = {
-                  enable = true,
-                },
-              })
             end,
           },
           
@@ -1320,7 +1386,7 @@
               {
                 "<leader>cf",
                 function()
-                  require("conform").format({ async = true, lsp_fallback = true })
+                  require("conform").format({ async = true, lsp_format = "fallback" })
                 end,
                 mode = "",
                 desc = "Format buffer",
@@ -1351,7 +1417,7 @@
               },
               format_on_save = {
                 timeout_ms = 500,
-                lsp_fallback = true,
+                lsp_format = "fallback",
               },
             },
             init = function()
@@ -1405,7 +1471,7 @@
                 if client.name == "typescript-tools" then
                   local clients = vim.lsp.get_clients({ name = "ts_ls" })
                   for _, c in ipairs(clients) do
-                    vim.lsp.stop_client(c.id)
+                    c:stop()
                   end
                 end
               end,
@@ -1501,18 +1567,21 @@
         },
       })
 
-      -- Better clipboard support for Wayland
-      vim.g.clipboard = {
-        name = "wl-clipboard",
-        copy = {
-          ["+"] = "wl-copy --trim-newline",
-          ["*"] = "wl-copy --trim-newline",
-        },
-        paste = {
-          ["+"] = "wl-paste --no-newline", 
-          ["*"] = "wl-paste --no-newline",
-        },
-      }
+      -- Better clipboard support for Wayland. macOS is left unset so
+      -- nvim falls back to its built-in pbcopy/pbpaste provider.
+      if vim.fn.has("macunix") == 0 then
+        vim.g.clipboard = {
+          name = "wl-clipboard",
+          copy = {
+            ["+"] = "wl-copy --trim-newline",
+            ["*"] = "wl-copy --trim-newline",
+          },
+          paste = {
+            ["+"] = "wl-paste --no-newline",
+            ["*"] = "wl-paste --no-newline",
+          },
+        }
+      end
 
       -- Custom diagnostic configuration (improve on LazyVim defaults)
       vim.diagnostic.config({

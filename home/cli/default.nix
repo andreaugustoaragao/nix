@@ -41,6 +41,7 @@ in
     ./k9s.nix
     ./fzf.nix
     ./pi.nix
+    ./pi-opus.nix
     # Cross-platform programs.ssh — defines the github-personal /
     # github-work host aliases that point at sops-decrypted identity
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
@@ -85,6 +86,11 @@ in
     # web-apps-data.nix entries. Ships a `brave-profiles-reset` script
     # for the one-shot cleanup. See module header for the workflow.
     ../desktop/brave-profiles-macos.nix
+    # GPG for commit signing — installs gnupg + pinentry-mac, writes
+    # gpg-agent.conf, imports the personal + work keys from sops. The
+    # Linux equivalent lives in ./gpg.nix but it's heavily systemd-
+    # wired; this is the Darwin-shaped subset.
+    ./gpg-darwin.nix
     # macOS ssh-agent launchd job that preloads the sops-managed keys
     # at login. Mirrors the Linux ssh-agent + ssh-add-keys setup in
     # home/cli/gpg.nix.

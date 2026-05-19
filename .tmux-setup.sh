@@ -11,6 +11,6 @@ tmux rename-window -t "$window" nix
 top_pane="$(tmux display-message -p -t "$window" "#{pane_id}")"
 
 tmux split-window -v -t "$window" -c "$PWD"
-tmux split-window -v -t "$window" -c "$PWD" './scripts/watch-rebuild.sh; exec fish'
+tmux split-window -v -t "$window" -c "$PWD" 'sudo ./scripts/watch-rebuild.sh; exec fish'
 tmux select-layout -t "$window" even-vertical
 tmux select-pane -t "$top_pane"

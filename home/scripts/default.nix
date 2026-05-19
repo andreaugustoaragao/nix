@@ -10,7 +10,6 @@
     ./browser-app.nix
     ./eww.nix
     ./fulcrum-logs.nix
-    ./pi-opus.nix
     ./record-call.nix
   ];
 }

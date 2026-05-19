@@ -70,6 +70,15 @@
     # we stick with the alt- mod used by the rest of this config.
     alt-s            = "exec-and-forget aerospace-window-switcher"
 
+    # Selection screenshot → clipboard. macOS's native equivalent is
+    # Cmd+Ctrl+Shift+4 (symbolic hotkey #29), but that four-modifier
+    # chord is a wrist injury waiting to happen. `screencapture -ic`
+    # opens the crosshair selector and copies the captured region to
+    # the pasteboard (no file written; -c suppresses the disk save).
+    # Absolute path because exec-and-forget inherits launchd's bare
+    # PATH which does not include /usr/sbin.
+    alt-shift-s      = "exec-and-forget /usr/sbin/screencapture -ic"
+
     # --- Window actions ---
     alt-w            = "close"
     alt-shift-q      = "reload-config"

@@ -37,6 +37,20 @@ in
   # the nixpkgs darwin build currently does not.
   home.packages = lib.optionals isLinux [ ghosttyPkg ];
 
+  # Expose Ghostty's CLI on PATH on macOS. The brew cask installs the
+  # binary inside the .app bundle and doesn't symlink a launcher, so
+  # things like snacks.image's tool-availability probe and shell
+  # scripts can't find `ghostty`. ~/.local/bin is already on
+  # `home.sessionPath` (see home/default.nix).
+  home.activation.ghosttyCliSymlink = lib.mkIf (!isLinux) (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      $DRY_RUN_CMD mkdir -p "$HOME/.local/bin"
+      $DRY_RUN_CMD ln -sfn \
+        "/Applications/Ghostty.app/Contents/MacOS/ghostty" \
+        "$HOME/.local/bin/ghostty"
+    ''
+  );
+
   # Ghostty reads $XDG_CONFIG_HOME/ghostty/config on both Linux and
   # macOS, so a single declarative config covers both platforms.
   xdg.configFile."ghostty/config".text = ''
@@ -85,6 +99,10 @@ in
     ''}
     ${lib.optionalString (!isLinux) ''
       macos-titlebar-style = hidden
+
+      # macOS apps stay running after their last window closes by
+      # platform convention; opt out so Ghostty exits with its UI.
+      quit-after-last-window-closed = true
     ''}
 
     unfocused-split-opacity = 0.9

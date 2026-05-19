@@ -25,6 +25,17 @@
     # tucks every window away. Useful for some, lethal for tilers.
     WindowManager.EnableStandardClickToShowDesktop = false;
 
+    # --- Animations --------------------------------------------------
+    # macOS protects com.apple.universalaccess via TCC, so writing
+    # reduceMotion / reduceTransparency declaratively requires granting
+    # Accessibility permission to the binary that runs `defaults`
+    # (typically the terminal that invoked darwin-rebuild). Until that's
+    # arranged, toggle them by hand in System Settings → Accessibility →
+    # Display. The non-protected animation switches below still apply.
+    NSGlobalDomain.NSAutomaticWindowAnimationsEnabled = false;
+    NSGlobalDomain.NSWindowResizeTime = 0.001;
+    NSGlobalDomain.NSScrollAnimationEnabled = false;
+
     # --- Keyboard ----------------------------------------------------
     # Fast key-repeat with a short initial delay. Default is roughly
     # KeyRepeat=6 / InitialKeyRepeat=25 — agonizingly slow for editors.
@@ -57,25 +68,27 @@
     # --- Finder ------------------------------------------------------
     finder = {
       AppleShowAllExtensions = true;
-      AppleShowAllFiles = false;          # toggle if you want dotfiles in Finder
-      FXPreferredViewStyle = "Nlsv";      # column = "clmv", list = "Nlsv", icon = "icnv"
+      AppleShowAllFiles = false; # toggle if you want dotfiles in Finder
+      FXPreferredViewStyle = "Nlsv"; # column = "clmv", list = "Nlsv", icon = "icnv"
       ShowPathbar = true;
       ShowStatusBar = true;
       _FXShowPosixPathInTitle = true;
       FXEnableExtensionChangeWarning = false;
-      QuitMenuItem = true;                # ⌘Q for Finder
+      QuitMenuItem = true; # ⌘Q for Finder
       _FXSortFoldersFirst = true;
     };
 
     # --- Dock --------------------------------------------------------
     dock = {
       autohide = true;
-      autohide-delay = 0.0;               # show instantly on hover
-      autohide-time-modifier = 0.2;       # snappy animation
-      show-recents = false;               # no auto-added "recent apps"
+      autohide-delay = 0.0; # show instantly on hover
+      autohide-time-modifier = 0.0; # no slide-in, just appears
+      launchanim = false; # no bouncing zoom on app launch
+      expose-animation-duration = 0.0; # Mission Control: instant
+      show-recents = false; # no auto-added "recent apps"
       tilesize = 36;
       orientation = "bottom";
-      mineffect = "scale";                # vs default "genie"
+      mineffect = "scale"; # vs default "genie"
       # An empty persistent-apps list is the cleanest start when
       # AeroSpace + Raycast become your launch surface.
       persistent-apps = [ ];
@@ -90,20 +103,49 @@
       location = "~/screenshots";
       type = "png";
       show-thumbnail = false;
-      disable-shadow = true;              # cleaner output for documentation
+      disable-shadow = true; # cleaner output for documentation
     };
 
     # --- Trackpad ----------------------------------------------------
     trackpad = {
-      Clicking = true;                    # tap to click
-      TrackpadRightClick = true;          # two-finger tap = right-click
-      TrackpadThreeFingerDrag = true;     # three-finger drag for window moves
+      Clicking = true; # tap to click
+      TrackpadRightClick = true; # two-finger tap = right-click
+      TrackpadThreeFingerDrag = true; # three-finger drag for window moves
     };
 
     # --- Login window ------------------------------------------------
     loginwindow = {
       GuestEnabled = false;
-      SHOWFULLNAME = false;               # username field instead of name menu
+      SHOWFULLNAME = false; # username field instead of name menu
+    };
+
+    # --- Untyped animation killers -----------------------------------
+    # Settings that nix-darwin doesn't expose as typed options. These
+    # all map to plain `defaults write` invocations.
+    CustomUserPreferences = {
+      # com.apple.Mail is a sandboxed app; its prefs live in
+      # ~/Library/Containers/com.apple.Mail/... which requires Full
+      # Disk Access for `defaults` to write into. Toggle Mail's
+      # animation prefs by hand instead (or grant the activating
+      # terminal Full Disk Access in System Settings → Privacy &
+      # Security if you want this declarative).
+      "com.apple.finder" = {
+        DisableAllAnimations = true; # snap Finder windows open/close
+      };
+      "com.apple.dock" = {
+        # Springboard/Launchpad animation tweaks aren't exposed as typed
+        # options in nix-darwin yet.
+        springboard-show-duration = 0.0;
+        springboard-hide-duration = 0.0;
+        springboard-page-duration = 0.0;
+        no-bouncing = true; # disable Dock icon bounce
+      };
+      NSGlobalDomain = {
+        NSToolbarFullScreenAnimationDuration = 0;
+        NSBrowserColumnAnimationSpeedMultiplier = 0;
+        NSDocumentRevisionsWindowTransformAnimation = false;
+        QLPanelAnimationDuration = 0;
+      };
     };
   };
 
