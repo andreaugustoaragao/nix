@@ -227,7 +227,7 @@
       "loki.local"
       "prometheus.local"
     ]
-    ++ lib.optionals (hostName == "prl-dev-vm") [
+    ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
       "fulcrum.local"
       "infinity.local"
     ]

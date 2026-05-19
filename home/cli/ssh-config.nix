@@ -51,6 +51,15 @@ _:
         hostname = "prl-dev-vm.local";
         user = "aragao";
       };
+
+      # VMware Fusion sibling of prl-dev-vm — same flake profile, just a
+      # different hypervisor under mac-work. mDNS publishing is enabled
+      # the same way (system/mdns.nix), so we don't need to track the
+      # VMware NAT lease either.
+      "vmw-dev-vm" = {
+        hostname = "vmw-dev-vm.local";
+        user = "aragao";
+      };
     };
   };
 }

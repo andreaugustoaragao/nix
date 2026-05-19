@@ -19,7 +19,7 @@
           extraConfig = "reverse_proxy 127.0.0.1:9090";
         };
       }
-      (lib.mkIf (hostName == "prl-dev-vm") {
+      (lib.mkIf (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") {
         "http://fulcrum.local" = {
           extraConfig = "reverse_proxy 127.0.0.1:3100";
         };

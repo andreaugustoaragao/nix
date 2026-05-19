@@ -34,6 +34,20 @@ lockScreen = false
 autoLogin = true
 useDms = true
 
+# Same shape as prl-dev-vm, but runs under VMware Fusion on Apple
+# Silicon (mac-work). The hypervisor split lives entirely in
+# hardware/<host>/hardware-configuration.nix — vmw_pvscsi/vmxnet3 and
+# virtualisation.vmware.guest replace the Parallels guest agent.
+[machines.vmw-dev-vm]
+hostName = "vmw-dev-vm"
+platform = "aarch64-linux"
+profile = "vm"
+stateVersion = "25.05"
+bluetooth = false
+lockScreen = false
+autoLogin = true
+useDms = true
+
 [machines.tala]
 hostName = "tala"
 platform = "x86_64-linux"
