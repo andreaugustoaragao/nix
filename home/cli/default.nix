@@ -80,6 +80,11 @@ in
     # / Raycast / Launchpad / AeroSpace launcher. Ships a Darwin
     # `browser-app` script alongside.
     ../desktop/web-apps-macos.nix
+    # Seed Brave's Personal/ and Work/ profile directories so the
+    # on-disk dir names line up with the display names referenced by
+    # web-apps-data.nix entries. Ships a `brave-profiles-reset` script
+    # for the one-shot cleanup. See module header for the workflow.
+    ../desktop/brave-profiles-macos.nix
     # macOS ssh-agent launchd job that preloads the sops-managed keys
     # at login. Mirrors the Linux ssh-agent + ssh-add-keys setup in
     # home/cli/gpg.nix.
@@ -213,31 +218,34 @@ in
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
     ]
-    ++ lib.optionals isLinux (with pkgs; [
-      # Linux-only / not built on Darwin in nixpkgs. Anything here
-      # either needs procfs, an X server, OpenGL, or a Linux kernel
-      # API (inotify, BPF, etc.).
-      libnotify # notify-send (uses dbus)
-      iotop
-      nethogs
-      iftop
-      wireshark-cli
-      sl
-      dfc
-      inotify-tools
-      lorri
-      mesa-demos # glxinfo for OpenGL debugging
-      podman-compose
-      # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
-      # build is Linux-only.
-      traceroute
-      # HashiCorp BSL-licensed tools — see comment above. Re-added
-      # here so they keep working on Linux where nixpkgs CI does push
-      # binary substitutes despite the unfree flag.
-      terraform
-      terragrunt
-      packer
-    ]);
+    ++ lib.optionals isLinux (
+      with pkgs;
+      [
+        # Linux-only / not built on Darwin in nixpkgs. Anything here
+        # either needs procfs, an X server, OpenGL, or a Linux kernel
+        # API (inotify, BPF, etc.).
+        libnotify # notify-send (uses dbus)
+        iotop
+        nethogs
+        iftop
+        wireshark-cli
+        sl
+        dfc
+        inotify-tools
+        lorri
+        mesa-demos # glxinfo for OpenGL debugging
+        podman-compose
+        # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
+        # build is Linux-only.
+        traceroute
+        # HashiCorp BSL-licensed tools — see comment above. Re-added
+        # here so they keep working on Linux where nixpkgs CI does push
+        # binary substitutes despite the unfree flag.
+        terraform
+        terragrunt
+        packer
+      ]
+    );
 
   programs.bat = {
     enable = true;
