@@ -1,4 +1,4 @@
-{ ... }:
+{ config, ... }:
 
 # AeroSpace tiling-WM config, mirroring the niri keymap from
 # home/desktop/niri.nix as closely as an i3-style tiler permits.
@@ -20,6 +20,17 @@
 #     advises disabling "Automatically rearrange Spaces based on most
 #     recent use" in System Settings → Desktop & Dock before use.
 
+let
+  # AeroSpace launches under launchd at login with a sparse PATH
+  # (`/usr/bin:/bin:/usr/sbin:/sbin`). nix-installed scripts live in
+  # `/etc/profiles/per-user/<user>/bin/`, which is NOT on that PATH, so
+  # bare `aerospace-window-switcher` / `app-launcher` resolved to
+  # nothing. Reference the user's home-manager profile directly so the
+  # exec-and-forget bindings hit the real store path on every launch.
+  binPath = "${config.home.profileDirectory}/bin";
+  # bump 2026-05-19: force activation to re-link the aerospace.toml so
+  # the new alt-space / alt-d bindings reach AeroSpace at next reload.
+in
 {
   xdg.configFile."aerospace/aerospace.toml".text = ''
     # Start AeroSpace at login. brew installs a launchd agent; this
@@ -60,15 +71,17 @@
     # --- Launching apps (parity with niri Mod+Return / Mod+Shift+* /
     #     Mod+Space) ---
     alt-enter        = "exec-and-forget /Applications/Ghostty.app/Contents/MacOS/ghostty"
-    alt-space        = "exec-and-forget open -a Raycast"
-    alt-d            = "exec-and-forget open -a Raycast"
+    # alt-space / alt-d → choose-gui-based fuzzel clone. Script ships
+    # from home/cli/app-launcher.nix.
+    alt-space        = "exec-and-forget ${binPath}/app-launcher"
+    alt-d            = "exec-and-forget ${binPath}/app-launcher"
 
     # Window switcher — niri's Mod+s equivalent. Built on
     # `aerospace list-windows --all` + choose-gui as the fuzzy picker.
     # Script ships from home/cli/aerospace-window-switcher.nix.
     # Note: cmd-s globally would shadow every app's Save shortcut, so
     # we stick with the alt- mod used by the rest of this config.
-    alt-s            = "exec-and-forget aerospace-window-switcher"
+    alt-s            = "exec-and-forget ${binPath}/aerospace-window-switcher"
 
     # Selection-screenshot-to-clipboard (Option+Shift+S) is bound at
     # the macOS level via com.apple.symbolichotkeys hotkey #29, see

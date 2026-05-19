@@ -17,6 +17,11 @@
 
 let
   chooseGui = "${pkgs.choose-gui}/bin/choose";
+  # aerospace ships via Homebrew, not nixpkgs, so we hardcode its
+  # Apple-Silicon Homebrew path. When invoked under AeroSpace's own
+  # launchd job (PATH = /usr/bin:/bin:/usr/sbin:/sbin) a bare
+  # `aerospace` would not resolve.
+  aerospaceBin = "/opt/homebrew/bin/aerospace";
 in
 {
   home.packages = [
@@ -31,7 +36,7 @@ in
         while IFS=$'\t' read -r id label; do
           ids+=("$id")
           labels+=("$label")
-        done < <(aerospace list-windows --all \
+        done < <(${aerospaceBin} list-windows --all \
           --format $'%{window-id}\t%{workspace} · %{app-name} · %{window-title}')
 
         if [ "''${#ids[@]}" -eq 0 ]; then
@@ -46,7 +51,7 @@ in
           exit 0
         fi
 
-        aerospace focus --window-id "''${ids[$choice]}"
+        ${aerospaceBin} focus --window-id "''${ids[$choice]}"
       '';
     })
   ];
