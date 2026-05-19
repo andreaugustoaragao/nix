@@ -167,12 +167,6 @@ in
       entr
       watchman
       cachix
-      # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS
-      # ships BSD userland and has no `timeout` at all, so scripts that
-      # need GNU semantics call `gtimeout`. Installing the prefixed
-      # variant on Linux too keeps cross-platform scripts working
-      # without shadowing the native `timeout`/`ls`/etc.
-      coreutils-prefixed
 
       # Rust-based coreutils and modern replacements
       ripgrep
@@ -232,6 +226,14 @@ in
       # channel ships 1.91.1; use unstable until the channel revert
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
+    ]
+    ++ lib.optionals isDarwinHost [
+      # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS
+      # ships BSD userland and has no `timeout` at all, so scripts that
+      # need GNU semantics call `gtimeout`. Darwin-only because on Linux
+      # `coreutils-prefixed` collides with the base `coreutils` in
+      # home-manager-path (both ship libexec/coreutils/libstdbuf.so).
+      pkgs.coreutils-prefixed
     ]
     ++ lib.optionals isLinux (
       with pkgs;
