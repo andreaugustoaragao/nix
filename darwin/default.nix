@@ -14,6 +14,7 @@
     ./macos-defaults.nix
     ./sops.nix
     ./certs.nix
+    ./auto-upgrade.nix
   ];
 
   # Hostname is exposed via networking.hostName under nix-darwin too —

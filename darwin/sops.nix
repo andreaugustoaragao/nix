@@ -99,6 +99,20 @@
         owner = owner.name;
         mode = "0400";
       };
+
+      # Matrix bot credentials for the auto-upgrade launchd daemon
+      # (darwin/auto-upgrade.nix). The daemon runs as root and reads
+      # these directly from /run/secrets/matrix/, mirroring the
+      # systemd LoadCredential pattern used on the Linux side. The
+      # token also reaches the Fulcrum user service on Linux; on
+      # Darwin we keep ownership root-tight since only the root
+      # launchd daemon consumes it for now.
+      "matrix/bot_token" = {
+        mode = "0400";
+      };
+      "matrix/alert_room_id" = {
+        mode = "0400";
+      };
     };
   };
 
