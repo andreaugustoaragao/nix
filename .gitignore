@@ -4,3 +4,6 @@ package-lock.json
 .loop/
 core
 core.*
+# `nix build` output symlink
+result
+result-*
