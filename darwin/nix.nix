@@ -31,7 +31,16 @@
 
     gc = {
       automatic = true;
-      interval.Weekday = 0; # Sunday
+      # Sunday 03:00 — fully specified so launchd doesn't treat the
+      # missing Hour/Minute as wildcards (which it does with partial
+      # StartCalendarInterval keys). Lands well before nix-optimise's
+      # default Sunday 04:15 slot so the optimise pass doesn't waste
+      # cycles hard-linking generations gc is about to delete.
+      interval = {
+        Weekday = 0;
+        Hour = 3;
+        Minute = 0;
+      };
       options = "--delete-older-than 30d";
     };
   };
