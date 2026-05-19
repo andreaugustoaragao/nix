@@ -107,17 +107,25 @@ read -p "This will DESTROY ALL DATA on $DISK. Continue? (yes/no): " -r
 log "Partitioning $DISK"
 sudo umount -R /mnt 2>/dev/null || true
 
+# Kernel naming: devices whose name already ends in a digit (nvme0n1,
+# mmcblk0, loopN) use a `p` separator for partitions; everything else
+# (sda, vda) just appends the partition number directly.
+case "$DISK" in
+    *[0-9]) PART="${DISK}p" ;;
+    *)      PART="${DISK}"  ;;
+esac
+
 sudo parted "$DISK" --script -- mklabel gpt
 sudo parted "$DISK" --script -- mkpart ESP fat32 1MiB 513MiB
 sudo parted "$DISK" --script -- set 1 esp on
 sudo parted "$DISK" --script -- mkpart primary 513MiB 100%
 sudo parted "$DISK" --script -- name 2 nixos
 
-log "Formatting EFI partition"
-sudo mkfs.fat -F 32 -n nixos-boot "${DISK}1"
+log "Formatting EFI partition (${PART}1)"
+sudo mkfs.fat -F 32 -n nixos-boot "${PART}1"
 
-log "Creating btrfs filesystem on ${DISK}2"
-sudo mkfs.btrfs -f -L nixos "${DISK}2"
+log "Creating btrfs filesystem on ${PART}2"
+sudo mkfs.btrfs -f -L nixos "${PART}2"
 
 # Step 4: btrfs subvolumes
 log "Creating btrfs subvolumes"
@@ -140,7 +148,7 @@ sudo mount -o "subvol=@home-$USERNAME,$BTRFS_OPTS" /dev/disk/by-label/nixos "/mn
 sudo mount -o "subvol=@nix,$BTRFS_OPTS"       /dev/disk/by-label/nixos /mnt/nix
 sudo mount -o "subvol=@tmp,$BTRFS_OPTS"       /dev/disk/by-label/nixos /mnt/tmp
 sudo mount -o "subvol=@snapshots,$BTRFS_OPTS" /dev/disk/by-label/nixos /mnt/.snapshots
-sudo mount "${DISK}1" /mnt/boot
+sudo mount "${PART}1" /mnt/boot
 sudo chown 1000:100 "/mnt/home/$USERNAME"
 
 # Step 6: generate hardware config (mostly for fallback / inspection;
