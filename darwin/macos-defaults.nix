@@ -146,6 +146,37 @@
         NSDocumentRevisionsWindowTransformAnimation = false;
         QLPanelAnimationDuration = 0;
       };
+
+      # --- Symbolic hotkey overrides --------------------------------
+      # Remap macOS's built-in "Copy picture of selected area to the
+      # clipboard" shortcut (symbolic hotkey #29, default
+      # Cmd+Ctrl+Shift+4 — a four-modifier chord) onto Option+Shift+S.
+      # Fires WindowServer's native screencapture, so no extra daemon
+      # and no third-party Screen Recording permission needed.
+      #
+      # Parameters tuple is (ASCII, virtual keycode, modifier flags):
+      #   - 115     = ASCII 's'
+      #   - 1       = kVK_ANSI_S (the 'S' key)
+      #   - 655360  = NSEventModifierFlagShift (131072)
+      #             | NSEventModifierFlagOption (524288)
+      #
+      # Changes are read by loginwindow at session start; after a
+      # darwin-rebuild you need to log out + back in (or
+      # `killall cfprefsd && /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u`)
+      # for the new chord to take effect.
+      "com.apple.symbolichotkeys" = {
+        AppleSymbolicHotKeys."29" = {
+          enabled = 1;
+          value = {
+            parameters = [
+              115
+              1
+              655360
+            ];
+            type = "standard";
+          };
+        };
+      };
     };
   };
 
