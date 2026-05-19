@@ -114,6 +114,10 @@ homebrewCasks = [
     # Containers / Linux VMs. Replaces the podman-compose role from the Linux side
     # without the weight of Docker Desktop.
     "orbstack",
+    # macOS-only quality-of-life — fill roles the Linux waybar/desktop config covers natively.
+    "stats",     # menu-bar CPU/RAM/network/temperature widget; waybar analog
+    "maccy",     # clipboard history manager (no equivalent in either OS config currently)
+    "hiddenbar", # collapse-arrow for the menu bar; tames growing menu-bar icon collection
 ]
 homebrewBrews = [
     "borders",                   # JankyBorders — focused-window outline daemon (FelixKratz/formulae tap)
