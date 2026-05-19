@@ -111,4 +111,7 @@ homebrewCasks = [
     # without the weight of Docker Desktop.
     "orbstack",
 ]
-homebrewBrews = ["borders"]
+homebrewBrews = [
+    "borders",                   # JankyBorders — focused-window outline daemon (FelixKratz/formulae tap)
+    "sadiksaifi/tap/mac-menu",   # Native Swift stdin/stdout fuzzy picker; choose-gui replacement with correct Esc behavior
+]

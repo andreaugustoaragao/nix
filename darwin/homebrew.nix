@@ -25,6 +25,7 @@
     taps = [
       "nikitabobko/tap" # aerospace tiling window manager
       "FelixKratz/formulae" # JankyBorders (focused-window outline daemon)
+      "sadiksaifi/tap" # mac-menu (native Swift fuzzy picker, dmenu/fuzzel shape)
     ];
 
     # Formulae and casks come from machines.toml so the Linux side of
