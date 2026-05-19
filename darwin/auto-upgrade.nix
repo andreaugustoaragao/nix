@@ -101,19 +101,35 @@ let
 
       # `nvd diff` between the two most recent system profiles.
       # Returns the marker string if there is nothing to diff (first
-      # run after install, or no generation change).
+      # run after install, or no generation change). We use a glob +
+      # filtered loop rather than `ls | grep` because
+      # writeShellApplication enforces shellcheck and rejects SC2010.
       nvd_diff() {
-        local prev curr
-        prev=$(ls -1 /nix/var/nix/profiles/ 2>/dev/null \
-          | grep -E '^system-[0-9]+-link$' \
-          | sort -V | tail -2 | head -1)
-        curr=$(ls -1 /nix/var/nix/profiles/ 2>/dev/null \
-          | grep -E '^system-[0-9]+-link$' \
-          | sort -V | tail -1)
-        if [ -z "$prev" ] || [ -z "$curr" ] || [ "$prev" = "$curr" ]; then
+        local prev curr sorted g base num
+        local gens=()
+        # nullglob makes the loop run zero times when no system-*-link
+        # exists yet (fresh install, pre-first-generation).
+        shopt -s nullglob
+        for g in /nix/var/nix/profiles/system-*-link; do
+          base=''${g##*/}
+          num=''${base#system-}
+          num=''${num%-link}
+          if [[ "$num" =~ ^[0-9]+$ ]]; then
+            gens+=("$g")
+          fi
+        done
+        shopt -u nullglob
+        if [ "''${#gens[@]}" -lt 2 ]; then
+          echo "(no previous generation to compare)"
+          return
+        fi
+        sorted=$(printf '%s\n' "''${gens[@]}" | sort -V)
+        prev=$(printf '%s\n' "$sorted" | tail -2 | head -1)
+        curr=$(printf '%s\n' "$sorted" | tail -1)
+        if [ "$prev" = "$curr" ]; then
           echo "(no previous generation to compare)"
         else
-          NO_COLOR=1 nvd diff "/nix/var/nix/profiles/$prev" "/nix/var/nix/profiles/$curr" 2>&1 \
+          NO_COLOR=1 nvd diff "$prev" "$curr" 2>&1 \
             || echo "(nvd diff failed)"
         fi
       }
