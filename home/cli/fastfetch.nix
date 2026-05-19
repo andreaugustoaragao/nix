@@ -99,11 +99,6 @@
           "keyColor": "blue"
         },
         {
-          "type": "packages",
-          "key": "󰏖 Packages",
-          "keyColor": "blue"
-        },
-        {
           "type": "wmtheme",
           "key": "󰉼 Theme",
           "keyColor": "blue"
