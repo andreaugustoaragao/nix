@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 # AeroSpace tiling-WM config, mirroring the niri keymap from
 # home/desktop/niri.nix as closely as an i3-style tiler permits.
@@ -28,8 +28,6 @@ let
   # nothing. Reference the user's home-manager profile directly so the
   # exec-and-forget bindings hit the real store path on every launch.
   binPath = "${config.home.profileDirectory}/bin";
-  # bump 2026-05-19: force activation to re-link the aerospace.toml so
-  # the new alt-space / alt-d bindings reach AeroSpace at next reload.
 in
 {
   xdg.configFile."aerospace/aerospace.toml".text = ''
@@ -187,5 +185,21 @@ in
     8 = "secondary"
     9 = "secondary"
     10 = "secondary"
+  '';
+
+  # Tell the running AeroSpace daemon to re-read ~/.config/aerospace/
+  # aerospace.toml after every activation. Without this hook, each
+  # darwin-rebuild quietly rewrites the file on disk but the daemon
+  # keeps serving the keymap it loaded at last login — bindings drift
+  # silently from source until `alt-shift-q` (reload-config) is hit
+  # by hand or AeroSpace restarts. Probes `list-modes` first as a
+  # cheap IPC-alive check: skip the reload if the daemon is not
+  # running yet (first install, pre-login activation, or AeroSpace
+  # killed and not yet relaunched). The trailing `|| true` swallows
+  # the rare race where AeroSpace is mid-reload from a sibling event.
+  home.activation.aerospaceReload = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if /opt/homebrew/bin/aerospace list-modes >/dev/null 2>&1; then
+      $DRY_RUN_CMD /opt/homebrew/bin/aerospace reload-config || true
+    fi
   '';
 }
