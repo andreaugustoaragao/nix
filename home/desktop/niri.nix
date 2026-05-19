@@ -9,6 +9,10 @@
 }:
 
 let
+  # Daily-driver terminal (see ./default-terminal.nix for selection
+  # logic and per-consumer string forms).
+  term = import ./default-terminal.nix { inherit isVm; };
+
   # Single-output hosts (the VM) don't have DP-1/DP-2, so pinning
   # workspaces to those outputs makes niri stack all 18 named
   # workspaces onto the lone Virtual-1 output. Declare a smaller,
@@ -269,7 +273,7 @@ in
     }
 
     window-rule {
-        match app-id="com.mitchellh.ghostty"
+        match app-id="${term.appId}"
         default-column-width { proportion 0.5; }
     }
 
@@ -387,9 +391,11 @@ in
 
     // Key bindings (matching Hyprland as closely as possible)
     binds {
-        // Applications (ghostty is the default terminal; gtk-single-instance
-        // makes subsequent launches reuse the existing process)
-        Mod+Return { spawn "ghostty"; }
+        // Applications. Default terminal is host-dependent (see
+        // ./default-terminal.nix); both ghostty and kitty are
+        // configured single-instance so repeated Mod+Return reuses
+        // the running process.
+        Mod+Return { spawn ${term.spawnArgs}; }
         Mod+Shift+T { spawn "thunar"; }
         Mod+Shift+B { spawn "browser-default"; }
         Mod+Shift+M { spawn "bookmarks"; }

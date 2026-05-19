@@ -2,9 +2,13 @@
   config,
   pkgs,
   lib,
+  isVm ? false,
   ...
 }:
 
+let
+  term = import ./default-terminal.nix { inherit isVm; };
+in
 {
   # Thunar and thumbnailing packages
   home.packages = with pkgs; [
@@ -68,7 +72,8 @@
     fi
   '';
 
-  # Thunar custom actions (ghostty as terminal)
+  # Thunar custom actions. Terminal selection follows
+  # ./default-terminal.nix so VMs get kitty.
   xdg.configFile."Thunar/uca.xml".text = ''
     <?xml version="1.0" encoding="UTF-8"?>
     <actions>
@@ -76,8 +81,8 @@
       <icon>utilities-terminal</icon>
       <name>Open Terminal Here</name>
       <unique-id>1409659827532001-1</unique-id>
-      <command>ghostty --working-directory=%f</command>
-      <description>Open ghostty terminal in the current directory</description>
+      <command>${term.openInDirCommand}</command>
+      <description>Open a terminal in the current directory</description>
       <patterns>*</patterns>
       <startup-notify/>
       <directories/>

@@ -85,7 +85,8 @@ in
     # on-disk dir names line up with the display names referenced by
     # web-apps-data.nix entries. Ships a `brave-profiles-reset` script
     # for the one-shot cleanup. See module header for the workflow.
-    ../desktop/brave-profiles-macos.nix
+    # (Linux pulls the same module in via home/desktop/default.nix.)
+    ../desktop/brave-profiles.nix
     # GPG for commit signing — installs gnupg + pinentry-mac, writes
     # gpg-agent.conf, imports the personal + work keys from sops. The
     # Linux equivalent lives in ./gpg.nix but it's heavily systemd-

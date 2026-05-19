@@ -32,6 +32,11 @@ in
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    # Pin Brave's Personal/ and Work/ profile dirs so display names
+    # stay in lockstep with --profile-directory used by the web-app
+    # launchers. Ships a `brave-profiles-reset` script. See module
+    # header for the workflow.
+    ./brave-profiles.nix
     ./google-chrome.nix
     ./firefox.nix
     ./qutebrowser.nix

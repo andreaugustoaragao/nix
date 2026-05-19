@@ -2,10 +2,13 @@
   pkgs,
   lib,
   useDms ? false,
+  isVm ? false,
   ...
 }:
 
 let
+  term = import ./default-terminal.nix { inherit isVm; };
+
   waybar-uptime = pkgs.writeShellScript "waybar-uptime" ''
     read s _ < /proc/uptime
     s=''${s%.*}
@@ -87,14 +90,14 @@ in
         interval = 5;
         format = "󰻠  {usage}%";
         tooltip-format = "CPU Usage: {usage}%";
-        on-click = "ghostty -e btm";
+        on-click = "${term.launcherCommand} btm";
       };
 
       "memory" = {
         interval = 5;
         format = "󰍛  {used:0.1f}G ({percentage}%)";
         tooltip-format = "Memory: {used:0.1f}G / {total:0.1f}G ({percentage}%)";
-        on-click = "ghostty -e btop";
+        on-click = "${term.launcherCommand} btop";
       };
 
       "disk" = {
@@ -102,7 +105,7 @@ in
         format = "󰋊  {used} ({percentage_used}%)";
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
-        on-click = "ghostty -e btop";
+        on-click = "${term.launcherCommand} btop";
       };
 
       "custom/uptime" = {
@@ -283,14 +286,14 @@ in
         interval = 5;
         format = "󰻠  {usage}%";
         tooltip-format = "CPU Usage: {usage}%";
-        on-click = "ghostty -e btm";
+        on-click = "${term.launcherCommand} btm";
       };
 
       "memory" = {
         interval = 5;
         format = "󰍛  {used:0.1f}G ({percentage}%)";
         tooltip-format = "Memory: {used:0.1f}G / {total:0.1f}G ({percentage}%)";
-        on-click = "ghostty -e btop";
+        on-click = "${term.launcherCommand} btop";
       };
 
       "disk" = {
@@ -298,7 +301,7 @@ in
         format = "󰋊  {used} ({percentage_used}%)";
         path = "/";
         tooltip-format = "Disk: {used} / {total} ({percentage_used}%)";
-        on-click = "ghostty -e btop";
+        on-click = "${term.launcherCommand} btop";
       };
 
       "custom/uptime" = {

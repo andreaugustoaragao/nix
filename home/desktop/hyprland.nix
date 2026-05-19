@@ -3,10 +3,16 @@
   lib,
   useDms ? false,
   lockScreen ? false,
+  isVm ? false,
   ...
 }:
 
 let
+  # Daily-driver terminal selection (see ./default-terminal.nix). VMs
+  # fall back to kitty because ghostty's OpenGL renderer needs a GL
+  # version the guest 3D driver doesn't expose.
+  term = import ./default-terminal.nix { inherit isVm; };
+
   # When DMS owns the shell, spawn it into the graphical session via
   # uwsm so it lands in the same scope as Hyprland itself (polkit
   # auth-agent registration needs class=user). Mirrors niri.nix.
@@ -305,7 +311,7 @@ in
       "$mainMod" = "SUPER";
       bind = [
         # Applications
-        "$mainMod, Return, exec, ghostty"
+        "$mainMod, Return, exec, ${term.command}"
         "$mainMod SHIFT, T, exec, thunar"
         "$mainMod SHIFT, B, exec, browser-default"
         "$mainMod SHIFT, M, exec, bookmarks"

@@ -1,6 +1,11 @@
-# test change
-_:
+{
+  isVm ? false,
+  ...
+}:
 
+let
+  term = import ./default-terminal.nix { inherit isVm; };
+in
 {
   # Application launcher with Catppuccin Mocha theming
 
@@ -24,7 +29,9 @@ _:
       hide_scroll = true;
       print_command = true;
       layer = "overlay";
-      term = "ghostty";
+      # Prefix wofi prepends to the Exec of any desktop entry with
+      # Terminal=true. See ./default-terminal.nix.
+      term = term.launcherCommand;
       sort_order = "alphabetical";
     };
 

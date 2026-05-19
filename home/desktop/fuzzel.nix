@@ -1,9 +1,15 @@
 {
   pkgs,
   lib,
+  isVm ? false,
   ...
 }:
 let
+  # Daily-driver terminal (see ./default-terminal.nix). `terminal=` is
+  # what fuzzel prepends to the Exec line of any desktop entry with
+  # `Terminal=true` — e.g. the "Tmux Project" launcher.
+  term = import ./default-terminal.nix { inherit isVm; };
+
   baseSettings = ''
     [main]
     layer=overlay
@@ -14,7 +20,7 @@ let
     inner-pad=8
     line-height=22
     icon-theme=Papirus-Dark
-    terminal=ghostty -e
+    terminal=${term.launcherCommand}
     fields=name,generic,comment,categories,filename,keywords
 
     [border]
