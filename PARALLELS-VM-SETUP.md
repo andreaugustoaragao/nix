@@ -22,69 +22,96 @@ Step-by-step guide for setting up a new NixOS virtual machine on Parallels Deskt
    - **Network**: Shared Network (NAT) — default
 7. Start the VM — it boots into the NixOS installer shell
 
-## Phase 2: Partition and Install NixOS
+## Phase 2: SSH into the Installer
 
-This uses LUKS encryption with btrfs subvolumes, matching the `prl-dev-vm` setup.
+Driving the rest of the install over SSH from a real terminal on mac-work is far less painful than typing partition commands into the Parallels console. The minimal aarch64 ISO auto-logs you in as the `nixos` user (passwordless `sudo`); openssh and avahi are available but not running.
+
+**In the Parallels console (one time):**
 
 ```bash
-# Identify the disk
+# Set a password for the nixos user so we can SSH in
+sudo passwd nixos
+
+# Start sshd
+sudo systemctl start sshd
+
+# Find the VM's IP on the Parallels Shared network (typically 10.211.55.x)
+ip -4 -br addr show
+```
+
+**From mac-work:**
+
+```bash
+ssh nixos@<ip-from-ip-addr>
+# or, if avahi is up in the installer:
+ssh nixos@nixos.local
+```
+
+The installer also disables host-key checking complaints if you blow the VM away and recreate it, but you may want to clear stale entries:
+
+```bash
+ssh-keygen -R <ip>
+```
+
+Everything below this point runs in that SSH session.
+
+## Phase 3: Partition and Install NixOS
+
+Plain btrfs with subvolumes (no LUKS — the `prl-dev-vm` setup this mirrors stopped using LUKS; full-disk encryption is unnecessary on a guest whose disk image already lives on the Mac's encrypted APFS volume).
+
+```bash
+# Identify the disk — Parallels on Apple Silicon exposes the virtual
+# disk as /dev/sda (SCSI emulation, no virtio-blk).
 lsblk
 
-# Partition: EFI + LUKS container
-parted /dev/sda -- mklabel gpt
-parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
-parted /dev/sda -- set 1 esp on
-parted /dev/sda -- mkpart primary 512MiB 100%
+# Partition: EFI + one big btrfs partition
+sudo parted /dev/sda -- mklabel gpt
+sudo parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
+sudo parted /dev/sda -- set 1 esp on
+sudo parted /dev/sda -- mkpart primary 512MiB 100%
 
-# Label the EFI partition
-mkfs.fat -F 32 -n nixos-boot /dev/sda1
+# Format
+sudo mkfs.fat -F 32 -n nixos-boot /dev/sda1
+sudo mkfs.btrfs -L nixos /dev/sda2
 
-# Set up LUKS encryption — you will be prompted to create a passphrase.
-# This passphrase is required on every boot to unlock the disk.
-cryptsetup luksFormat --label nixos-crypt /dev/sda2
-# Unlock the encrypted partition (enter the passphrase you just set)
-cryptsetup open /dev/sda2 cryptroot
-
-# Create btrfs and subvolumes
-mkfs.btrfs -L nixos /dev/mapper/cryptroot
-mount /dev/mapper/cryptroot /mnt
-
-btrfs subvolume create /mnt/@root
-btrfs subvolume create /mnt/@home-aragao
-btrfs subvolume create /mnt/@nix
-btrfs subvolume create /mnt/@tmp
-btrfs subvolume create /mnt/@snapshots
-btrfs subvolume create /mnt/@swap
-
-umount /mnt
+# Create btrfs subvolumes (matches hardware/prl-dev-vm/hardware-configuration.nix)
+sudo mount /dev/sda2 /mnt
+sudo btrfs subvolume create /mnt/@root
+sudo btrfs subvolume create /mnt/@home-aragao
+sudo btrfs subvolume create /mnt/@nix
+sudo btrfs subvolume create /mnt/@tmp
+sudo btrfs subvolume create /mnt/@snapshots
+sudo btrfs subvolume create /mnt/@swap
+sudo umount /mnt
 
 # Mount subvolumes with compression
-mount -o subvol=@root,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt
-mkdir -p /mnt/{boot,home/aragao,nix,tmp,.snapshots,swap}
+MOUNT_OPTS="compress=zstd:1,noatime,space_cache=v2,discard=async"
+sudo mount -o subvol=@root,$MOUNT_OPTS /dev/sda2 /mnt
+sudo mkdir -p /mnt/{boot,home/aragao,nix,tmp,.snapshots,swap}
 
-mount /dev/sda1 /mnt/boot
-mount -o subvol=@home-aragao,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/home/aragao
-mount -o subvol=@nix,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/nix
-mount -o subvol=@tmp,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/tmp
-mount -o subvol=@snapshots,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/.snapshots
-mount -o subvol=@swap,compress=zstd:1,noatime,space_cache=v2,discard=async /dev/mapper/cryptroot /mnt/swap
+sudo mount /dev/sda1 /mnt/boot
+sudo mount -o subvol=@home-aragao,$MOUNT_OPTS /dev/sda2 /mnt/home/aragao
+sudo mount -o subvol=@nix,$MOUNT_OPTS         /dev/sda2 /mnt/nix
+sudo mount -o subvol=@tmp,$MOUNT_OPTS         /dev/sda2 /mnt/tmp
+sudo mount -o subvol=@snapshots,$MOUNT_OPTS   /dev/sda2 /mnt/.snapshots
+sudo mount -o subvol=@swap,$MOUNT_OPTS        /dev/sda2 /mnt/swap
 
 # Create swap file (16 GB)
-btrfs filesystem mkswapfile --size 16g /mnt/swap/swapfile
-swapon /mnt/swap/swapfile
+sudo btrfs filesystem mkswapfile --size 16g /mnt/swap/swapfile
+sudo swapon /mnt/swap/swapfile
 ```
 
 ### Generate and Install the Base System
 
 ```bash
 # Generate hardware config
-nixos-generate-config --root /mnt
+sudo nixos-generate-config --root /mnt
 
 # Edit the generated config for a minimal bootable system
-nano /mnt/etc/nixos/configuration.nix
+sudo nano /mnt/etc/nixos/configuration.nix
 ```
 
-Replace the contents of `/mnt/etc/nixos/configuration.nix` with a minimal config to get the system bootable:
+Replace the contents of `/mnt/etc/nixos/configuration.nix` with this minimal bootstrap. Note that SSH is enabled here too, with your existing pubkeys baked in, so you can SSH back into the installed system right after the first reboot — before the flake takes over.
 
 ```nix
 { config, pkgs, lib, ... }:
@@ -98,20 +125,31 @@ Replace the contents of `/mnt/etc/nixos/configuration.nix` with a minimal config
   networking.hostName = "your-vm-name";
   networking.useDHCP = true;
 
-  # Enable SSH so you can connect from the host
-  services.openssh.enable = true;
+  # SSH stays on — matches what system/ssh.nix will enforce post-flake
+  services.openssh = {
+    enable = true;
+    settings.PasswordAuthentication = true;  # relaxed during bootstrap
+  };
 
-  # Temporary user for bootstrapping
+  # mDNS so `ssh your-vm-name.local` works from mac-work immediately
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    publish = { enable = true; addresses = true; workstation = true; };
+  };
+
   users.users.aragao = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     initialPassword = "changeme";
+    openssh.authorizedKeys.keys = [
+      # Same keys that system/ssh.nix authorizes post-flake
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAb7TATctV9ege4yZoT8lZpLbvtvFE/TE1B3xFwxgnE4 penguin"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIECX5xCCeHXtKMa98SL3Z6ZLDVkQdLKD7hcywXNjlWcm andrearag@gmail.com"
+    ];
   };
 
-  # Enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  # Basic packages for bootstrapping
   environment.systemPackages = with pkgs; [ git vim ];
 
   system.stateVersion = "25.05";
@@ -120,22 +158,26 @@ Replace the contents of `/mnt/etc/nixos/configuration.nix` with a minimal config
 
 ```bash
 # Install
-nixos-install
+sudo nixos-install --no-root-passwd
 
-# Set root password when prompted
-# Reboot
-reboot
+# Reboot into the new system
+sudo reboot
 ```
 
-## Phase 3: Bootstrap the Flake Configuration
-
-After the VM boots into the minimal NixOS install:
+After reboot, the VM should pick up the same DHCP lease (or, more reliably, advertise itself over mDNS). Reconnect from mac-work:
 
 ```bash
-# Log in as aragao (password: changeme)
+ssh aragao@your-vm-name.local
+```
 
-# Clone the configuration repo
-git clone git@github-personal:andreaugustoaragao/nix.git ~/projects/personal/nix
+## Phase 4: Bootstrap the Flake Configuration
+
+After the VM boots into the minimal NixOS install (you should be SSH'd in as `aragao`):
+
+```bash
+# Clone the configuration repo (HTTPS for now — the github-personal SSH
+# alias needs sops-decrypted keys, which we don't have yet)
+nix-shell -p git --run "git clone https://github.com/andreaugustoaragao/nix.git ~/projects/personal/nix"
 cd ~/projects/personal/nix
 ```
 
@@ -154,6 +196,7 @@ stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
 autoLogin = true
+useDms = true
 ```
 
 **2. Create the hardware configuration directory:**
@@ -198,7 +241,7 @@ sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
 
 The first rebuild will take a while as it downloads and builds the full desktop environment.
 
-## Phase 4: Set Up Secrets (sops-nix)
+## Phase 5: Set Up Secrets (sops-nix)
 
 The configuration uses sops-nix for secret management. Without secrets bootstrapped, the system will work but SSH keys, GPG keys, and passwords won't be managed.
 
@@ -376,7 +419,7 @@ See `SOPS-SETUP-GUIDE.md` for detailed steps on generating each value (password 
 sudo nixos-rebuild switch --flake ~/projects/personal/nix#your-vm-name
 ```
 
-## Phase 5: Post-Install Verification
+## Phase 6: Post-Install Verification
 
 ```bash
 # Verify Parallels Tools are running
