@@ -98,6 +98,9 @@ in
     # alt-s window switcher: aerospace list-windows + choose-gui +
     # aerospace focus. macOS counterpart to home/desktop/window-switcher.nix.
     ./aerospace-window-switcher.nix
+    # alt-space app launcher: choose-gui-based fuzzel clone, replaces
+    # Raycast. macOS counterpart to home/desktop/fuzzel.nix.
+    ./app-launcher.nix
   ];
 
   home.packages =
@@ -164,6 +167,12 @@ in
       entr
       watchman
       cachix
+      # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS
+      # ships BSD userland and has no `timeout` at all, so scripts that
+      # need GNU semantics call `gtimeout`. Installing the prefixed
+      # variant on Linux too keeps cross-platform scripts working
+      # without shadowing the native `timeout`/`ls`/etc.
+      coreutils-prefixed
 
       # Rust-based coreutils and modern replacements
       ripgrep
