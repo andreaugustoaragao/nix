@@ -83,5 +83,32 @@ useDms = false
 # granted "App Management" permission. Install Parallels via the
 # official .pkg installer from parallels.com instead — leaving it
 # unmanaged here so brew bundle's `cleanup = "zap"` does not touch it.
-homebrewCasks = ["ghostty", "raycast", "aerospace", "brave-browser", "chromium"]
+homebrewCasks = [
+    # Already in service: terminal, launcher, WM, browsers, focused-window outliner.
+    "ghostty",
+    "raycast",
+    "aerospace",
+    "brave-browser",
+    "chromium",
+    # Editors mirroring the Linux home/desktop/{vscode,zed}.nix set.
+    "visual-studio-code",
+    "cursor",
+    "zed",
+    # Notes / secrets / chat — matches Linux home.packages.
+    "obsidian",
+    "bitwarden",
+    "telegram",
+    # NOTE on zoom: deliberately NOT in this list. Its cask runs a
+    # `.pkg` installer via `sudo /usr/sbin/installer`, and brew bundle
+    # under nix-darwin activation has no attached tty for the sudo
+    # password prompt — activation fails the same way Parallels does.
+    # Install Zoom by hand from https://zoom.us/download (auto-updates
+    # itself thereafter). Same workaround as Parallels Desktop above.
+    # Extra browsers used on Linux; Brave + Chromium already covered above.
+    "firefox",
+    "google-chrome",
+    # Containers / Linux VMs. Replaces the podman-compose role from the Linux side
+    # without the weight of Docker Desktop.
+    "orbstack",
+]
 homebrewBrews = ["borders"]
