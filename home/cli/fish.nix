@@ -102,11 +102,6 @@ in
       # Any-nix-shell integration for better nix-shell experience
       ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
 
-      # zoxide replaces `cd` in interactive fish only — zsh/bash get
-      # the default `z` alias (so non-interactive scripts and CLI
-      # agents that source those shells keep POSIX cd semantics).
-      ${pkgs.zoxide}/bin/zoxide init fish --cmd cd | source
-
       # Catppuccin Mocha shell syntax colors.
       set -g fish_color_autosuggestion 6c7086
       set -g fish_color_command 89b4fa
@@ -130,15 +125,17 @@ in
 
       # Codex talks to the Avaya LiteLLM gateway via env_key; load the
       # decrypted token from sops if it has been deployed on this host.
-      if test -r /run/secrets/litellm_api_key
+      # Guarded on `set -q` so only the first shell in a session pays the
+      # file-read cost; child shells inherit the exported value.
+      if not set -q LITELLM_API_KEY; and test -r /run/secrets/litellm_api_key
         set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
       end
 
       # Anthropic API key consumed by `pi` / `pi-opus` and any other tool
       # that reads ANTHROPIC_API_KEY from the environment. The secret file
       # may be either bare key bytes or `ANTHROPIC_API_KEY=...` shell form;
-      # strip the prefix if present.
-      if test -r /run/secrets/anthropic_api_key
+      # strip the prefix if present. Same set-once guard as above.
+      if not set -q ANTHROPIC_API_KEY; and test -r /run/secrets/anthropic_api_key
         set -l anthropic_key_raw (cat /run/secrets/anthropic_api_key)
         set -gx ANTHROPIC_API_KEY (string replace -r '^ANTHROPIC_API_KEY=' "" -- $anthropic_key_raw)
       end
