@@ -80,6 +80,11 @@ in
       teammateMode = "auto";
       chrome = false;
       skipAutoPermissionPrompt = true;
+      # Built-in idle notifier is off because the Notification hook
+      # below already fires notify-send with the Claude branding;
+      # leaving "auto" enabled triggers a second notification (sourced
+      # from kitty/ghostty via OSC).
+      preferredNotifChannel = "notifications_disabled";
       permissions = {
         defaultMode = "auto";
       };

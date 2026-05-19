@@ -20,22 +20,18 @@ in
       "--disable-background-mode" # Prevent running in background
       "--password-store=gnome-libsecret"
     ];
+    # Soft extension installs: a JSON manifest is dropped into Brave's
+    # External Extensions/ dir, so the extension shows up on first
+    # profile creation but the user can disable or remove it later.
+    # The force-installed daily drivers (Bitwarden, Vimium, Markdown
+    # Viewer) live in system/browsers.nix instead — those use the
+    # ExtensionSettings policy, which auto-installs them, blocks
+    # uninstall, and force-pins their toolbar icon across both
+    # profiles.
     extensions = [
-      # Bitwarden Password Manager
-      {
-        id = "nngceckbapebfimnlniiiahkandclblb";
-      }
-      # Vimium - vim-like navigation
-      {
-        id = "dbepggeogbaibhgnhhndojpepiihcmeb";
-      }
       # Claude in Chrome
       {
         id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
-      }
-      # Markdown Viewer
-      {
-        id = "ckkdlimhmcjmikdlpkmbgfkaikojcbjk";
       }
     ];
   };
