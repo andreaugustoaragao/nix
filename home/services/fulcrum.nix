@@ -3,6 +3,7 @@
   osConfig,
   pkgs,
   lib,
+  hostName,
   ...
 }:
 
@@ -28,13 +29,24 @@ let
 
   # Tools the service shell needs — bun to run, git so the process can
   # report its own rev via /api/version, coreutils/which for script
-  # compatibility in case bun shells out.
+  # compatibility in case bun shells out. openssl is used by the
+  # ExecStart wrapper to lazily provision a self-signed localhost cert
+  # the first time the service starts, mirroring the
+  # mkcert-generated cert workstation's docker-compose stack mounts in.
   binPath = lib.makeBinPath [
     pkgs.bun
     pkgs.git
     pkgs.coreutils
     pkgs.which
+    pkgs.openssl
   ];
+
+  # Per-user cert/key for fulcrum's HTTPS listener — kept outside the
+  # source checkout so a fresh clone doesn't accidentally pick them up,
+  # and outside the vault so they don't get auto-synced to GitHub.
+  tlsDir = "${config.xdg.dataHome}/fulcrum/certs";
+  tlsCert = "${tlsDir}/localhost.pem";
+  tlsKey = "${tlsDir}/localhost-key.pem";
 in
 
 {
@@ -56,6 +68,22 @@ in
         "LD_LIBRARY_PATH=${fulcrumLibs}"
         "NODE_OPTIONS=--max-old-space-size=4096"
         "FULCRUM_PORT=3100"
+        # Bind to all interfaces so peers on the LAN (e.g., the
+        # Parallels host mac-work reaching this VM at
+        # prl-dev-vm.local:3100) can hit it. The firewall opens 3100
+        # only on hosts that actually run fulcrum from source (see
+        # system/networking.nix).
+        "FULCRUM_HOST=0.0.0.0"
+        # Vector store — declared as a system OCI container in
+        # system/chroma.nix and bound to localhost:8000. Without this
+        # override Fulcrum falls back to `http://chroma:8000`, which only
+        # resolves inside docker-compose's network.
+        "CHROMA_BASE_URL=http://localhost:8000"
+        # Reuse the vault's .fulcrum/ as the on-disk data dir so config.json,
+        # sessions.json, conversations.db, vault.db, etc. travel with the
+        # notes repo across machines — instead of fulcrum spinning up an
+        # empty .agents/ next to the source checkout on each new host.
+        "FULCRUM_DATA_DIR=${config.home.homeDirectory}/projects/work/notes/.fulcrum"
         # Matrix bot — reuses the @maui-alerts identity that already exists
         # on matrix.faragao.net (see system/matrix-alert.nix). The access
         # token lives in sops as matrix/bot_token; we point Fulcrum at the
@@ -73,9 +101,59 @@ in
         "MATRIX_DEVICE_ID=AeSV8hGVoC"
         "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
       ];
-      # Bun auto-loads ${projectRoot}/.env so ANTHROPIC_API_KEY + friends
-      # are read without us wiring EnvironmentFile= into the unit.
-      ExecStart = "${pkgs.bun}/bin/bun run start";
+      # ANTHROPIC_API_KEY comes from the sops-managed system secret
+      # (see system/sops.nix → anthropic_api_key) so it's the same key
+      # the fish shell and Zed wrapper use. Fulcrum has no built-in
+      # ANTHROPIC_API_KEY_FILE support, so a thin wrapper reads the
+      # file and exports the value before exec'ing bun. The vault's
+      # ${projectRoot}/.env (symlinked to ~/projects/work/notes/.fulcrum/.env)
+      # is still auto-loaded by bun for the other secrets (TELEGRAM,
+      # ELEVENLABS, MPC, …); bun does not override env vars already set
+      # by the wrapper, so the sops key wins.
+      ExecStart = pkgs.writeShellScript "fulcrum-start" ''
+        set -eu
+        secret=${osConfig.sops.secrets.anthropic_api_key.path}
+        if [ ! -r "$secret" ]; then
+          echo "Fatal: $secret not readable" >&2
+          exit 1
+        fi
+        raw=$(cat "$secret")
+        # Accept either bare key bytes or `ANTHROPIC_API_KEY=...` shell form,
+        # mirroring how fish/zed strip the prefix.
+        export ANTHROPIC_API_KEY="''${raw#ANTHROPIC_API_KEY=}"
+
+        # Lazily provision a self-signed cert for the HTTPS listener.
+        # Fulcrum's startup picks up the cert/key via
+        # FULCRUM_TLS_CERT/_KEY (see startup.ts:244), so the web-app
+        # PWA's https://localhost:3100 works the same way it does on
+        # workstation (which gets its cert from mkcert via the
+        # upstream docker-compose stack). Self-healing: regenerate
+        # whenever the cert is missing OR its SAN list doesn't yet
+        # include ${hostName}.local, so cert content stays in sync
+        # with nix-side SAN changes across rebuilds.
+        regen_cert=0
+        if [ ! -f ${tlsCert} ] || [ ! -f ${tlsKey} ]; then
+          regen_cert=1
+        elif ! openssl x509 -in ${tlsCert} -noout -ext subjectAltName 2>/dev/null \
+             | grep -q "DNS:${hostName}.local"; then
+          regen_cert=1
+        fi
+        if [ "$regen_cert" = "1" ]; then
+          mkdir -p ${tlsDir}
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout ${tlsKey} \
+            -out ${tlsCert} \
+            -days 3650 \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,DNS:fulcrum.local,DNS:${hostName}.local,IP:127.0.0.1" \
+            >/dev/null 2>&1
+          chmod 0600 ${tlsKey}
+        fi
+        export FULCRUM_TLS_CERT=${tlsCert}
+        export FULCRUM_TLS_KEY=${tlsKey}
+
+        exec ${pkgs.bun}/bin/bun run start
+      '';
 
       Restart = "on-failure";
       RestartSec = "5s";

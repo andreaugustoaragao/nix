@@ -207,19 +207,24 @@
   '';
 
   # Keep explicit /etc/hosts entries authoritative for local dev domains.
-  # Without this, .local names can stall in mDNS/systemd-resolved before the
-  # infinity.local extraHosts mapping is consulted.
-  system.nssDatabases.hosts = lib.mkIf (hostName == "workstation") (
-    lib.mkForce [
-      "files"
-      "mymachines"
-      "mdns4_minimal [NOTFOUND=return]"
-      "resolve [!UNAVAIL=return]"
-      "myhostname"
-      "dns"
-      "mdns4"
-    ]
-  );
+  # Without this, .local names stall on the mDNS lookup — avahi returns
+  # NOTFOUND for hostnames it doesn't actively advertise (fulcrum.local,
+  # infinity.local, grafana.local, …) and the default
+  # `mdns4_minimal [NOTFOUND=return]` short-circuits the chain before
+  # `files` (= /etc/hosts) is ever consulted.
+  system.nssDatabases.hosts =
+    lib.mkIf (hostName == "workstation" || hostName == "prl-dev-vm" || hostName == "vmw-dev-vm")
+      (
+        lib.mkForce [
+          "files"
+          "mymachines"
+          "mdns4_minimal [NOTFOUND=return]"
+          "resolve [!UNAVAIL=return]"
+          "myhostname"
+          "dns"
+          "mdns4"
+        ]
+      );
 
   networking.hosts."127.0.0.1" =
     lib.optionals (hostName != "workstation") [
@@ -247,6 +252,12 @@
     ++ lib.optionals (hostName == "workstation") [
       80 # K3s ingress (istio-ingress via klipper-lb)
       443
+    ]
+    ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
+      # Fulcrum HTTPS — source-run unit binds to 0.0.0.0:3100 so the
+      # Parallels/VMware host (mac-work) can reach it at
+      # https://<hostname>.local:3100.
+      3100
     ]
     ++ lib.optionals isServer [
       80 # Caddy (ACME HTTP-01 fallback / redirect to 443)

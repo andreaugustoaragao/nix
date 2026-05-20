@@ -13,7 +13,21 @@
 # darwin/homebrew.nix; the binary path below is the canonical cask
 # location.
 let
-  apps = import ./web-apps-data.nix;
+  rawApps = import ./web-apps-data.nix;
+
+  # Per-host URL overrides: a few entries point at `localhost` because
+  # the service runs on the same box they were originally launched
+  # from. On macOS we want those shortcuts to reach whichever LAN host
+  # is actually running the service — for Fulcrum, that's prl-dev-vm
+  # (source-mode systemd unit in home/services/fulcrum.nix). Override
+  # by key so it stays in one place and the data file remains pure.
+  macUrlOverrides = {
+    fulcrum = "https://prl-dev-vm.local:3100";
+  };
+
+  apps = map (
+    app: app // lib.optionalAttrs (macUrlOverrides ? ${app.key}) { url = macUrlOverrides.${app.key}; }
+  ) rawApps;
 
   # Path inside the Brave cask. Homebrew installs all casks into
   # /Applications/ on macOS, and the executable always lives at

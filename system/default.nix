@@ -44,6 +44,10 @@
   ]
   ++ lib.optionals (hostName != "workstation") [
     ./caddy.nix
+    # Workstation runs chroma as a sidecar of the upstream fulcrum
+    # docker-compose.yml; every other host that runs fulcrum from
+    # source needs us to bring up chroma declaratively.
+    ./chroma.nix
   ]
   ++ lib.optionals isServer [
     ./server
