@@ -55,7 +55,20 @@
       # Catppuccin Mocha palette (matches ghostty/foot/kitty/alacritty).
       # Static — does not flip in light mode. If needed, swap colors via a
       # darkman script that sources a different conf and `refresh-client -S`.
-      set -g status-left "#[fg=#89b4fa,bold,bg=default] #S "
+      #
+      # Slanted-pill status: session is a lavender parallelogram on the
+      # left, the active window is a blue parallelogram in the tab
+      # strip. Different hues for session vs window give immediate
+      # "what am I in / where am I" hierarchy at a glance. The U+E0BA
+      #  (lower-right triangle, left cap) and U+E0BC  (upper-left
+      # triangle, right cap) Powerline Extra glyphs combine into a
+      # right-leaning parallelogram shape — unambiguous at terminal
+      # cell aspect, unlike the rounded half-circle caps which only
+      # ever produce a softly-rounded rectangle in a tall-narrow cell.
+      # They're rendered with fg=pill-color bg=default so the pill
+      # blends into the status bar background (#181825) rather than
+      # clipping into a hard rectangle.
+      set -g status-left "#[fg=#cba6f7,bg=default]#[fg=#1e1e2e,bg=#cba6f7,bold]  #S #[fg=#cba6f7,bg=default] "
       # Pass the active pane's cwd into the script so per-pane probes
       # (git branch, project label) resolve against where the user
       # actually is, not the tmux server's startup cwd. Single-quoted
@@ -73,8 +86,17 @@
       # a pane sets an empty title. Native tmux conditionals — no
       # shell-out, so updates are instant on pane_title change rather
       # than waiting for status-interval.
-      set -g window-status-current-format '#[fg=#1e1e2e,bold,bg=#89b4fa] #I #{?#{==:#{pane_title},#H},#W,#{pane_title}}#{?window_zoomed_flag,(),} '
-      set -g window-status-format '#[fg=#6c7086,bg=default] #I #{?#{==:#{pane_title},#H},#W,#{pane_title}} '
+      #
+      # Active window is wrapped in a blue slanted parallelogram using
+      # the same  /  cap pattern as the session label. Inactive
+      # tabs are flat muted text on the bar background so the eye
+      # lands on the one pill that matters. window-status-separator
+      # is cleared because the pill caps + per-format padding already
+      # provide the visual rhythm between tabs; tmux's default "|"
+      # separator would clash.
+      set -g window-status-current-format "#[fg=#89b4fa,bg=default]#[fg=#1e1e2e,bg=#89b4fa,bold] #I #{?#{==:#{pane_title},#H},#W,#{pane_title}}#{?window_zoomed_flag, ,}#[fg=#89b4fa,bg=default]"
+      set -g window-status-format         "#[fg=#6c7086,bg=default]  #I #{?#{==:#{pane_title},#H},#W,#{pane_title}}  "
+      set -g window-status-separator ""
 
       set -g window-status-last-style 'fg=#bac2de,bg=default'
       set -g message-command-style bg=#181825,fg=#f9e2af
