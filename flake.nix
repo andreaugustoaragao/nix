@@ -421,6 +421,81 @@
               log "  kubectl config get-contexts    # should show '$host' marked *"
             '';
           };
+
+          # Sets up a Docker context that targets a fleet host's dockerd
+          # over SSH (`docker host=ssh://<host>`), then marks it as the
+          # active default. Mirrors the kubectl flow but uses Docker's
+          # native context mechanism instead of a config file — no env
+          # var, no daemon TCP socket, no TLS certs.
+          #
+          # Prerequisites (already met for prl-dev-vm via system/users.nix
+          # + ssh.nix + virtualization.nix):
+          #   - SSH works from this host to <host> as the local user
+          #   - That user is in the `docker` group on <host>
+          #   - dockerd is running on <host>
+          #
+          # Caveat: bind mounts (`docker run -v <path>:<dest>`) resolve
+          # <path> on the SERVER (<host>), not on the client. Same
+          # caveat that applies to any remote-Docker setup.
+          fleetDockerSetup = pkgs.writeShellApplication {
+            name = "fleet-docker-setup";
+            runtimeInputs = with pkgs; [
+              openssh
+              docker-client
+              coreutils
+            ];
+            text = ''
+              set -euo pipefail
+
+              log() { printf '[fleet-docker-setup] %s\n' "$*" >&2; }
+
+              host="''${1:-prl-dev-vm}"
+              endpoint="ssh://$host"
+
+              # Smoke-test the SSH+docker chain before mutating local
+              # docker state. Fast failure with a clear message beats
+              # creating a context that then errors at every `docker ps`.
+              log "smoke-testing ssh $host docker version"
+              if ! ssh -o BatchMode=yes "$host" 'docker version --format "{{.Server.Version}}"' >/dev/null 2>&1; then
+                log "  FAILED. Check that:"
+                log "    - ssh $host    works without a prompt"
+                log "    - the remote user is in the docker group"
+                log "    - dockerd is running on $host"
+                exit 1
+              fi
+              log "  ok"
+
+              # `docker context create` errors if the context exists;
+              # `docker context update` errors if it doesn't. Pick the
+              # right one so re-runs are idempotent.
+              if docker context inspect "$host" >/dev/null 2>&1; then
+                log "updating existing context: $host -> $endpoint"
+                docker context update "$host" --docker "host=$endpoint" >/dev/null
+              else
+                log "creating context: $host -> $endpoint"
+                docker context create "$host" --docker "host=$endpoint" >/dev/null
+              fi
+
+              log "setting $host as the active default context"
+              docker context use "$host" >/dev/null
+
+              log "verifying via local docker CLI"
+              if docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
+                remote_version="$(docker version --format '{{.Server.Version}}')"
+                log "  ok — remote daemon version: $remote_version"
+              else
+                log "  warning: docker version against $host failed unexpectedly"
+              fi
+
+              log ""
+              log "docker is now talking to $host. test with:"
+              log "  docker ps"
+              log "  docker context ls           # shows '$host' marked *"
+              log ""
+              log "to revert to local Docker (e.g. OrbStack on mac-work):"
+              log "  docker context use default"
+            '';
+          };
         in
         {
           fleet-bootstrap = {
@@ -430,6 +505,10 @@
           fleet-kube-fetch = {
             type = "app";
             program = "${fleetKubeFetch}/bin/fleet-kube-fetch";
+          };
+          fleet-docker-setup = {
+            type = "app";
+            program = "${fleetDockerSetup}/bin/fleet-docker-setup";
           };
         }
       );
