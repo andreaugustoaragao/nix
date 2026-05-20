@@ -88,8 +88,7 @@
       # Darwin-platform predicate. macOS hosts live under
       # /Users/<name> and are built with darwinSystem; everywhere else
       # we assume Linux and use nixosSystem.
-      isDarwinPlatform =
-        platform: platform == "aarch64-darwin" || platform == "x86_64-darwin";
+      isDarwinPlatform = platform: platform == "aarch64-darwin" || platform == "x86_64-darwin";
 
       homePrefixFor = platform: if isDarwinPlatform platform then "/Users" else "/home";
 
@@ -138,10 +137,20 @@
       };
 
       # Partition machines.toml entries by platform.
-      machinesBy =
-        pred: nixpkgs.lib.filterAttrs (_: host: pred host.platform) metadata.machines;
+      machinesBy = pred: nixpkgs.lib.filterAttrs (_: host: pred host.platform) metadata.machines;
       linuxMachines = machinesBy (p: !isDarwinPlatform p);
       darwinMachines = machinesBy isDarwinPlatform;
+
+      # Systems we expose `nix run .#<app>` on. Anything that can run
+      # `nix run` from inside the flake checkout. Keep this list aligned
+      # with the platforms in machines.toml.
+      appSystems = [
+        "aarch64-darwin"
+        "x86_64-darwin"
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forEachAppSystem = nixpkgs.lib.genAttrs appSystems;
     in
     {
       # NixOS configurations for Linux machines
@@ -198,5 +207,182 @@
           ];
         }
       ) darwinMachines;
+
+      # Fleet SSH bootstrap apps. Exposed on every system in appSystems
+      # so the same `nix run .#fleet-bootstrap` works from any host in
+      # the fleet. The scripts are deliberately self-contained shell
+      # applications — they only need git, openssh, and coreutils.
+      apps = forEachAppSystem (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+
+          # Generates ~/.ssh/id_ed25519_fleet on the current host, drops
+          # the pubkey into the flake at secrets/ssh_pubkeys/, scans the
+          # host keys of well-known peers into secrets/ssh_host_keys/,
+          # then commits and pushes. Idempotent: rerunning is a no-op if
+          # nothing changed.
+          fleetBootstrap = pkgs.writeShellApplication {
+            name = "fleet-bootstrap";
+            runtimeInputs = with pkgs; [
+              openssh
+              git
+              coreutils
+              gnused
+              gawk
+            ];
+            text = ''
+              set -euo pipefail
+
+              log() { printf '[fleet-bootstrap] %s\n' "$*" >&2; }
+
+              FLAKE_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+              if [ -z "$FLAKE_DIR" ]; then
+                log "error: not inside a git checkout. cd to the flake root first."
+                exit 1
+              fi
+
+              raw_host="$(uname -n)"
+              HOST="''${raw_host%%.*}"
+
+              KEY="$HOME/.ssh/id_ed25519_fleet"
+              PUB="$KEY.pub"
+
+              mkdir -p "$HOME/.ssh"
+              chmod 700 "$HOME/.ssh"
+
+              if [ ! -f "$KEY" ]; then
+                log "generating ed25519 keypair at $KEY"
+                ssh-keygen -t ed25519 -f "$KEY" -N "" -C "aragao@''${HOST}-fleet"
+              else
+                log "keypair already exists at $KEY"
+              fi
+
+              DEST_PUB_DIR="$FLAKE_DIR/secrets/ssh_pubkeys"
+              DEST_PUB="$DEST_PUB_DIR/''${HOST}_fleet.pub"
+              mkdir -p "$DEST_PUB_DIR"
+
+              if ! cmp -s "$PUB" "$DEST_PUB" 2>/dev/null; then
+                log "registering pubkey at secrets/ssh_pubkeys/''${HOST}_fleet.pub"
+                cp "$PUB" "$DEST_PUB"
+              else
+                log "pubkey already registered"
+              fi
+
+              # Pin well-known peers' host keys so StrictHostKeyChecking=yes
+              # can be enforced without a TOFU first-connect window. Add
+              # new fleet members to this list as they come online.
+              DEST_HOST_DIR="$FLAKE_DIR/secrets/ssh_host_keys"
+              mkdir -p "$DEST_HOST_DIR"
+
+              KEYSCAN_TARGETS=( "prl-dev-vm.local" )
+              for target in "''${KEYSCAN_TARGETS[@]}"; do
+                target_short="''${target%%.*}"
+                host_file="$DEST_HOST_DIR/''${target_short}.pub"
+                log "ssh-keyscan -t ed25519 $target"
+                if scan="$(ssh-keyscan -t ed25519 -T 5 "$target" 2>/dev/null || true)" && [ -n "$scan" ]; then
+                  # Strip hostname column; keep only the key portion so the
+                  # file matches the format programs.ssh.knownHosts expects.
+                  key_line="$(echo "$scan" | awk 'NF{$1=""; sub(/^ /,""); print; exit}')"
+                  if [ -n "$key_line" ]; then
+                    echo "$key_line" > "$host_file"
+                    log "  wrote secrets/ssh_host_keys/''${target_short}.pub"
+                  else
+                    log "  warning: empty keyscan output"
+                  fi
+                else
+                  log "  warning: ssh-keyscan failed for $target (host unreachable?)"
+                fi
+              done
+
+              cd "$FLAKE_DIR"
+              git add secrets/ssh_pubkeys secrets/ssh_host_keys
+
+              if git diff --cached --quiet; then
+                log "no flake changes to commit"
+              else
+                log "committing"
+                git commit -m "fleet: bootstrap ''${HOST} pubkey + scanned hostkeys"
+                log "pushing to origin/main"
+                git push origin HEAD:main
+              fi
+
+              # Best-effort: load the key into the running agent so this
+              # session can SSH immediately, without re-login / launchctl
+              # kickstart. Harmless if no agent is running.
+              if [ -n "''${SSH_AUTH_SOCK:-}" ]; then
+                ssh-add "$KEY" </dev/null 2>/dev/null && \
+                  log "loaded key into running ssh-agent" || \
+                  log "note: ssh-add to agent failed (re-login to pick up)"
+              fi
+
+              cat >&2 <<EOF
+
+              fleet-bootstrap complete.
+
+              Next steps:
+                1. On the target host (e.g. prl-dev-vm):
+                     cd ~/projects/personal/nix
+                     git pull
+                     sudo nixos-rebuild switch --flake .#prl-dev-vm
+
+                2. Back here, test:
+                     ssh prl-dev-vm
+
+                3. Once SSH works, fetch the kubeconfig:
+                     nix run .#fleet-kube-fetch -- prl-dev-vm
+              EOF
+            '';
+          };
+
+          # Pulls /etc/rancher/k3s/k3s.yaml from a fleet host over SSH,
+          # rewrites the loopback server URL to the host's .local mDNS
+          # name, and drops it at ~/.kube/config-<host> with mode 0600.
+          # Idempotent: re-run after k3s reinstalls to refresh the cert.
+          fleetKubeFetch = pkgs.writeShellApplication {
+            name = "fleet-kube-fetch";
+            runtimeInputs = with pkgs; [
+              openssh
+              coreutils
+              gnused
+            ];
+            text = ''
+              set -euo pipefail
+
+              log() { printf '[fleet-kube-fetch] %s\n' "$*" >&2; }
+
+              host="''${1:-prl-dev-vm}"
+              kube_host="$host.local"
+
+              mkdir -p "$HOME/.kube"
+              dest="$HOME/.kube/config-$host"
+
+              log "fetching kubeconfig from $host"
+              raw="$(ssh -o BatchMode=yes "$host" 'cat /etc/rancher/k3s/k3s.yaml')"
+
+              log "rewriting server URL to https://$kube_host:6443"
+              rewritten="$(printf '%s' "$raw" | sed "s|server: https://127.0.0.1:6443|server: https://$kube_host:6443|")"
+
+              umask 077
+              printf '%s\n' "$rewritten" > "$dest"
+
+              log "wrote $dest (mode 0600)"
+              log ""
+              log "test with:"
+              log "  KUBECONFIG=$dest kubectl get nodes"
+            '';
+          };
+        in
+        {
+          fleet-bootstrap = {
+            type = "app";
+            program = "${fleetBootstrap}/bin/fleet-bootstrap";
+          };
+          fleet-kube-fetch = {
+            type = "app";
+            program = "${fleetKubeFetch}/bin/fleet-kube-fetch";
+          };
+        }
+      );
     };
 }

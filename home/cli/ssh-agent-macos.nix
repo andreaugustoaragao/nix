@@ -69,6 +69,17 @@ let
     add_key "${homeDir}/.ssh/id_rsa_personal" "/run/secrets/ssh_passphrase_personal"
     add_key "${homeDir}/.ssh/id_rsa_work"     "/run/secrets/ssh_passphrase_work"
 
+    # Fleet identity key — generated locally by `nix run .#fleet-bootstrap`,
+    # never enters sops. No passphrase, so we bypass ASKPASS entirely and
+    # call ssh-add directly. Missing key is non-fatal (host hasn't run
+    # bootstrap yet).
+    fleet_key="${homeDir}/.ssh/id_ed25519_fleet"
+    if [ -r "$fleet_key" ]; then
+      "${pkgs.openssh}/bin/ssh-add" "$fleet_key" </dev/null
+    else
+      echo "ssh-load-keys: $fleet_key missing (run: nix run .#fleet-bootstrap)"
+    fi
+
     # Block on ssh-agent so launchd treats the job as alive.
     wait "$AGENT_PID"
   '';

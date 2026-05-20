@@ -119,11 +119,17 @@
         else
           null;
       ipFlags = lib.optionalString (nodeIp != null) " --node-ip ${nodeIp} --tls-san ${nodeIp}";
+      # mDNS-published name (see system/mdns.nix). Adding it as a SAN
+      # lets remote clients reach kube-apiserver via `https://<host>.local:6443`
+      # without TLS verification errors — the form `nix run .#fleet-kube-fetch`
+      # produces. The short name is included for parity with how the
+      # SSH client config refers to the host.
+      hostSan = " --tls-san ${hostName}.local --tls-san ${hostName}";
     in
     {
       enable = true;
       role = "server";
-      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}";
+      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}${hostSan}";
     }
   );
 }
