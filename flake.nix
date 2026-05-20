@@ -311,9 +311,16 @@
               # session can SSH immediately, without re-login / launchctl
               # kickstart. Harmless if no agent is running.
               if [ -n "''${SSH_AUTH_SOCK:-}" ]; then
-                ssh-add "$KEY" </dev/null 2>/dev/null && \
-                  log "loaded key into running ssh-agent" || \
+                # Use a real if/else rather than the `A && B || C`
+                # shorthand. writeShellApplication runs shellcheck on
+                # the script body and flags the shorthand under SC2015,
+                # because C runs when A is true but B fails — which
+                # would silently misreport the agent state here.
+                if ssh-add "$KEY" </dev/null 2>/dev/null; then
+                  log "loaded key into running ssh-agent"
+                else
                   log "note: ssh-add to agent failed (re-login to pick up)"
+                fi
               fi
 
               cat >&2 <<EOF
