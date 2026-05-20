@@ -91,19 +91,32 @@ let
   # Brave's picker shows them with the right display names on first
   # launch. is_using_default_name = false stops Brave from
   # auto-renaming. Brave will populate the missing fields itself.
+  #
+  # browser.custom_chrome_frame is the Linux-only pref behind
+  # "Use system title bar and borders" in brave://settings/appearance.
+  # false → system (compositor) decorations; true → Brave's custom
+  # chrome. No managed-policy equivalent exists, so this is seeded as
+  # a first-launch default — the user can still flip it later via the
+  # settings UI. Skipped on macOS where the system frame is mandatory
+  # and the pref is meaningless.
   seedLocalState = pkgs.writeText "brave-local-state-seed.json" (
-    builtins.toJSON {
-      profile = {
-        info_cache = lib.genAttrs profileNames (name: {
-          inherit name;
-          is_using_default_name = false;
-        });
-        # last_used picks which profile opens when Brave is launched
-        # with no --profile-directory flag. Personal feels like the
-        # safer default given the web-app split.
-        last_used = "Personal";
-      };
-    }
+    builtins.toJSON (
+      {
+        profile = {
+          info_cache = lib.genAttrs profileNames (name: {
+            inherit name;
+            is_using_default_name = false;
+          });
+          # last_used picks which profile opens when Brave is launched
+          # with no --profile-directory flag. Personal feels like the
+          # safer default given the web-app split.
+          last_used = "Personal";
+        };
+      }
+      // lib.optionalAttrs (!isDarwin) {
+        browser.custom_chrome_frame = false;
+      }
+    )
   );
 
   rebuildHint =

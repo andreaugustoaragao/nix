@@ -66,6 +66,14 @@ let
     BraveTalkDisabled = true;
     BraveWalletDisabled = true;
 
+    # Pin the omnibox to always show the full URL (scheme, www., path,
+    # trailing slash). The toggle exists in brave://settings/appearance
+    # and as a right-click "Always show full URLs" entry on the address
+    # bar — enforcing it via policy removes both affordances and locks
+    # the state across profiles. Brave-specific policy; Chromium
+    # upstream has no equivalent, so this lives in bravePolicies only.
+    ShowFullUrlsInAddressBar = true;
+
     # Force-install + force-pin Bitwarden, Vimium, Markdown Viewer in
     # every profile. Stronger than home-manager's programs.brave.
     # extensions (which only drops an External Extensions JSON and
