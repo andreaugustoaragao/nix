@@ -116,7 +116,17 @@
       set -g pane-active-border-style 'fg=#89b4fa,bg=default'
       set -g pane-border-style 'fg=#585b70,bg=default'
 
-      set -g window-active-style 'fg=default,bg=#1e1e2e'
+      # Pane backgrounds: active pane sinks to crust (#11111b),
+      # inactive panes ride higher on base (#1e1e2e). Mental model is
+      # "focused pane is the dark well, the rest are raised/dimmed".
+      # Without window-style set, inactive panes fall through to the
+      # terminal default, which on kitty here matches base — making
+      # both look identical. The blue pane-active-border above is
+      # still the primary cue, this just adds a background tint for
+      # split-screen layouts where the border is a thin line at
+      # terminal-cell aspect.
+      set -g window-style        'fg=default,bg=#1e1e2e'
+      set -g window-active-style 'fg=default,bg=#11111b'
 
       bind r source-file ~/.config/tmux/tmux.conf \; display-message "tmux.conf reloaded"
 
