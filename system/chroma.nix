@@ -1,4 +1,5 @@
 {
+  lib,
   owner,
   ...
 }:
@@ -43,14 +44,37 @@ in
     };
   };
 
+  # Take docker-chroma.service OFF the boot transaction and bind it to
+  # docker.service. The oci-containers module defaults to
+  # WantedBy=multi-user.target, which at boot pulls chroma in *before*
+  # the lazy-loaded docker daemon has had a chance to start — chroma
+  # then burns through its 5-restart budget in under a second against a
+  # dead socket and ends up permanently failed even after docker-lazy
+  # later brings docker up.
+  #
+  # Hooking chroma to docker.service via Wants (= reverse of
+  # `wantedBy = [ "docker.service" ]`) + PartOf means docker-lazy
+  # starting docker.service automatically pulls chroma in, and chroma
+  # cleanly follows docker through stop/restart cycles.
+  #
+  # RestartSec/StartLimit* absorb the inevitable race between
+  # `dockerd` declaring ready and `docker run` actually succeeding.
+  systemd.services.docker-chroma = {
+    wantedBy = lib.mkForce [ "docker.service" ];
+    partOf = [ "docker.service" ];
+    serviceConfig = {
+      RestartSec = lib.mkForce "5s";
+    };
+    unitConfig = {
+      StartLimitBurst = 10;
+      StartLimitIntervalSec = 120;
+    };
+  };
+
   # Ensure the bind-mount source exists before docker tries to use it
   # — without this the daemon creates it as root:root and the user
-  # service later struggles to read it. The oci-containers module
-  # already wires docker-chroma.service to After=docker.service, and
-  # the docker daemon on this flake is lazy-loaded (~15s after
-  # graphical.target — see system/virtualization.nix), so chroma
-  # starts once docker comes up. The user-mode fulcrum service has
-  # Restart=on-failure / RestartSec=5s and retries until chroma is
+  # service later struggles to read it. The user-mode fulcrum service
+  # has Restart=on-failure / RestartSec=5s and retries until chroma is
   # reachable on localhost:8000.
   systemd.tmpfiles.rules = [
     "d ${chromaDataDir} 0755 ${owner.name} users -"

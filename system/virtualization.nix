@@ -16,10 +16,20 @@
     settings.Manager.DefaultTimeoutStopSec = "30s";
 
     services = {
-      # Lazy-load Docker: Remove from critical boot path and start after graphical session
+      # Lazy-load Docker: removed from the boot transaction via
+      # `wantedBy = mkForce [ ]`, then explicitly started ~15s after
+      # graphical.target by docker-lazy.service below.
+      #
+      # We deliberately do NOT add `after = [ "graphical.target" ]` here:
+      # combined with silence-log-martians.service (After=docker.service,
+      # WantedBy=multi-user.target) and the standard multi-user→graphical
+      # ordering, that creates a cycle systemd resolves by dropping
+      # docker.service/start from the boot transaction. The socket then
+      # comes up without the daemon, and any oci-container pulled in by
+      # multi-user.target (e.g. docker-chroma.service) hard-fails before
+      # docker-lazy can rescue it.
       docker = {
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
-        after = [ "graphical.target" ]; # Start after graphical target
         requisite = [ "network-online.target" ]; # Still require network
         serviceConfig = {
           # Default is KillMode=process which only kills dockerd itself,
