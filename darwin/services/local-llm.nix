@@ -51,6 +51,15 @@ let
   bindHost = "10.211.55.2";
   port = 8080;
 
+  # Download the GGUF to `.tmp` and atomically rename on success. The
+  # naive `if [ -s $path ]; then exit 0` pattern accepts any partial
+  # download as "complete" — if launchd reaps curl mid-stream (sleep,
+  # crash, throttle), the next agent start skips re-downloading and
+  # llama-server bombs out with `tensor data is not within the file
+  # bounds`. Storing progress under `.tmp` keeps the final path
+  # missing until the download truly finishes, so a restart resumes
+  # via curl --continue-at - on the same .tmp file instead of
+  # trusting a truncated artifact.
   ensureModel = pkgs.writeShellScript "local-llm-ensure-model" ''
     set -euo pipefail
     if [ -s ${lib.escapeShellArg modelPath} ]; then
@@ -62,8 +71,9 @@ let
       --location \
       --fail \
       --continue-at - \
-      --output ${lib.escapeShellArg modelPath} \
+      --output ${lib.escapeShellArg "${modelPath}.tmp"} \
       ${lib.escapeShellArg modelUrl}
+    mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
   '';
 
   startScript = pkgs.writeShellScript "local-llm-start" ''

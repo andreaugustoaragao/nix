@@ -39,6 +39,10 @@ let
   bindHost = "10.211.55.2";
   port = 8081;
 
+  # See local-llm.nix for the rationale on .tmp + atomic rename —
+  # a partial download from an interrupted curl would otherwise be
+  # accepted as complete on the next start, and whisper-server would
+  # silently load a truncated model.
   ensureModels = pkgs.writeShellScript "whisper-server-ensure-models" ''
     set -euo pipefail
     mkdir -p ${lib.escapeShellArg modelDir}
@@ -46,15 +50,17 @@ let
       echo "Downloading Whisper model (~1.6GB) -> ${modelPath}"
       ${pkgs.curl}/bin/curl \
         --location --fail --continue-at - \
-        --output ${lib.escapeShellArg modelPath} \
+        --output ${lib.escapeShellArg "${modelPath}.tmp"} \
         ${lib.escapeShellArg modelUrl}
+      mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
     fi
     if [ ! -s ${lib.escapeShellArg vadModelPath} ]; then
       echo "Downloading Silero VAD model (~2MB) -> ${vadModelPath}"
       ${pkgs.curl}/bin/curl \
         --location --fail --continue-at - \
-        --output ${lib.escapeShellArg vadModelPath} \
+        --output ${lib.escapeShellArg "${vadModelPath}.tmp"} \
         ${lib.escapeShellArg vadModelUrl}
+      mv ${lib.escapeShellArg "${vadModelPath}.tmp"} ${lib.escapeShellArg vadModelPath}
     fi
   '';
 
