@@ -80,7 +80,7 @@
   "showCapsLockIndicator": true,
   "controlCenterShowNetworkIcon": true,
   "controlCenterShowBluetoothIcon": true,
-  "controlCenterShowAudioIcon": true,
+  "controlCenterShowAudioIcon": false,
   "controlCenterShowAudioPercent": false,
   "controlCenterShowVpnIcon": true,
   "controlCenterShowBrightnessIcon": false,
@@ -516,6 +516,10 @@
         },
         {
           "id": "battery",
+          "enabled": true
+        },
+        {
+          "id": "volumeSlider",
           "enabled": true
         },
         {

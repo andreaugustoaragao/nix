@@ -81,6 +81,9 @@ let
     diskUsageBar = ./dms-plugins/disk-usage;
     # Native DMS bar pill + popout: CPU package temps, board fans, GPU, RAM, NVMe.
     thermalMonitor = ./dms-plugins/thermal-monitor;
+    # Inline volume slider: drags the default PipeWire sink, wheel-scrolls,
+    # icon-click toggles mute. Sits next to the control-center button.
+    volumeSlider = ./dms-plugins/volume-slider;
   };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
@@ -260,6 +263,11 @@ let
     };
     thermalMonitor = {
       enabled = true;
+    };
+    volumeSlider = {
+      enabled = true;
+      # Bar pill width in logical pixels. Bump if the slider feels cramped.
+      sliderWidth = 160;
     };
   };
 

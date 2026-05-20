@@ -120,4 +120,5 @@ This flake manages 3 machines via `machines.toml`:
 - Follow the existing style of each file (indentation, attribute ordering, comment conventions).
 - If adding a new application, add it to the appropriate existing module's `home.packages` or `environment.systemPackages` list. Only create a new module file if the app needs non-trivial configuration (options, dotfiles, services).
 - Prefer `home.packages` over `environment.systemPackages` unless the package genuinely needs to be system-wide.
+- **`git add` every new file the moment you create it.** Nix flakes only see files in the git index — untracked files are silently omitted from the flake's store snapshot, which surfaces as `path '/nix/store/...-source/<your file>' does not exist` errors at evaluation time. Run `git add <path>` immediately after `write`-ing a new file, before suggesting a rebuild. No need to commit — staging is enough for flake builds.
 - After changes, suggest the rebuild command: `sudo nixos-rebuild switch --flake /home/aragao/projects/personal/nix#$(hostname)`.

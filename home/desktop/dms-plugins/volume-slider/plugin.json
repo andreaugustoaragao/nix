@@ -1,0 +1,12 @@
+{
+  "id": "volumeSlider",
+  "name": "Volume Slider (Bar)",
+  "description": "Inline horizontal volume slider for the DankBar. Drag to set, scroll to nudge, click the speaker icon to toggle mute. Reads/writes the default PipeWire sink via DMS's AudioService.",
+  "version": "1.0.0",
+  "author": "aragao",
+  "icon": "volume_up",
+  "type": "widget",
+  "capabilities": ["dankbar-widget"],
+  "component": "./VolumeSliderWidget.qml",
+  "permissions": []
+}
