@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   inputs,
@@ -7,7 +6,6 @@
   hostName,
   autoLogin,
   useDms ? false,
-  multiSession ? false,
   ...
 }:
 
@@ -16,10 +14,6 @@ let
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
-  # DMS's greeter is niri-only (compositor.name = "niri"), so when we
-  # want a real session picker (multiSession) we skip importing the DMS
-  # greeter module and let tuigreet drive the login screen instead.
-  useDmsGreeter = useDms && !multiSession;
 in
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
@@ -29,9 +23,9 @@ in
   # (programs.dank-material-shell.greeter.*) only exists when its module
   # is imported — using lib.optionalAttrs so the assignment itself is
   # absent on hosts that don't import it.
-  imports = lib.optionals useDmsGreeter [ inputs.dms.nixosModules.greeter ];
+  imports = lib.optionals useDms [ inputs.dms.nixosModules.greeter ];
 }
-// lib.optionalAttrs (useDmsGreeter && !autoLogin) {
+// lib.optionalAttrs (useDms && !autoLogin) {
   programs.dank-material-shell.greeter = {
     enable = true;
     compositor.name = "niri";
@@ -45,20 +39,6 @@ in
 }
 // {
 
-  # Install Plasma 6 (Wayland) alongside niri and register niri as a
-  # selectable wayland-session. tuigreet (see greetd command below)
-  # reads from config.services.displayManager.sessionData.desktops,
-  # which is the merge of every package in sessionPackages plus
-  # whatever services.desktopManager.plasma6 contributes
-  # (kdePackages.plasma-workspace). Gated on multiSession so other
-  # hosts don't pull Plasma into their closure. Lives in this final
-  # `//`-merged block so its services.* keys aren't clobbered by the
-  # services.greetd assignment below — see CLAUDE.md note about
-  # `//` being shallow.
-  services.desktopManager.plasma6.enable = lib.mkIf multiSession true;
-  services.displayManager.sessionPackages = lib.mkIf multiSession [ pkgs-unstable.niri ];
-
-  # Greetd configuration with conditional auto-login
   services.greetd = {
     enable = true;
     settings =
@@ -76,15 +56,7 @@ in
           default_session = {
             user = "greeter";
           }
-          // lib.optionalAttrs multiSession {
-            # Session picker: tuigreet lists every .desktop under the
-            # merged sessionData path. Picking niri runs its .desktop's
-            # `Exec=niri-session`, which resolves to the hiPrio wrapper
-            # below (preserving the polkit-scope fix); picking plasma
-            # runs startplasma-wayland.
-            command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions";
-          }
-          // lib.optionalAttrs (!useDms && !multiSession) {
+          // lib.optionalAttrs (!useDms) {
             # Interactive tuigreet — replaced by DMS greeter when useDms.
             command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${pkgs-unstable.niri}/bin/niri --session'";
           };

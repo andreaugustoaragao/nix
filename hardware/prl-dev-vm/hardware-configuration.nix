@@ -146,9 +146,4 @@
     enable = true;
     package = pkgs.prl-tools;
   };
-
-  # TEMP — niri multi-monitor debug: disable prltoolsd to test whether
-  # it's the channel Parallels uses to enable Virtual-2 at session start.
-  # Revert by removing this block once the test is done.
-  systemd.services.prltoolsd.enable = false;
 }

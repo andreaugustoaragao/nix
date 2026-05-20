@@ -88,7 +88,8 @@
       # Darwin-platform predicate. macOS hosts live under
       # /Users/<name> and are built with darwinSystem; everywhere else
       # we assume Linux and use nixosSystem.
-      isDarwinPlatform = platform: platform == "aarch64-darwin" || platform == "x86_64-darwin";
+      isDarwinPlatform =
+        platform: platform == "aarch64-darwin" || platform == "x86_64-darwin";
 
       homePrefixFor = platform: if isDarwinPlatform platform then "/Users" else "/home";
 
@@ -116,10 +117,6 @@
         # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
         # hyprpolkitagent) are not autostarted so DMS owns the screen.
         useDms = host.useDms or false;
-        # Install Plasma 6 alongside niri and switch the greeter to a
-        # session picker. Used for debugging compositor-specific
-        # display detection issues; off everywhere else.
-        multiSession = host.multiSession or false;
         # Optional homebrew casks / brews for Darwin hosts. Ignored on
         # Linux where the darwin/homebrew.nix module isn't imported.
         homebrewCasks = host.homebrewCasks or [ ];
@@ -141,7 +138,8 @@
       };
 
       # Partition machines.toml entries by platform.
-      machinesBy = pred: nixpkgs.lib.filterAttrs (_: host: pred host.platform) metadata.machines;
+      machinesBy =
+        pred: nixpkgs.lib.filterAttrs (_: host: pred host.platform) metadata.machines;
       linuxMachines = machinesBy (p: !isDarwinPlatform p);
       darwinMachines = machinesBy isDarwinPlatform;
     in

@@ -31,12 +31,8 @@ profile = "vm"
 stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
-autoLogin = false
+autoLogin = true
 useDms = true
-# Install Plasma 6 alongside niri and use tuigreet to pick the
-# session at login — needed to troubleshoot why KWin sees both
-# displays inside this Parallels VM while niri sees one.
-multiSession = true
 
 # Same shape as prl-dev-vm, but runs under VMware Fusion on Apple
 # Silicon (mac-work). The hypervisor split lives entirely in
