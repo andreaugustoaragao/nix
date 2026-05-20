@@ -8,19 +8,35 @@
 }:
 
 let
-  # Shared model identity — same on workstation (which hosts the
-  # server) and on the dev VMs (which point their clients at the Mac).
-  # `model.id` is the alias the OpenAI-compat API exposes, so
-  # `~/.pi/agent/models.json` and the wrappers below resolve the same
-  # name regardless of which host actually serves the weights.
-  model = {
-    id = "qwen3.6-35b-a3b-local";
-    name = "Qwen3.6 35B A3B Local";
-    repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
-    file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
-    contextWindow = 196608;
-    maxTokens = 8192;
-  };
+  # Model identity differs per host because the quant does:
+  #   - workstation (16 GB VRAM, ROCm): forced into Q4_K_XL by
+  #     `--n-cpu-moe 28`. Alias `qwen3.6-35b-a3b-local`.
+  #   - dev VMs (client → mac-work, 128 GB unified memory): Q8_K_XL
+  #     of the same MoE, near-FP16 quality. Alias
+  #     `qwen3.6-35b-a3b-q8-local`, kept distinct so pi history
+  #     reflects which quant served a turn.
+  # The `repo`/`file` fields are only consulted on the server side
+  # (workstation systemd unit + download script); VM clients only
+  # care about `id`, `contextWindow`, `maxTokens` for models.json.
+  model =
+    if isWorkstation then
+      {
+        id = "qwen3.6-35b-a3b-local";
+        name = "Qwen3.6 35B A3B Local";
+        repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
+        file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
+        contextWindow = 196608;
+        maxTokens = 8192;
+      }
+    else
+      {
+        id = "qwen3.6-35b-a3b-q8-local";
+        name = "Qwen3.6 35B A3B Local (Q8)";
+        repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
+        file = "Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf";
+        contextWindow = 196608;
+        maxTokens = 8192;
+      };
 
   # Where the OpenAI-compat API lives from this host's POV.
   # workstation runs llama-server itself; VM hosts reach the mac-work

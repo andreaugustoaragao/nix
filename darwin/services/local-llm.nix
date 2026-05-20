@@ -24,14 +24,18 @@ let
   # wiring; Apple Silicon needs no equivalent toggle.
   llama-cpp-metal = llama-pkgs.llama-cpp;
 
-  # Identical to home/services/local-llm.nix so `local-pi` clients
-  # resolve the same `${model.id}` to the same weights regardless of
-  # which host happens to be serving them today.
+  # M5 Max + 128 GB unified memory has none of the 16 GB-VRAM
+  # constraints that forced Q4 on workstation. Bump to Q8_K_XL of
+  # the same MoE — ~38 GB resident, near-FP16 quality at half the
+  # size, KV cache @196k still fits comfortably. The alias is
+  # deliberately distinct from workstation's `qwen3.6-35b-a3b-local`
+  # so pi conversation history makes it clear which quant served
+  # any given turn (workstation = Q4, mac-work = Q8).
   model = {
-    id = "qwen3.6-35b-a3b-local";
-    name = "Qwen3.6 35B A3B Local";
+    id = "qwen3.6-35b-a3b-q8-local";
+    name = "Qwen3.6 35B A3B Local (Q8)";
     repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
-    file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
+    file = "Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf";
     contextWindow = 196608;
     maxTokens = 8192;
   };
