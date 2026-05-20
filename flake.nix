@@ -411,7 +411,10 @@
                 fi
               fi
               ln -sf "$dest" "$default_link"
-              log "~/.kube/config -> ~/.kube/config-$host (current default)"
+              # SC2088: `~` inside double quotes is literal text, not
+              # $HOME, so use $HOME explicitly. Bonus: the printed path
+              # is the real one users can copy into other commands.
+              log "$HOME/.kube/config -> $HOME/.kube/config-$host (current default)"
               log ""
               log "test with:"
               log "  kubectl get nodes"
