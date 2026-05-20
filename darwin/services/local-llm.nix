@@ -80,6 +80,34 @@ let
     mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
   '';
 
+  # Flags here are tuned for Metal on Apple Silicon (M5 Max, 128 GB
+  # unified memory) and intentionally diverge from the workstation's
+  # ROCm flags in home/services/local-llm.nix. Two notable choices:
+  #
+  # 1. KV cache stays at default f16 — NOT q8_0 like the workstation.
+  #    The workstation quantizes KV because its 16 GB VRAM can't hold
+  #    fp16 KV at 196k context; here there's ~18 GiB headroom even
+  #    after the 36 GiB Q8 weights, and Metal's flash-attn path is
+  #    well-optimized for fp16. Benchmarked on M5 Max with this exact
+  #    GGUF + MTP speculative decoding: at depth=24k input,
+  #    f16 KV decodes ~21% faster than q8_0 KV (34.8 vs 28.8 tok/s)
+  #    and prefills ~20% faster (524 vs 437 tok/s). q8_0 KV is a
+  #    VRAM-pressure workaround, not a perf optimization.
+  #
+  # 2. ubatch-size = batch-size = 2048 — Metal benefits from one big
+  #    ubatch per prefill chunk. Pairing must be done together: the
+  #    benchmark showed ub=2048 with q8 KV actually regresses ~10%
+  #    (mixed dequant paths fight the larger kernels), but f16 KV +
+  #    ub=2048 is the global optimum across both shallow and deep
+  #    prompts. Workstation keeps ub=1024 because its smaller VRAM
+  #    can't comfortably hold the larger activation buffer alongside
+  #    the offloaded MoE experts.
+  #
+  # Threads pinned to 6 = M5 Max P-core count (`hw.perflevel0.physicalcpu`).
+  # With --n-gpu-layers 99 the heavy ops are on Metal, but the few
+  # CPU-resident ops (sampling, tokenization, MTP draft scoring) run
+  # faster on P-cores than the default mixed P+E pool. Explicit pin
+  # also stabilizes results across macOS scheduler changes.
   startScript = pkgs.writeShellScript "local-llm-start" ''
     set -euo pipefail
     ${ensureModel}
@@ -91,10 +119,9 @@ let
       --ctx-size ${toString model.contextWindow} \
       --n-gpu-layers 99 \
       --flash-attn on \
-      --cache-type-k q8_0 \
-      --cache-type-v q8_0 \
       --batch-size 2048 \
-      --ubatch-size 1024 \
+      --ubatch-size 2048 \
+      --threads 6 \
       --parallel 1 \
       --cont-batching \
       --spec-type draft-mtp \
