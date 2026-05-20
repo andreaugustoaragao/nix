@@ -15,6 +15,7 @@
     ./sops.nix
     ./certs.nix
     ./auto-upgrade.nix
+    ./services
   ];
 
   # Hostname is exposed via networking.hostName under nix-darwin too —

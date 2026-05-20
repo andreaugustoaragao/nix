@@ -2,9 +2,23 @@
 
 let
   # Enable Vulkan on the workstation (AMD RX 7900 XT via Mesa RADV) for
-  # ~10x realtime transcription. Other hosts stay on the CPU build.
+  # ~10x realtime transcription. Other hosts stay on the CPU build —
+  # but in practice non-workstation hosts use the remote-whisper path
+  # below and never invoke whisper-cli locally.
   whisperPkg =
     if isWorkstation then pkgs.whisper-cpp.override { vulkanSupport = true; } else pkgs.whisper-cpp;
+
+  # On non-workstation hosts (prl-dev-vm, vmw-dev-vm, hp-laptop) the
+  # local CPU build of whisper-cli is hopelessly slow for real-time
+  # call transcription. Point the script at the mac-work LaunchAgent
+  # (darwin/services/whisper-server.nix) by default; users can
+  # override at runtime by exporting WHISPER_SERVER_URL="" to force
+  # the local-binary path, or by pointing it at a different host.
+  #
+  # Workstation keeps the empty default so the existing Vulkan path
+  # stays the only one in play.
+  defaultWhisperServerUrl =
+    if isWorkstation then "" else "http://mac-work.local:8081/v1/audio/transcriptions";
 
   binPath = pkgs.lib.makeBinPath [
     pkgs.pipewire # pw-record; its PipeWire-native capture path avoids the
@@ -47,10 +61,31 @@ let
                 data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return []
+
+        # Two segment shapes:
+        #   - whisper.cpp CLI (`-oj`): top-level "transcription" with
+        #     {offsets:{from,to},text}, `from` is milliseconds.
+        #   - whisper.cpp / OpenAI server (response_format=verbose_json):
+        #     top-level "segments" with {start,end,text}, `start` is
+        #     floating-point seconds.
+        # record-call now consumes whichever shape its transcribe
+        # backend produced — local whisper-cli vs remote whisper-server.
+        if "transcription" in data:
+            segments = [
+                (s.get("offsets", {}).get("from", 0) / 1000.0, s.get("text", ""))
+                for s in data["transcription"]
+            ]
+        elif "segments" in data:
+            segments = [
+                (float(s.get("start", 0)), s.get("text", ""))
+                for s in data["segments"]
+            ]
+        else:
+            return []
+
         out = []
-        for s in data.get("transcription", []):
-            t = s.get("offsets", {}).get("from", 0) / 1000.0
-            text = s.get("text", "").strip()
+        for t, text in segments:
+            text = (text or "").strip()
             if not text:
                 continue
             abs_t = t + win_off
@@ -237,6 +272,14 @@ in
             set -euo pipefail
             export PATH="${binPath}:$PATH"
 
+            # When set, transcription is delegated to a remote whisper.cpp
+            # HTTP server (OpenAI Whisper API shape, response_format=verbose_json).
+            # Defaults to mac-work's LaunchAgent on non-workstation hosts;
+            # empty on workstation so the local Vulkan whisper-cli is used.
+            # Override at runtime to force local (`WHISPER_SERVER_URL=`) or
+            # point at a different server.
+            WHISPER_SERVER_URL="''${WHISPER_SERVER_URL:-${defaultWhisperServerUrl}}"
+
             SINK_NAME="record-call-sink"
             # ffmpeg writes fine-grained fragments; the watcher assembles
             # overlapping windows from them so Whisper sees ~7s of audio
@@ -332,6 +375,12 @@ in
             }
 
             ensure_model() {
+              # In remote mode the mac-work LaunchAgent owns the model
+              # files — don't pollute this host's cache with a copy that
+              # will never be loaded.
+              if [ -n "$WHISPER_SERVER_URL" ]; then
+                return 0
+              fi
               if [ ! -f "$MODEL_PATH" ]; then
                 echo "Downloading Whisper model ($MODEL_NAME, ~1.6GB)..."
                 mkdir -p "$MODEL_DIR"
@@ -343,6 +392,33 @@ in
                 mkdir -p "$MODEL_DIR"
                 curl -fL --progress-bar -o "$VAD_MODEL_PATH.tmp" "$VAD_MODEL_URL"
                 mv "$VAD_MODEL_PATH.tmp" "$VAD_MODEL_PATH"
+              fi
+            }
+
+            # Transcribe one 16kHz mono WAV to a json file at $2.json.
+            # Local: whisper-cli with --vad against the workstation's
+            # Vulkan-accelerated build, emits whisper.cpp "transcription"
+            # shape. Remote: POST to whisper-server, emits OpenAI
+            # "segments" shape. mergePy understands both.
+            #
+            # Args: <input.wav> <output_prefix> <model_path> <vad_model_path>
+            transcribe_audio() {
+              local in="$1" out_prefix="$2" model="$3" vad_model="$4"
+              if [ -n "$WHISPER_SERVER_URL" ]; then
+                # whisper-server's --vad applies to every request; client
+                # doesn't pass it again. response_format=verbose_json so
+                # we get segment-level start/end timestamps that mergePy
+                # needs for window-relative emit filtering.
+                curl -fsS --max-time 120 \
+                  -F "file=@$in" \
+                  -F "response_format=verbose_json" \
+                  -F "language=en" \
+                  "$WHISPER_SERVER_URL" \
+                  > "$out_prefix.json"
+              else
+                whisper-cli -m "$model" -l en -nt -oj -of "$out_prefix" \
+                  --vad --vad-model "$vad_model" \
+                  -f "$in" </dev/null >/dev/null 2>&1
               fi
             }
 
@@ -412,15 +488,13 @@ in
               # on silence.
               local call_json="-" mic_json="-"
               if [ -s "$work/call.wav" ]; then
-                whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/call" \
-                  --vad --vad-model "$VAD_MODEL" \
-                  -f "$work/call.wav" </dev/null >"$work/call.log" 2>&1 &
+                ( transcribe_audio "$work/call.wav" "$work/call" "$MODEL" "$VAD_MODEL" ) \
+                  >"$work/call.log" 2>&1 &
                 call_json="$work/call.json"
               fi
               if [ -s "$work/mic.wav" ]; then
-                whisper-cli -m "$MODEL" -l en -nt -oj -of "$work/mic" \
-                  --vad --vad-model "$VAD_MODEL" \
-                  -f "$work/mic.wav" </dev/null >"$work/mic.log" 2>&1 &
+                ( transcribe_audio "$work/mic.wav" "$work/mic" "$MODEL" "$VAD_MODEL" ) \
+                  >"$work/mic.log" 2>&1 &
                 mic_json="$work/mic.json"
               fi
               wait
@@ -629,10 +703,16 @@ in
               # Grace period for inotify close_write to fire on the final segment
               # and the watcher to spawn whisper-cli on it.
               sleep 3
-              # Wait until no whisper-cli instance is running (all chunks processed).
+              # Wait until no transcription is in flight (all chunks
+              # processed). Two shapes to cover:
+              #   - local: `whisper-cli` subprocess of the watcher.
+              #   - remote: `curl ... /v1/audio/transcriptions` subprocess.
               # Cap at 20 minutes to avoid hanging forever if something wedges.
               for _ in $(seq 1 1200); do
-                pgrep -f 'whisper-cli' >/dev/null 2>&1 || break
+                if ! pgrep -f 'whisper-cli' >/dev/null 2>&1 \
+                   && ! pgrep -f 'audio/transcriptions' >/dev/null 2>&1; then
+                  break
+                fi
                 sleep 1
               done
               # Terminate the watcher and its children (inotifywait, pipe subshell).
@@ -812,8 +892,7 @@ in
               trap 'rm -rf "$WORK"' EXIT
               ffmpeg -hide_banner -loglevel error -y -i "$SRC" \
                 -ac 1 -ar 16000 -c:a pcm_s16le "$WORK/mono.wav"
-              whisper-cli -m "$MODEL_PATH" -l en -nt -oj -of "$WORK/out" \
-                -f "$WORK/mono.wav" >/dev/null 2>&1
+              transcribe_audio "$WORK/mono.wav" "$WORK/out" "$MODEL_PATH" "$VAD_MODEL_PATH"
               python3 ${mergePy} "$WORK/out.json" - 0 0 -1 0
             }
 

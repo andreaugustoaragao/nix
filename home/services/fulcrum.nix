@@ -4,6 +4,7 @@
   pkgs,
   lib,
   hostName,
+  isWorkstation,
   ...
 }:
 
@@ -79,6 +80,18 @@ in
         # override Fulcrum falls back to `http://chroma:8000`, which only
         # resolves inside docker-compose's network.
         "CHROMA_BASE_URL=http://localhost:8000"
+      ]
+      # Voice-message transcription. Non-workstation hosts have no
+      # local whisper binary on PATH (the Dockerfile bakes one in,
+      # but source-mode fulcrum doesn't), so the upstream adapter's
+      # CLI shellout would fail. Point it at mac-work's whisper-server
+      # LaunchAgent (darwin/services/whisper-server.nix), reached over
+      # the Parallels shared network via mDNS. Adapter checks for this
+      # env and switches to HTTP mode — see whisper-adapter.ts.
+      ++ lib.optionals (!isWorkstation) [
+        "WHISPER_SERVER_URL=http://mac-work.local:8081/v1/audio/transcriptions"
+      ]
+      ++ [
         # Reuse the vault's .fulcrum/ as the on-disk data dir so config.json,
         # sessions.json, conversations.db, vault.db, etc. travel with the
         # notes repo across machines — instead of fulcrum spinning up an
