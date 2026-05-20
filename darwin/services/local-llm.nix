@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   inputs,
@@ -129,9 +130,16 @@ in
       # pulls the GGUF from HuggingFace dies with
       # `SSL certificate ... unable to get local issuer certificate`
       # and the agent restart-loops on exit code 60 forever.
+      #
+      # We deliberately re-use the combined Avaya + Zscaler + system
+      # bundle that darwin/certs.nix exports via environment.variables.
+      # Pointing at plain pkgs.cacert would still TLS-fail behind
+      # Zscaler's MITM proxy, since the corporate root isn't in the
+      # Mozilla store. Reading from `config.environment.variables` also
+      # means any future cert added to certs.nix is automatically
+      # picked up here — no second source of truth.
       EnvironmentVariables = {
-        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        inherit (config.environment.variables) SSL_CERT_FILE NIX_SSL_CERT_FILE;
       };
     };
   };

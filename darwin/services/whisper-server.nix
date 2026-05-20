@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   owner,
@@ -107,11 +108,12 @@ in
       # being served. Whisper requests are bursty (per voice message
       # or per record-call window) — Interactive is wasteful here.
       ProcessType = "Adaptive";
-      # See local-llm.nix for why these are needed — launchd's bare
-      # env breaks curl's HTTPS to HuggingFace during model download.
+      # See local-llm.nix for the full rationale — launchd's bare env
+      # breaks curl behind Zscaler. Re-use the Avaya/Zscaler/system
+      # bundle from darwin/certs.nix so we follow the same source of
+      # truth the rest of the Darwin toolchain uses.
       EnvironmentVariables = {
-        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        inherit (config.environment.variables) SSL_CERT_FILE NIX_SSL_CERT_FILE;
       };
     };
   };
