@@ -174,6 +174,9 @@
     })
   ];
 
-  # Create notes directory structure
-  home.file."projects/work/notes/.gitkeep".text = "";
+  # NOTE: don't create a `.gitkeep` here — the notes-sync service clones the
+  # notes repo into ~/projects/work/notes, and a home-manager-managed file at
+  # that path would (a) conflict with the cloned repo's own files and (b) show
+  # up as a permanent modification (its store-backed content differs from what
+  # was committed). The sync script handles parent-directory creation itself.
 }

@@ -32,40 +32,26 @@
       # Script to sync notes with git
       ExecStart = pkgs.writeShellScript "notes-sync" ''
                 set -eu
-                
-                # Load SSH keys automatically using SOPS-encrypted passphrases
+
+                # Load SSH keys — fatal on failure. Without these we cannot reach
+                # GitHub, and proceeding would corrupt local state (the clone
+                # would fail and the init fallback would create a remote-less
+                # repo that the script then accretes commits into forever).
                 echo "Loading SSH keys..."
-                if command -v ssh-add-keys >/dev/null 2>&1; then
-                  # Temporarily disable errexit for SSH key loading
-                  set +e
-                  ssh-add-keys
-                  key_load_result=$?
-                  set -e
-                  
-                  if [[ $key_load_result -ne 0 ]]; then
-                    echo "Warning: ssh-add-keys failed, but continuing with sync"
-                    echo "SSH keys may need to be loaded manually or passphrases may be missing from SOPS"
-                  fi
-                else
-                  echo "Warning: ssh-add-keys command not found, proceeding without key loading"
+                if ! command -v ssh-add-keys >/dev/null 2>&1; then
+                  echo "Fatal: ssh-add-keys not found in PATH" >&2
+                  exit 1
                 fi
-                
-                # Preload GPG keys automatically using SOPS-encrypted passphrases  
+                ssh-add-keys
+
+                # Preload GPG keys — fatal on failure. Without these, signed
+                # commits fail mid-sync and leave the repo half-updated.
                 echo "Preloading GPG keys..."
-                if command -v gpg-add-keys >/dev/null 2>&1; then
-                  # Temporarily disable errexit for GPG key loading
-                  set +e
-                  gpg-add-keys
-                  gpg_load_result=$?
-                  set -e
-                  
-                  if [[ $gpg_load_result -ne 0 ]]; then
-                    echo "Warning: gpg-add-keys failed, but continuing with sync"
-                    echo "GPG keys may need to be loaded manually or passphrases may be missing from SOPS"
-                  fi
-                else
-                  echo "Warning: gpg-add-keys command not found, proceeding without GPG key preloading"
+                if ! command -v gpg-add-keys >/dev/null 2>&1; then
+                  echo "Fatal: gpg-add-keys not found in PATH" >&2
+                  exit 1
                 fi
+                gpg-add-keys
                 
                 # Function to send desktop notification — only fires on failures.
                 # All call sites still pass success/info messages, but those are
@@ -131,7 +117,10 @@
         Created: $(date '+%Y-%m-%d %H:%M:%S')
         EOF
                     ${pkgs.git}/bin/git add README.md
-                    ${pkgs.git}/bin/git commit -m "Initial commit: Add README"
+                    # Skip GPG signing on the seed commit — it runs before the
+                    # repo-local commit.gpgsign config is set, and we don't want
+                    # the bootstrap to depend on GPG agent state.
+                    ${pkgs.git}/bin/git commit --no-gpg-sign -m "Initial commit: Add README"
                     
                     # Set up remote and push
                     ${pkgs.git}/bin/git remote add origin "$REMOTE_URL"
@@ -147,119 +136,105 @@
                 
                 # Ensure we're in the correct directory
                 cd "$NOTES_DIR"
-                
+
+                # Heal a half-bootstrapped repo: if .git exists but origin is
+                # missing (e.g., a prior run died between `git init` and
+                # `git remote add origin`), re-attach the remote here so every
+                # subsequent run is idempotent.
+                if ! ${pkgs.git}/bin/git remote get-url origin >/dev/null 2>&1; then
+                  echo "Origin remote missing — re-attaching to $REMOTE_URL"
+                  ${pkgs.git}/bin/git remote add origin "$REMOTE_URL"
+                fi
+
                 # Configure git settings (in case they're not set)
                 ${pkgs.git}/bin/git config user.name "andrearagao"
                 ${pkgs.git}/bin/git config user.email "aragao@avaya.com"
                 ${pkgs.git}/bin/git config user.signingkey "D8BAA25EFB1D5C5F"
                 ${pkgs.git}/bin/git config commit.gpgsign true
-                
-                # Add all changes
-                ${pkgs.git}/bin/git add .
-                
-                # Check if there are any changes to commit
-                if ${pkgs.git}/bin/git diff --cached --quiet; then
-                  echo "No changes to sync"
-                  exit 0
+
+                # Fetch remote changes FIRST, unconditionally — pulling other
+                # machines' work must not depend on this machine having local
+                # changes to commit.
+                echo "Fetching remote changes..."
+                if ! ${pkgs.git}/bin/git fetch origin main; then
+                  echo "Fetch failed"
+                  notify "❌ Notes Sync Failed" "Failed to fetch from remote. Check network connection." "critical"
+                  exit 1
                 fi
-                
-                # Only notify when there are actual changes to sync
-                notify "📝 Notes Sync" "Syncing notes changes with remote repository..."
-                
-                # Commit changes with timestamp
-                COMMIT_MSG="Auto-sync notes: $(date '+%Y-%m-%d %H:%M:%S')"
-                ${pkgs.git}/bin/git commit -m "$COMMIT_MSG"
-                
-                # Fetch remote changes first (if remote exists)
-                if ${pkgs.git}/bin/git remote | grep -q origin; then
-                  echo "Fetching remote changes..."
-                  if ! ${pkgs.git}/bin/git fetch origin main; then
-                    echo "Fetch failed - continuing without remote sync"
-                    notify "⚠️ Notes Sync Warning" "Failed to fetch from remote. Continuing with local changes only." "low"
+
+                # Merge remote into local if remote has commits we don't have.
+                LOCAL_HEAD=$(${pkgs.git}/bin/git rev-parse HEAD 2>/dev/null || echo "")
+                REMOTE_HEAD=$(${pkgs.git}/bin/git rev-parse origin/main 2>/dev/null || echo "")
+
+                if [[ -n "$REMOTE_HEAD" && -n "$LOCAL_HEAD" && "$LOCAL_HEAD" != "$REMOTE_HEAD" ]] \
+                   && ! ${pkgs.git}/bin/git merge-base --is-ancestor "$REMOTE_HEAD" "$LOCAL_HEAD"; then
+                  echo "Remote has changes. Attempting to merge..."
+
+                  if ${pkgs.git}/bin/git merge origin/main --no-edit; then
+                    echo "Successfully merged remote changes"
+                    notify "🔄 Notes Sync" "Merged remote changes with your local notes"
                   else
-                    # Check if remote has commits we don't have
-                    LOCAL_HEAD=$(${pkgs.git}/bin/git rev-parse HEAD)
-                    REMOTE_HEAD=$(${pkgs.git}/bin/git rev-parse origin/main 2>/dev/null || echo "")
-                    
-                    if [[ -n "$REMOTE_HEAD" && "$LOCAL_HEAD" != "$REMOTE_HEAD" ]]; then
-                      echo "Remote has changes. Attempting to merge..."
-                      
-                      # Try to merge, but handle conflicts gracefully
-                      if ${pkgs.git}/bin/git merge origin/main --no-edit; then
-                        echo "Successfully merged remote changes"
-                        notify "🔄 Notes Sync" "Merged remote changes with your local notes"
-                      else
-                        echo "Merge conflict detected. Auto-resolving by combining all changes..."
-                        
-                        # Find all conflicted files
-                        CONFLICTED_FILES=$(${pkgs.git}/bin/git diff --name-only --diff-filter=U)
-                        
-                        for file in $CONFLICTED_FILES; do
-                          echo "Auto-resolving conflicts in: $file"
-                          
-                          # Create a temp file to store the merged content
-                          TEMP_FILE=$(mktemp)
-                          
-                          # Extract all unique lines from both versions
-                          # This combines local and remote changes by keeping all lines
-                          {
-                            echo "# Auto-merged on $(date '+%Y-%m-%d %H:%M:%S')"
-                            echo "# This file contains all changes from both local and remote versions"
-                            echo ""
-                            
-                            # Get the content without conflict markers, combining both sides
-                            ${pkgs.gnused}/bin/sed -n '
-                              /^<<<<<<< HEAD$/,/^=======$/{ 
-                                /^<<<<<<< HEAD$/d
-                                /^=======$/d
-                                p
-                              }
-                              /^=======$/,/^>>>>>>> /{
-                                /^=======$/d
-                                /^>>>>>>> /d
-                                p
-                              }
-                              /^[^<>=]/p
-                            ' "$file"
-                          } > "$TEMP_FILE"
-                          
-                          # Replace the conflicted file with the merged version
-                          mv "$TEMP_FILE" "$file"
-                          
-                          echo "Resolved $file by combining all changes"
-                        done
-                        
-                        # Stage all resolved files
-                        ${pkgs.git}/bin/git add .
-                        
-                        # Commit the auto-resolution
-                        ${pkgs.git}/bin/git commit -m "Auto-merge: Combined all changes from local and remote $(date '+%Y-%m-%d %H:%M:%S')"
-                        
-                        echo "Successfully auto-resolved conflicts by combining all changes"
-                        notify "🔄 Notes Sync" "Auto-resolved conflicts by combining all changes from both devices"
-                      fi
-                    fi
+                    echo "Merge conflict detected. Auto-resolving by combining all changes..."
+
+                    CONFLICTED_FILES=$(${pkgs.git}/bin/git diff --name-only --diff-filter=U)
+
+                    for file in $CONFLICTED_FILES; do
+                      echo "Auto-resolving conflicts in: $file"
+                      TEMP_FILE=$(mktemp)
+                      {
+                        echo "# Auto-merged on $(date '+%Y-%m-%d %H:%M:%S')"
+                        echo "# This file contains all changes from both local and remote versions"
+                        echo ""
+                        ${pkgs.gnused}/bin/sed -n '
+                          /^<<<<<<< HEAD$/,/^=======$/{
+                            /^<<<<<<< HEAD$/d
+                            /^=======$/d
+                            p
+                          }
+                          /^=======$/,/^>>>>>>> /{
+                            /^=======$/d
+                            /^>>>>>>> /d
+                            p
+                          }
+                          /^[^<>=]/p
+                        ' "$file"
+                      } > "$TEMP_FILE"
+                      mv "$TEMP_FILE" "$file"
+                      echo "Resolved $file by combining all changes"
+                    done
+
+                    ${pkgs.git}/bin/git add .
+                    ${pkgs.git}/bin/git commit -m "Auto-merge: Combined all changes from local and remote $(date '+%Y-%m-%d %H:%M:%S')"
+                    notify "🔄 Notes Sync" "Auto-resolved conflicts by combining all changes from both devices"
                   fi
-                else
-                  echo "No remote configured yet. Add with: git remote add origin <repo-url>"
                 fi
-                
-                # Push to remote (if configured)
-                if ${pkgs.git}/bin/git remote | grep -q origin; then
+
+                # Stage and commit any local changes.
+                ${pkgs.git}/bin/git add .
+                if ! ${pkgs.git}/bin/git diff --cached --quiet; then
+                  notify "📝 Notes Sync" "Syncing notes changes with remote repository..."
+                  COMMIT_MSG="Auto-sync notes: $(date '+%Y-%m-%d %H:%M:%S')"
+                  ${pkgs.git}/bin/git commit -m "$COMMIT_MSG"
+                fi
+
+                # Push if local is ahead of remote.
+                LOCAL_HEAD=$(${pkgs.git}/bin/git rev-parse HEAD 2>/dev/null || echo "")
+                REMOTE_HEAD=$(${pkgs.git}/bin/git rev-parse origin/main 2>/dev/null || echo "")
+
+                if [[ -z "$LOCAL_HEAD" ]]; then
+                  echo "No local commits yet; nothing to push"
+                elif [[ "$LOCAL_HEAD" == "$REMOTE_HEAD" ]]; then
+                  echo "Local matches remote; nothing to push"
+                else
                   echo "Pushing to remote..."
                   if ! ${pkgs.git}/bin/git push origin main; then
-                    echo "Push failed - possibly due to conflicts or network issues"
-                    echo "Check git status manually: cd ~/projects/work/notes && git status"
+                    echo "Push failed"
                     notify "❌ Notes Sync Failed" "Failed to push to remote repository. Check network connection." "critical"
                     exit 1
-                  else
-                    notify "✅ Notes Sync Complete" "Successfully synced changes to GitHub" "low"
                   fi
-                else
-                  # Local commit successful but no remote
-                  notify "✅ Notes Sync Complete" "Changes committed locally (no remote configured)" "low"
+                  notify "✅ Notes Sync Complete" "Successfully synced changes to GitHub" "low"
                 fi
-                
+
                 echo "Notes sync completed successfully"
       '';
 

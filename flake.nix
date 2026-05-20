@@ -350,8 +350,13 @@
 
           # Pulls /etc/rancher/k3s/k3s.yaml from a fleet host over SSH,
           # rewrites the loopback server URL to the host's .local mDNS
-          # name, and drops it at ~/.kube/config-<host> with mode 0600.
-          # Idempotent: re-run after k3s reinstalls to refresh the cert.
+          # name, renames k3s's generic `default` cluster/context/user
+          # to the host name (so future multi-cluster merges don't
+          # collide), and drops it at ~/.kube/config-<host> with mode
+          # 0600. Also symlinks ~/.kube/config to point at the most
+          # recently fetched cluster, making it kubectl's default with
+          # no KUBECONFIG env var needed. Idempotent: re-run after k3s
+          # reinstalls to refresh the cert.
           fleetKubeFetch = pkgs.writeShellApplication {
             name = "fleet-kube-fetch";
             runtimeInputs = with pkgs; [
@@ -369,20 +374,48 @@
 
               mkdir -p "$HOME/.kube"
               dest="$HOME/.kube/config-$host"
+              default_link="$HOME/.kube/config"
 
               log "fetching kubeconfig from $host"
               raw="$(ssh -o BatchMode=yes "$host" 'cat /etc/rancher/k3s/k3s.yaml')"
 
-              log "rewriting server URL to https://$kube_host:6443"
-              rewritten="$(printf '%s' "$raw" | sed "s|server: https://127.0.0.1:6443|server: https://$kube_host:6443|")"
+              log "rewriting server URL and renaming default -> $host"
+              # Anchor each substitution to the YAML's structural
+              # indentation so the literal word "default" appearing
+              # inside a cert or comment can't accidentally match.
+              rewritten="$(printf '%s' "$raw" | sed \
+                -e "s|server: https://127.0.0.1:6443|server: https://$kube_host:6443|" \
+                -e "s/^  name: default\$/  name: $host/" \
+                -e "s/^    cluster: default\$/    cluster: $host/" \
+                -e "s/^    user: default\$/    user: $host/" \
+                -e "s/^current-context: default\$/current-context: $host/" \
+                -e "s/^- name: default\$/- name: $host/")"
 
               umask 077
               printf '%s\n' "$rewritten" > "$dest"
-
               log "wrote $dest (mode 0600)"
+
+              # Make this the kubectl default. Honor any existing
+              # ~/.kube/config: if it's a regular file (manually managed),
+              # back it up before replacing with our symlink. If it's
+              # already a symlink to a different target, log and replace.
+              # If it already points at our file, ln -sf is idempotent.
+              if [ -e "$default_link" ] && [ ! -L "$default_link" ]; then
+                backup="$default_link.bak-$(date +%Y%m%d-%H%M%S)"
+                log "backing up existing $default_link -> $backup"
+                mv "$default_link" "$backup"
+              elif [ -L "$default_link" ]; then
+                current_target="$(readlink "$default_link")"
+                if [ "$current_target" != "$dest" ]; then
+                  log "replacing default symlink (was: $current_target)"
+                fi
+              fi
+              ln -sf "$dest" "$default_link"
+              log "~/.kube/config -> ~/.kube/config-$host (current default)"
               log ""
               log "test with:"
-              log "  KUBECONFIG=$dest kubectl get nodes"
+              log "  kubectl get nodes"
+              log "  kubectl config get-contexts    # should show '$host' marked *"
             '';
           };
         in
