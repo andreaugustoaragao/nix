@@ -72,6 +72,12 @@ in
     alt-space        = "exec-and-forget open -a Raycast"
     alt-d            = "exec-and-forget open -a Raycast"
 
+    # Bitwarden — niri's Mod+Backslash equivalent (see
+    # home/desktop/niri.nix). The brew cask installs Bitwarden.app
+    # under /Applications; `open -a Bitwarden` foregrounds the
+    # existing window if it's already running, otherwise launches it.
+    alt-backslash    = "exec-and-forget open -a Bitwarden"
+
     # Window switcher — niri's Mod+s equivalent. Built on
     # `aerospace list-windows --all` + choose-gui as the fuzzy picker.
     # Script ships from home/cli/aerospace-window-switcher.nix.
