@@ -17,7 +17,14 @@
     ];
     extraConfig = ''
       set-option -g set-titles on
-      set-option -g set-titles-string "tmux: #S / #(tmux-window-icons #W)"
+      # Title rendering: prefer the pane title (apps like pi, nvim, k9s
+      # set it via OSC 0/2 escape sequences with meaningful content)
+      # over the window name (which gets stuck after any manual rename).
+      # `pane_title` defaults to `#H` (hostname) when the app hasn't
+      # overridden it, so the equality check distinguishes "app set a
+      # title" from "no app title, use window name". Same expression
+      # is reused in the window-status formats below.
+      set-option -g set-titles-string "tmux: #S / #{?#{==:#{pane_title},#H},#W,#{pane_title}}"
       set-option -g default-terminal "tmux-256color"
       set -ag terminal-features "xterm-kitty:RGB"
       set -ag terminal-features "xterm-ghostty:RGB"
@@ -60,8 +67,14 @@
       set -g status-position top
       set -g status-style 'bg=#181825,fg=#cdd6f4'
 
-      set -g window-status-current-format '#[fg=#1e1e2e,bold,bg=#89b4fa]#(tmux-window-icons #W)#{?window_zoomed_flag,(),}'
-      set -g window-status-format '#[fg=#6c7086,bg=default]#(tmux-window-icons #W)'
+      # Window tabs: "#I label" where label is the pane-title-or-#W
+      # cascade described on set-titles-string above. #I (window index)
+      # is always visible so you can still see numbered tabs even when
+      # a pane sets an empty title. Native tmux conditionals — no
+      # shell-out, so updates are instant on pane_title change rather
+      # than waiting for status-interval.
+      set -g window-status-current-format '#[fg=#1e1e2e,bold,bg=#89b4fa] #I #{?#{==:#{pane_title},#H},#W,#{pane_title}}#{?window_zoomed_flag,(),} '
+      set -g window-status-format '#[fg=#6c7086,bg=default] #I #{?#{==:#{pane_title},#H},#W,#{pane_title}} '
 
       set -g window-status-last-style 'fg=#bac2de,bg=default'
       set -g message-command-style bg=#181825,fg=#f9e2af
@@ -158,24 +171,6 @@
       else
         tmux switch-client -t $selected_name
       fi
-    '')
-
-    (writeShellScriptBin "tmux-window-icons" ''
-      #!/bin/sh
-
-      declare -A icons
-
-      icons["fish"]="󰈺 ";
-      icons["nvim"]=" ";
-      icons["vi"]=" ";
-      icons["vim"]=" ";
-      icons["lazydocker"]=" ";
-      icons["lazygit"]=" ";
-      icons["k9s"]="󱃾 ";
-      icons["lf"]=" ";
-      icons["python"]=" ";
-
-      echo "''${icons[$1]}$1"
     '')
 
     (writeShellScriptBin "tmux-right-status" ''
