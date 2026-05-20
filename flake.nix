@@ -281,14 +281,20 @@
                 host_file="$DEST_HOST_DIR/''${target_short}.pub"
                 log "ssh-keyscan -t ed25519 $target"
                 if scan="$(ssh-keyscan -t ed25519 -T 5 "$target" 2>/dev/null || true)" && [ -n "$scan" ]; then
-                  # Strip hostname column; keep only the key portion so the
-                  # file matches the format programs.ssh.knownHosts expects.
-                  key_line="$(echo "$scan" | awk 'NF{$1=""; sub(/^ /,""); print; exit}')"
-                  if [ -n "$key_line" ]; then
+                  # ssh-keyscan emits BOTH a `# <host>:<port> SSH-2.0-...`
+                  # banner comment and one or more key lines. Filter
+                  # explicitly to lines whose second column begins with
+                  # `ssh-` — the comment line has `# <host>:port ...`
+                  # which doesn't match. Strip the leading hostname column
+                  # so the file matches the bare-key format that the
+                  # known_hosts assembler in home/cli/ssh-config.nix
+                  # prepends `<host>,<host>.local ` to.
+                  key_line="$(echo "$scan" | awk '$2 ~ /^ssh-/ { $1=""; sub(/^ /,""); print; exit }')"
+                  if [ -n "$key_line" ] && [[ "$key_line" =~ ^ssh- ]]; then
                     echo "$key_line" > "$host_file"
                     log "  wrote secrets/ssh_host_keys/''${target_short}.pub"
                   else
-                    log "  warning: empty keyscan output"
+                    log "  warning: keyscan returned no usable key (got: $scan)"
                   fi
                 else
                   log "  warning: ssh-keyscan failed for $target (host unreachable?)"
