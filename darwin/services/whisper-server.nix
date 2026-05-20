@@ -33,8 +33,9 @@ let
   vadModelUrl = "https://huggingface.co/ggml-org/whisper-vad/resolve/main/${vadModelName}";
 
   # Same Parallels host stub as local-llm.nix — see that file's
-  # comment for the security rationale.
-  bindHost = "10.211.55.1";
+  # comment for why this is 10.211.55.2 (the Mac's NIC) and not
+  # 10.211.55.1 (the VM's gateway endpoint).
+  bindHost = "10.211.55.2";
   port = 8081;
 
   ensureModels = pkgs.writeShellScript "whisper-server-ensure-models" ''
@@ -106,6 +107,12 @@ in
       # being served. Whisper requests are bursty (per voice message
       # or per record-call window) — Interactive is wasteful here.
       ProcessType = "Adaptive";
+      # See local-llm.nix for why these are needed — launchd's bare
+      # env breaks curl's HTTPS to HuggingFace during model download.
+      EnvironmentVariables = {
+        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+      };
     };
   };
 }

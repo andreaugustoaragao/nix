@@ -40,11 +40,14 @@ let
   modelPath = "${modelDir}/${model.file}";
   modelUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.file}?download=true";
 
-  # Parallels Shared-network host stub. Same address prl-dev-vm uses
-  # as its default gateway (see system/networking.nix). Binding here
-  # naturally scopes the LLM API to the Mac↔Parallels bridge — no
-  # public-Wi-Fi exposure, no firewall rules needed.
-  bindHost = "10.211.55.1";
+  # Parallels Shared-network host stub — the Mac's own IP on the
+  # bridge100 interface (verified via `ifconfig` on mac-work). NOT
+  # 10.211.55.1: that's the virtual router endpoint prl-dev-vm uses
+  # as its default gateway and is not a NIC address on the Mac, so
+  # bind(2) would fail with EADDRNOTAVAIL. The security property
+  # still holds: bridge100 only exists on the Mac↔Parallels link,
+  # hostile peers on public Wi-Fi have no route to 10.211.55.2.
+  bindHost = "10.211.55.2";
   port = 8080;
 
   ensureModel = pkgs.writeShellScript "local-llm-ensure-model" ''
@@ -120,6 +123,16 @@ in
       StandardErrorPath = "/tmp/local-llm.err";
       ThrottleInterval = 30;
       ProcessType = "Interactive";
+      # LaunchAgents inherit a minimal env from launchd — nothing
+      # like the systemd-user case on NixOS where NIX_SSL_CERT_FILE
+      # is set globally. Without these the first-launch curl that
+      # pulls the GGUF from HuggingFace dies with
+      # `SSL certificate ... unable to get local issuer certificate`
+      # and the agent restart-loops on exit code 60 forever.
+      EnvironmentVariables = {
+        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+      };
     };
   };
 }
