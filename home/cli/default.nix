@@ -99,6 +99,10 @@ in
     # alt-s window switcher: aerospace list-windows + mac-menu +
     # aerospace focus. macOS counterpart to home/desktop/window-switcher.nix.
     ./aerospace-window-switcher.nix
+    # `notes` picker — mac-menu + osascript fallback + Ghostty/nvim.
+    # macOS counterpart to home/desktop/notes.nix's wofi flow. Pairs
+    # with the notes-sync launchd agent in home/services/notes-sync-darwin.nix.
+    ./notes-darwin.nix
   ];
 
   home.packages =

@@ -16,11 +16,13 @@
   imports = [
     ./cli
     ./fonts.nix
+    # User services index is platform-aware: Linux pulls in
+    # systemd-user units (notes-sync, fulcrum, darkman, local-llm),
+    # Darwin pulls in the launchd-agent counterparts (currently just
+    # notes-sync). Per-file gating lives in services/default.nix.
+    ./services
   ]
   ++ lib.optionals (!isDarwinHost) [
-    # systemd-user services + Linux-only daemons (darkman, fulcrum,
-    # notes-sync, local-llm).
-    ./services
     # Desktop helper scripts — eww/notify-send/Linux paths, including
     # /run/secrets/. Port piecemeal if needed.
     ./scripts
