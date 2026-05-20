@@ -146,4 +146,14 @@
     enable = true;
     package = pkgs.prl-tools;
   };
+
+  # Disable the Parallels Shared Printing bridge. This VM never prints,
+  # but the service was eating ~100% of one core averaged across its
+  # entire uptime (4h 28min process time vs 4h 28min wall-clock) by
+  # forking `lpstat -v | sed ...` in a tight loop to enumerate host
+  # printers. nixpkgs' hardware.parallels module installs it
+  # unconditionally with no opt-out, so we mask the unit directly.
+  # `BindsTo=cups.service` in the upstream unit means it would also
+  # auto-restart whenever CUPS bounces, which made this hard to spot.
+  systemd.services.prlshprint.enable = false;
 }
