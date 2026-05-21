@@ -12,6 +12,8 @@
     ./packages.nix
     ./homebrew.nix
     ./macos-defaults.nix
+    ./power.nix
+    ./caffeinate.nix
     ./sops.nix
     ./certs.nix
     ./auto-upgrade.nix
