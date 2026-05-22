@@ -104,14 +104,24 @@ in
     alt-c            = "layout accordion horizontal"
 
     # --- Focus (Mod+hjkl and Mod+arrows) ---
-    alt-h            = "focus left"
+    # Horizontal focus spills into the prev/next workspace when you
+    # hit the workspace boundary. `focus --boundaries-action fail`
+    # returns non-zero on the edge; the shell `||` then fires
+    # `workspace --wrap-around (next|prev)`. On any non-edge window
+    # `focus` succeeds and the fallback never runs — strict superset
+    # of `focus left|right`. Absolute path because exec-and-forget
+    # runs under launchd's sparse PATH (see binPath note above).
+    # Vertical (j/k/up/down) stays as plain `focus` since workspaces
+    # are a linear 1..10 list; there's no "workspace below" to spill
+    # into.
+    alt-h            = "exec-and-forget /opt/homebrew/bin/aerospace focus --boundaries-action fail left  || /opt/homebrew/bin/aerospace workspace --wrap-around prev"
     alt-j            = "focus down"
     alt-k            = "focus up"
-    alt-l            = "focus right"
-    alt-left         = "focus left"
+    alt-l            = "exec-and-forget /opt/homebrew/bin/aerospace focus --boundaries-action fail right || /opt/homebrew/bin/aerospace workspace --wrap-around next"
+    alt-left         = "exec-and-forget /opt/homebrew/bin/aerospace focus --boundaries-action fail left  || /opt/homebrew/bin/aerospace workspace --wrap-around prev"
     alt-down         = "focus down"
     alt-up           = "focus up"
-    alt-right        = "focus right"
+    alt-right        = "exec-and-forget /opt/homebrew/bin/aerospace focus --boundaries-action fail right || /opt/homebrew/bin/aerospace workspace --wrap-around next"
 
     # --- Move windows (Mod+Shift+hjkl / Mod+Shift+arrows) ---
     alt-shift-h      = "move left"
