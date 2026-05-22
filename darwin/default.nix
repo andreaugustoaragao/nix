@@ -1,5 +1,4 @@
 {
-  hostName,
   stateVersion,
   owner,
   ...
@@ -20,11 +19,13 @@
     ./services
   ];
 
-  # Hostname is exposed via networking.hostName under nix-darwin too —
-  # the option drives both `scutil --set ComputerName` and
-  # `LocalHostName` defaults when paired with `networking.computerName`
-  # (which we leave to user-level customization).
-  networking.hostName = hostName;
+  # `networking.hostName` under nix-darwin drives `scutil --set
+  # ComputerName/HostName/LocalHostName`. On this machine the asset
+  # tag G7CH2W2XYR is owned by IT (Jamf re-enforces ComputerName), so
+  # we pin the scutil names to the asset tag and keep `mac-work` only
+  # as the flake-attribute (`darwin-rebuild switch --flake .#mac-work`)
+  # and as the SSH alias resolved via `/etc/hosts` on the dev VMs.
+  networking.hostName = "G7CH2W2XYR";
 
   # System-wide state version pin. Darwin's stateVersion is independent
   # of NixOS' — both live in machines.toml so the same value flows

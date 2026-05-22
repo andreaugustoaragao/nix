@@ -238,6 +238,25 @@
     ]
     ++ lib.optionals (hostName == "workstation") [ "llm.local" ];
 
+  # `mac-work` alias for the Apple Silicon laptop hosting these VMs.
+  # The Mac's scutil names are pinned to IT's asset tag (G7CH2W2XYR),
+  # so its Bonjour publishes `G7CH2W2XYR.local`, not `mac-work.local`.
+  # Statically alias `mac-work` (and `mac-work.local`) to the
+  # hypervisor's host-stub IP so existing service URLs keep working:
+  #   prl-dev-vm  → 10.211.55.2  (bridge100, Parallels Shared; matches
+  #                                whisper/local-llm bindHost)
+  #   vmw-dev-vm  → 192.168.150.1 (vmnet8 host IP, from
+  #                                /Library/Preferences/VMware Fusion/
+  #                                vmnet8/nat.conf)
+  networking.hosts."10.211.55.2" = lib.mkIf (hostName == "prl-dev-vm") [
+    "mac-work"
+    "mac-work.local"
+  ];
+  networking.hosts."192.168.150.1" = lib.mkIf (hostName == "vmw-dev-vm") [
+    "mac-work"
+    "mac-work.local"
+  ];
+
   # ============================================================================
   # Firewall Configuration
   # ============================================================================
