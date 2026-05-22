@@ -123,10 +123,10 @@ in
       # Puppeteer / Chrome DevTools MCP
       set -gx PUPPETEER_EXECUTABLE_PATH /etc/profiles/per-user/aragao/bin/brave
 
-      # Codex talks to the Avaya LiteLLM gateway via env_key; load the
-      # decrypted token from sops if it has been deployed on this host.
-      # Guarded on `set -q` so only the first shell in a session pays the
-      # file-read cost; child shells inherit the exported value.
+      # Codex talks to the corporate LiteLLM gateway via env_key; load
+      # the decrypted token from sops if it has been deployed on this
+      # host. Guarded on `set -q` so only the first shell in a session
+      # pays the file-read cost; child shells inherit the exported value.
       if not set -q LITELLM_API_KEY; and test -r /run/secrets/litellm_api_key
         set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
       end

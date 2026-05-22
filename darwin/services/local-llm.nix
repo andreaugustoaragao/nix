@@ -172,10 +172,10 @@ in
       # `SSL certificate ... unable to get local issuer certificate`
       # and the agent restart-loops on exit code 60 forever.
       #
-      # We deliberately re-use the combined Avaya + Zscaler + system
-      # bundle that darwin/certs.nix exports via environment.variables.
-      # Pointing at plain pkgs.cacert would still TLS-fail behind
-      # Zscaler's MITM proxy, since the corporate root isn't in the
+      # We deliberately re-use the combined corporate + system bundle
+      # that darwin/certs.nix exports via environment.variables.
+      # Pointing at plain pkgs.cacert would still TLS-fail behind the
+      # corporate MITM proxy, since the proxy's root isn't in the
       # Mozilla store. Reading from `config.environment.variables` also
       # means any future cert added to certs.nix is automatically
       # picked up here — no second source of truth.

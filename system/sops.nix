@@ -172,7 +172,7 @@
         mode = "0400";
       };
 
-      # Avaya LiteLLM gateway bearer token — exported as
+      # Corporate LiteLLM gateway bearer token — exported as
       # LITELLM_API_KEY by home/cli/fish.nix and consumed by codex
       # (configured in home/cli/codex.nix).
       "litellm_api_key" = {

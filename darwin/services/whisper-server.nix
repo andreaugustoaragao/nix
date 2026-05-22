@@ -115,9 +115,10 @@ in
       # or per record-call window) — Interactive is wasteful here.
       ProcessType = "Adaptive";
       # See local-llm.nix for the full rationale — launchd's bare env
-      # breaks curl behind Zscaler. Re-use the Avaya/Zscaler/system
-      # bundle from darwin/certs.nix so we follow the same source of
-      # truth the rest of the Darwin toolchain uses.
+      # breaks curl behind the corporate MITM proxy. Re-use the
+      # combined corporate + system bundle from darwin/certs.nix so
+      # we follow the same source of truth the rest of the Darwin
+      # toolchain uses.
       EnvironmentVariables = {
         inherit (config.environment.variables) SSL_CERT_FILE NIX_SSL_CERT_FILE;
       };

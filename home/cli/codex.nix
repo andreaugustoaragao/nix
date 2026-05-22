@@ -24,6 +24,12 @@ in
   # store and out of this file. The env var is exported from
   # /run/secrets/litellm_api_key by home/cli/fish.nix once the sops
   # secret is deployed.
+  #
+  # base_url points at the corporate LiteLLM gateway — hardcoded here
+  # for now. If the gateway URL is ever considered sensitive, move it
+  # to sops alongside litellm_api_key and template this config.toml
+  # from a home.activation script that substitutes the URL at
+  # activation time.
   home.file.".codex/config.toml".text = ''
     model = "gpt-5.4"
     model_provider = "litellm"

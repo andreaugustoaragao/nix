@@ -63,11 +63,14 @@
     i18n.defaultLocale = "en_US.UTF-8";
   };
 
+  # Corporate internal CAs + the MITM TLS-intercepting proxy root.
+  # Required for curl/git/openssl to validate connections that go
+  # through the corporate egress proxy or hit internal services.
   config.security.pki.certificateFiles = [
-    ../certs/avayaitrootca2.pem
-    ../certs/avayaitrootca.pem
-    ../certs/avayaitserverca2.pem
-    ../certs/zscalerrootcertificate-2048-sha256.pem
+    ../certs/internal-root-2.pem
+    ../certs/internal-root-1.pem
+    ../certs/internal-intermediate.pem
+    ../certs/proxy-root.pem
   ];
 
 }
