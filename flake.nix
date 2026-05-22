@@ -275,11 +275,17 @@
               DEST_HOST_DIR="$FLAKE_DIR/secrets/ssh_host_keys"
               mkdir -p "$DEST_HOST_DIR"
 
-              KEYSCAN_TARGETS=( "prl-dev-vm.local" )
-              for target in "''${KEYSCAN_TARGETS[@]}"; do
-                target_short="''${target%%.*}"
+              # Each entry is "<hostname>=<address>". The hostname is what
+              # we save the .pub under (and what ssh-config.nix prepends to
+              # the known_hosts line). The address is what ssh-keyscan
+              # actually connects to — using IPs sidesteps the Bonjour
+              # dependency the rest of this flake used to lean on.
+              KEYSCAN_TARGETS=( "prl-dev-vm=10.211.55.4" "vmw-dev-vm=192.168.150.5" )
+              for entry in "''${KEYSCAN_TARGETS[@]}"; do
+                target_short="''${entry%%=*}"
+                target="''${entry#*=}"
                 host_file="$DEST_HOST_DIR/''${target_short}.pub"
-                log "ssh-keyscan -t ed25519 $target"
+                log "ssh-keyscan -t ed25519 $target  ($target_short)"
                 if scan="$(ssh-keyscan -t ed25519 -T 5 "$target" 2>/dev/null || true)" && [ -n "$scan" ]; then
                   # ssh-keyscan emits BOTH a `# <host>:<port> SSH-2.0-...`
                   # banner comment and one or more key lines. Filter

@@ -39,6 +39,31 @@
   # Common locale + timezone, matching system/default.nix.
   time.timeZone = "America/Denver";
 
+  # Static /etc/hosts entries for the Parallels + VMware dev VMs.
+  # Replaces mDNS/Bonjour resolution (the rest of the flake dropped
+  # avahi to avoid the Docker/CNI multicast echo / conflict-rename
+  # loop on the VMs). Both short and `.local` forms are listed so
+  # any URL that still uses `<host>.local` keeps working.
+  #
+  # nix-darwin's `environment.etc."hosts".text` replaces /etc/hosts
+  # wholesale, so the macOS default localhost/broadcasthost entries
+  # are preserved here verbatim.
+  environment.etc."hosts".text = ''
+    ##
+    # Host Database
+    #
+    # localhost is used to configure the loopback interface
+    # when the system is booting.  Do not change this entry.
+    ##
+    127.0.0.1       localhost
+    255.255.255.255 broadcasthost
+    ::1             localhost
+
+    # Dev VMs hosted on this laptop.
+    10.211.55.4     prl-dev-vm prl-dev-vm.local
+    192.168.150.5   vmw-dev-vm vmw-dev-vm.local
+  '';
+
   # stateVersion lives in the NixOS-side as `system.stateVersion` but
   # on Darwin we keep the schema-version pin (above) and surface the
   # release pin through this string so machines.toml stays the single

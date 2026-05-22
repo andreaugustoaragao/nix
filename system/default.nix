@@ -21,9 +21,6 @@
     ./env.nix
     ./nvim.nix
     ./sops.nix
-    # mDNS / Bonjour — every host in the flake advertises
-    # <hostname>.local and resolves peers the same way.
-    ./mdns.nix
   ]
   ++ lib.optionals (!isServer) [
     ./desktop.nix

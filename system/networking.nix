@@ -32,6 +32,21 @@
                 ];
                 IPv6AcceptRA = true;
               }
+            else if hostName == "vmw-dev-vm" then
+              # VMware Fusion vmnet8 NAT (see /Library/Preferences/VMware Fusion/
+              # vmnet8/nat.conf on mac-work: hostIp=192.168.150.1, NAT IP=.2).
+              # Pinning .5 outside Fusion's DHCP pool (typically .128-.254) so
+              # the IP is stable for ssh + /etc/hosts entries on mac-work.
+              {
+                Address = "192.168.150.5/24";
+                Gateway = "192.168.150.2";
+                DNS = [
+                  "192.168.150.2"
+                  "1.1.1.1"
+                  "8.8.8.8"
+                ];
+                IPv6AcceptRA = true;
+              }
             else if hostName == "workstation" then
               {
                 Address = "192.168.10.75/24";
@@ -61,7 +76,7 @@
           dhcpV4Config = lib.mkIf (hostName == "hp-laptop") {
             RouteMetric = 1024;
           };
-          dns = lib.mkIf (isVm && hostName != "prl-dev-vm") [
+          dns = lib.mkIf (isVm && hostName != "prl-dev-vm" && hostName != "vmw-dev-vm") [
             "1.1.1.1#cloudflare-dns.com"
             "8.8.8.8#dns.google"
           ];
@@ -205,26 +220,6 @@
     192.168.10.75  infinity.local
     127.0.1.1      workstation.faragao.net workstation
   '';
-
-  # Keep explicit /etc/hosts entries authoritative for local dev domains.
-  # Without this, .local names stall on the mDNS lookup — avahi returns
-  # NOTFOUND for hostnames it doesn't actively advertise (fulcrum.local,
-  # infinity.local, grafana.local, …) and the default
-  # `mdns4_minimal [NOTFOUND=return]` short-circuits the chain before
-  # `files` (= /etc/hosts) is ever consulted.
-  system.nssDatabases.hosts =
-    lib.mkIf (hostName == "workstation" || hostName == "prl-dev-vm" || hostName == "vmw-dev-vm")
-      (
-        lib.mkForce [
-          "files"
-          "mymachines"
-          "mdns4_minimal [NOTFOUND=return]"
-          "resolve [!UNAVAIL=return]"
-          "myhostname"
-          "dns"
-          "mdns4"
-        ]
-      );
 
   networking.hosts."127.0.0.1" =
     lib.optionals (hostName != "workstation") [
