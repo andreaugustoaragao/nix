@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Cursor / cursor-agent preToolUse hook for pi-rs.
+#
+# @pi-rs@ is substituted at build time with the absolute /nix/store path
+# of the pi-rs binary.
+#
+# Protocol (Cursor preToolUse):
+#   stdin:  JSON like {"tool_input":{"command":"..."}}
+#   stdout: {} (passthrough) OR {"permission":"allow","updated_input":{...}}
+#   exit:   0 always
+exec @pi-rs@ hook cursor

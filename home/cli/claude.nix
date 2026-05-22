@@ -5,6 +5,10 @@
 }:
 
 let
+  # pi-rs token-compression binary + materialized shim scripts.
+  # PreToolUse hook routes Bash commands through `pi-rs hook claude`,
+  # which delegates to the rewrite oracle. Single-binary contract.
+  piRs = pkgs.callPackage ./pi-rs { };
   # Cross-platform notification for the Claude Code "Notification" hook.
   # Linux: notify-send via libnotify. macOS: osascript display notification.
   notifyCmd =
@@ -102,6 +106,24 @@ in
               {
                 type = "command";
                 command = notifyCmd;
+              }
+            ];
+          }
+        ];
+        # pi-rs PreToolUse rewrite hook — intercepts every Bash tool
+        # call and routes through `pi-rs hook claude`. With no rule
+        # matching, output is empty and the original command runs
+        # unchanged. With a rule matching, an updatedInput envelope
+        # rewrites the command to its `pi-rs ...` equivalent before
+        # execution. See home/cli/pi-rs/crates/pi-rs/src/rewrite/rules.rs
+        # for the live rules table.
+        PreToolUse = [
+          {
+            matcher = "Bash";
+            hooks = [
+              {
+                type = "command";
+                command = "${piRs}/share/pi-rs/agent-hooks/claude-rewrite.sh";
               }
             ];
           }

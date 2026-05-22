@@ -35,6 +35,28 @@ rustPlatform.buildRustPackage {
 
   doCheck = false; # Hashline unit tests are pure-logic; covered out-of-band.
 
+  # Materialize the per-agent hook shims under $out/share/pi-rs/agent-hooks/
+  # with the absolute /nix/store path of the pi-rs binary substituted in.
+  # Home-manager modules for claude/cursor/codex/pi reference these.
+  postInstall = ''
+    mkdir -p $out/share/pi-rs/agent-hooks
+
+    substitute ${./agent-hooks/claude-rewrite.sh.in} \
+      $out/share/pi-rs/agent-hooks/claude-rewrite.sh \
+      --replace-fail @pi-rs@ $out/bin/pi-rs
+    substitute ${./agent-hooks/cursor-rewrite.sh.in} \
+      $out/share/pi-rs/agent-hooks/cursor-rewrite.sh \
+      --replace-fail @pi-rs@ $out/bin/pi-rs
+
+    chmod +x $out/share/pi-rs/agent-hooks/*.sh
+
+    # codex-rules.md and the pi extension are copied verbatim (the
+    # extension's PI_RS placeholder is substituted by home/cli/pi.nix).
+    cp ${./agent-hooks/codex-rules.md} $out/share/pi-rs/agent-hooks/codex-rules.md
+    cp ${./agent-hooks/pi-rewrite-extension.ts} \
+      $out/share/pi-rs/agent-hooks/pi-rewrite-extension.ts
+  '';
+
   meta = {
     description = "High-performance primitives for pi-coding-agent extensions";
     homepage = "https://github.com/aragao/nix";

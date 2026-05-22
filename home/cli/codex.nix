@@ -3,6 +3,13 @@
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
 
+  # pi-rs token compression. Codex has no PreToolUse hook protocol, so
+  # integration is instructional: AGENTS.md tells the LLM to prefer
+  # `pi-rs <tool>` over raw `<tool>` for the rules-table set. Reliability
+  # depends on the model remembering across long sessions — same
+  # constraint Claude Code's older hookless integrations had.
+  piRs = pkgs.callPackage ./pi-rs { };
+
   # The base URL points at the corporate LiteLLM gateway. The hostname
   # itself encodes the employer DNS, so we keep the literal out of the
   # Nix store and substitute it at activation time from sops. See
@@ -59,6 +66,11 @@ in
   # Consequence: ~/.codex/config.toml is a regular file (not a
   # /nix/store symlink). That's appropriate since its contents now
   # depend on a runtime-decrypted value.
+  # Materialize ~/.codex/AGENTS.md from the pi-rs-managed rules fragment.
+  # Codex reads this file as global instruction context.
+  home.file.".codex/AGENTS.md".source =
+    "${piRs}/share/pi-rs/agent-hooks/codex-rules.md";
+
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"
     mkdir -p "$(dirname "$target")"

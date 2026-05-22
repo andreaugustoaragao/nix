@@ -1,0 +1,22 @@
+pi-rs
+=====
+
+Copyright (c) 2025 Andre Aragao
+Licensed under the MIT License.
+
+This product includes software derived from:
+
+  rtk (Rust Token Killer)
+  Copyright 2024 rtk-ai and rtk-ai Labs
+  https://github.com/rtk-ai/rtk
+  Licensed under the Apache License, Version 2.0.
+
+The derived sources live under `crates/pi-rs/src/cmd/filters/`,
+`crates/pi-rs/src/compress/`, and `crates/pi-rs/src/rewrite/`, and were
+imported once from upstream tag `v0.40.0`. The fork evolves independently
+and does not track new upstream releases. Modifications since import are
+not individually annotated; the workspace history is the canonical record.
+
+A copy of the Apache License, Version 2.0 is in `LICENSES/Apache-2.0.txt`.
+The rest of this workspace (everything outside the three subtrees above)
+is licensed under the MIT License of the parent flake.

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Claude Code PreToolUse hook for pi-rs.
+#
+# @pi-rs@ is substituted at build time with the absolute /nix/store path
+# of the pi-rs binary, so this shim has no PATH dependency.
+#
+# Protocol (Claude Code PreToolUse):
+#   stdin:  JSON like {"tool_name":"Bash","tool_input":{"command":"..."}}
+#   stdout: empty (passthrough) OR hookSpecificOutput JSON (rewrite)
+#   exit:   0 always
+#
+# All protocol logic lives in `pi-rs hook claude`. This shim is just a
+# pinned-path exec so home-manager owns the contract.
+exec @pi-rs@ hook claude

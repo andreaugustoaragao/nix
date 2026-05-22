@@ -19,6 +19,12 @@ anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.8"
+dirs = "5"
+shell-words = "1"
+
+# Dev / test helpers.
+tempfile = "3"
 
 # Text / regex / grep.
 globset = "0.4"

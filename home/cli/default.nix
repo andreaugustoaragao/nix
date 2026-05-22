@@ -38,6 +38,7 @@ in
     ./development.nix
     ./claude.nix
     ./codex.nix
+    ./cursor.nix
     ./k9s.nix
     ./fzf.nix
     ./pi.nix

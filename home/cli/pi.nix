@@ -393,6 +393,21 @@ let
     )
   );
 
+  # Pi extension: bash-command rewrite hook for pi-rs token compression.
+  # Sits on the `tool_call` event; for every Bash tool invocation, calls
+  # `pi-rs rewrite` and mutates `event.input.command` if a rule fires.
+  # Mirror of the per-agent shims for claude/cursor/codex — same binary
+  # contract, single source of truth in rewrite/rules.rs.
+  #
+  # The template is materialized by the pi-rs derivation under
+  # share/pi-rs/agent-hooks/ so the same source file feeds both the pi
+  # extension and the documentation surface.
+  piRsRewriteExtension = pkgs.writeText "pi-rs-rewrite.ts" (
+    builtins.replaceStrings [ "___PI_RS_BIN___" ] [ "${piRs}/bin/pi-rs" ] (
+      builtins.readFile (piRs + "/share/pi-rs/agent-hooks/pi-rewrite-extension.ts")
+    )
+  );
+
   # Pi extension: `browser_run` tool. Thin wrapper around `dev-browser`
   # (npm-global). Resolves the binary from PATH at spawn time, so this
   # extension assumes `dev-browser` is installed via `npm install -g
@@ -604,6 +619,7 @@ in
   home.file.".pi/agent/extensions/ast-grep.ts".source = astGrepExtension;
   home.file.".pi/agent/extensions/ast-edit.ts".source = astEditExtension;
   home.file.".pi/agent/extensions/browser-run.ts".source = webBrowserRunExtension;
+  home.file.".pi/agent/extensions/pi-rs-rewrite.ts".source = piRsRewriteExtension;
 
   # pi-rs-backed primitives. These are thin TS shells that spawn the
   # `pi-rs <subcommand>` binary installed via `home.packages` above.
