@@ -39,19 +39,24 @@
   # Common locale + timezone, matching system/default.nix.
   time.timeZone = "America/Denver";
 
-  # Auto-rename any plain /etc file we're about to take over to
-  # `<name>.before-nix-darwin` on first activation. nix-darwin's
-  # default safety check aborts the rebuild on unrecognized content;
-  # this hook turns that into a one-time backup-and-proceed for the
-  # files listed below. Idempotent: skips files that are already
-  # symlinks (nix-managed) or have an existing backup, so subsequent
-  # rebuilds are no-ops here.
+  # Auto-rename any plain /etc file we're about to take over so
+  # nix-darwin's etcChecks safety net can proceed without an operator
+  # in the loop. Idempotent: skips files that are already symlinks
+  # (nix-managed) or have an existing backup, so subsequent rebuilds
+  # are no-ops here.
+  #
+  # NOTE: we deliberately do NOT use the `.before-nix-darwin` suffix
+  # the error message suggests — nix-darwin's `configuring networking`
+  # phase has a vestigial "restoring /etc/hosts..." block that
+  # auto-moves `/etc/hosts.before-nix-darwin` back to `/etc/hosts` at
+  # the END of activation, which would undo the takeover on every
+  # rebuild. `.pre-nix` is invisible to that block.
   system.activationScripts.preActivation.text = ''
     backup_untracked() {
       local f="$1"
-      if [ -e "$f" ] && [ ! -L "$f" ] && [ ! -e "$f.before-nix-darwin" ]; then
-        echo "[preActivation] backing up untracked $f -> $f.before-nix-darwin"
-        mv "$f" "$f.before-nix-darwin"
+      if [ -e "$f" ] && [ ! -L "$f" ] && [ ! -e "$f.pre-nix" ]; then
+        echo "[preActivation] backing up untracked $f -> $f.pre-nix"
+        mv "$f" "$f.pre-nix"
       fi
     }
     backup_untracked /etc/hosts
