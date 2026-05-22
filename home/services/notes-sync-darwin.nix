@@ -31,6 +31,21 @@ let
 
     log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
+    # Work email lives in sops to keep the employer DNS out of the
+    # Nix store. If sops hasn't deployed it on this host yet, exit
+    # cleanly — the launchd agent re-fires every 15 minutes, so
+    # operations resume automatically once /run/secrets is populated.
+    WORK_EMAIL_FILE="/run/secrets/git_email_work"
+    if [ ! -f "$WORK_EMAIL_FILE" ]; then
+      log "Work email secret missing at $WORK_EMAIL_FILE; skipping this run"
+      exit 0
+    fi
+    WORK_EMAIL="$(cat "$WORK_EMAIL_FILE")"
+    if [ -z "$WORK_EMAIL" ] || [ "$WORK_EMAIL" = "placeholder" ]; then
+      log "Work email secret empty/placeholder; skipping this run"
+      exit 0
+    fi
+
     # Only critical messages surface as macOS notifications, matching
     # the Linux side's notify() policy (avoid notification fatigue).
     # Lower-priority "syncing"/"complete" messages are still logged.
@@ -111,7 +126,7 @@ let
     # Idempotent git identity config — match the Linux side exactly so
     # commits from either machine are signed by the same key.
     ${pkgs.git}/bin/git config user.name "andrearagao"
-    ${pkgs.git}/bin/git config user.email "aragao@avaya.com"
+    ${pkgs.git}/bin/git config user.email "$WORK_EMAIL"
     ${pkgs.git}/bin/git config user.signingkey "D8BAA25EFB1D5C5F"
     ${pkgs.git}/bin/git config commit.gpgsign true
 

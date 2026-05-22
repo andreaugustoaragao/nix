@@ -34,6 +34,23 @@
           return 1
         }
 
+        # Read a single-line value from a SOPS-decrypted file. Same
+        # contract as get_sops_passphrase but used for non-secret
+        # configuration values that we still want kept out of the
+        # Nix store (e.g., the work email — leaks the employer).
+        get_sops_value() {
+          local value_file="$1"
+          if [[ -f "$value_file" ]] && [[ -r "$value_file" ]]; then
+            local content
+            content=$(cat "$value_file" 2>/dev/null)
+            if [[ -n "$content" ]] && [[ "$content" != "placeholder" ]]; then
+              echo "$content"
+              return 0
+            fi
+          fi
+          return 1
+        }
+
         # Get keygrips for all secret subkeys of a given email
         get_keygrips() {
           local email="$1"
@@ -79,9 +96,20 @@
         PERSONAL_PASSPHRASE="/run/secrets/gpg_passphrase_personal"
         WORK_PASSPHRASE="/run/secrets/gpg_passphrase_work"
 
+        # Work email comes from sops too (employer-revealing).
+        WORK_EMAIL_FILE="/run/secrets/git_email_work"
+        if WORK_EMAIL=$(get_sops_value "$WORK_EMAIL_FILE"); then
+          :
+        else
+          WORK_EMAIL=""
+          echo "-- Work email secret missing; will skip work-key preset"
+        fi
+
         echo "Presetting GPG passphrases..."
         preset_key "andrearag@gmail.com" "personal" "$PERSONAL_PASSPHRASE"
-        preset_key "aragao@avaya.com" "work" "$WORK_PASSPHRASE"
+        if [[ -n "$WORK_EMAIL" ]]; then
+          preset_key "$WORK_EMAIL" "work" "$WORK_PASSPHRASE"
+        fi
 
         # Show cache status
         echo ""

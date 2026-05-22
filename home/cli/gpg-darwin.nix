@@ -70,6 +70,10 @@
       [[ -f "$secret" ]] || return 0
       [[ "$($CAT "$secret")" != "placeholder" ]] || return 0
       $DRY_RUN_CMD $GPG --batch --import "$secret" 2>/dev/null || true
+      # Skip ownertrust assignment when no UID is known (work email
+      # secret not yet deployed). The key is still imported — just
+      # not marked ultimately trusted.
+      [[ -n "$email" ]] || return 0
       local keyid
       keyid=$($GPG --list-keys --with-colons "$email" \
         | $AWK -F: '/^pub:/ {print $5}' | $HEAD -1)
@@ -79,7 +83,19 @@
       fi
     }
 
+    # Work email comes from sops (kept out of /nix/store). On an
+    # unprovisioned host work_email stays empty and import_key only
+    # skips the trust step — the key itself still imports.
+    work_email=""
+    WORK_EMAIL_FILE="/run/secrets/git_email_work"
+    if [[ -f "$WORK_EMAIL_FILE" ]]; then
+      candidate="$($CAT "$WORK_EMAIL_FILE")"
+      if [[ -n "$candidate" && "$candidate" != "placeholder" ]]; then
+        work_email="$candidate"
+      fi
+    fi
+
     import_key /run/secrets/gpg_key_personal andrearag@gmail.com
-    import_key /run/secrets/gpg_key_work     aragao@avaya.com
+    import_key /run/secrets/gpg_key_work     "$work_email"
   '';
 }

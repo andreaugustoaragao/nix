@@ -33,6 +33,23 @@
       ExecStart = pkgs.writeShellScript "notes-sync" ''
                 set -eu
 
+                # Work email lives in sops to keep the employer DNS out of
+                # the Nix store. If sops hasn't deployed it on this host yet,
+                # exit cleanly — the systemd timer re-fires every 15 minutes,
+                # so syncing resumes automatically once /run/secrets is
+                # populated. This must come BEFORE ssh/gpg key loading so we
+                # don't waste agent slots on a no-op run.
+                WORK_EMAIL_FILE="/run/secrets/git_email_work"
+                if [ ! -f "$WORK_EMAIL_FILE" ]; then
+                  echo "Work email secret missing at $WORK_EMAIL_FILE; skipping this run"
+                  exit 0
+                fi
+                WORK_EMAIL="$(cat "$WORK_EMAIL_FILE")"
+                if [ -z "$WORK_EMAIL" ] || [ "$WORK_EMAIL" = "placeholder" ]; then
+                  echo "Work email secret empty/placeholder; skipping this run"
+                  exit 0
+                fi
+
                 # Load SSH keys — fatal on failure. Without these we cannot reach
                 # GitHub, and proceeding would corrupt local state (the clone
                 # would fail and the init fallback would create a remote-less
@@ -148,7 +165,7 @@
 
                 # Configure git settings (in case they're not set)
                 ${pkgs.git}/bin/git config user.name "andrearagao"
-                ${pkgs.git}/bin/git config user.email "aragao@avaya.com"
+                ${pkgs.git}/bin/git config user.email "$WORK_EMAIL"
                 ${pkgs.git}/bin/git config user.signingkey "D8BAA25EFB1D5C5F"
                 ${pkgs.git}/bin/git config commit.gpgsign true
 

@@ -1,8 +1,20 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }:
+
+let
+  # Path the work-scope `includeIf` points at. Written by the
+  # `gitWorkInclude` home.activation below from the sops-managed
+  # email at /run/secrets/git_email_work. We deliberately do NOT use
+  # `programs.git.includes[].contents` for the work scope (it would
+  # bake the email into the Nix store — the exact leak this commit
+  # is fixing).
+  workConfigPath = "${config.home.homeDirectory}/.config/git/work.gitconfig";
+  workEmailSecret = "/run/secrets/git_email_work";
+in
 
 {
   programs = {
@@ -34,9 +46,13 @@
       enable = true;
 
       settings = {
+        # Personal identity as the top-level default. Per-scope
+        # `includeIf` blocks below override for projects/personal/
+        # and projects/work/. The top-level default only fires for
+        # repos outside both — better to leak personal than work.
         user = {
-          name = "andrearagao";
-          email = "aragao@avaya.com"; # Default to work email
+          name = "andreaugustoaragao";
+          email = "andrearag@gmail.com";
         };
 
         init.defaultBranch = "main";
@@ -81,17 +97,50 @@
             };
           };
         }
+        # Work scope: point at a file written by the activation
+        # script below (NOT a `contents = { ... }` inline block).
+        # That's what keeps the work email out of /nix/store. Git
+        # silently ignores a missing path, so unprovisioned hosts
+        # just fall back to the top-level personal default for work
+        # repos — which is fine; you'll notice the wrong author on
+        # the next commit.
         {
           condition = "gitdir:${config.home.homeDirectory}/projects/work/";
-          contents = {
-            user = {
-              name = "andrearagao";
-              email = "aragao@avaya.com";
-              signingkey = "D8BAA25EFB1D5C5F";
-            };
-          };
+          path = workConfigPath;
         }
       ];
     };
   };
+
+  # Render ~/.config/git/work.gitconfig from the sops-managed work
+  # email. The signing key ID is a public hex blob (not
+  # employer-revealing) so it stays inlined. The name is constant.
+  # Only the email comes from sops.
+  home.activation.gitWorkInclude = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    target="${workConfigPath}"
+    mkdir -p "$(dirname "$target")"
+
+    if [[ -f "${workEmailSecret}" ]]; then
+      email="$(cat "${workEmailSecret}")"
+      if [[ -n "$email" && "$email" != "placeholder" ]]; then
+        cat > "$target.tmp" <<EOF
+    [user]
+    	name = andrearagao
+    	email = $email
+    	signingkey = D8BAA25EFB1D5C5F
+    EOF
+        mv "$target.tmp" "$target"
+        chmod 0600 "$target"
+      else
+        # Secret present but empty / placeholder — wipe any stale
+        # rendering rather than leave a half-baked file in place.
+        rm -f "$target"
+      fi
+    else
+      # Sops hasn't deployed the secret yet (first install, age key
+      # not provisioned, etc.). Leave no work.gitconfig at all so
+      # the includeIf is a clean no-op.
+      rm -f "$target"
+    fi
+  '';
 }

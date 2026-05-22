@@ -162,6 +162,7 @@ in
 
         preset_key() {
           local email="$1" passphrase_file="$2"
+          [[ -n "$email" ]] || return 0
           [[ -f "$passphrase_file" ]] || return 0
           local passphrase
           passphrase=$(cat "$passphrase_file" 2>/dev/null)
@@ -174,8 +175,21 @@ in
               done
         }
 
+        # Work email comes from sops (kept out of /nix/store). On an
+        # unprovisioned host the file is absent or contains the
+        # "placeholder" sentinel; in that case work_email stays empty
+        # and preset_key no-ops on the early return above.
+        work_email=""
+        WORK_EMAIL_FILE="/run/secrets/git_email_work"
+        if [[ -f "$WORK_EMAIL_FILE" ]]; then
+          candidate="$(cat "$WORK_EMAIL_FILE" 2>/dev/null)"
+          if [[ -n "$candidate" && "$candidate" != "placeholder" ]]; then
+            work_email="$candidate"
+          fi
+        fi
+
         preset_key "andrearag@gmail.com" "/run/secrets/gpg_passphrase_personal"
-        preset_key "aragao@avaya.com" "/run/secrets/gpg_passphrase_work"
+        preset_key "$work_email" "/run/secrets/gpg_passphrase_work"
       ''}";
       RemainAfterExit = true;
     };
@@ -234,14 +248,30 @@ in
       fi
     fi
 
-    # Import work GPG key if it exists and is not a placeholder  
+    # Import work GPG key if it exists and is not a placeholder.
+    # The lookup-by-UID step requires the work email (which is
+    # employer-revealing, so it lives in sops). On a host where
+    # /run/secrets/git_email_work hasn't been deployed yet we skip
+    # the trust-setting step entirely — the key still gets imported,
+    # we just don't mark it ultimately trusted.
     GPG_WORK="/run/secrets/gpg_key_work"
     if [[ -f "$GPG_WORK" ]] && [[ "$(cat $GPG_WORK)" != "placeholder" ]]; then
       ${pkgs.gnupg}/bin/gpg --batch --import "$GPG_WORK" 2>/dev/null || true
-      # Set ultimate trust for imported work key
-      WORK_KEYID=$(${pkgs.gnupg}/bin/gpg --list-keys --with-colons aragao@avaya.com | ${pkgs.gawk}/bin/awk -F: '/^pub:/ {print $5}' | ${pkgs.coreutils}/bin/head -1)
-      if [[ -n "$WORK_KEYID" ]]; then
-        echo "$WORK_KEYID:6:" | ${pkgs.gnupg}/bin/gpg --batch --import-ownertrust 2>/dev/null || true
+
+      WORK_EMAIL_FILE="/run/secrets/git_email_work"
+      WORK_EMAIL=""
+      if [[ -f "$WORK_EMAIL_FILE" ]]; then
+        candidate="$(${pkgs.coreutils}/bin/cat "$WORK_EMAIL_FILE")"
+        if [[ -n "$candidate" && "$candidate" != "placeholder" ]]; then
+          WORK_EMAIL="$candidate"
+        fi
+      fi
+
+      if [[ -n "$WORK_EMAIL" ]]; then
+        WORK_KEYID=$(${pkgs.gnupg}/bin/gpg --list-keys --with-colons "$WORK_EMAIL" | ${pkgs.gawk}/bin/awk -F: '/^pub:/ {print $5}' | ${pkgs.coreutils}/bin/head -1)
+        if [[ -n "$WORK_KEYID" ]]; then
+          echo "$WORK_KEYID:6:" | ${pkgs.gnupg}/bin/gpg --batch --import-ownertrust 2>/dev/null || true
+        fi
       fi
     fi
   '';
