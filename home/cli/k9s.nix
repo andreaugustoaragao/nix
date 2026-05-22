@@ -13,7 +13,6 @@ in
 {
   home.packages = [
     unstable-pkgs.k9s
-    unstable-pkgs.kdash
   ];
 
   xdg.configFile = {
