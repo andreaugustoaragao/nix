@@ -2,6 +2,36 @@
 
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
+
+  # The base URL points at the corporate LiteLLM gateway. The hostname
+  # itself encodes the employer DNS, so we keep the literal out of the
+  # Nix store and substitute it at activation time from sops. See
+  # /run/secrets/litellm_base_url, declared in {system,darwin}/sops.nix.
+  baseUrlSecretPath = "/run/secrets/litellm_base_url";
+
+  # Static config body with a placeholder. The placeholder string is
+  # deliberately distinctive so the activation sed below can't match
+  # legitimate config text by accident.
+  configTomlTemplate = ''
+    model = "gpt-5.4"
+    model_provider = "litellm"
+    model_reasoning_effort = "high"
+    sandbox_mode = "workspace-write"
+    approval_policy = "on-request"
+
+    [model_providers.litellm]
+    name = "LiteLLM"
+    base_url = "@@LITELLM_BASE_URL@@"
+    env_key = "LITELLM_API_KEY"
+    wire_api = "responses"
+
+    [projects."${trustedProjectPath}"]
+    trust_level = "trusted"
+  '';
+
+  # Stage the template into the Nix store so activation has a stable,
+  # readable path to copy + substitute from.
+  configTomlTemplateFile = pkgs.writeText "codex-config.toml.template" configTomlTemplate;
 in
 
 {
@@ -16,34 +46,48 @@ in
   home.packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     pkgs.bubblewrap
   ];
-  #
+
   # Schema: https://developers.openai.com/codex/config-reference
   #
   # We use `env_key` (LITELLM_API_KEY) rather than the discouraged
   # `experimental_bearer_token`, so the API key stays out of the Nix
-  # store and out of this file. The env var is exported from
-  # /run/secrets/litellm_api_key by home/cli/fish.nix once the sops
-  # secret is deployed.
+  # store. The env var is exported from /run/secrets/litellm_api_key
+  # by home/cli/fish.nix once the sops secret is deployed.
   #
-  # base_url points at the corporate LiteLLM gateway — hardcoded here
-  # for now. If the gateway URL is ever considered sensitive, move it
-  # to sops alongside litellm_api_key and template this config.toml
-  # from a home.activation script that substitutes the URL at
-  # activation time.
-  home.file.".codex/config.toml".text = ''
-    model = "gpt-5.4"
-    model_provider = "litellm"
-    model_reasoning_effort = "high"
-    sandbox_mode = "workspace-write"
-    approval_policy = "on-request"
+  # base_url comes from /run/secrets/litellm_base_url and is
+  # substituted into the template by the activation below.
+  # Consequence: ~/.codex/config.toml is a regular file (not a
+  # /nix/store symlink). That's appropriate since its contents now
+  # depend on a runtime-decrypted value.
+  home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    target="${config.home.homeDirectory}/.codex/config.toml"
+    mkdir -p "$(dirname "$target")"
 
-    [model_providers.litellm]
-    name = "LiteLLM"
-    base_url = "https://gateway.webai.avaya.com"
-    env_key = "LITELLM_API_KEY"
-    wire_api = "responses"
+    base_url=""
+    if [[ -f "${baseUrlSecretPath}" ]]; then
+      candidate="$(cat "${baseUrlSecretPath}")"
+      # The placeholder check mirrors the pattern used by
+      # home/cli/gpg.nix for GPG keys on fresh hosts where sops
+      # hasn't been provisioned yet.
+      if [[ -n "$candidate" && "$candidate" != "placeholder" ]]; then
+        base_url="$candidate"
+      fi
+    fi
 
-    [projects."${trustedProjectPath}"]
-    trust_level = "trusted"
+    if [[ -n "$base_url" ]]; then
+      # Substitute via sed -- the placeholder token is distinctive so
+      # no false positives on real config syntax.
+      ${pkgs.gnused}/bin/sed "s|@@LITELLM_BASE_URL@@|$base_url|g" \
+        "${configTomlTemplateFile}" > "$target.tmp"
+      mv "$target.tmp" "$target"
+    else
+      # No secret yet: copy the template verbatim so the file still
+      # exists and codex can be configured later by hand. The
+      # placeholder will cause codex requests to fail loudly, which
+      # is the desired behavior on an unprovisioned host.
+      cp "${configTomlTemplateFile}" "$target.tmp"
+      mv "$target.tmp" "$target"
+    fi
+    chmod 0600 "$target"
   '';
 }

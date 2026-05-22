@@ -181,6 +181,28 @@
         mode = "0400";
       };
 
+      # Corporate LiteLLM gateway base URL — split from the API key
+      # so the hostname (which encodes the employer DNS) stays out of
+      # the public Nix sources. Rendered into ~/.codex/config.toml at
+      # home-manager activation time by home/cli/codex.nix.
+      "litellm_base_url" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
+      # Work git/GPG email — same employer-disclosure rationale as
+      # litellm_base_url. Consumed by:
+      #   - home/cli/git.nix       (includeIf for projects/work/)
+      #   - home/cli/gpg.nix       (key import + passphrase preset)
+      #   - home/services/notes-sync.nix (commit author)
+      # Stored as the raw email string with no trailing newline.
+      "git_email_work" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
       # Anthropic API key for desktop apps like Zed. The Zed wrapper
       # reads this at launch and exports ANTHROPIC_API_KEY.
       "anthropic_api_key" = {

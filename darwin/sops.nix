@@ -95,6 +95,18 @@
         owner = owner.name;
         mode = "0400";
       };
+      # See system/sops.nix for rationale — these two split-out values
+      # keep the employer-DNS hostname and work email out of the
+      # public Nix sources. Rendered into ~/.codex/config.toml and
+      # ~/.config/git/work.gitconfig by home-manager activation.
+      litellm_base_url = {
+        owner = owner.name;
+        mode = "0400";
+      };
+      git_email_work = {
+        owner = owner.name;
+        mode = "0400";
+      };
       anthropic_api_key = {
         owner = owner.name;
         mode = "0400";
