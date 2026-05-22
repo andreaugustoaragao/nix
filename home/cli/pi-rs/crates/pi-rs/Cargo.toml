@@ -1,0 +1,39 @@
+[package]
+name = "pi-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "pi-rs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Hashline anchors.
+xxhash-rust.workspace = true
+phf.workspace = true
+
+# Grep / FS walk.
+globset.workspace = true
+grep-matcher.workspace = true
+grep-regex.workspace = true
+grep-searcher.workspace = true
+ignore.workspace = true
+regex.workspace = true
+rayon.workspace = true
+smallvec.workspace = true
+
+# Summary / AST.
+pi-ast.workspace = true
+ast-grep-core.workspace = true
+tree-sitter.workspace = true
+
+# HTML → Markdown.
+html-to-markdown-rs.workspace = true

@@ -1,6 +1,11 @@
 node_modules/
 package.json
 package-lock.json
+# But DO track pi extension package manifests — they're authored.
+!home/cli/pi-extensions/*/package.json
+!home/cli/pi-extensions/*/package-lock.json
+# Rust build artifacts for the in-tree pi-rs workspace.
+home/cli/pi-rs/target/
 .loop/
 core
 core.*

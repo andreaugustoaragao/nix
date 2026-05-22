@@ -1,10 +1,31 @@
-{
-  pkgs,
-  lib,
-  lockScreen ? false,
-  useDms ? false,
-  ...
-}:
+{ pkgs, lib, lockScreen ? false, useDms ? false, ... }:
+
+let
+  # Terminal detection mirrors default-terminal.nix.
+  # VMs (aarch64) → kitty, desktops → ghostty.
+  isVm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
+  termBin = if isVm then "kitty" else "ghostty";
+
+  startScreensaver = pkgs.writeShellScript "start-screensaver" ''
+    #!/usr/bin/env bash
+    if pgrep -f "^${termBin}" 2>/dev/null | grep -q "cmatrix"; then
+      exit 0
+    fi
+    ${termBin} --class Screensaver -- cmatrix -b -C green
+  '';
+
+  triggerLock = pkgs.writeShellScript "trigger-lock" ''
+    #!/usr/bin/env bash
+    if pgrep -f "cmatrix" >/dev/null 2>&1; then
+      killall -TERM cmatrix 2>/dev/null
+      sleep 0.2
+      pkill -f "cmatrix" 2>/dev/null
+    fi
+    pkill -x swayidle 2>/dev/null
+    rm -f "$HOME/.cache/screensaver-active"
+    ${pkgs.swaylock-effects}/bin/swaylock -f
+  '';
+in
 
 lib.mkIf (lockScreen && !useDms) {
   # Lock screen configuration for desktop machines
@@ -60,7 +81,8 @@ lib.mkIf (lockScreen && !useDms) {
     grace-no-touch
   '';
 
-  # Swayidle configuration for auto-locking
+  # Swayidle: screensaver at 5 min, lock at 10 min.
+  # The lock command kills the screensaver and stops swayidle before locking.
   services.swayidle = {
     enable = true;
     events = [
@@ -75,13 +97,13 @@ lib.mkIf (lockScreen && !useDms) {
     ];
     timeouts = [
       {
-        timeout = 600; # 10 minutes
-        command = "${pkgs.swaylock-effects}/bin/swaylock -f";
+        timeout = 300; # 5 minutes
+        command = "${startScreensaver}/bin/start-screensaver";
       }
-      # {
-      #   timeout = 900; # 15 minutes
-      #   command = "${pkgs.systemd}/bin/systemctl suspend";
-      # }
+      {
+        timeout = 600; # 10 minutes
+        command = "${triggerLock}/bin/trigger-lock";
+      }
     ];
   };
 

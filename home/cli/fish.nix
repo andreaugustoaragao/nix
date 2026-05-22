@@ -142,6 +142,40 @@ in
     '';
 
     functions = {
+      sops-edit = {
+        description = "Edit a sops file: sudo + host key on Linux, direct on macOS";
+        body = ''
+          # On macOS the personal age key lives at the default location
+          # ~/.config/sops/age/keys.txt (see darwin/sops.nix), so sops
+          # finds it without any wrapper magic.
+          if test (uname) = Darwin
+            command sops $argv
+            return $status
+          end
+
+          # On NixOS the decryption key is the host key managed by
+          # sops-nix at /var/lib/sops-nix/key.txt — root-readable only.
+          # Override SOPS_AGE_KEY_FILE explicitly so sudo's env-reset
+          # can't drop it.
+          sudo -E env SOPS_AGE_KEY_FILE=/var/lib/sops-nix/key.txt sops $argv
+          set -l rc $status
+
+          # Defensive: sops normally preserves ownership on rewrite,
+          # but if a path argument ended up root-owned, hand it back.
+          set -l my_uid (id -u)
+          set -l my_grp (id -gn)
+          for arg in $argv
+            if test -e "$arg"
+              set -l owner_uid (stat -c %u "$arg" 2>/dev/null)
+              if test "$owner_uid" = 0
+                sudo chown $my_uid:$my_grp "$arg"
+              end
+            end
+          end
+          return $rc
+        '';
+      };
+
       fish_greeting = {
         description = "Show fastfetch and colorful fortune on startup";
         body = ''

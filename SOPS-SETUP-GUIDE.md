@@ -1,406 +1,313 @@
-# Complete SOPS Secret Management Setup Guide
+# SOPS Secret Management — Operations Guide
 
-This guide will walk you through setting up a complete secret management system from scratch, including cleaning any existing keys and creating new ones.
+This guide describes how secrets are organized in this flake, how to
+edit them day-to-day, and how to add a new machine to the recipient
+list. The system is already operational; for a from-scratch fleet
+rebuild see the appendix.
 
-## 🧹 Phase 1: Clean Existing Keys (START HERE)
+## 🏛 Architecture
 
-### Step 1.1: Clean GPG Keys
-```bash
-# List existing GPG keys
-gpg --list-keys
-gpg --list-secret-keys
-
-# Delete all existing GPG keys - batch deletion often fails, so use nuclear option:
-# Alternative: Nuclear option - delete entire GPG directory (RECOMMENDED)
-rm -rf ~/.gnupg
-
-# Manual option (if you prefer to delete individual keys):
-# For each key ID found from the list commands above:
-# gpg --delete-secret-keys KEY_ID
-# gpg --delete-keys KEY_ID
+```
+.sops.yaml              # Recipient list (age public keys per host/user)
+secrets/secrets.yaml    # Encrypted blob — single source of truth
+system/sops.nix         # NixOS: where the host key lives + secret definitions
+darwin/sops.nix         # nix-darwin: same, with macOS-shaped paths
+home/cli/fish.nix       # `sops-edit` shell function (fish)
+home/cli/zsh.nix        # `sops-edit` shell function (zsh)
 ```
 
-### Step 1.2: Clean SSH Keys
+### Where the age key lives, per platform
+
+| Platform | Path                                       | Owner       | How it gets there                  |
+| -------- | ------------------------------------------ | ----------- | ---------------------------------- |
+| NixOS    | `/var/lib/sops-nix/key.txt`                | `root:root` | `sops-nix` auto-generates on first activation (`generateKey = true` in `system/sops.nix`) |
+| macOS    | `~/.config/sops/age/keys.txt`              | user        | Created out-of-band with `age-keygen` (see "Add a macOS host" below) |
+
+Consequence: on NixOS the key is **root-only**. To run `sops` as your
+user you have to go through `sudo`. The `sops-edit` shell function
+takes care of this transparently.
+
+### Current recipients
+
+`.sops.yaml` encrypts `secrets/secrets.yaml` to:
+
+- `admin_key`        — your personal age identity (lives on the workstation)
+- `tala_key`         — server host key
+- `mac_work_key`     — macOS host key at `~/.config/sops/age/keys.txt`
+- `prl_dev_vm_key`   — Parallels dev VM host key
+- a small set of inline pubkeys for the other NixOS hosts (workstation, hp-laptop, vmw-dev-vm)
+
+Any recipient can decrypt the file. Adding or removing recipients
+requires re-encrypting (`sops updatekeys`).
+
+## ✏️ Editing Secrets (the day-to-day workflow)
+
+Use the `sops-edit` shell function. It handles the platform split for you.
+
 ```bash
-# Backup existing SSH config (just in case)
-cp ~/.ssh/config ~/.ssh/config.backup 2>/dev/null || true
-
-# List existing SSH keys
-ls -la ~/.ssh/
-
-# Remove all existing SSH keys (be careful!)
-rm -f ~/.ssh/id_* 
-rm -f ~/.ssh/*.pub
-rm -f ~/.ssh/known_hosts*
-
-# Clean SSH agent
-ssh-add -D 2>/dev/null || true
-```
-
-### Step 1.3: Clean GPG Agent
-```bash
-# Kill existing GPG agent
-pkill gpg-agent 2>/dev/null || true
-gpgconf --kill all 2>/dev/null || true
-```
-
-## 🔑 Phase 2: Generate New Age Key for SOPS
-
-### Step 2.1: Generate Age Key
-```bash
-# Generate the age key for sops encryption/decryption
-age-keygen -o ~/.ssh/id_ed25519_nixos-agenix
-
-# Display the public key - COPY THIS FOR NEXT STEP
-echo "=== YOUR AGE PUBLIC KEY (COPY THIS) ==="
-grep "^age1" ~/.ssh/id_ed25519_nixos-agenix
-echo "======================================="
-
-# Set proper permissions
-chmod 600 ~/.ssh/id_ed25519_nixos-agenix
-```
-
-### Step 2.2: Create SOPS Configuration
-```bash
-# Navigate to your nix config directory
 cd /home/aragao/projects/personal/nix
 
-# Create .sops.yaml (replace YOUR_AGE_PUBLIC_KEY with the key from above)
-cat > .sops.yaml << 'EOF'
+# Edit (drops you into $EDITOR with decrypted YAML; re-encrypts on save)
+sops-edit secrets/secrets.yaml
+
+# Decrypt to stdout (read-only inspection)
+sops-edit -d secrets/secrets.yaml
+
+# Re-encrypt to the current recipient list (after changing .sops.yaml)
+sops-edit updatekeys secrets/secrets.yaml
+```
+
+Under the hood:
+
+- **On NixOS**: `sudo -E env SOPS_AGE_KEY_FILE=/var/lib/sops-nix/key.txt sops "$@"`, then restore ownership of any file argument that ended up `root:root` afterwards.
+- **On macOS**: plain `sops "$@"`. The user's age key at `~/.config/sops/age/keys.txt` is what sops finds by default.
+
+After editing, commit and rebuild:
+
+```bash
+git add secrets/secrets.yaml
+git commit -m "secrets: <what changed>"
+sudo nixos-rebuild switch --flake .#$(hostname)        # NixOS
+# or: darwin-rebuild switch --flake .#$(hostname -s)   # macOS
+```
+
+`sops-nix` writes the decrypted secrets to `/run/secrets/…` (NixOS)
+or `/run/secrets/…` (macOS, via the darwin module) on activation.
+
+## ➕ Add a New NixOS Host
+
+1. **Provision the host** with a placeholder password and add it to
+   `machines.toml`. Build it once normally:
+
+   ```bash
+   sudo nixos-rebuild switch --flake .#<new-host>
+   ```
+
+   The first activation will fail to *decrypt* the secrets (the new
+   host isn't a recipient yet) but `sops-nix` runs the
+   `generateKey` step first, so `/var/lib/sops-nix/key.txt` will
+   exist after this.
+
+2. **Read the new host's age pubkey** (on the new host, as root):
+
+   ```bash
+   sudo nix-shell -p age --run \
+     'age-keygen -y /var/lib/sops-nix/key.txt'
+   ```
+
+   Copy the `age1…` line.
+
+3. **Add it as a recipient** in `.sops.yaml` on any host that already
+   has decryption access:
+
+   ```yaml
+   keys:
+     - &new_host_key age1<paste>
+   creation_rules:
+     - path_regex: secrets/.*\.yaml$
+       key_groups:
+         - age:
+             - *admin_key
+             - *tala_key
+             - *mac_work_key
+             - *prl_dev_vm_key
+             - *new_host_key   # ← here
+   ```
+
+4. **Re-encrypt** so the new host can read the file:
+
+   ```bash
+   sops-edit updatekeys secrets/secrets.yaml
+   git add .sops.yaml secrets/secrets.yaml
+   git commit -m "sops: add <new-host> as recipient"
+   git push
+   ```
+
+5. **Pull and rebuild on the new host:**
+
+   ```bash
+   git pull
+   sudo nixos-rebuild switch --flake .#<new-host>
+   ```
+
+   This time the activation decrypts cleanly and `/run/secrets/…`
+   gets populated.
+
+## ➕ Add a New macOS Host
+
+1. **Generate a user-owned age key:**
+
+   ```bash
+   mkdir -p ~/.config/sops/age
+   age-keygen -o ~/.config/sops/age/keys.txt
+   chmod 600 ~/.config/sops/age/keys.txt
+   ```
+
+2. **Get the pubkey:**
+
+   ```bash
+   age-keygen -y ~/.config/sops/age/keys.txt
+   ```
+
+3. **Add it to `.sops.yaml`** and `sops-edit updatekeys` (same as
+   step 3–4 above for NixOS).
+
+4. **Apply the darwin config:**
+
+   ```bash
+   darwin-rebuild switch --flake .#<new-host>
+   ```
+
+Note: the macOS module sets `sshKeyPaths = [ ]` and `generateKey = false`
+in `darwin/sops.nix` — sops-nix expects the key to already exist at the
+configured path. Don't skip step 1.
+
+## 🔁 Rotating / Removing Recipients
+
+Same flow as adding, but in reverse:
+
+1. Edit `.sops.yaml` to remove or replace the recipient.
+2. `sops-edit updatekeys secrets/secrets.yaml`
+3. Commit and push.
+4. Rebuild on any host you want to refresh.
+
+To rotate the **host key** on a NixOS machine (compromise scenario):
+
+```bash
+sudo rm /var/lib/sops-nix/key.txt           # delete old key
+sudo nixos-rebuild switch --flake .#$(hostname)   # sops-nix generates a new one
+sudo age-keygen -y /var/lib/sops-nix/key.txt      # read the new pubkey
+# → update .sops.yaml + sops-edit updatekeys + commit
+```
+
+After rotation any backup of `secrets.yaml` encrypted under the old
+recipient is still readable by an attacker holding the old key — so
+also rotate the *contents* of any secret you suspect was leaked.
+
+## 🛠 Troubleshooting
+
+### `failed to get the data key required to decrypt the SOPS file`
+
+You don't have an age identity sops can find. On NixOS that's
+expected for the user account — use `sops-edit` (which sudo's into
+the host key). On macOS, check that `~/.config/sops/age/keys.txt`
+exists and that its pubkey is one of the recipients in `.sops.yaml`.
+
+### `File … already up to date` from `updatekeys`
+
+Nothing to do — the file is already encrypted to the current
+recipient set. Confirm with `sops -d secrets/secrets.yaml | head`.
+
+### Activation succeeds but `/run/secrets/<foo>` is empty / missing
+
+The secret isn't declared in `system/sops.nix` (or `darwin/sops.nix`).
+sops-nix only materializes what's listed in `sops.secrets`. Add the
+entry, rebuild.
+
+### `validateSopsFiles` build failure
+
+`secrets/secrets.yaml` isn't a valid sops envelope (e.g. you saved
+it un-encrypted). Restore from git and re-edit via `sops-edit`.
+
+### GPG signing prompts for passphrase every commit
+
+The macOS Keychain caches it after the first `gpg --sign` (see
+`home/cli/gpg-darwin.nix`). On Linux the cache TTL is set in
+`gpg-agent.conf`; `pkill gpg-agent && gpgconf --launch gpg-agent`
+forces a reload.
+
+## 📋 Quick Reference
+
+```bash
+# Edit secrets (works on every machine)
+sops-edit secrets/secrets.yaml
+
+# Re-encrypt after recipient changes
+sops-edit updatekeys secrets/secrets.yaml
+
+# Read your own host's age pubkey
+sudo age-keygen -y /var/lib/sops-nix/key.txt        # NixOS
+age-keygen -y ~/.config/sops/age/keys.txt           # macOS
+
+# Generate a password hash for user/root secrets
+mkpasswd -m SHA-512
+```
+
+**Key files:**
+
+- `.sops.yaml` — recipient list, single source of truth for who can decrypt
+- `secrets/secrets.yaml` — encrypted blob, safe to commit
+- `system/sops.nix` / `darwin/sops.nix` — secret declarations + output paths
+- `home/cli/fish.nix` / `home/cli/zsh.nix` — `sops-edit` wrapper
+
+---
+
+## 🧱 Appendix: From-Scratch Fleet Bootstrap
+
+Use this only if you're rebuilding the entire fleet from zero. For
+adding a single machine to an existing fleet, follow the "Add a new
+… host" sections above instead.
+
+### A. Personal admin age key
+
+This is the long-lived identity that survives any host being
+reprovisioned. Generate once, keep it on a trusted machine, back it
+up offline.
+
+```bash
+mkdir -p ~/.config/sops/age
+age-keygen -o ~/.config/sops/age/keys.txt
+chmod 600 ~/.config/sops/age/keys.txt
+age-keygen -y ~/.config/sops/age/keys.txt          # → admin pubkey
+```
+
+### B. `.sops.yaml` seed
+
+```yaml
 keys:
-  - &admin_key YOUR_AGE_PUBLIC_KEY_HERE
+  - &admin_key age1<from previous step>
 
 creation_rules:
   - path_regex: secrets/.*\.yaml$
     key_groups:
       - age:
           - *admin_key
-EOF
-
-# IMPORTANT: Edit .sops.yaml and replace YOUR_AGE_PUBLIC_KEY_HERE with your actual key
-nano .sops.yaml
 ```
 
-## 🔐 Phase 3: Generate SSH Keys for GitHub
+### C. Seed `secrets/secrets.yaml`
 
-### Step 3.1: Generate Personal GitHub SSH Key
 ```bash
-# Generate personal SSH key
-ssh-keygen -t ed25519 -C "your-personal-email@example.com" -f ~/.ssh/id_ed25519_personal_temp
-
-# Move to expected location (sops will place it here)
-mv ~/.ssh/id_ed25519_personal_temp ~/.ssh/id_rsa_personal
-mv ~/.ssh/id_ed25519_personal_temp.pub ~/.ssh/id_rsa_personal.pub
-
-# Set proper permissions
-chmod 600 ~/.ssh/id_rsa_personal
-chmod 644 ~/.ssh/id_rsa_personal.pub
+sops secrets/secrets.yaml   # creates and opens for editing
 ```
 
-### Step 3.2: Generate Work GitHub SSH Key  
+Populate at minimum:
+
+- `user_password`, `root_password` — output of `mkpasswd -m SHA-512`
+- `ssh_key_github_personal` / `_work` — `ssh-keygen -t ed25519`, paste private key
+- `ssh_pubkey_github_personal` / `_work` — the matching `.pub` contents
+- `gpg_key_personal` / `_work` — `gpg --export-secret-keys <KEYID>` output
+- Any per-environment secrets declared in `system/sops.nix` / `darwin/sops.nix`
+
+### D. Bootstrap each host
+
+For each NixOS host:
+
+1. Install NixOS with a placeholder password and clone this flake.
+2. `sudo nixos-rebuild switch --flake .#<host>` — first run generates `/var/lib/sops-nix/key.txt` but fails to decrypt.
+3. Follow "Add a new NixOS host" steps 2–5 from above to add the host as a recipient.
+
+For the macOS host: follow "Add a new macOS host" verbatim.
+
+### E. GitHub SSH setup
+
+After the first successful decrypted activation, the SSH keys live
+at `~/.ssh/id_rsa_personal` and `~/.ssh/id_rsa_work` (symlinks into
+`/run/secrets/`). Test:
+
 ```bash
-# Generate work SSH key
-ssh-keygen -t ed25519 -C "your-work-email@company.com" -f ~/.ssh/id_ed25519_work_temp
-
-# Move to expected location  
-mv ~/.ssh/id_ed25519_work_temp ~/.ssh/id_rsa_work
-mv ~/.ssh/id_ed25519_work_temp.pub ~/.ssh/id_rsa_work.pub
-
-# Set proper permissions
-chmod 600 ~/.ssh/id_rsa_work
-chmod 644 ~/.ssh/id_rsa_work.pub
-```
-
-### Step 3.3: Add SSH Keys to GitHub
-```bash
-# Display personal public key - ADD THIS TO GITHUB PERSONAL ACCOUNT
-echo "=== PERSONAL GITHUB SSH KEY (copy to GitHub Personal) ==="
-cat ~/.ssh/id_rsa_personal.pub
-echo
-
-# Display work public key - ADD THIS TO GITHUB WORK ACCOUNT  
-echo "=== WORK GITHUB SSH KEY (copy to GitHub Work) ==="
-cat ~/.ssh/id_rsa_work.pub
-echo
-```
-
-**GitHub Setup:**
-1. **Personal Account**: Go to GitHub → Settings → SSH Keys → Add the personal key
-2. **Work Account**: Go to GitHub → Settings → SSH Keys → Add the work key
-
-## 🔒 Phase 4: Generate GPG Keys
-
-### Step 4.1: Generate Personal GPG Key
-```bash
-# Generate personal GPG key (interactive)
-gpg --full-generate-key
-
-# Choose:
-# 1. RSA and RSA (default)
-# 2. 4096 (key size)
-# 3. 0 (does not expire) or set expiration
-# 4. Enter your personal name and email
-# 5. Set a strong passphrase
-```
-
-### Step 4.2: Generate Work GPG Key
-```bash
-# Generate work GPG key (interactive)  
-gpg --full-generate-key
-
-# Choose:
-# 1. RSA and RSA (default)
-# 2. 4096 (key size) 
-# 3. 0 (does not expire) or set expiration
-# 4. Enter your work name and work email
-# 5. Set a strong passphrase
-```
-
-### Step 4.3: Export GPG Keys
-```bash
-# List your GPG keys to get the key IDs
-gpg --list-secret-keys
-
-# Export personal GPG key (replace PERSONAL_KEY_ID)
-gpg --export-secret-keys PERSONAL_KEY_ID > ~/.ssh/gpg_personal_temp.key
-
-# Export work GPG key (replace WORK_KEY_ID)  
-gpg --export-secret-keys WORK_KEY_ID > ~/.ssh/gpg_work_temp.key
-```
-
-## 🔐 Phase 5: Create Encrypted Secrets
-
-### Step 5.1: Edit Secrets File
-```bash
-cd /home/aragao/projects/personal/nix
-
-# Edit the secrets file with sops
-sops secrets/secrets.yaml
-```
-
-**In the sops editor, replace the placeholder values:**
-
-```yaml
-# Generate password hashes first:
-# Personal password: mkpasswd -m SHA-512
-# Root password: mkpasswd -m SHA-512
-
-user_password: "$6$YOUR_HASHED_PASSWORD_HERE"
-root_password: "$6$YOUR_HASHED_ROOT_PASSWORD_HERE"
-
-# Copy the private SSH key contents (paste the entire key including BEGIN/END lines):
-ssh_key_github_work: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  [paste entire content of ~/.ssh/id_rsa_work here]
-  -----END OPENSSH PRIVATE KEY-----
-
-ssh_key_github_personal: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  [paste entire content of ~/.ssh/id_rsa_personal here]  
-  -----END OPENSSH PRIVATE KEY-----
-
-# Copy the public SSH key contents:
-ssh_pubkey_github_work: "ssh-ed25519 AAAA... your-work-email@company.com"
-ssh_pubkey_github_personal: "ssh-ed25519 AAAA... your-personal-email@example.com"
-
-# Copy the GPG key contents:
-gpg_key_personal: |
-  -----BEGIN PGP PRIVATE KEY BLOCK-----
-  [paste entire content of ~/.ssh/gpg_personal_temp.key here]
-  -----END PGP PRIVATE KEY BLOCK-----
-
-gpg_key_work: |
-  -----BEGIN PGP PRIVATE KEY BLOCK-----
-  [paste entire content of ~/.ssh/gpg_work_temp.key here]
-  -----END PGP PRIVATE KEY BLOCK-----
-```
-
-**Important:** 
-- Save and exit sops editor (Ctrl+X in nano, :wq in vim)
-- The file will be automatically encrypted when you save
-
-### Step 5.2: Generate Password Hashes
-```bash
-# Generate password hash for your user (you'll be prompted for password)
-mkpasswd -m SHA-512
-
-# Generate password hash for root (you'll be prompted for password)  
-mkpasswd -m SHA-512
-
-# Copy these hashes to use in the secrets.yaml file above
-```
-
-## 🔧 Phase 6: Activate the Configuration
-
-### Step 6.1: Update SOPS Configuration
-```bash
-cd /home/aragao/projects/personal/nix
-
-# Enable sops file validation now that we have real secrets
-nano system/sops.nix
-
-# Change this line:
-# validateSopsFiles = false;
-# To:
-# validateSopsFiles = true;
-```
-
-### Step 6.2: Add to Git and Rebuild
-```bash
-# Add new files to git (the encrypted secrets.yaml is safe to commit)
-git add .sops.yaml secrets/secrets.yaml system/sops.nix
-
-# The auto-rebuild should pick this up, or manually rebuild:
-sudo nixos-rebuild switch --flake .#prl-dev-vm
-```
-
-### Step 6.3: Test SSH Access
-```bash
-# Test personal GitHub access
-ssh -T github-personal
-
-# Test work GitHub access  
-ssh -T github-work
-
-# Both should respond with: "Hi username! You've successfully authenticated..."
-```
-
-## 🧹 Phase 7: Clean Temporary Files
-
-### Step 7.1: Remove Temporary Key Files
-```bash
-# Remove temporary GPG exports (they're now encrypted in sops)
-rm -f ~/.ssh/gpg_*_temp.key
-
-# Remove the original SSH keys (they're now managed by sops)
-rm -f ~/.ssh/id_rsa_personal ~/.ssh/id_rsa_personal.pub
-rm -f ~/.ssh/id_rsa_work ~/.ssh/id_rsa_work.pub
-
-# The sops system will recreate them in the proper locations
-```
-
-## ✅ Phase 8: Verification
-
-### Step 8.1: Verify Secret Paths
-```bash
-# Check that sops secrets are mounted
-ls -la /run/secrets/
-
-# Should show:
-# gpg_key_personal
-# gpg_key_work  
-# ssh_key_github_personal
-# ssh_key_github_work
-# ssh_pubkey_github_personal
-# ssh_pubkey_github_work
-# user_password
-# root_password
-```
-
-### Step 8.2: Verify SSH Keys Are Loaded
-```bash
-# SSH keys should now be at the sops-managed locations
-ls -la ~/.ssh/id_rsa_*
-
-# Test GitHub access again
 ssh -T github-personal
 ssh -T github-work
 ```
 
-### Step 8.3: Verify GPG Keys Are Imported
-```bash
-# Check GPG keys are imported
-gpg --list-keys
-gpg --list-secret-keys
-
-# Should show both your personal and work GPG keys
-```
-
-## 🎉 Phase 9: Enable Password Authentication (Optional)
-
-### Step 9.1: Uncomment Password Configuration
-```bash
-# Edit the sops configuration to enable password management
-nano system/sops.nix
-
-# Uncomment these lines:
-# users.users.${owner.name} = {
-#   hashedPasswordFile = config.sops.secrets.user_password.path;
-# };
-
-# users.users.root = {
-#   hashedPasswordFile = config.sops.secrets.root_password.path;  
-# };
-
-# Rebuild to apply password changes
-sudo nixos-rebuild switch --flake .#prl-dev-vm
-```
-
-## 🔄 Usage Examples
-
-### Git Repository Configuration
-```bash
-# Clone personal repository
-git clone git@github-personal:username/personal-repo.git
-
-# Clone work repository  
-git clone git@github-work:company/work-repo.git
-
-# Set git config for signing (use appropriate GPG key)
-git config --global user.signingkey PERSONAL_GPG_KEY_ID
-git config --global commit.gpgsign true
-```
-
-### Multi-Machine Deployment
-```bash
-# On your workstation:
-sudo nixos-rebuild switch --flake .#workstation
-
-# On your HP laptop:
-sudo nixos-rebuild switch --flake .#hp-laptop
-```
-
-## 🆘 Troubleshooting
-
-### GPG Agent Issues
-```bash
-# Restart GPG agent
-gpgconf --kill all
-gpg-connect-agent /bye
-```
-
-### SSH Issues  
-```bash
-# Clear SSH agent and reload
-ssh-add -D
-ssh-add ~/.ssh/id_rsa_personal ~/.ssh/id_rsa_work
-```
-
-### SOPS Issues
-```bash
-# Re-encrypt secrets file
-sops updatekeys secrets/secrets.yaml
-
-# Check sops can decrypt
-sops -d secrets/secrets.yaml
-```
-
----
-
-## 📋 Quick Reference
-
-**SSH Hosts:**
-- Personal: `git@github-personal:username/repo.git`
-- Work: `git@github-work:company/repo.git`
-
-**Key Locations:**
-- Age key: `~/.ssh/id_ed25519_nixos-agenix`
-- SSH keys: `~/.ssh/id_rsa_personal`, `~/.ssh/id_rsa_work` (managed by sops)
-- GPG keys: Auto-imported to GPG keyring from sops
-
-**Important Files:**
-- `.sops.yaml` - SOPS configuration
-- `secrets/secrets.yaml` - Encrypted secrets
-- `system/sops.nix` - NixOS sops configuration
-
-Your complete secret management system is now operational! 🎉
+The host aliases are wired up declaratively in
+`home/cli/ssh-config.nix`.

@@ -343,6 +343,12 @@ in
         }
     }
 
+    // Fullscreen cmatrix screensaver — opens the terminal maximized.
+    window-rule {
+        match app-id="^Screensaver$"
+        open-fullscreen true
+    }
+
     ${lib.optionalString useDms ''
       // Frosted-glass effect on the DMS bar only. Earlier versions of
       // this rule matched layer="top"/"overlay" globally, but DMS
@@ -522,6 +528,9 @@ in
               Mod+Ctrl+L { spawn "swaylock" "-f"; }
             ''
         )}
+
+        // Screensaver toggle — runs cmatrix in a fullscreen terminal.
+        Mod+Ctrl+S { spawn "screensaver"; }
 
         // Notification control
         Mod+Semicolon { spawn "makoctl" "restore"; }

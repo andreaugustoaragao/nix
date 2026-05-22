@@ -54,9 +54,7 @@ in
       # configuration attribute, so the same command works on every
       # machine in this flake without hand-rolling the hostname.
       rebuild =
-        if isDarwin
-        then "sudo darwin-rebuild switch --flake ."
-        else "sudo nixos-rebuild switch --flake .";
+        if isDarwin then "sudo darwin-rebuild switch --flake ." else "sudo nixos-rebuild switch --flake .";
       update = "nix flake update";
 
       # Editor shortcuts
@@ -135,6 +133,27 @@ in
       # Some persisted shells can inherit tracing flags from prior sessions.
       # Clear them during init so command execution does not echo aliases/functions.
       unsetopt xtrace verbose 2>/dev/null || true
+
+      # Edit a sops file. On macOS the personal age key sits at the
+      # default ~/.config/sops/age/keys.txt (see darwin/sops.nix) so
+      # plain sops works. On NixOS the decryption key is the host
+      # key at /var/lib/sops-nix/key.txt (root-only), so we sudo into
+      # it explicitly and restore ownership defensively afterwards.
+      sops-edit() {
+        if [[ "$(uname)" == "Darwin" ]]; then
+          command sops "$@"
+          return
+        fi
+        sudo -E env SOPS_AGE_KEY_FILE=/var/lib/sops-nix/key.txt sops "$@"
+        local rc=$?
+        local arg
+        for arg in "$@"; do
+          if [[ -e "$arg" && "$(stat -c %u "$arg" 2>/dev/null)" == "0" ]]; then
+            sudo chown "$(id -u):$(id -gn)" "$arg"
+          fi
+        done
+        return $rc
+      }
     '';
   };
 }

@@ -1,0 +1,15 @@
+{
+  "name": "pi-extension-web-search",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "pi extension: web_search with omp's multi-provider chain",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
+  }
+}

@@ -187,28 +187,28 @@ in
   # Cross-platform programs.ssh lives in home/cli/ssh-config.nix so the
   # github-personal / github-work aliases also apply on macOS.
 
-  # Environment setup for SOPS age key and SSH agent
+  # Environment setup for the SSH agent + askpass. The SOPS age key
+  # on Linux lives at /var/lib/sops-nix/key.txt (root-only), so we
+  # don't export SOPS_AGE_KEY_FILE in the user's session — instead
+  # the `sops-edit` shell function (home/cli/fish.nix, home/cli/zsh.nix)
+  # invokes sops via sudo with the host key. See `sops-edit --help`
+  # equivalent: read the function body for the workflow.
   home.sessionVariables = {
-    SOPS_AGE_KEY_FILE = "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix";
     SSH_ASKPASS = "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass";
     SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/ssh-agent";
   };
 
-  # Shell initialization to ensure SOPS age key and SSH askpass are available
   programs.bash.initExtra = ''
-    export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';
 
   programs.fish.interactiveShellInit = ''
-    set -gx SOPS_AGE_KEY_FILE "/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     set -gx SSH_ASKPASS "${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     set -gx SSH_AUTH_SOCK "$XDG_RUNTIME_DIR/ssh-agent"
   '';
 
   programs.zsh.initContent = lib.mkBefore ''
-    export SOPS_AGE_KEY_FILE="/home/${owner.name}/.ssh/id_ed25519_nixos-agenix"
     export SSH_ASKPASS="${pkgs.kdePackages.ksshaskpass}/bin/ksshaskpass"
     export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent"
   '';

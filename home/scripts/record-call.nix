@@ -218,25 +218,151 @@ let
             f.write(f"[{stamp}] {rest}\n")
   '';
 
+  # Group consecutive same-speaker lines into prose-style "turns" with
+  # pause-based splits. Speaker change OR gap >= GAP seconds starts a
+  # new turn. Speaker is derived from the line prefix:
+  #   "Me: …"        → "Me"        (mic channel)
+  #   "Speaker N: …" → "Speaker N" (post-diarization)
+  #   bare           → "Them"      (call channel, undiarized)
+  # Whisper-segment line breaks within a turn are rejoined into one
+  # paragraph and re-wrapped at WRAP_COL — small punctuation/whitespace
+  # artifacts from segment boundaries ("  word", " . next", duplicated
+  # periods) are normalized in the process. Per-segment timestamps
+  # within a turn are dropped; only the turn-header timestamp remains.
+  # If you need timestamps at segment granularity, grep transcript.txt.
+  # Args: <input.txt> <output.txt> [gap_seconds]
+  turnsPy = pkgs.writeText "record-call-turns.py" ''
+    import re, sys, textwrap
+
+    LINE_RE = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.+)$")
+    SPEAKER_RE = re.compile(r"^(Me|Speaker \d+): (.*)$")
+    WRAP_COL = 80
+
+    def parse(line):
+        m = LINE_RE.match(line.rstrip("\n"))
+        if not m:
+            return None
+        h, mi, s, body = m.groups()
+        t = int(h) * 3600 + int(mi) * 60 + int(s)
+        stamp = f"{h}:{mi}:{s}"
+        sm = SPEAKER_RE.match(body)
+        if sm:
+            return t, stamp, sm.group(1), sm.group(2)
+        return t, stamp, "Them", body
+
+    def join_segments(segs):
+        # Concatenate segments with single spaces, then clean up the
+        # whisper-segment-boundary artifacts that look ugly in prose:
+        #   - collapsed whitespace
+        #   - space before punctuation (" ." → ".")
+        #   - runs of repeated punctuation (". ." → ".", ", ," → ",")
+        #   - orphan leading punctuation at the start of a segment
+        #     joining onto a sentence-terminator from the previous
+        #     (". 56.7" pattern from whisper restarting mid-stream)
+        text = " ".join(s.strip() for s in segs if s and s.strip())
+        text = re.sub(r"\s+", " ", text)
+        text = re.sub(r"\s+([.,;:!?])", r"\1", text)
+        # collapse ". ." ", ," etc. (any terminator immediately followed
+        # by space + same/different terminator)
+        for _ in range(3):
+            text = re.sub(r"([.,;:!?])\s+([.,;:!?])", r"\2", text)
+        return text.strip()
+
+    src = sys.argv[1]
+    dst = sys.argv[2]
+    gap = int(sys.argv[3]) if len(sys.argv) > 3 else 8
+
+    turns = []  # [(header_stamp, speaker, [segment_text, ...])]
+    last_t = None
+    seg_count = 0
+    for line in open(src):
+        p = parse(line)
+        if not p:
+            continue
+        t, stamp, spk, text = p
+        seg_count += 1
+        if turns and turns[-1][1] == spk and last_t is not None and (t - last_t) < gap:
+            turns[-1][2].append(text)
+        else:
+            turns.append((stamp, spk, [text]))
+        last_t = t
+
+    with open(dst, "w") as f:
+        for header_stamp, spk, segs in turns:
+            f.write(f"[{header_stamp}] {spk}:\n")
+            para = join_segments(segs)
+            if para:
+                f.write(textwrap.fill(
+                    para,
+                    width=WRAP_COL,
+                    initial_indent="  ",
+                    subsequent_indent="  ",
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                ) + "\n")
+            f.write("\n")
+    print(f"turns: {len(turns)} turns from {seg_count} lines")
+  '';
+
   # Collapse near-duplicate consecutive lines within ±6s. Window overlaps
   # emit the same text in adjacent windows when a whisper segment spans
   # a boundary; this pass drops the duplicates.
+  #
+  # Two collapse signals:
+  #   1. Overall SequenceMatcher ratio >= RATIO_THRESH (true near-duplicates).
+  #   2. Largest matching block starts near the head of BOTH strings and
+  #      covers >= PREFIX_COVER of the shorter — i.e. one line is
+  #      approximately a prefix of the other. This catches the common
+  #      window-overlap case where the earlier window cut off mid-word
+  #      and the later window has the full sentence.
+  # When a pair collapses, we drop the SHORTER line (the truncated one
+  # with less whisper context); on equal length we drop the later.
+  # Previously this dropped the chronologically-later line, which threw
+  # away the BETTER transcription (e.g. "Mahender, Marcelo, um, Matt,
+  # Alta," was kept while "Mahender, Marcelo, Matt Altapeter, you know,
+  # the" was dropped — losing "Altapeter" entirely from the final).
+  # RATIO_THRESH was also bumped from 0.65 → 0.78 to stop false-positive
+  # collapses of distinct sentences sharing filler words ("any day in
+  # that week is problematic" vs "Days in that week are problematic").
   dedupePy = pkgs.writeText "record-call-dedupe.py" ''
     import difflib, re, sys
 
     WIN_S = 6
-    THRESH = 0.65
+    RATIO_THRESH = 0.78
+    PREFIX_COVER = 0.6
     LINE_RE = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.+)$")
+    # Speaker prefixes (from mergePy and the diarization aligner) should
+    # not influence similarity — "Me: I am flexible." vs "I am flexible."
+    # is the call channel echoing the mic and should still collapse.
+    SPEAKER_RE = re.compile(r"^(?:Me|Speaker \d+): ")
 
     def parse(line):
         m = LINE_RE.match(line.rstrip("\n"))
         if not m:
             return None
         h, mi, s, text = m.groups()
-        return int(h) * 3600 + int(mi) * 60 + int(s), text
+        body = SPEAKER_RE.sub("", text).strip()
+        return int(h) * 3600 + int(mi) * 60 + int(s), body
 
-    def similar(a, b):
-        return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    def is_duplicate(a, b):
+        if not a or not b:
+            return False
+        al, bl = a.lower(), b.lower()
+        if difflib.SequenceMatcher(None, al, bl).ratio() >= RATIO_THRESH:
+            return True
+        short, long_ = (al, bl) if len(al) <= len(bl) else (bl, al)
+        sm = difflib.SequenceMatcher(None, short, long_)
+        blocks = [blk for blk in sm.get_matching_blocks() if blk.size > 0]
+        if not blocks:
+            return False
+        biggest = max(blocks, key=lambda x: x.size)
+        # Both strings start with (approximately) the same content, and
+        # that prefix covers most of the shorter line.
+        return (
+            biggest.a <= 3
+            and biggest.b <= 3
+            and biggest.size >= PREFIX_COVER * len(short)
+        )
 
     path = sys.argv[1]
     with open(path) as f:
@@ -244,21 +370,26 @@ let
     parsed = [parse(ln) for ln in lines]
     drop = set()
 
-    for i, p in enumerate(parsed):
-        if i in drop or not p:
+    for i in range(len(parsed)):
+        if i in drop or not parsed[i]:
             continue
-        t1, text1 = p
+        t1, text1 = parsed[i]
         for j in range(i + 1, len(parsed)):
-            if j in drop:
+            if j in drop or not parsed[j]:
                 continue
-            q = parsed[j]
-            if not q:
-                continue
-            t2, text2 = q
+            t2, text2 = parsed[j]
             if t2 - t1 > WIN_S:
                 break
-            if similar(text1, text2) >= THRESH:
-                drop.add(j)
+            if is_duplicate(text1, text2):
+                # Drop the shorter line — the longer version typically
+                # comes from the next window which had more whisper
+                # context and produces a more complete transcription.
+                # On tie, drop the later (preserve original order).
+                if len(text2) > len(text1):
+                    drop.add(i)
+                    break  # i is gone, stop comparing against it
+                else:
+                    drop.add(j)
 
     kept = [ln for i, ln in enumerate(lines) if i not in drop]
     with open(path, "w") as f:
@@ -736,11 +867,26 @@ in
                 python3 ${dedupePy} "$OUTPUT_DIR/transcript.txt" || true
               fi
 
+              TURN_GAP="''${RECORD_CALL_TURN_GAP_SEC:-8}"
+              TURNS=""
+              if [ -s "$OUTPUT_DIR/transcript.txt" ]; then
+                echo "Grouping into speaker turns (gap=''${TURN_GAP}s)..."
+                python3 ${turnsPy} "$OUTPUT_DIR/transcript.txt" \
+                  "$OUTPUT_DIR/transcript.turns.txt" "$TURN_GAP" || true
+                [ -s "$OUTPUT_DIR/transcript.turns.txt" ] && TURNS="$OUTPUT_DIR/transcript.turns.txt"
+              fi
+
               DIARIZED=""
+              DIARIZED_TURNS=""
               if [ -n "''${HF_TOKEN:-}" ] || [ -n "''${HUGGINGFACE_HUB_TOKEN:-}" ]; then
                 echo "Running speaker diarization..."
                 if cmd_diarize "$OUTPUT_DIR"; then
                   DIARIZED="$OUTPUT_DIR/transcript.diarized.txt"
+                  echo "Grouping diarized transcript into turns..."
+                  python3 ${turnsPy} "$DIARIZED" \
+                    "$OUTPUT_DIR/transcript.diarized.turns.txt" "$TURN_GAP" || true
+                  [ -s "$OUTPUT_DIR/transcript.diarized.turns.txt" ] \
+                    && DIARIZED_TURNS="$OUTPUT_DIR/transcript.diarized.turns.txt"
                 else
                   echo "Diarization failed; transcript.txt is still finalized." >&2
                 fi
@@ -756,9 +902,39 @@ in
       Stopped.
         Duration:   ''${ELAPSED}s
         Transcript: $OUTPUT_DIR/transcript.txt (raw: transcript.raw.txt)
+        Turns:      ''${TURNS:-not generated}
         Diarized:   ''${DIARIZED:-not generated}
+        Diar.turns: ''${DIARIZED_TURNS:-not generated}
         Chunks:     $OUTPUT_DIR/chunks/
       EOF
+            }
+
+            cmd_turns() {
+              # Group a transcript into speaker turns. Works on both
+              # the line-per-segment transcript.txt and the
+              # diarization-aligned transcript.diarized.txt.
+              # Usage: record-call turns <dir-or-txt> [gap-seconds]
+              SRC="''${1:-}"
+              GAP="''${2:-''${RECORD_CALL_TURN_GAP_SEC:-8}}"
+              if [ -z "$SRC" ]; then
+                echo "Usage: record-call turns <dir-or-txt> [gap-seconds]" >&2
+                exit 1
+              fi
+              if [ -d "$SRC" ]; then
+                if [ -f "$SRC/transcript.diarized.txt" ]; then
+                  IN="$SRC/transcript.diarized.txt"
+                  OUT="$SRC/transcript.diarized.turns.txt"
+                else
+                  IN="$SRC/transcript.txt"
+                  OUT="$SRC/transcript.turns.txt"
+                fi
+              else
+                IN="$SRC"
+                OUT="''${SRC%.txt}.turns.txt"
+              fi
+              [ -f "$IN" ] || { echo "Not a file: $IN" >&2; exit 1; }
+              python3 ${turnsPy} "$IN" "$OUT" "$GAP"
+              echo "Wrote: $OUT"
             }
 
             cmd_dedupe() {
@@ -1034,6 +1210,7 @@ in
         record-call stop                 Stop recording, finalize transcript
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
+        record-call turns <dir|txt> [gap]   Group lines into speaker turns (default gap=8s)
         record-call retime <dir|txt>     Rewrite timestamps as wall-clock (HH:MM:SS local)
         record-call diarize <dir>        Speaker-label the transcript (needs HF_TOKEN)
 
@@ -1070,6 +1247,7 @@ in
               route)       cmd_route ;;
               transcribe)  cmd_transcribe "$@" ;;
               dedupe)      cmd_dedupe "$@" ;;
+              turns)       cmd_turns "$@" ;;
               retime)      cmd_retime "$@" ;;
               diarize)     cmd_diarize "$@" ;;
               _watch)      cmd__watch "$@" ;;
