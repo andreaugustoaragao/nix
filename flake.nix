@@ -188,25 +188,33 @@
       # set (./darwin) is intentionally small: no boot/audio/wireless/
       # display-manager, and the home-manager module set under ./home
       # gates its Linux-only pieces on pkgs.stdenv.isLinux.
-      darwinConfigurations = builtins.mapAttrs (
-        _machineName: host:
-        nix-darwin.lib.darwinSystem {
-          specialArgs = setSpecialArgs host;
-          modules = [
-            { nixpkgs.hostPlatform = host.platform; }
-            {
-              nixpkgs.overlays = [
-                claude-code.overlays.default
+      darwinConfigurations =
+        let
+          base = builtins.mapAttrs (
+            _machineName: host:
+            nix-darwin.lib.darwinSystem {
+              specialArgs = setSpecialArgs host;
+              modules = [
+                { nixpkgs.hostPlatform = host.platform; }
+                {
+                  nixpkgs.overlays = [
+                    claude-code.overlays.default
+                  ];
+                }
+                ./darwin
+                inputs.nix-index-database.darwinModules.nix-index
+                sops-nix.darwinModules.sops
+                home-manager.darwinModules.home-manager
+                (setHomeManagerTemplate host)
               ];
             }
-            ./darwin
-            inputs.nix-index-database.darwinModules.nix-index
-            sops-nix.darwinModules.sops
-            home-manager.darwinModules.home-manager
-            (setHomeManagerTemplate host)
-          ];
-        }
-      ) darwinMachines;
+          ) darwinMachines;
+        in
+        # Convenience alias: darwin-rebuild with bare `--flake .` looks
+        # up `darwinConfigurations.<hostname>`, and the macOS HostName
+        # is pinned to IT's asset tag (G7CH2W2XYR), not the flake key
+        # (mac-work). Expose both names so either invocation works.
+        base // { G7CH2W2XYR = base.mac-work; };
 
       # Cross-host SSH bootstrap apps. Exposed on every system in appSystems
       # so the same `nix run .#peers-bootstrap` works from any host in
