@@ -161,17 +161,6 @@
         group = "users";
         mode = "0400";
       };
-      "google_oauth_client_id" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-      "google_oauth_client_secret" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-
       # Corporate LiteLLM gateway bearer token — exported as
       # LITELLM_API_KEY by home/cli/fish.nix and consumed by codex
       # (configured in home/cli/codex.nix).
