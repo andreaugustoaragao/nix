@@ -105,6 +105,15 @@ in
     ./notes-darwin.nix
   ];
 
+  # On macOS, the sops CLI defaults to looking for its age identity
+  # at ~/Library/Application Support/sops/age/keys.txt, but sops-nix
+  # (darwin/sops.nix) writes the key to ~/.config/sops/age/keys.txt to
+  # match the Linux/XDG layout. Point the CLI at the actual file so
+  # plain `sops` (and our `sops-edit` wrapper) can decrypt.
+  home.sessionVariables = lib.optionalAttrs isDarwinHost {
+    SOPS_AGE_KEY_FILE = "$HOME/.config/sops/age/keys.txt";
+  };
+
   home.packages =
     with pkgs;
     [
