@@ -6,9 +6,9 @@
 let
   # Single-binary Rust toolbox of high-performance, context-aware primitives
   # invoked by pi extensions. Subcommands: hash, grep, summary, html2md,
-  # ast-grep (stub), ast-edit (stub). Vendored from oh-my-pi (MIT, Can
-  # Boluk) under home/cli/pi-rs/ and evolved independently. Builds
-  # natively on x86_64-linux, aarch64-linux, and aarch64-darwin.
+  # ast-grep, ast-edit. Vendored from oh-my-pi (MIT, Can Boluk) under
+  # home/cli/pi-rs/ and evolved independently. Builds natively on
+  # x86_64-linux, aarch64-linux, and aarch64-darwin.
   piRs = pkgs.callPackage ../../home/cli/pi-rs { };
 
   # Directory-style pi extension that forks oh-my-pi's 78 site-specific
@@ -358,10 +358,11 @@ let
     }
   '';
 
-  # Pi extension: `lsp_query` + `lsp_diagnostics` tools.
-  # Spawns a language server process and implements the LSP JSON-RPC
-  # 2.0 protocol. Language server binaries are substituted from Nix
-  # store paths at build time.
+  # Pi extension: single `lsp` tool exposing 14 actions across LSP
+  # (diagnostics, hover, definition / type_definition / implementation,
+  # references, document & workspace symbols, code_actions, rename,
+  # rename_file, status, reload, capabilities, raw request). Language
+  # server binaries are substituted from Nix store paths at build time.
   lspExtension = pkgs.writeText "lsp.ts" (
     builtins.replaceStrings
       [ "___GOLANG_LSP___" "___TS_LSP___" "___RUST_ANALYZER___" "___NIX_LSP___" ]
@@ -374,11 +375,21 @@ let
       (builtins.readFile ./lsp-extension.ts)
   );
 
-  # Pi extension: `astgrep` tool. Wraps ast-grep (`sg`) for structural
-  # code search. Language binaries are substituted from Nix store paths.
-  astGrepExtension = pkgs.writeText "astgrep.ts" (
-    builtins.replaceStrings [ "___ASTGREP_BIN___" ] [ "${pkgs.ast-grep}/bin/sg" ] (
+  # Pi extension: `ast_grep` tool. Backed by `pi-rs ast-grep` (in-tree
+  # tree-sitter via the pi-ast crate). Replaces the previous wrapper
+  # around the standalone `sg` binary; gives meta-variable capture,
+  # parse-error collection, and pagination matching omp's surface.
+  astGrepExtension = pkgs.writeText "ast-grep.ts" (
+    builtins.replaceStrings [ "___PI_RS_BIN___" ] [ "${piRs}/bin/pi-rs" ] (
       builtins.readFile ./ast-grep-extension.ts
+    )
+  );
+
+  # Pi extension: `ast_edit` tool. Backed by `pi-rs ast-edit`. Previews
+  # rewrites by default; writes to disk when called with `apply: true`.
+  astEditExtension = pkgs.writeText "ast-edit.ts" (
+    builtins.replaceStrings [ "___PI_RS_BIN___" ] [ "${piRs}/bin/pi-rs" ] (
+      builtins.readFile ./ast-edit-extension.ts
     )
   );
 
@@ -590,7 +601,8 @@ in
 
   home.file.".pi/agent/extensions/context7.ts".source = context7Extension;
   home.file.".pi/agent/extensions/lsp.ts".source = lspExtension;
-  home.file.".pi/agent/extensions/astgrep.ts".source = astGrepExtension;
+  home.file.".pi/agent/extensions/ast-grep.ts".source = astGrepExtension;
+  home.file.".pi/agent/extensions/ast-edit.ts".source = astEditExtension;
   home.file.".pi/agent/extensions/browser-run.ts".source = webBrowserRunExtension;
 
   # pi-rs-backed primitives. These are thin TS shells that spawn the

@@ -4,8 +4,10 @@ package-lock.json
 # But DO track pi extension package manifests — they're authored.
 !home/cli/pi-extensions/*/package.json
 !home/cli/pi-extensions/*/package-lock.json
-# Rust build artifacts for the in-tree pi-rs workspace.
-home/cli/pi-rs/target/
+# Rust build artifacts for the in-tree pi-rs workspace. Match any target/
+# under pi-rs/ so rust-analyzer's per-crate scratch dirs (e.g.
+# pi-rs/crates/*/target/) are also ignored, not just the workspace root.
+home/cli/pi-rs/**/target/
 .loop/
 core
 core.*

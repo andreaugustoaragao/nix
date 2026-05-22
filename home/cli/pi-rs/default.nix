@@ -1,9 +1,12 @@
 # pi-rs: single-binary toolbox of high-performance, context-aware primitives
 # for pi-coding-agent extensions.
 #
-# The binary exposes subcommands: hash, grep, summary, html2md, ast-grep
-# (stub), ast-edit (stub). Each TS extension shells out to the appropriate
-# subcommand; the binary path is pinned at build time so no PATH dependency.
+# The binary exposes subcommands: hash, grep, summary, html2md, ast-grep,
+# ast-edit. Each TS extension shells out to the appropriate subcommand;
+# the binary path is pinned at build time so no PATH dependency.
+# Tests for the AST orchestration live in `cmd::ast::tests` and run as
+# part of `cargo test` in the workspace; integration is covered by the
+# extension layer.
 { lib, rustPlatform, ... }:
 rustPlatform.buildRustPackage {
   pname = "pi-rs";
