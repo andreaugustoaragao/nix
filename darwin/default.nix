@@ -39,6 +39,22 @@
   # Common locale + timezone, matching system/default.nix.
   time.timeZone = "America/Denver";
 
+  # Auto-rename any plain /etc file we're about to take over to
+  # `<name>.before-nix-darwin` on first activation. nix-darwin's
+  # default safety check aborts the rebuild on unrecognized content;
+  # this hook turns that into a one-time backup-and-proceed for the
+  # files listed below. Idempotent: skips files that are already
+  # symlinks (nix-managed) or have an existing backup, so subsequent
+  # rebuilds are no-ops here.
+  system.activationScripts.preActivation.text = ''
+    for f in /etc/hosts; do
+      if [ -e "$f" ] && [ ! -L "$f" ] && [ ! -e "$f.before-nix-darwin" ]; then
+        echo "[preActivation] backing up untracked $f -> $f.before-nix-darwin"
+        mv "$f" "$f.before-nix-darwin"
+      fi
+    done
+  '';
+
   # Static /etc/hosts entries for the Parallels + VMware dev VMs.
   # Replaces mDNS/Bonjour resolution (the rest of the flake dropped
   # avahi to avoid the Docker/CNI multicast echo / conflict-rename
