@@ -42,7 +42,8 @@ in
     ./k9s.nix
     ./fzf.nix
     ./pi.nix
-    ./pi-opus.nix
+    # pi-opus.nix retired — Opus is now one stop in the Ctrl+P cycle
+    # managed by home/services/pi-models.nix + home/cli/pi.nix.
     # Cross-platform programs.ssh — defines the github-personal /
     # github-work host aliases that point at sops-decrypted identity
     # files. Loaded on Linux and macOS; agent/askpass wiring stays

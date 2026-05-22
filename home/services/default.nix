@@ -17,8 +17,23 @@
 # secret is declared `lib.optionalAttrs (!isServer)` in system/sops.nix,
 # so loading fulcrum on the `server` profile (tala) blows up at eval.
 {
-  imports =
-    lib.optionals (!isDarwinHost) [
+  imports = [
+    # Pi models aggregator. Materializes ~/.pi/agent/models.json from
+    # the merged services.piModels.providers attrset across all
+    # contributing modules, with activation-time substitution for
+    # secret base URLs. Universal: degrades to a no-op if no provider
+    # contributes (e.g., a host without local-llm.nix and without the
+    # litellm secrets provisioned).
+    ./pi-models.nix
+
+    # LiteLLM gateway provider (gpt-5.5, gpt-5.4, gemini-2.5-pro,
+    # gemini-2.5-flash). Anthropic traffic deliberately stays off this
+    # provider — see home/cli/pi.nix for the cycle composition
+    # rationale. Degrades gracefully if /run/secrets/litellm_*
+    # is missing.
+    ./litellm.nix
+  ]
+  ++ lib.optionals (!isDarwinHost) [
       ./notes-sync.nix
       ./darkman.nix
     ]

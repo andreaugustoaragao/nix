@@ -633,6 +633,30 @@ in
   home.file.".pi/agent/extensions/web-fetch".source = webFetchOmpExtension;
   home.file.".pi/agent/extensions/web-search".source = webSearchOmpExtension;
 
+  # Master cycle list for Ctrl+P / Shift+Ctrl+P. Seeded into
+  # ~/.pi/agent/settings.json -> enabledModels by
+  # home/services/pi-models.nix on the first activation that finds
+  # the field unset. After that, pi's /scoped-models interactive UI
+  # owns the field — including any per-model thinking-level overrides
+  # (xhigh for Opus, off for the local Qwen, etc.).
+  #
+  # Provider/id qualification is mandatory here: `claude-opus-4-7`
+  # exists both as a built-in Anthropic model AND as a route on the
+  # corporate LiteLLM gateway, so we have to be explicit about which
+  # path each cycle slot takes. Anthropic models go direct via
+  # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the four GPT
+  # and Gemini entries route through litellm. The qwen3.6-* glob
+  # tolerates the per-host quant suffix (Q4 on workstation, Q8 on VM
+  # hosts that talk to mac-work).
+  services.piModels.enabledModels = [
+    "anthropic/claude-opus-4-7"
+    "litellm/gpt-5.5"
+    "litellm/gpt-5.4"
+    "litellm/gemini-2.5-pro"
+    "litellm/gemini-2.5-flash"
+    "llama-cpp/qwen3.6-35b-a3b-*"
+  ];
+
   # Global pi context file. Loaded into every pi session's system prompt.
   # See: pi-coding-agent/README.md (Context Files).
   home.file.".pi/agent/AGENTS.md".text = ''

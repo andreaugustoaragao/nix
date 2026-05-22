@@ -159,9 +159,16 @@ in
       # different baseUrl baked in. Keeps muscle memory portable
       # between workstation and dev VMs.
       ++ [
+        # Health-check wrapper: probe the local llama.cpp server (or
+        # mac-work LaunchAgent on VM hosts) for readiness, then exec
+        # bare `pi`. Use Ctrl+P / Shift+Ctrl+P inside the session to
+        # cycle to the local model (its qualified ID is included in
+        # services.piModels.enabledModels via home/cli/pi.nix). Pass
+        # --model 'llama-cpp/qwen3.6-35b-a3b-*' if you want to start
+        # pinned to local instead of cycling there manually.
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}
-          exec pi --model llama-cpp/${model.id} "$@"
+          exec pi "$@"
         '')
         (pkgs.writeShellScriptBin "local-qwen-code" ''
           ${ensureLocalLlm}
@@ -186,46 +193,45 @@ in
       LOCAL_LLAMA_CPP = "${llama-cpp-rocm}";
     };
 
-    # `home.file` is plain attrset of file-spec attrsets, so we can
-    # compose via lib.optionalAttrs + // to keep workstation-only
-    # entries (`.keep` for the model dir) cleanly separated from the
-    # always-present client config (`models.json`).
-    file =
-      lib.optionalAttrs isWorkstation {
-        ".local/share/llm/models/.keep".text = "";
-      }
-      // {
-        ".pi/agent/models.json".text = builtins.toJSON {
-          providers.llama-cpp = {
-            inherit baseUrl;
-            api = "openai-completions";
-            apiKey = "local";
-            compat = {
-              supportsDeveloperRole = false;
-              supportsReasoningEffort = false;
-              supportsUsageInStreaming = false;
-            };
-            models = [
-              {
-                inherit (model)
-                  id
-                  name
-                  contextWindow
-                  maxTokens
-                  ;
-                reasoning = false;
-                input = [ "text" ];
-                cost = {
-                  input = 0;
-                  output = 0;
-                  cacheRead = 0;
-                  cacheWrite = 0;
-                };
-              }
-            ];
-          };
+    # Workstation also owns the model-store directory; client hosts
+    # don't need it. The models.json contribution is unconditional
+    # (every host with this module gets a llama-cpp entry pointing
+    # either at 127.0.0.1 or mac-work.local).
+    file = lib.optionalAttrs isWorkstation {
+      ".local/share/llm/models/.keep".text = "";
+    };
+  };
+
+  # Contribute the llama-cpp provider to the aggregator. The
+  # aggregator (home/services/pi-models.nix) renders the merged
+  # provider set into ~/.pi/agent/models.json at activation time.
+  services.piModels.providers.llama-cpp = {
+    inherit baseUrl;
+    api = "openai-completions";
+    apiKey = "local";
+    compat = {
+      supportsDeveloperRole = false;
+      supportsReasoningEffort = false;
+      supportsUsageInStreaming = false;
+    };
+    models = [
+      {
+        inherit (model)
+          id
+          name
+          contextWindow
+          maxTokens
+          ;
+        reasoning = false;
+        input = [ "text" ];
+        cost = {
+          input = 0;
+          output = 0;
+          cacheRead = 0;
+          cacheWrite = 0;
         };
-      };
+      }
+    ];
   };
 
   # Server-side systemd unit — only on workstation. On VM hosts the
