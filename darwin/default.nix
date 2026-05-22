@@ -47,12 +47,14 @@
   # symlinks (nix-managed) or have an existing backup, so subsequent
   # rebuilds are no-ops here.
   system.activationScripts.preActivation.text = ''
-    for f in /etc/hosts; do
+    backup_untracked() {
+      local f="$1"
       if [ -e "$f" ] && [ ! -L "$f" ] && [ ! -e "$f.before-nix-darwin" ]; then
         echo "[preActivation] backing up untracked $f -> $f.before-nix-darwin"
         mv "$f" "$f.before-nix-darwin"
       fi
-    done
+    }
+    backup_untracked /etc/hosts
   '';
 
   # Static /etc/hosts entries for the Parallels + VMware dev VMs.
