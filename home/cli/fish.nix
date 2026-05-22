@@ -1,5 +1,6 @@
 {
   pkgs,
+  lib,
   ...
 }:
 
@@ -97,6 +98,17 @@ in
       h = "history";
       y = "yazi";
     };
+
+    # home.sessionVariables only writes hm-session-vars.sh (POSIX
+    # syntax), which fish doesn't source. zsh sessions inherit it via
+    # ~/.zshenv, so sshd's `/bin/zsh -c "fish ..."` works transparently.
+    # But macOS GUI terminals (Ghostty's `login -fl aragao bash
+    # --noprofile --norc -c "exec -l fish"`) launch fish without a zsh
+    # wrapper, so we re-export the var in fish syntax here. Path must
+    # match darwin/sops.nix's keyFile.
+    shellInit = lib.mkIf isDarwin ''
+      set -gx SOPS_AGE_KEY_FILE $HOME/.config/sops/age/keys.txt
+    '';
 
     interactiveShellInit = ''
       # Any-nix-shell integration for better nix-shell experience
