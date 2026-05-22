@@ -15,9 +15,22 @@ set -euo pipefail
 # Override knobs:
 #   DISK=/dev/vda  ./install-nixos.sh   # default is /dev/sda
 #   TARGET_HOSTNAME=foo ./install-nixos.sh   # skip the menu
+#   LOCAL_FLAKE=/run/media/usb/nix ./install-nixos.sh   # skip the git
+#                                                       clone, copy from
+#                                                       this path instead
+#
+# LOCAL_FLAKE exists for the case where the upstream repo is private
+# (no anonymous clone) and you've staged the flake onto a USB stick or
+# similar local mount alongside the NixOS installer ISO. When set, the
+# script reads machines.toml / hardware/ from that path and copies it
+# into /mnt verbatim — no network access required, no PAT/SSH key
+# juggling on the live installer. When unset, the script falls back to
+# cloning FLAKE_REPO over HTTPS (works for public repos out of the
+# box).
 
 DISK="${DISK:-/dev/sda}"
 FLAKE_REPO="${FLAKE_REPO:-https://github.com/andreaugustoaragao/nix.git}"
+LOCAL_FLAKE="${LOCAL_FLAKE:-}"
 USERNAME="aragao"
 USER_FULLNAME="Andre Aragao"
 TMP_FLAKE="/tmp/nix-installer-flake"
@@ -43,11 +56,21 @@ if ! command -v git >/dev/null; then
     error "git is required (the NixOS installer ships it)"
 fi
 
-# Step 0: clone the flake to a temp location so we can read machines.toml
-# and hardware/ before deciding what to install.
-log "Fetching flake metadata from $FLAKE_REPO"
+# Step 0: stage the flake at $TMP_FLAKE so we can read machines.toml
+# and hardware/ before deciding what to install. Two modes:
+#   - LOCAL_FLAKE set    -> copy from local path (no network).
+#   - LOCAL_FLAKE unset  -> shallow clone from FLAKE_REPO (HTTPS).
 rm -rf "$TMP_FLAKE"
-git clone --depth=1 "$FLAKE_REPO" "$TMP_FLAKE" >/dev/null
+if [[ -n "$LOCAL_FLAKE" ]]; then
+    [[ -f "$LOCAL_FLAKE/flake.nix" ]] || error "LOCAL_FLAKE='$LOCAL_FLAKE' does not contain a flake.nix"
+    log "Copying flake from local path: $LOCAL_FLAKE"
+    # -a preserves perms/symlinks; trailing /. ensures dotfiles (.git,
+    # .sops.yaml, .gitignore) come along, which `nix build` needs.
+    cp -a "$LOCAL_FLAKE/." "$TMP_FLAKE"
+else
+    log "Fetching flake metadata from $FLAKE_REPO"
+    git clone --depth=1 "$FLAKE_REPO" "$TMP_FLAKE" >/dev/null
+fi
 
 # Step 1: discover candidate hosts. A candidate is a directory under
 # hardware/ whose hardware-configuration.nix references
@@ -98,7 +121,11 @@ echo
 log "Target disk:     $DISK"
 log "Target host:     $TARGET_HOSTNAME"
 log "Username:        $USERNAME"
-log "Flake source:    $FLAKE_REPO"
+if [[ -n "$LOCAL_FLAKE" ]]; then
+    log "Flake source:    $LOCAL_FLAKE (local)"
+else
+    log "Flake source:    $FLAKE_REPO"
+fi
 echo
 read -p "This will DESTROY ALL DATA on $DISK. Continue? (yes/no): " -r
 [[ $REPLY =~ ^yes$ ]] || error "Installation cancelled"
