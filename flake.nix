@@ -1,5 +1,5 @@
 {
-  description = "NixOS + nix-darwin configuration for a fleet of machines";
+  description = "NixOS + nix-darwin configuration for a handful of personal hosts";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -208,22 +208,22 @@
         }
       ) darwinMachines;
 
-      # Fleet SSH bootstrap apps. Exposed on every system in appSystems
-      # so the same `nix run .#fleet-bootstrap` works from any host in
-      # the fleet. The scripts are deliberately self-contained shell
+      # Cross-host SSH bootstrap apps. Exposed on every system in appSystems
+      # so the same `nix run .#peers-bootstrap` works from any host in
+      # the set. The scripts are deliberately self-contained shell
       # applications — they only need git, openssh, and coreutils.
       apps = forEachAppSystem (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
 
-          # Generates ~/.ssh/id_ed25519_fleet on the current host, drops
+          # Generates ~/.ssh/id_ed25519_peers on the current host, drops
           # the pubkey into the flake at secrets/ssh_pubkeys/, scans the
           # host keys of well-known peers into secrets/ssh_host_keys/,
           # then commits and pushes. Idempotent: rerunning is a no-op if
           # nothing changed.
-          fleetBootstrap = pkgs.writeShellApplication {
-            name = "fleet-bootstrap";
+          peersBootstrap = pkgs.writeShellApplication {
+            name = "peers-bootstrap";
             runtimeInputs = with pkgs; [
               openssh
               git
@@ -234,7 +234,7 @@
             text = ''
               set -euo pipefail
 
-              log() { printf '[fleet-bootstrap] %s\n' "$*" >&2; }
+              log() { printf '[peers-bootstrap] %s\n' "$*" >&2; }
 
               FLAKE_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
               if [ -z "$FLAKE_DIR" ]; then
@@ -245,7 +245,7 @@
               raw_host="$(uname -n)"
               HOST="''${raw_host%%.*}"
 
-              KEY="$HOME/.ssh/id_ed25519_fleet"
+              KEY="$HOME/.ssh/id_ed25519_peers"
               PUB="$KEY.pub"
 
               mkdir -p "$HOME/.ssh"
@@ -253,17 +253,17 @@
 
               if [ ! -f "$KEY" ]; then
                 log "generating ed25519 keypair at $KEY"
-                ssh-keygen -t ed25519 -f "$KEY" -N "" -C "aragao@''${HOST}-fleet"
+                ssh-keygen -t ed25519 -f "$KEY" -N "" -C "aragao@''${HOST}-peers"
               else
                 log "keypair already exists at $KEY"
               fi
 
               DEST_PUB_DIR="$FLAKE_DIR/secrets/ssh_pubkeys"
-              DEST_PUB="$DEST_PUB_DIR/''${HOST}_fleet.pub"
+              DEST_PUB="$DEST_PUB_DIR/''${HOST}_peers.pub"
               mkdir -p "$DEST_PUB_DIR"
 
               if ! cmp -s "$PUB" "$DEST_PUB" 2>/dev/null; then
-                log "registering pubkey at secrets/ssh_pubkeys/''${HOST}_fleet.pub"
+                log "registering pubkey at secrets/ssh_pubkeys/''${HOST}_peers.pub"
                 cp "$PUB" "$DEST_PUB"
               else
                 log "pubkey already registered"
@@ -271,7 +271,7 @@
 
               # Pin well-known peers' host keys so StrictHostKeyChecking=yes
               # can be enforced without a TOFU first-connect window. Add
-              # new fleet members to this list as they come online.
+              # new peers to this list as they come online.
               DEST_HOST_DIR="$FLAKE_DIR/secrets/ssh_host_keys"
               mkdir -p "$DEST_HOST_DIR"
 
@@ -308,7 +308,7 @@
                 log "no flake changes to commit"
               else
                 log "committing"
-                git commit -m "fleet: bootstrap ''${HOST} pubkey + scanned hostkeys"
+                git commit -m "peers: bootstrap ''${HOST} pubkey + scanned hostkeys"
                 log "pushing to origin/main"
                 git push origin HEAD:main
               fi
@@ -331,7 +331,7 @@
 
               cat >&2 <<EOF
 
-              fleet-bootstrap complete.
+              peers-bootstrap complete.
 
               Next steps:
                 1. On the target host (e.g. prl-dev-vm):
@@ -343,12 +343,12 @@
                      ssh prl-dev-vm
 
                 3. Once SSH works, fetch the kubeconfig:
-                     nix run .#fleet-kube-fetch -- prl-dev-vm
+                     nix run .#peers-kube-fetch -- prl-dev-vm
               EOF
             '';
           };
 
-          # Pulls /etc/rancher/k3s/k3s.yaml from a fleet host over SSH,
+          # Pulls /etc/rancher/k3s/k3s.yaml from a peer host over SSH,
           # rewrites the loopback server URL to the host's .local mDNS
           # name, renames k3s's generic `default` cluster/context/user
           # to the host name (so future multi-cluster merges don't
@@ -357,8 +357,8 @@
           # recently fetched cluster, making it kubectl's default with
           # no KUBECONFIG env var needed. Idempotent: re-run after k3s
           # reinstalls to refresh the cert.
-          fleetKubeFetch = pkgs.writeShellApplication {
-            name = "fleet-kube-fetch";
+          peersKubeFetch = pkgs.writeShellApplication {
+            name = "peers-kube-fetch";
             runtimeInputs = with pkgs; [
               openssh
               coreutils
@@ -367,7 +367,7 @@
             text = ''
               set -euo pipefail
 
-              log() { printf '[fleet-kube-fetch] %s\n' "$*" >&2; }
+              log() { printf '[peers-kube-fetch] %s\n' "$*" >&2; }
 
               host="''${1:-prl-dev-vm}"
               kube_host="$host.local"
@@ -422,7 +422,7 @@
             '';
           };
 
-          # Sets up a Docker context that targets a fleet host's dockerd
+          # Sets up a Docker context that targets a peer host's dockerd
           # over SSH (`docker host=ssh://<host>`), then marks it as the
           # active default. Mirrors the kubectl flow but uses Docker's
           # native context mechanism instead of a config file — no env
@@ -437,8 +437,8 @@
           # Caveat: bind mounts (`docker run -v <path>:<dest>`) resolve
           # <path> on the SERVER (<host>), not on the client. Same
           # caveat that applies to any remote-Docker setup.
-          fleetDockerSetup = pkgs.writeShellApplication {
-            name = "fleet-docker-setup";
+          peersDockerSetup = pkgs.writeShellApplication {
+            name = "peers-docker-setup";
             runtimeInputs = with pkgs; [
               openssh
               docker-client
@@ -447,7 +447,7 @@
             text = ''
               set -euo pipefail
 
-              log() { printf '[fleet-docker-setup] %s\n' "$*" >&2; }
+              log() { printf '[peers-docker-setup] %s\n' "$*" >&2; }
 
               host="''${1:-prl-dev-vm}"
               endpoint="ssh://$host"
@@ -498,17 +498,17 @@
           };
         in
         {
-          fleet-bootstrap = {
+          peers-bootstrap = {
             type = "app";
-            program = "${fleetBootstrap}/bin/fleet-bootstrap";
+            program = "${peersBootstrap}/bin/peers-bootstrap";
           };
-          fleet-kube-fetch = {
+          peers-kube-fetch = {
             type = "app";
-            program = "${fleetKubeFetch}/bin/fleet-kube-fetch";
+            program = "${peersKubeFetch}/bin/peers-kube-fetch";
           };
-          fleet-docker-setup = {
+          peers-docker-setup = {
             type = "app";
-            program = "${fleetDockerSetup}/bin/fleet-docker-setup";
+            program = "${peersDockerSetup}/bin/peers-docker-setup";
           };
         }
       );

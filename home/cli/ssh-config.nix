@@ -9,16 +9,16 @@
 #
 # Identity files:
 #   - github-{personal,work}: sops-decrypted GitHub keys (per identity)
-#   - id_ed25519_fleet: locally-generated fleet key (per host, via
-#     `nix run .#fleet-bootstrap`). Never enters sops; lives only on
-#     the host that generated it.
+#   - id_ed25519_peers: locally-generated per-host key (one per peer,
+#     via `nix run .#peers-bootstrap`). Never enters sops; lives only
+#     on the host that generated it.
 
 let
-  # Host pubkeys for fleet peers live under secrets/ssh_host_keys/*.pub
+  # Host pubkeys for peers live under secrets/ssh_host_keys/*.pub
   # (plaintext — host pubkeys aren't secrets). Format inside each file
   # is just the key portion, e.g.
   #   ssh-ed25519 AAAA... root@prl-dev-vm
-  # `nix run .#fleet-bootstrap` writes these via ssh-keyscan.
+  # `nix run .#peers-bootstrap` writes these via ssh-keyscan.
   hostKeysDir = ../../secrets/ssh_host_keys;
 
   knownHostsText =
@@ -77,34 +77,34 @@ in
       "prl-dev-vm" = {
         hostname = "prl-dev-vm.local";
         user = "aragao";
-        identityFile = "~/.ssh/id_ed25519_fleet";
+        identityFile = "~/.ssh/id_ed25519_peers";
         identitiesOnly = true;
         extraOptions = {
           StrictHostKeyChecking = "yes";
-          UserKnownHostsFile = "~/.ssh/known_hosts_fleet";
+          UserKnownHostsFile = "~/.ssh/known_hosts_peers";
         };
       };
 
       # VMware Fusion sibling of prl-dev-vm — same flake profile, just a
       # different hypervisor under mac-work. mDNS publishing is enabled
-      # the same way (system/mdns.nix). Same fleet-key treatment once
+      # the same way (system/mdns.nix). Same peer-key treatment once
       # bootstrap runs on the VMware VM (or pubkey lands via another
       # client's bootstrap), and a hostkey is ssh-keyscanned in.
       "vmw-dev-vm" = {
         hostname = "vmw-dev-vm.local";
         user = "aragao";
-        identityFile = "~/.ssh/id_ed25519_fleet";
+        identityFile = "~/.ssh/id_ed25519_peers";
         identitiesOnly = true;
         extraOptions = {
           StrictHostKeyChecking = "yes";
-          UserKnownHostsFile = "~/.ssh/known_hosts_fleet";
+          UserKnownHostsFile = "~/.ssh/known_hosts_peers";
         };
       };
     };
   };
 
-  # Declarative known_hosts file for fleet peers. Separate from the
-  # default ~/.ssh/known_hosts so interactive ssh additions to ad-hoc
-  # hosts (e.g. via accept-new) don't get clobbered on rebuild.
-  home.file.".ssh/known_hosts_fleet".text = knownHostsText;
+  # Declarative known_hosts file for peers. Separate from the default
+  # ~/.ssh/known_hosts so interactive ssh additions to ad-hoc hosts
+  # (e.g. via accept-new) don't get clobbered on rebuild.
+  home.file.".ssh/known_hosts_peers".text = knownHostsText;
 }

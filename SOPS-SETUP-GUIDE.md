@@ -2,8 +2,8 @@
 
 This guide describes how secrets are organized in this flake, how to
 edit them day-to-day, and how to add a new machine to the recipient
-list. The system is already operational; for a from-scratch fleet
-rebuild see the appendix.
+list. The system is already operational; for a from-scratch rebuild
+of every host see the appendix.
 
 ## 🏛 Architecture
 
@@ -242,11 +242,11 @@ mkpasswd -m SHA-512
 
 ---
 
-## 🧱 Appendix: From-Scratch Fleet Bootstrap
+## 🧱 Appendix: From-Scratch Bootstrap of Every Host
 
-Use this only if you're rebuilding the entire fleet from zero. For
-adding a single machine to an existing fleet, follow the "Add a new
-… host" sections above instead.
+Use this only if you're rebuilding every host from zero. For adding
+a single machine to the existing set, follow the "Add a new … host"
+sections above instead.
 
 ### A. Personal admin age key
 
