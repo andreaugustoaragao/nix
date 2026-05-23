@@ -5,6 +5,7 @@
   wallpapers,
   useDms ? false,
   isVm ? false,
+  lockScreen ? false,
   ...
 }:
 
@@ -144,9 +145,15 @@ let
     fontWeight = 600;
     fontScale = 1.25;
     useFahrenheit = false;
-    acLockTimeout = 1200;
-    batteryLockTimeout = 1200;
-    lockBeforeSuspend = true;
+    # VMs (and any host with lockScreen = false) skip DMS locking so the
+    # hypervisor's lock screen is the only one you need to dismiss.
+    acLockTimeout = if lockScreen then 1200 else 0;
+    batteryLockTimeout = if lockScreen then 1200 else 0;
+    lockBeforeSuspend = lockScreen;
+    loginctlLockIntegration = lockScreen;
+    fadeToLockEnabled = lockScreen;
+    powerMenuActions = lib.filter (a: lockScreen || a != "lock")
+      (builtins.fromJSON (builtins.readFile ./dms-settings.json)).powerMenuActions;
     blurEnabled = true;
     desktopClockEnabled = false;
     systemMonitorEnabled = false;
