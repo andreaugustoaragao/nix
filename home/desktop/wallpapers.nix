@@ -10,6 +10,14 @@ let
     cp ${../../assets/wallpapers/atake-sudden-shower.jpg}  $out/share/wallpapers/atake-sudden-shower.jpg
     cp ${../../assets/wallpapers/kameido-plum-park.jpg}    $out/share/wallpapers/kameido-plum-park.jpg
   '';
+
+  # Per-output wallpapers (see home/desktop/niri.nix: DP-2 is physically
+  # left/portrait, DP-1 is right/landscape). quickshell.nix references
+  # dp1Wallpapers for the DP-1 connector.
+  dp1Wallpapers = {
+    dark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+    light = "${wallpapers}/share/wallpapers/blue-jays.png";
+  };
 in
 {
   home.packages = [ wallpapers ];
@@ -22,4 +30,5 @@ in
 
   # Expose the derivation for other modules (DMS) to reference.
   _module.args.wallpapers = wallpapers;
+  _module.args.dp1Wallpapers = dp1Wallpapers;
 }

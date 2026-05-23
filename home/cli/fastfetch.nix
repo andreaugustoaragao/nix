@@ -1,12 +1,22 @@
 {
   pkgs,
   inputs,
+  wallpapers,
   ...
 }:
 
+let
+  # Kameido Plum Park — ukiyo-e with scroll cartouches; light mode on the
+  # physically left monitor (DP-2). See home/desktop/niri.nix output layout.
+  fastfetchLogo = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
+  logoWidth = 38;
+  # Portrait ~2041×3000; terminal cells are ~2× taller than wide.
+  logoHeight = (logoWidth * 3000 + 2041) / (2 * 2041);
+in
 {
   home.packages = [
     inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch
+    pkgs.chafa
     pkgs.fortune
     pkgs.lolcat
   ];
@@ -16,11 +26,12 @@
     {
       "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
       "logo": {
-        "type": "builtin",
-        "source": "nixos",
-        "color": { "1": "magenta" },
+        "type": "auto",
+        "source": "${fastfetchLogo}",
+        "width": ${toString logoWidth},
+        "height": ${toString logoHeight},
         "padding": {
-          "top": 2,
+          "top": 1,
           "right": 6,
           "left": 2
         }
@@ -89,11 +100,6 @@
           "keyColor": "blue"
         },
         {
-          "type": "de",
-          "key": "󰧨 DE",
-          "keyColor": "blue"
-        },
-        {
           "type": "terminal",
           "key": "󰆍 Terminal",
           "keyColor": "blue"
@@ -114,6 +120,21 @@
           "key": "󰛖 Font",
           "keyColor": "blue"
         },
+        {
+          "type": "shell",
+          "key": "󱆃 Shell",
+          "keyColor": "blue"
+        },
+        {
+          "type": "editor",
+          "key": "󰲹 Editor",
+          "keyColor": "blue"
+        },
+        {
+          "type": "locale",
+          "key": "󰖷 Locale",
+          "keyColor": "blue"
+        },
          "break",
         {
           "type": "custom",
@@ -129,6 +150,28 @@
           "type": "uptime",
           "key": "󰔛 Uptime",
           "keyColor": "magenta"
+        },
+        {
+          "type": "loadavg",
+          "key": "󰔡 Load",
+          "keyColor": "magenta"
+        },
+        {
+          "type": "processes",
+          "key": "󰙨 Procs",
+          "keyColor": "magenta"
+        },
+        {
+          "type": "datetime",
+          "key": "󰃰 Date",
+          "keyColor": "magenta",
+          "format": "{year}-{month-pretty}-{day-pretty} {hour-pretty}:{minute-pretty}"
+        },
+        "break",
+        {
+          "type": "colors",
+          "paddingLeft": 2,
+          "symbol": "block"
         },
         "break"
       ]

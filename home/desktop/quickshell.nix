@@ -3,6 +3,7 @@
   lib,
   inputs,
   wallpapers,
+  dp1Wallpapers,
   useDms ? false,
   isVm ? false,
   lockScreen ? false,
@@ -152,8 +153,9 @@ let
     lockBeforeSuspend = lockScreen;
     loginctlLockIntegration = lockScreen;
     fadeToLockEnabled = lockScreen;
-    powerMenuActions = lib.filter (a: lockScreen || a != "lock")
-      (builtins.fromJSON (builtins.readFile ./dms-settings.json)).powerMenuActions;
+    powerMenuActions =
+      lib.filter (a: lockScreen || a != "lock")
+        (builtins.fromJSON (builtins.readFile ./dms-settings.json)).powerMenuActions;
     blurEnabled = true;
     desktopClockEnabled = false;
     systemMonitorEnabled = false;
@@ -296,15 +298,15 @@ let
     # renders correctly without a mode toggle; the first setLightMode(true)
     # of the day overwrites it from monitorWallpapersLight.
     monitorWallpapers = {
-      "DP-1" = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+      "DP-1" = dp1Wallpapers.dark;
       "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
     };
     monitorWallpapersDark = {
-      "DP-1" = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
+      "DP-1" = dp1Wallpapers.dark;
       "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
     };
     monitorWallpapersLight = {
-      "DP-1" = "${wallpapers}/share/wallpapers/blue-jays.png";
+      "DP-1" = dp1Wallpapers.light;
       "DP-2" = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
     };
     monitorWallpaperFillModes = {
