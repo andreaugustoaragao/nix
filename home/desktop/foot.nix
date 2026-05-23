@@ -1,10 +1,76 @@
-_:
-
 {
-  # foot reads the freedesktop color-scheme preference and picks
-  # [colors-light] vs [colors-dark] accordingly — live-switch works
-  # out of the box (no signal/SIGUSR1 needed). The bare [colors]
-  # `alpha=` applies to both modes.
+  pkgs,
+  lib,
+  ...
+}:
+
+let
+  # Catppuccin Mocha/Latte — aligned with kitty/alacritty/ghostty and the
+  # upstream catppuccin/foot theme (cursor, urls, peach/rosewater).
+  # foot 1.25 uses [colors]/[colors2] (not colors-dark/light — that lands
+  # in 1.26). Light/dark switching is via SIGUSR1/SIGUSR2 (darkman.nix +
+  # the activation hook below); foot does not listen to the portal itself.
+  mocha = {
+    cursor = "11111b f5e0dc";
+    foreground = "cdd6f4";
+    background = "1e1e2e";
+    selection-foreground = "cdd6f4";
+    selection-background = "45475a";
+    regular0 = "45475a";
+    regular1 = "f38ba8";
+    regular2 = "a6e3a1";
+    regular3 = "f9e2af";
+    regular4 = "89b4fa";
+    regular5 = "f5c2e7";
+    regular6 = "94e2d5";
+    regular7 = "bac2de";
+    bright0 = "585b70";
+    bright1 = "f38ba8";
+    bright2 = "a6e3a1";
+    bright3 = "f9e2af";
+    bright4 = "89b4fa";
+    bright5 = "f5c2e7";
+    bright6 = "94e2d5";
+    bright7 = "a6adc8";
+    "16" = "fab387";
+    "17" = "f5e0dc";
+    search-box-no-match = "11111b f38ba8";
+    search-box-match = "cdd6f4 313244";
+    jump-labels = "11111b fab387";
+    urls = "89b4fa";
+  };
+
+  latte = {
+    cursor = "eff1f5 dc8a78";
+    foreground = "4c4f69";
+    background = "eff1f5";
+    selection-foreground = "4c4f69";
+    selection-background = "ccd0da";
+    regular0 = "5c5f77";
+    regular1 = "d20f39";
+    regular2 = "40a02b";
+    regular3 = "df8e1d";
+    regular4 = "1e66f5";
+    regular5 = "ea76cb";
+    regular6 = "179299";
+    regular7 = "acb0be";
+    bright0 = "6c6f85";
+    bright1 = "d20f39";
+    bright2 = "40a02b";
+    bright3 = "df8e1d";
+    bright4 = "1e66f5";
+    bright5 = "ea76cb";
+    bright6 = "179299";
+    bright7 = "bcc0cc";
+    "16" = "fe640b";
+    "17" = "dc8a78";
+    search-box-no-match = "dce0e8 d20f39";
+    search-box-match = "4c4f69 ccd0da";
+    jump-labels = "dce0e8 fe640b";
+    urls = "1e66f5";
+  };
+in
+{
   programs.foot = {
     enable = true;
     settings = {
@@ -17,59 +83,23 @@ _:
         shell = "fish";
       };
 
-      colors = {
+      colors = lib.recursiveUpdate {
         alpha = "0.98";
-      };
+      } mocha;
 
-      "colors-dark" = {
-        foreground = "cdd6f4";
-        background = "1e1e2e";
-        selection-foreground = "cdd6f4";
-        selection-background = "45475a";
-
-        regular0 = "45475a";
-        regular1 = "f38ba8";
-        regular2 = "a6e3a1";
-        regular3 = "f9e2af";
-        regular4 = "89b4fa";
-        regular5 = "f5c2e7";
-        regular6 = "94e2d5";
-        regular7 = "bac2de";
-
-        bright0 = "585b70";
-        bright1 = "f38ba8";
-        bright2 = "a6e3a1";
-        bright3 = "f9e2af";
-        bright4 = "89b4fa";
-        bright5 = "f5c2e7";
-        bright6 = "94e2d5";
-        bright7 = "a6adc8";
-      };
-
-      "colors-light" = {
-        foreground = "4c4f69";
-        background = "eff1f5";
-        selection-foreground = "4c4f69";
-        selection-background = "ccd0da";
-
-        regular0 = "5c5f77";
-        regular1 = "d20f39";
-        regular2 = "40a02b";
-        regular3 = "df8e1d";
-        regular4 = "1e66f5";
-        regular5 = "ea76cb";
-        regular6 = "179299";
-        regular7 = "acb0be";
-
-        bright0 = "6c6f85";
-        bright1 = "d20f39";
-        bright2 = "40a02b";
-        bright3 = "df8e1d";
-        bright4 = "1e66f5";
-        bright5 = "ea76cb";
-        bright6 = "179299";
-        bright7 = "4c4f69";
-      };
+      colors2 = latte;
     };
   };
+
+  # Sync the foot server to the current portal color-scheme on rebuild.
+  # Falls back to Mocha (SIGUSR1) when gsettings is unavailable.
+  home.activation.footTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    signal=USR1
+    if mode=$(${pkgs.glib}/bin/gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null); then
+      case "$mode" in
+        *prefer-light*) signal=USR2 ;;
+      esac
+    fi
+    ${pkgs.procps}/bin/pkill -"$signal" -x foot 2>/dev/null || true
+  '';
 }

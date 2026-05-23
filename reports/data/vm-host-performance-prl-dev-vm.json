@@ -1,939 +1,958 @@
 {
-    "metadata": {
-        "label": "vm",
-        "repo": "/home/aragao/projects/personal/nix",
-        "time_utc": "2026-05-23T03:12:49Z",
-        "platform": "Linux-7.0.9-aarch64-with-glibc2.40",
-        "machine": "aarch64",
-        "python": "3.13.12",
-        "hostname": {
-            "code": 0,
-            "stdout": "prl-dev-vm",
-            "stderr": ""
-        },
-        "uname": {
-            "code": 0,
-            "stdout": "Linux prl-dev-vm 7.0.9 #1-NixOS SMP PREEMPT Sun May 17 15:16:34 UTC 2026 aarch64 GNU/Linux",
-            "stderr": ""
-        },
-        "nvim_version": {
-            "code": 0,
-            "stdout": "NVIM v0.12.2",
-            "stderr": ""
-        },
-        "openssl_version": {
-            "code": 0,
-            "stdout": "OpenSSL 3.6.2 7 Apr 2026 (Library: OpenSSL 3.6.2 7 Apr 2026)",
-            "stderr": ""
-        },
-        "python_version": {
-            "code": 0,
-            "stdout": "Python 3.13.12",
-            "stderr": ""
-        },
-        "node_version": {
-            "code": 0,
-            "stdout": "v22.22.2",
-            "stderr": ""
-        },
-        "bun_version": {
-            "code": 0,
-            "stdout": "1.3.3",
-            "stderr": ""
-        },
-        "cargo_version": {
-            "code": 0,
-            "stdout": "cargo 1.91.0 (ea2d97820 2025-10-10)",
-            "stderr": ""
-        },
-        "rustc_version": {
-            "code": 0,
-            "stdout": "rustc 1.91.1 (ed61e7d7e 2025-11-07) (built from a source tarball)",
-            "stderr": ""
-        },
-        "rg_version": {
-            "code": 0,
-            "stdout": "ripgrep 15.1.0",
-            "stderr": ""
-        },
-        "nix_version": {
-            "code": 0,
-            "stdout": "nix (Nix) 2.31.5",
-            "stderr": ""
-        },
-        "cpu_summary": {
-            "code": 0,
-            "stdout": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               ARM\nModel name:                              -\nModel:                                   0\nThread(s) per core:                      1\nCore(s) per socket:                      12\nSocket(s):                               1\nStepping:                                r0p0\nBogoMIPS:                                48.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint bf16 afp ebf16\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected",
-            "stderr": ""
-        },
-        "memory_summary": {
-            "code": 0,
-            "stdout": "total        used        free      shared  buff/cache   available\nMem:            62Gi       6.9Gi        38Gi       2.7Gi        20Gi        55Gi\nSwap:           15Gi          0B        15Gi",
-            "stderr": ""
-        },
-        "disk_summary": {
-            "code": 0,
-            "stdout": "NAME   TYPE    SIZE MODEL               ROTA SCHED       FSTYPE  MOUNTPOINTS\nsda    disk      1T dev-vm-0 SSD           0 mq-deadline         \n\u251c\u2500sda1 part    512M                        0 mq-deadline vfat    /boot\n\u2514\u2500sda2 part 1023.5G                        0 mq-deadline btrfs   /home/aragao\n                                                                 /.snapshots\n                                                                 /swap\n                                                                 /nix/store\n                                                                 /nix\n                                                                 /\nsr0    rom     1.6G Virtual DVD-ROM [1]    1 mq-deadline iso9660",
-            "stderr": ""
-        }
+  "metadata": {
+    "label": "vm",
+    "repo": "/home/aragao/projects/personal/nix",
+    "time_utc": "2026-05-23T03:12:49Z",
+    "platform": "Linux-7.0.9-aarch64-with-glibc2.40",
+    "machine": "aarch64",
+    "python": "3.13.12",
+    "hostname": {
+      "code": 0,
+      "stdout": "prl-dev-vm",
+      "stderr": ""
     },
-    "results": [
+    "uname": {
+      "code": 0,
+      "stdout": "Linux prl-dev-vm 7.0.9 #1-NixOS SMP PREEMPT Sun May 17 15:16:34 UTC 2026 aarch64 GNU/Linux",
+      "stderr": ""
+    },
+    "nvim_version": {
+      "code": 0,
+      "stdout": "NVIM v0.12.2",
+      "stderr": ""
+    },
+    "openssl_version": {
+      "code": 0,
+      "stdout": "OpenSSL 3.6.2 7 Apr 2026 (Library: OpenSSL 3.6.2 7 Apr 2026)",
+      "stderr": ""
+    },
+    "python_version": {
+      "code": 0,
+      "stdout": "Python 3.13.12",
+      "stderr": ""
+    },
+    "node_version": {
+      "code": 0,
+      "stdout": "v22.22.2",
+      "stderr": ""
+    },
+    "bun_version": {
+      "code": 0,
+      "stdout": "1.3.3",
+      "stderr": ""
+    },
+    "cargo_version": {
+      "code": 0,
+      "stdout": "cargo 1.91.0 (ea2d97820 2025-10-10)",
+      "stderr": ""
+    },
+    "rustc_version": {
+      "code": 0,
+      "stdout": "rustc 1.91.1 (ed61e7d7e 2025-11-07) (built from a source tarball)",
+      "stderr": ""
+    },
+    "rg_version": {
+      "code": 0,
+      "stdout": "ripgrep 15.1.0",
+      "stderr": ""
+    },
+    "nix_version": {
+      "code": 0,
+      "stdout": "nix (Nix) 2.31.5",
+      "stderr": ""
+    },
+    "cpu_summary": {
+      "code": 0,
+      "stdout": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               ARM\nModel name:                              -\nModel:                                   0\nThread(s) per core:                      1\nCore(s) per socket:                      12\nSocket(s):                               1\nStepping:                                r0p0\nBogoMIPS:                                48.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint bf16 afp ebf16\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected",
+      "stderr": ""
+    },
+    "memory_summary": {
+      "code": 0,
+      "stdout": "total        used        free      shared  buff/cache   available\nMem:            62Gi       6.9Gi        38Gi       2.7Gi        20Gi        55Gi\nSwap:           15Gi          0B        15Gi",
+      "stderr": ""
+    },
+    "disk_summary": {
+      "code": 0,
+      "stdout": "NAME   TYPE    SIZE MODEL               ROTA SCHED       FSTYPE  MOUNTPOINTS\nsda    disk      1T dev-vm-0 SSD           0 mq-deadline         \n\u251c\u2500sda1 part    512M                        0 mq-deadline vfat    /boot\n\u2514\u2500sda2 part 1023.5G                        0 mq-deadline btrfs   /home/aragao\n                                                                 /.snapshots\n                                                                 /swap\n                                                                 /nix/store\n                                                                 /nix\n                                                                 /\nsr0    rom     1.6G Virtual DVD-ROM [1]    1 mq-deadline iso9660",
+      "stderr": ""
+    }
+  },
+  "results": [
+    {
+      "id": "nvim_clean_open_close",
+      "category": "Editor/process",
+      "description": "Neovim clean startup and immediate quit",
+      "command": "nvim --clean --headless +qa",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 3,
+      "runs": 20,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
         {
-            "id": "nvim_clean_open_close",
-            "category": "Editor/process",
-            "description": "Neovim clean startup and immediate quit",
-            "command": "nvim --clean --headless +qa",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 3,
-            "runs": 20,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.0059989089997998235,
-                    "runner_cpu": 8.895800000000009e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0068458060000011756,
-                    "runner_cpu": 0.00010658499999999932,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.00599511700011135,
-                    "runner_cpu": 8.604099999999851e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.00581532100000004,
-                    "runner_cpu": 8.008300000000163e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.005749026999865237,
-                    "runner_cpu": 8.120900000000222e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.005990741999994498,
-                    "runner_cpu": 8.066600000000007e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.005824403999895367,
-                    "runner_cpu": 9.458300000000225e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006989102000034109,
-                    "runner_cpu": 0.00015966600000000275,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006647551000014573,
-                    "runner_cpu": 0.00014975000000000058,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0061187870001049305,
-                    "runner_cpu": 0.00012216699999999941,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006274956999959613,
-                    "runner_cpu": 0.00011708300000000046,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0060251180000250315,
-                    "runner_cpu": 0.00010491699999999951,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006075660999840693,
-                    "runner_cpu": 8.612600000000234e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.005877030999954513,
-                    "runner_cpu": 9.483499999999798e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006065577000072153,
-                    "runner_cpu": 6.216700000000186e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.005834446000108073,
-                    "runner_cpu": 9.441599999999994e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006010991999801263,
-                    "runner_cpu": 0.00010562600000000102,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.00592003199994906,
-                    "runner_cpu": 7.696000000000092e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0060650780001196836,
-                    "runner_cpu": 8.433299999999894e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.00584778000006736,
-                    "runner_cpu": 0.00010241700000000048,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.0060985718999859275,
-            "median": 0.006004950499800543,
-            "stdev": 0.00034209584471245504,
-            "min": 0.005749026999865237,
-            "max": 0.006989102000034109,
-            "runs_completed": 20
+          "wall": 0.0059989089997998235,
+          "runner_cpu": 8.895800000000009e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "nvim_config_open_close",
-            "category": "Editor/process",
-            "description": "Configured Neovim startup and immediate quit",
-            "command": "nvim --headless +qa",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 3,
-            "runs": 20,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.02289073199995073,
-                    "runner_cpu": 0.0001267910000000011,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.022672766999903615,
-                    "runner_cpu": 0.00012654100000000085,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02352403999998387,
-                    "runner_cpu": 0.00013258299999999862,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.023676419000139504,
-                    "runner_cpu": 0.00015325100000000008,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02300835999994888,
-                    "runner_cpu": 0.00014828999999999884,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.022530930999892007,
-                    "runner_cpu": 0.00014512399999999995,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.024761948000104894,
-                    "runner_cpu": 0.00015075100000000105,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.023268285000085598,
-                    "runner_cpu": 0.00014783399999999947,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02290185900005781,
-                    "runner_cpu": 0.0001338739999999991,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02332145200011837,
-                    "runner_cpu": 0.00013783399999999987,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02393396900015432,
-                    "runner_cpu": 0.00015745900000000215,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02320824100002028,
-                    "runner_cpu": 0.00017628999999999909,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02313669800014395,
-                    "runner_cpu": 0.0001334999999999982,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.022332009999900038,
-                    "runner_cpu": 0.00013045799999999996,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02406109799994738,
-                    "runner_cpu": 0.00013987400000000164,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02367933699997593,
-                    "runner_cpu": 0.00015875099999999864,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.024886368999887054,
-                    "runner_cpu": 0.00017474899999999835,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.024377688999948077,
-                    "runner_cpu": 0.0001934169999999978,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.02302581999992981,
-                    "runner_cpu": 0.0001432089999999983,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.025000997000006464,
-                    "runner_cpu": 0.00016333300000000162,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.02350995105000493,
-            "median": 0.023294868500101984,
-            "stdev": 0.0007809823123929163,
-            "min": 0.022332009999900038,
-            "max": 0.025000997000006464,
-            "runs_completed": 20
+          "wall": 0.0068458060000011756,
+          "runner_cpu": 0.00010658499999999932,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "nvim_open_nix_file_close",
-            "category": "Editor/file open",
-            "description": "Configured Neovim opens nvim-lazyvim.nix and quits",
-            "command": "nvim --headless +\"edit /home/aragao/projects/personal/nix/home/cli/nvim-lazyvim.nix\" +qa",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 3,
-            "runs": 20,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.08758428499982074,
-                    "runner_cpu": 0.00020283299999999949,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06414066199999979,
-                    "runner_cpu": 0.0002152909999999994,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.07019052999999076,
-                    "runner_cpu": 0.0001757500000000023,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06606504700016558,
-                    "runner_cpu": 0.000178792000000004,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0652420669998719,
-                    "runner_cpu": 0.0001584149999999951,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0662595930000407,
-                    "runner_cpu": 0.00017158300000000293,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06291054600001189,
-                    "runner_cpu": 0.00017421000000000103,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06519510899988745,
-                    "runner_cpu": 0.00017529100000000103,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06654227199987872,
-                    "runner_cpu": 0.00017516800000000332,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06462067899997237,
-                    "runner_cpu": 0.00016370900000000493,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06521911099980571,
-                    "runner_cpu": 0.00016620800000000102,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06823077399985777,
-                    "runner_cpu": 0.00018270900000000312,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06514790000005632,
-                    "runner_cpu": 0.00017416599999999643,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06580741800007672,
-                    "runner_cpu": 0.00016849999999999504,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0882502659999318,
-                    "runner_cpu": 0.0001734170000000021,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06340985400015597,
-                    "runner_cpu": 0.00018079199999999906,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06610717600005955,
-                    "runner_cpu": 0.00016600099999999895,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06685702999993737,
-                    "runner_cpu": 0.00017479000000000106,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.06621184599998742,
-                    "runner_cpu": 0.00016316700000000572,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.09178085999997165,
-                    "runner_cpu": 0.00016966799999999782,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.069288651249974,
-            "median": 0.06608611150011257,
-            "stdev": 0.008757570693443725,
-            "min": 0.06291054600001189,
-            "max": 0.09178085999997165,
-            "runs_completed": 20
+          "wall": 0.00599511700011135,
+          "runner_cpu": 8.604099999999851e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "repo_ripgrep_search",
-            "category": "Search/metadata",
-            "description": "ripgrep over repo for NixOS/VM terms",
-            "command": "rg --hidden --glob '!.git' --glob '!result' --glob '!result-*' --glob '!home/cli/pi-rs/.bench-*' -n 'nixos|parallels|neovim|systemd' . >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 2,
-            "runs": 15,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.004558954999993148,
-                    "runner_cpu": 9.708400000000422e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004424200999892491,
-                    "runner_cpu": 0.00010433400000000453,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.006475131000115653,
-                    "runner_cpu": 0.00014162399999999992,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0050420509999185015,
-                    "runner_cpu": 0.00020404000000000255,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004686582999966049,
-                    "runner_cpu": 0.00011579100000000397,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004476494000073217,
-                    "runner_cpu": 0.00011466599999999938,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004364865999832546,
-                    "runner_cpu": 0.0001060820000000004,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.003887520000034783,
-                    "runner_cpu": 8.308299999999769e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004267946999789274,
-                    "runner_cpu": 7.504199999999739e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004040774000031888,
-                    "runner_cpu": 7.274899999999695e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0037218499999198684,
-                    "runner_cpu": 8.17510000000049e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.004197487000055844,
-                    "runner_cpu": 9.06659999999962e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.003862102999846684,
-                    "runner_cpu": 7.387500000000102e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0039770639998550905,
-                    "runner_cpu": 7.233499999999976e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.003978272000040306,
-                    "runner_cpu": 8.370800000000178e-05,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.004397419866624356,
-            "median": 0.004267946999789274,
-            "stdev": 0.0006755656241305499,
-            "min": 0.0037218499999198684,
-            "max": 0.006475131000115653,
-            "runs_completed": 15
+          "wall": 0.00581532100000004,
+          "runner_cpu": 8.008300000000163e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "openssl_sha256_1g_file",
-            "category": "CPU/crypto",
-            "description": "OpenSSL hashes cached 1 GiB file with SHA-256",
-            "command": "openssl dgst -sha256 /tmp/vm-host-perf-work/hash-1g.bin >/dev/null",
-            "setup": "python3 -c \"from pathlib import Path; p = Path('/tmp/vm-host-perf-work/hash-1g.bin'); p.parent.mkdir(parents=True, exist_ok=True); size = 1024 * 1024 * 1024; chunk = bytes((i % 251 for i in range(1024 * 1024))); (not p.exists() or p.stat().st_size != size) and p.write_bytes(chunk * 1024)\"",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 1,
-            "runs": 5,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.3683644519999234,
-                    "runner_cpu": 0.00016870799999999658,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.36652395100009016,
-                    "runner_cpu": 0.00017695800000000483,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.36940679300005286,
-                    "runner_cpu": 0.00018337300000000056,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.36785650100000566,
-                    "runner_cpu": 0.00020091599999999543,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.36745187799988344,
-                    "runner_cpu": 0.00018116799999999544,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.3679207149999911,
-            "median": 0.36785650100000566,
-            "stdev": 0.0010700714449582115,
-            "min": 0.36652395100009016,
-            "max": 0.36940679300005286,
-            "runs_completed": 5
+          "wall": 0.005749026999865237,
+          "runner_cpu": 8.120900000000222e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "python_integer_loop",
-            "category": "CPU/interpreter",
-            "description": "Python integer loop, 15M iterations",
-            "command": "python3 /tmp/vm-host-perf-work/python_cpu_int.py >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 1,
-            "runs": 7,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 1.229442009999957,
-                    "runner_cpu": 0.00020645799999999964,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.267729835000182,
-                    "runner_cpu": 0.0001681240000000056,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.2037805790000675,
-                    "runner_cpu": 0.00018553899999999846,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.2522383089999494,
-                    "runner_cpu": 0.0001778340000000017,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.2011887139999544,
-                    "runner_cpu": 0.00018074900000000088,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.2485691270001098,
-                    "runner_cpu": 0.00018620899999999968,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 1.192676270999982,
-                    "runner_cpu": 0.0001774150000000002,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 1.2279464064286003,
-            "median": 1.229442009999957,
-            "stdev": 0.029281094372262298,
-            "min": 1.192676270999982,
-            "max": 1.267729835000182,
-            "runs_completed": 7
+          "wall": 0.005990741999994498,
+          "runner_cpu": 8.066600000000007e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "python_alloc_touch_512m",
-            "category": "Memory/page faults",
-            "description": "Python allocate and touch 512 MiB bytearray",
-            "command": "python3 /tmp/vm-host-perf-work/python_mem_touch.py >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 1,
-            "runs": 7,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.10262468299993088,
-                    "runner_cpu": 0.00019291500000000184,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.09634305200006565,
-                    "runner_cpu": 0.00019395999999999997,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.0960356690000026,
-                    "runner_cpu": 0.00016224899999999626,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.09438887399983287,
-                    "runner_cpu": 0.00016866699999999735,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.09363231199995425,
-                    "runner_cpu": 0.00020083299999999749,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.1011345590000019,
-                    "runner_cpu": 0.00017450100000000052,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.09548977999997987,
-                    "runner_cpu": 0.0001611680000000032,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.097092704142824,
-            "median": 0.0960356690000026,
-            "stdev": 0.0034271722897690864,
-            "min": 0.09363231199995425,
-            "max": 0.10262468299993088,
-            "runs_completed": 7
+          "wall": 0.005824403999895367,
+          "runner_cpu": 9.458300000000225e-05,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "fs_tmp_seq_write_read_512m",
-            "category": "Filesystem/sequential",
-            "description": "Write+fsync+read 512 MiB file in /tmp",
-            "command": "python3 /tmp/vm-host-perf-work/fs_seq_rw.py >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 1,
-            "runs": 5,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.09036709899987727,
-                    "runner_cpu": 0.00016320699999999855,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.13551325699995687,
-                    "runner_cpu": 0.00016250000000000292,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.10371271799999704,
-                    "runner_cpu": 0.0001955819999999997,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.1216802110000117,
-                    "runner_cpu": 0.00019071000000000365,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.08553505400004724,
-                    "runner_cpu": 0.00018387400000000054,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.10736166779997802,
-            "median": 0.10371271799999704,
-            "stdev": 0.021071686733452687,
-            "min": 0.08553505400004724,
-            "max": 0.13551325699995687,
-            "runs_completed": 5
+          "wall": 0.006989102000034109,
+          "runner_cpu": 0.00015966600000000275,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "fs_tmp_smallfiles_5000",
-            "category": "Filesystem/metadata",
-            "description": "Create/stat/read/delete 5k tiny files in /tmp",
-            "command": "python3 /tmp/vm-host-perf-work/fs_smallfiles.py >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix",
-            "warmups": 1,
-            "runs": 7,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.05460103799987337,
-                    "runner_cpu": 0.0001648760000000013,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.05645275599999877,
-                    "runner_cpu": 0.0001600830000000053,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.05187350599999263,
-                    "runner_cpu": 0.00015162500000000245,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.056538175000014235,
-                    "runner_cpu": 0.00015170899999999987,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.05343221500015716,
-                    "runner_cpu": 0.0001521690000000006,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.05589878300020246,
-                    "runner_cpu": 0.0001411260000000053,
-                    "code": 0,
-                    "stderr_tail": ""
-                },
-                {
-                    "wall": 0.053758141000116666,
-                    "runner_cpu": 0.00013724999999999848,
-                    "code": 0,
-                    "stderr_tail": ""
-                }
-            ],
-            "mean": 0.0546506591429079,
-            "median": 0.05460103799987337,
-            "stdev": 0.0017494913049973422,
-            "min": 0.05187350599999263,
-            "max": 0.056538175000014235,
-            "runs_completed": 7
+          "wall": 0.006647551000014573,
+          "runner_cpu": 0.00014975000000000058,
+          "code": 0,
+          "stderr_tail": ""
         },
         {
-            "id": "cargo_pi_rs_check_cached",
-            "category": "Dev/Rust",
-            "description": "Cached cargo check for home/cli/pi-rs",
-            "command": "cargo check --quiet >/dev/null",
-            "cwd": "/home/aragao/projects/personal/nix/home/cli/pi-rs",
-            "warmups": 1,
-            "runs": 5,
-            "unit": "s",
-            "better": "lower",
-            "runs_raw": [
-                {
-                    "wall": 0.043718740999793226,
-                    "runner_cpu": 0.00016991400000000018,
-                    "code": 0,
-                    "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
-                },
-                {
-                    "wall": 0.047847314000136976,
-                    "runner_cpu": 0.00015049999999999786,
-                    "code": 0,
-                    "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
-                },
-                {
-                    "wall": 0.044556933000194476,
-                    "runner_cpu": 0.00019266700000000053,
-                    "code": 0,
-                    "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
-                },
-                {
-                    "wall": 0.04627327100001821,
-                    "runner_cpu": 0.0001823329999999998,
-                    "code": 0,
-                    "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
-                },
-                {
-                    "wall": 0.04555070900005376,
-                    "runner_cpu": 0.00017004299999999473,
-                    "code": 0,
-                    "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
-                }
-            ],
-            "mean": 0.04558939360003933,
-            "median": 0.04555070900005376,
-            "stdev": 0.0015915955336308386,
-            "min": 0.043718740999793226,
-            "max": 0.047847314000136976,
-            "runs_completed": 5
+          "wall": 0.0061187870001049305,
+          "runner_cpu": 0.00012216699999999941,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.006274956999959613,
+          "runner_cpu": 0.00011708300000000046,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0060251180000250315,
+          "runner_cpu": 0.00010491699999999951,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.006075660999840693,
+          "runner_cpu": 8.612600000000234e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.005877030999954513,
+          "runner_cpu": 9.483499999999798e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.006065577000072153,
+          "runner_cpu": 6.216700000000186e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.005834446000108073,
+          "runner_cpu": 9.441599999999994e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.006010991999801263,
+          "runner_cpu": 0.00010562600000000102,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.00592003199994906,
+          "runner_cpu": 7.696000000000092e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0060650780001196836,
+          "runner_cpu": 8.433299999999894e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.00584778000006736,
+          "runner_cpu": 0.00010241700000000048,
+          "code": 0,
+          "stderr_tail": ""
         }
-    ]
+      ],
+      "mean": 0.0060985718999859275,
+      "median": 0.006004950499800543,
+      "stdev": 0.00034209584471245504,
+      "min": 0.005749026999865237,
+      "max": 0.006989102000034109,
+      "runs_completed": 20
+    },
+    {
+      "id": "nvim_config_open_close",
+      "category": "Editor/process",
+      "description": "Configured Neovim startup and immediate quit",
+      "command": "nvim --headless +qa",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 3,
+      "runs": 20,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.02289073199995073,
+          "runner_cpu": 0.0001267910000000011,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.022672766999903615,
+          "runner_cpu": 0.00012654100000000085,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02352403999998387,
+          "runner_cpu": 0.00013258299999999862,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.023676419000139504,
+          "runner_cpu": 0.00015325100000000008,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02300835999994888,
+          "runner_cpu": 0.00014828999999999884,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.022530930999892007,
+          "runner_cpu": 0.00014512399999999995,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.024761948000104894,
+          "runner_cpu": 0.00015075100000000105,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.023268285000085598,
+          "runner_cpu": 0.00014783399999999947,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02290185900005781,
+          "runner_cpu": 0.0001338739999999991,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02332145200011837,
+          "runner_cpu": 0.00013783399999999987,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02393396900015432,
+          "runner_cpu": 0.00015745900000000215,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02320824100002028,
+          "runner_cpu": 0.00017628999999999909,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02313669800014395,
+          "runner_cpu": 0.0001334999999999982,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.022332009999900038,
+          "runner_cpu": 0.00013045799999999996,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02406109799994738,
+          "runner_cpu": 0.00013987400000000164,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02367933699997593,
+          "runner_cpu": 0.00015875099999999864,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.024886368999887054,
+          "runner_cpu": 0.00017474899999999835,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.024377688999948077,
+          "runner_cpu": 0.0001934169999999978,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.02302581999992981,
+          "runner_cpu": 0.0001432089999999983,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.025000997000006464,
+          "runner_cpu": 0.00016333300000000162,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.02350995105000493,
+      "median": 0.023294868500101984,
+      "stdev": 0.0007809823123929163,
+      "min": 0.022332009999900038,
+      "max": 0.025000997000006464,
+      "runs_completed": 20
+    },
+    {
+      "id": "nvim_open_nix_file_close",
+      "category": "Editor/file open",
+      "description": "Configured Neovim opens nvim-lazyvim.nix and quits",
+      "command": "nvim --headless +\"edit /home/aragao/projects/personal/nix/home/cli/nvim-lazyvim.nix\" +qa",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 3,
+      "runs": 20,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.08758428499982074,
+          "runner_cpu": 0.00020283299999999949,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06414066199999979,
+          "runner_cpu": 0.0002152909999999994,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.07019052999999076,
+          "runner_cpu": 0.0001757500000000023,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06606504700016558,
+          "runner_cpu": 0.000178792000000004,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0652420669998719,
+          "runner_cpu": 0.0001584149999999951,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0662595930000407,
+          "runner_cpu": 0.00017158300000000293,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06291054600001189,
+          "runner_cpu": 0.00017421000000000103,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06519510899988745,
+          "runner_cpu": 0.00017529100000000103,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06654227199987872,
+          "runner_cpu": 0.00017516800000000332,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06462067899997237,
+          "runner_cpu": 0.00016370900000000493,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06521911099980571,
+          "runner_cpu": 0.00016620800000000102,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06823077399985777,
+          "runner_cpu": 0.00018270900000000312,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06514790000005632,
+          "runner_cpu": 0.00017416599999999643,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06580741800007672,
+          "runner_cpu": 0.00016849999999999504,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0882502659999318,
+          "runner_cpu": 0.0001734170000000021,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06340985400015597,
+          "runner_cpu": 0.00018079199999999906,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06610717600005955,
+          "runner_cpu": 0.00016600099999999895,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06685702999993737,
+          "runner_cpu": 0.00017479000000000106,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.06621184599998742,
+          "runner_cpu": 0.00016316700000000572,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09178085999997165,
+          "runner_cpu": 0.00016966799999999782,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.069288651249974,
+      "median": 0.06608611150011257,
+      "stdev": 0.008757570693443725,
+      "min": 0.06291054600001189,
+      "max": 0.09178085999997165,
+      "runs_completed": 20
+    },
+    {
+      "id": "repo_ripgrep_search",
+      "category": "Search/metadata",
+      "description": "ripgrep over repo for NixOS/VM terms",
+      "command": "rg --hidden --glob '!.git' --glob '!result' --glob '!result-*' --glob '!home/cli/pi-rs/.bench-*' -n 'nixos|parallels|neovim|systemd' . >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 2,
+      "runs": 15,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.004558954999993148,
+          "runner_cpu": 9.708400000000422e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004424200999892491,
+          "runner_cpu": 0.00010433400000000453,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.006475131000115653,
+          "runner_cpu": 0.00014162399999999992,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0050420509999185015,
+          "runner_cpu": 0.00020404000000000255,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004686582999966049,
+          "runner_cpu": 0.00011579100000000397,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004476494000073217,
+          "runner_cpu": 0.00011466599999999938,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004364865999832546,
+          "runner_cpu": 0.0001060820000000004,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.003887520000034783,
+          "runner_cpu": 8.308299999999769e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004267946999789274,
+          "runner_cpu": 7.504199999999739e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004040774000031888,
+          "runner_cpu": 7.274899999999695e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0037218499999198684,
+          "runner_cpu": 8.17510000000049e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.004197487000055844,
+          "runner_cpu": 9.06659999999962e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.003862102999846684,
+          "runner_cpu": 7.387500000000102e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0039770639998550905,
+          "runner_cpu": 7.233499999999976e-05,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.003978272000040306,
+          "runner_cpu": 8.370800000000178e-05,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.004397419866624356,
+      "median": 0.004267946999789274,
+      "stdev": 0.0006755656241305499,
+      "min": 0.0037218499999198684,
+      "max": 0.006475131000115653,
+      "runs_completed": 15
+    },
+    {
+      "id": "nix_eval_systemd_services_attrnames",
+      "category": "Nix/evaluation",
+      "description": "Evaluate service names from prl-dev-vm NixOS config",
+      "command": "nix eval --json .#nixosConfigurations.prl-dev-vm.config.systemd.services --apply builtins.attrNames >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 7,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [],
+      "mean": 0.5449952102171428,
+      "median": 0.54538786336,
+      "stdev": 0.005564934610549676,
+      "min": 0.5349656983599999,
+      "max": 0.55131657136,
+      "runs_completed": 7,
+      "note": "Measured separately with hyperfine after the main harness run; included here for the complete report table."
+    },
+    {
+      "id": "openssl_sha256_1g_file",
+      "category": "CPU/crypto",
+      "description": "OpenSSL hashes cached 1 GiB file with SHA-256",
+      "command": "openssl dgst -sha256 /tmp/vm-host-perf-work/hash-1g.bin >/dev/null",
+      "setup": "python3 -c \"from pathlib import Path; p = Path('/tmp/vm-host-perf-work/hash-1g.bin'); p.parent.mkdir(parents=True, exist_ok=True); size = 1024 * 1024 * 1024; chunk = bytes((i % 251 for i in range(1024 * 1024))); (not p.exists() or p.stat().st_size != size) and p.write_bytes(chunk * 1024)\"",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 5,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.3683644519999234,
+          "runner_cpu": 0.00016870799999999658,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.36652395100009016,
+          "runner_cpu": 0.00017695800000000483,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.36940679300005286,
+          "runner_cpu": 0.00018337300000000056,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.36785650100000566,
+          "runner_cpu": 0.00020091599999999543,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.36745187799988344,
+          "runner_cpu": 0.00018116799999999544,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.3679207149999911,
+      "median": 0.36785650100000566,
+      "stdev": 0.0010700714449582115,
+      "min": 0.36652395100009016,
+      "max": 0.36940679300005286,
+      "runs_completed": 5
+    },
+    {
+      "id": "python_integer_loop",
+      "category": "CPU/interpreter",
+      "description": "Python integer loop, 15M iterations",
+      "command": "python3 /tmp/vm-host-perf-work/python_cpu_int.py >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 7,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 1.229442009999957,
+          "runner_cpu": 0.00020645799999999964,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.267729835000182,
+          "runner_cpu": 0.0001681240000000056,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.2037805790000675,
+          "runner_cpu": 0.00018553899999999846,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.2522383089999494,
+          "runner_cpu": 0.0001778340000000017,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.2011887139999544,
+          "runner_cpu": 0.00018074900000000088,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.2485691270001098,
+          "runner_cpu": 0.00018620899999999968,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 1.192676270999982,
+          "runner_cpu": 0.0001774150000000002,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 1.2279464064286003,
+      "median": 1.229442009999957,
+      "stdev": 0.029281094372262298,
+      "min": 1.192676270999982,
+      "max": 1.267729835000182,
+      "runs_completed": 7
+    },
+    {
+      "id": "python_alloc_touch_512m",
+      "category": "Memory/page faults",
+      "description": "Python allocate and touch 512 MiB bytearray",
+      "command": "python3 /tmp/vm-host-perf-work/python_mem_touch.py >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 7,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.10262468299993088,
+          "runner_cpu": 0.00019291500000000184,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09634305200006565,
+          "runner_cpu": 0.00019395999999999997,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0960356690000026,
+          "runner_cpu": 0.00016224899999999626,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09438887399983287,
+          "runner_cpu": 0.00016866699999999735,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09363231199995425,
+          "runner_cpu": 0.00020083299999999749,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1011345590000019,
+          "runner_cpu": 0.00017450100000000052,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09548977999997987,
+          "runner_cpu": 0.0001611680000000032,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.097092704142824,
+      "median": 0.0960356690000026,
+      "stdev": 0.0034271722897690864,
+      "min": 0.09363231199995425,
+      "max": 0.10262468299993088,
+      "runs_completed": 7
+    },
+    {
+      "id": "fs_tmp_seq_write_read_512m",
+      "category": "Filesystem/sequential",
+      "description": "Write+fsync+read 512 MiB file in /tmp",
+      "command": "python3 /tmp/vm-host-perf-work/fs_seq_rw.py >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 5,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.09036709899987727,
+          "runner_cpu": 0.00016320699999999855,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.13551325699995687,
+          "runner_cpu": 0.00016250000000000292,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.10371271799999704,
+          "runner_cpu": 0.0001955819999999997,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1216802110000117,
+          "runner_cpu": 0.00019071000000000365,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.08553505400004724,
+          "runner_cpu": 0.00018387400000000054,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.10736166779997802,
+      "median": 0.10371271799999704,
+      "stdev": 0.021071686733452687,
+      "min": 0.08553505400004724,
+      "max": 0.13551325699995687,
+      "runs_completed": 5
+    },
+    {
+      "id": "fs_tmp_smallfiles_5000",
+      "category": "Filesystem/metadata",
+      "description": "Create/stat/read/delete 5k tiny files in /tmp",
+      "command": "python3 /tmp/vm-host-perf-work/fs_smallfiles.py >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix",
+      "warmups": 1,
+      "runs": 7,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.05460103799987337,
+          "runner_cpu": 0.0001648760000000013,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.05645275599999877,
+          "runner_cpu": 0.0001600830000000053,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.05187350599999263,
+          "runner_cpu": 0.00015162500000000245,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.056538175000014235,
+          "runner_cpu": 0.00015170899999999987,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.05343221500015716,
+          "runner_cpu": 0.0001521690000000006,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.05589878300020246,
+          "runner_cpu": 0.0001411260000000053,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.053758141000116666,
+          "runner_cpu": 0.00013724999999999848,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.0546506591429079,
+      "median": 0.05460103799987337,
+      "stdev": 0.0017494913049973422,
+      "min": 0.05187350599999263,
+      "max": 0.056538175000014235,
+      "runs_completed": 7
+    },
+    {
+      "id": "cargo_pi_rs_check_cached",
+      "category": "Dev/Rust",
+      "description": "Cached cargo check for home/cli/pi-rs",
+      "command": "cargo check --quiet >/dev/null",
+      "cwd": "/home/aragao/projects/personal/nix/home/cli/pi-rs",
+      "warmups": 1,
+      "runs": 5,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.043718740999793226,
+          "runner_cpu": 0.00016991400000000018,
+          "code": 0,
+          "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
+        },
+        {
+          "wall": 0.047847314000136976,
+          "runner_cpu": 0.00015049999999999786,
+          "code": 0,
+          "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
+        },
+        {
+          "wall": 0.044556933000194476,
+          "runner_cpu": 0.00019266700000000053,
+          "code": 0,
+          "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
+        },
+        {
+          "wall": 0.04627327100001821,
+          "runner_cpu": 0.0001823329999999998,
+          "code": 0,
+          "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
+        },
+        {
+          "wall": 0.04555070900005376,
+          "runner_cpu": 0.00017004299999999473,
+          "code": 0,
+          "stderr_tail": "warning: function `run_filtered_default` is never used\n   --> crates/pi-rs/src/cmd/filters/mod.rs:100:8\n    |\n100 | pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {\n    |        ^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: field `truncated` is never read\n   --> crates/pi-rs/src/cmd/grep.rs:216:5\n    |\n213 | struct MatchRecord {\n    |        ----------- field in this struct\n...\n216 |     truncated: bool,\n    |     ^^^^^^^^^\n\nwarning: function `format_output` is never used\n   --> crates/pi-rs/src/cmd/grep.rs:390:4\n    |\n390 | fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {\n    |    ^^^^^^^^^^^^^\n\nwarning: struct `TestFailure` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:13:12\n   |\n13 | pub struct TestFailure {\n   |            ^^^^^^^^^^^\n\nwarning: struct `TestSummary` is never constructed\n  --> crates/pi-rs/src/compress/failures.rs:29:12\n   |\n29 | pub struct TestSummary {\n   |            ^^^^^^^^^^^\n\nwarning: function `format_test_summary` is never used\n  --> crates/pi-rs/src/compress/failures.rs:56:8\n   |\n56 | pub fn format_test_summary(summary: &TestSummary) -> String {\n   |        ^^^^^^^^^^^^^^^^^^^\n\nwarning: fields `tee_path` and `truncated` are never read\n  --> crates/pi-rs/src/compress/tee.rs:41:9\n   |\n37 | pub struct TruncateOutput {\n   |            -------------- fields in this struct\n...\n41 |     pub tee_path: Option<PathBuf>,\n   |         ^^^^^^^^\n42 |     /// True iff truncation actually happened.\n43 |     pub truncated: bool,\n   |         ^^^^^^^^^\n   |\n   = note: `TruncateOutput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis\n\nwarning: function `format_hash_line` is never used\n  --> crates/pi-rs/src/hashline.rs:66:8\n   |\n66 | pub fn format_hash_line(line_number: u32, line: &str) -> String {\n   |        ^^^^^^^^^^^^^^^^\n\n"
+        }
+      ],
+      "mean": 0.04558939360003933,
+      "median": 0.04555070900005376,
+      "stdev": 0.0015915955336308386,
+      "min": 0.043718740999793226,
+      "max": 0.047847314000136976,
+      "runs_completed": 5
+    }
+  ]
 }

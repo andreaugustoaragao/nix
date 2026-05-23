@@ -84,11 +84,16 @@ log "press Ctrl-C to stop"
 #   one follow-up rather than killing the in-flight activation.
 # --no-vcs-ignore disabled (default honors .gitignore) so generated
 #   files in ignored paths don't trigger rebuilds.
+# Explicit --ignore below for high-churn paths that used to be untracked
+#   (pi-rs .bench-* scratch dirs) — keeps watchexec's event channel from
+#   overflowing during cargo builds. See watchexec#920.
 # flake.lock is excluded explicitly so the auto-flake-update timer
 #   doesn't kick off interactive rebuilds.
 exec watchexec \
   --debounce "${DEBOUNCE_SECS}s" \
   --exts "$EXTS" \
   --ignore flake.lock \
+  --ignore '**/target/**' \
+  --ignore '**/.bench-*/**' \
   --on-busy-update=queue \
   -- "${SUDO[@]}" "$REBUILD_BIN" switch --flake ".#${HOST}"

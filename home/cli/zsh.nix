@@ -8,6 +8,17 @@ in
   programs.zsh = {
     enable = true;
 
+    # Kitty (and Ghostty) forward their native TERM over SSH. Remote hosts
+    # often lack that terminfo — set-environment/tput fail and zsh line
+    # editing duplicates characters. .zshenv runs before profile.d hooks.
+    envExtra = ''
+      if [[ -n "''${SSH_CONNECTION:-}" ]]; then
+        case "''${TERM:-}" in
+          xterm-kitty|xterm-ghostty|ghostty) export TERM=xterm-256color ;;
+        esac
+      fi
+    '';
+
     # On Darwin, Homebrew installs to /opt/homebrew (Apple Silicon) and
     # exposes its tools via `brew shellenv`. This is the declarative
     # replacement for the imperative two-line block brew prints at the

@@ -218,6 +218,17 @@ def make_workloads(repo: Path, scripts: dict[str, str]) -> list[dict[str, object
             "better": "lower",
         },
         {
+            "id": "nix_eval_systemd_services_attrnames",
+            "category": "Nix/evaluation",
+            "description": "Evaluate service names from prl-dev-vm NixOS config",
+            "command": "nix eval --json .#nixosConfigurations.prl-dev-vm.config.systemd.services --apply builtins.attrNames >/dev/null",
+            "cwd": str(repo),
+            "warmups": 1,
+            "runs": 7,
+            "unit": "s",
+            "better": "lower",
+        },
+        {
             "id": "openssl_sha256_1g_file",
             "category": "CPU/crypto",
             "description": "OpenSSL hashes cached 1 GiB file with SHA-256",

@@ -48,6 +48,7 @@ The suite measures wall-clock time for:
 - configured Neovim startup + quit
 - configured Neovim open `home/cli/nvim-lazyvim.nix` + quit
 - ripgrep over this repo
+- Nix evaluation of `prl-dev-vm` systemd service names
 - OpenSSL SHA-256 over a cached 1 GiB file
 - Python integer-loop CPU work
 - Python allocation/page-touch work
