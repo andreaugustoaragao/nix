@@ -1,4 +1,6 @@
 {
+  config,
+  lib,
   pkgs,
   ...
 }:
@@ -613,6 +615,27 @@ in
   # spawn `pi-rs <subcommand>` without baking a per-host store path. Same
   # binary, three triples (x86_64-linux, aarch64-linux, aarch64-darwin).
   home.packages = [ piRs ];
+
+  # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
+  # with a vim-modal editor. Seed the package into settings.json so pi
+  # auto-loads it on startup.
+  home.activation.piVimMode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    target="${config.home.homeDirectory}/.pi/agent/settings.json"
+    mkdir -p "$(dirname "$target")"
+    pkg="npm:@burneikis/pi-vim"
+    if [[ -f "$target" ]]; then
+      existing="$(cat "$target")"
+    else
+      existing='{}'
+    fi
+    printf '%s' "$existing" \
+      | ${pkgs.jq}/bin/jq --arg pkg "$pkg" '
+          .packages = ((.packages // []) + [$pkg] | unique)
+        ' \
+      > "$target.tmp"
+    mv "$target.tmp" "$target"
+    chmod 0600 "$target"
+  '';
 
   home.file.".pi/agent/extensions/context7.ts".source = context7Extension;
   home.file.".pi/agent/extensions/lsp.ts".source = lspExtension;

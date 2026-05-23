@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
@@ -34,6 +39,9 @@ let
 
     [projects."${trustedProjectPath}"]
     trust_level = "trusted"
+
+    [tui]
+    vim_mode_default = true
   '';
 
   # Stage the template into the Nix store so activation has a stable,
@@ -68,8 +76,7 @@ in
   # depend on a runtime-decrypted value.
   # Materialize ~/.codex/AGENTS.md from the pi-rs-managed rules fragment.
   # Codex reads this file as global instruction context.
-  home.file.".codex/AGENTS.md".source =
-    "${piRs}/share/pi-rs/agent-hooks/codex-rules.md";
+  home.file.".codex/AGENTS.md".source = "${piRs}/share/pi-rs/agent-hooks/codex-rules.md";
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"

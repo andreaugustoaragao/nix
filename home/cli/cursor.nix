@@ -1,4 +1,6 @@
 {
+  config,
+  lib,
   pkgs,
   ...
 }:
@@ -27,4 +29,22 @@ in
       ];
     };
   };
+
+  # cursor-agent stores runtime state (model picker, auth) in
+  # ~/.cursor/cli-config.json. Merge vimMode on activation so we do not
+  # overwrite fields the CLI manages itself.
+  home.activation.cursorCliConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    target="${config.home.homeDirectory}/.cursor/cli-config.json"
+    mkdir -p "$(dirname "$target")"
+    if [[ -f "$target" ]]; then
+      existing="$(cat "$target")"
+    else
+      existing='{"permissions":{"allow":[],"deny":[]},"version":1}'
+    fi
+    printf '%s' "$existing" \
+      | ${pkgs.jq}/bin/jq '.editor = ((.editor // {}) + {vimMode: true})' \
+      > "$target.tmp"
+    mv "$target.tmp" "$target"
+    chmod 0600 "$target"
+  '';
 }
