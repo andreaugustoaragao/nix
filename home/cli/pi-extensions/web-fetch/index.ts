@@ -162,12 +162,15 @@ async function fetchGeneric(
   const notes: string[] = [];
 
   // Hard fetch failure (DNS, connection refused, timeout): no HTTP
-  // status, no content. Don't pretend we got a response.
+  // status, no content. Don't pretend we got a response — but do surface
+  // the underlying cause so the model can react (retry, swap protocol,
+  // give up) without a second tool call.
   if (!page.ok && page.status === undefined) {
+    const reason = (page as { error?: string }).error ?? "DNS error, connection refused, or timeout";
     return {
       url, finalUrl, contentType: page.contentType || "unknown", method: "failed",
-      content: "[Fetch failed: no response (DNS error, connection refused, or timeout)]",
-      fetchedAt, truncated: false, notes: ["network fetch failed"],
+      content: `[Fetch failed: ${reason}]`,
+      fetchedAt, truncated: false, notes: [`network fetch failed: ${reason}`],
       status: undefined, fetchFailed: true,
     };
   }
@@ -321,7 +324,22 @@ export default function (pi: ExtensionAPI) {
           result = await fetchGeneric(url, timeoutSec, params.raw === true, signal);
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        // Node's `fetch failed` rolls up DNS errors, connection refused,
+        // TLS handshake failures, etc. under one opaque message. The
+        // useful cause lives on err.cause; thread it into the user-visible
+        // text so a single retry can adapt instead of guessing.
+        const baseMsg = err instanceof Error ? err.message : String(err);
+        const cause = (err as { cause?: unknown } | null | undefined)?.cause;
+        let causeMsg: string | null = null;
+        if (cause instanceof Error) {
+          const code = (cause as { code?: string }).code;
+          causeMsg = code ? `${code}: ${cause.message}` : cause.message;
+        } else if (cause !== undefined && cause !== null) {
+          causeMsg = String(cause);
+        }
+        const msg = causeMsg && causeMsg !== baseMsg
+          ? `${baseMsg} (${causeMsg})`
+          : baseMsg;
         return {
           content: [{ type: "text", text: `Fetch failed: ${msg}` }],
           details: { url, error: msg },

@@ -202,13 +202,15 @@ let
           libraryName: Type.Optional(Type.String({
             description:
               "Library name to search (e.g. \"Next.js\", \"React\", \"Prisma\"). " +
-              "Only used with resolve-library-id.",
+              "Used with resolve-library-id. If omitted, `query` is used " +
+              "as the library name and a relevance-only search runs.",
           })),
           query: Type.String({
             description:
               "Query for relevance ranking. For resolve-library-id: describe " +
-              "what you want to do with the library. For query-docs: your " +
-              "specific question about the library.",
+              "what you want to do with the library (also doubles as the " +
+              "library name when libraryName is omitted). For query-docs: " +
+              "your specific question about the library.",
           }),
           libraryId: Type.Optional(Type.String({
             description:
@@ -234,11 +236,16 @@ let
 
           try {
             if (params.tool === "resolve-library-id") {
-              if (!params.libraryName) {
+              // Fall back to `query` as the library name when libraryName
+              // is omitted — the most common model-side mistake is to skip
+              // libraryName and put everything in query, since omp/Context7
+              // documents this as a single search call.
+              const libraryName = params.libraryName ?? params.query;
+              if (!libraryName) {
                 return {
                   content: [{
                     type: "text",
-                    text: "Error: libraryName is required for resolve-library-id. " +
+                    text: "Error: provide `libraryName` or `query` to search for. " +
                       "Example: libraryName='React', query='How to use useEffect'.",
                   }],
                   details: { tool: params.tool, error: "missing_library_name" },
@@ -247,7 +254,7 @@ let
               const maxResults = params.maxResults ?? 10;
               const path =
                 "/libs/search?libraryName=" +
-                encodeURIComponent(params.libraryName) +
+                encodeURIComponent(libraryName) +
                 "&query=" +
                 encodeURIComponent(params.query) +
                 "&maxResults=" + maxResults;
@@ -282,7 +289,7 @@ let
                 content: [{ type: "text", text: formatSearchResults(data) }],
                 details: {
                   tool: "resolve-library-id",
-                  libraryName: params.libraryName,
+                  libraryName,
                   query: params.query,
                   count: data.results?.length ?? 0,
                 },

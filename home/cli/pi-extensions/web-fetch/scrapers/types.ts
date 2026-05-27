@@ -70,6 +70,8 @@ export interface LoadPageResult {
 	finalUrl: string;
 	ok: boolean;
 	status?: number;
+	/** Last underlying network error (DNS / ECONNREFUSED / TLS / timeout). */
+	error?: string;
 }
 
 /**
@@ -140,12 +142,22 @@ export async function loadPage(url: string, options: LoadPageOptions = {}): Prom
 			}
 
 			return { content, contentType, finalUrl, ok: true, status: response.status };
-		} catch {
+		} catch (err) {
 			if (signal?.aborted) {
 				throw new ToolAbortError();
 			}
 			if (attempt === USER_AGENTS.length - 1) {
-				return { content: "", contentType: "", finalUrl: url, ok: false };
+				const baseMsg = err instanceof Error ? err.message : String(err);
+				const cause = (err as { cause?: unknown } | null | undefined)?.cause;
+				let causeMsg: string | null = null;
+				if (cause instanceof Error) {
+					const code = (cause as { code?: string }).code;
+					causeMsg = code ? `${code}: ${cause.message}` : cause.message;
+				} else if (cause !== undefined && cause !== null) {
+					causeMsg = String(cause);
+				}
+				const error = causeMsg && causeMsg !== baseMsg ? `${baseMsg} (${causeMsg})` : baseMsg;
+				return { content: "", contentType: "", finalUrl: url, ok: false, error };
 			}
 		}
 	}

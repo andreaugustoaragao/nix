@@ -643,6 +643,37 @@ function parseSymbolSpec(spec: string): { symbol: string; occurrence: number } {
   return { symbol: m[1], occurrence: Math.max(1, parseInt(m[2], 10)) };
 }
 
+/**
+ * When the caller's `line` is slightly off (file edits drifted, off-by-one
+ * from human-friendly numbering, etc.), surface the nearest lines where
+ * the symbol *does* appear so the model can correct itself in one round
+ * trip instead of guessing.
+ */
+const NEARBY_SYMBOL_WINDOW = 25;
+
+function findNearbySymbolLines(
+  lines: string[],
+  lineNumber: number,
+  symbol: string,
+  window: number,
+): number[] {
+  const lo = Math.max(1, lineNumber - window);
+  const hi = Math.min(lines.length, lineNumber + window);
+  const hits: Array<{ line: number; distance: number }> = [];
+  for (let i = lo; i <= hi; i++) {
+    if (i === lineNumber) continue;
+    const exact = findSymbolMatchIndexes(lines[i - 1] ?? "", symbol, false);
+    const matches = exact.length > 0
+      ? exact
+      : findSymbolMatchIndexes(lines[i - 1] ?? "", symbol, true);
+    if (matches.length > 0) {
+      hits.push({ line: i, distance: Math.abs(i - lineNumber) });
+    }
+  }
+  hits.sort((a, b) => a.distance - b.distance);
+  return hits.slice(0, 5).map(h => h.line);
+}
+
 async function resolveSymbolColumn(filepath: string, line: number, symbolSpec?: string): Promise<number> {
   const lineNumber = Math.max(1, line);
   const text = await readFile(filepath, "utf8");
@@ -654,7 +685,11 @@ async function resolveSymbolColumn(filepath: string, line: number, symbolSpec?: 
   const exact = findSymbolMatchIndexes(target, symbol, false);
   const fallback = exact.length > 0 ? exact : findSymbolMatchIndexes(target, symbol, true);
   if (fallback.length === 0) {
-    throw new Error(`Symbol "${symbol}" not found on line ${lineNumber} of ${filepath}`);
+    const nearby = findNearbySymbolLines(lines, lineNumber, symbol, NEARBY_SYMBOL_WINDOW);
+    const hint = nearby.length > 0
+      ? ` — found on line${nearby.length > 1 ? "s" : ""} ${nearby.join(", ")} instead; retry with one of those`
+      : "";
+    throw new Error(`Symbol "${symbol}" not found on line ${lineNumber} of ${filepath}${hint}`);
   }
   if (occurrence > fallback.length) {
     throw new Error(
