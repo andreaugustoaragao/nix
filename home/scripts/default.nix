@@ -16,6 +16,20 @@ let
     rm -f "$HOME/.cache/screensaver-active"
     swaylock -f
   '';
+
+  # Wrap the bare writeShellScript derivations into $out/bin/ packages
+  # so they land on ~/.nix-profile/bin/ — niri's spawn PATH includes
+  # the home-manager profile but NOT ~/.local/bin, so a keybind like
+  # `spawn "screensaver"` only resolves when the script is on a
+  # profile bin path.
+  screensaverBin = pkgs.runCommand "screensaver-bin" { } ''
+    mkdir -p $out/bin
+    ln -s ${screensaver} $out/bin/screensaver
+  '';
+  lockscreenBin = pkgs.runCommand "lockscreen-bin" { } ''
+    mkdir -p $out/bin
+    ln -s ${lockscreen} $out/bin/lockscreen
+  '';
 in
 {
   imports = [
@@ -31,12 +45,8 @@ in
   # Screensaver — terminal-based cmatrix display.
   # On non-DMS hosts (hp-laptop) this is wired into swayidle timeouts.
   # On DMS hosts (workstation) it's available as a manual keybinding.
-  home.file.".local/bin/screensaver" = {
-    source = screensaver;
-    executable = true;
-  };
-  home.file.".local/bin/lockscreen" = {
-    source = lockscreen;
-    executable = true;
-  };
+  home.packages = [
+    screensaverBin
+    lockscreenBin
+  ];
 }

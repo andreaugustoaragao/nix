@@ -6,16 +6,50 @@
 }:
 
 let
-  # Kameido Plum Park — ukiyo-e with scroll cartouches; light mode on the
-  # physically left monitor (DP-2). See home/desktop/niri.nix output layout.
-  fastfetchLogo = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
-  logoWidth = 38;
-  # Portrait ~2041×3000; terminal cells are ~2× taller than wide.
-  logoHeight = (logoWidth * 3000 + 2041) / (2 * 2041);
+  fastfetchPkg = inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch;
+
+  # Logos to rotate through on each invocation. Each entry carries its
+  # own width/height so portrait and landscape sources render at the
+  # right aspect ratio — terminal cells are roughly 2× taller than wide.
+  logos = [
+    {
+      # Kameido Plum Park — portrait ukiyo-e (~2041×3000).
+      path = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
+      width = 38;
+      height = 28;
+    }
+    {
+      # Avaya HQ — landscape photo (1168×880).
+      path = "${wallpapers}/share/wallpapers/avaya-hq.png";
+      width = 50;
+      height = 19;
+    }
+  ];
+
+  logoEntries = builtins.concatStringsSep "\n    " (
+    map (l: "'${l.path}|${toString l.width}|${toString l.height}'") logos
+  );
+
+  # Wrapper exposed as `fastfetch` on PATH. Picks one logo at random per
+  # invocation, then exec's the real fastfetch with --logo / --logo-width
+  # / --logo-height set accordingly. Trailing "$@" lets ad-hoc CLI flags
+  # still flow through; a user-supplied --logo later in argv wins because
+  # fastfetch takes the last occurrence.
+  fastfetchWrapper = pkgs.writeShellScriptBin "fastfetch" ''
+    LOGOS=(
+      ${logoEntries}
+    )
+    IFS='|' read -r logo_path logo_width logo_height <<<"''${LOGOS[$((RANDOM % ''${#LOGOS[@]}))]}"
+    exec ${fastfetchPkg}/bin/fastfetch \
+      --logo "$logo_path" \
+      --logo-width "$logo_width" \
+      --logo-height "$logo_height" \
+      "$@"
+  '';
 in
 {
   home.packages = [
-    inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch
+    fastfetchWrapper
     pkgs.chafa
     pkgs.fortune
     pkgs.lolcat
@@ -27,9 +61,6 @@ in
       "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
       "logo": {
         "type": "auto",
-        "source": "${fastfetchLogo}",
-        "width": ${toString logoWidth},
-        "height": ${toString logoHeight},
         "padding": {
           "top": 1,
           "right": 6,

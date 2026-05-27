@@ -9,6 +9,7 @@ let
     cp ${../../assets/wallpapers/blue-jays.png}            $out/share/wallpapers/blue-jays.png
     cp ${../../assets/wallpapers/atake-sudden-shower.jpg}  $out/share/wallpapers/atake-sudden-shower.jpg
     cp ${../../assets/wallpapers/kameido-plum-park.jpg}    $out/share/wallpapers/kameido-plum-park.jpg
+    cp ${../../assets/wallpapers/avaya-hq.png}             $out/share/wallpapers/avaya-hq.png
   '';
 
   # Per-output wallpapers (see home/desktop/niri.nix: DP-2 is physically

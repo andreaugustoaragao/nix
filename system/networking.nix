@@ -229,9 +229,19 @@
     ]
     ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
       "fulcrum.local"
-      "infinity.local"
     ]
     ++ lib.optionals (hostName == "workstation") [ "llm.local" ];
+
+  # `infinity.local` — k3s istio-ingress lives on the host's LAN interface,
+  # because svclb's PREROUTING DNAT only fires on routed packets, not on
+  # loopback. Point at the VM's own LAN IP (matches the workstation pattern
+  # at 192.168.10.75 above).
+  networking.hosts."10.211.55.4" = lib.mkIf (hostName == "prl-dev-vm") [
+    "infinity.local"
+  ];
+  networking.hosts."192.168.150.5" = lib.mkIf (hostName == "vmw-dev-vm") [
+    "infinity.local"
+  ];
 
   # `mac-work` alias for the Apple Silicon laptop hosting these VMs.
   # The Mac's scutil names are pinned to IT's asset tag (G7CH2W2XYR),
@@ -268,6 +278,8 @@
       443
     ]
     ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
+      80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
+      443
       # Fulcrum HTTPS — source-run unit binds to 0.0.0.0:3100 so the
       # Parallels/VMware host (mac-work) can reach it at
       # https://<hostname>.local:3100.

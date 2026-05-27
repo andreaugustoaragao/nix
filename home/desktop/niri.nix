@@ -121,6 +121,35 @@ let
             open-on-output "${displays.dp2}"
         }
       '';
+
+  animationsBlock =
+    if isVm then
+      ''
+        // VM: instant transitions — less compositor work through virgl.
+        animations {
+            off
+        }
+      ''
+    else
+      ''
+        // Animations (simplified like Hyprland config)
+        animations {
+            slowdown 1.0
+
+            window-open {
+                duration-ms 150
+                curve "ease-out-quad"
+            }
+            window-close {
+                duration-ms 100
+                curve "ease-out-quad"
+            }
+            workspace-switch {
+                duration-ms 200
+                curve "ease-out-quad"
+            }
+        }
+      '';
 in
 {
   # Always install hyprpolkitagent. DMS 1.4.6 ships a PolkitAuthModal
@@ -413,23 +442,7 @@ in
     // Screenshot path
     screenshot-path "~/pictures/screenshots/screenshot-%Y-%m-%d_%H-%M-%S.png"
 
-    // Animations (simplified like Hyprland config)
-    animations {
-        slowdown 1.0
-        
-        window-open {
-            duration-ms 150
-            curve "ease-out-quad"
-        }
-        window-close {
-            duration-ms 100
-            curve "ease-out-quad"
-        }
-        workspace-switch {
-            duration-ms 200
-            curve "ease-out-quad"
-        }
-    }
+    ${animationsBlock}
 
     hotkey-overlay{
        skip-at-startup

@@ -35,6 +35,38 @@ DEBOUNCE_SECS="${DEBOUNCE_SECS:-2}"
 HOST="$(hostname -s)"
 EXTS="nix,qml,js,ts,json,toml,kdl,conf,css,sh,service,desktop,lua,fish,yaml,yml"
 
+# Internal re-entry: when watchexec fires, it re-execs this same script
+# with --__exec <cmd...> so the interactive shell wrapper only ever sees
+# a short `[Running: watch-rebuild.sh --__exec ...]` banner rather than
+# an inline `bash -c '<multi-line script>'` dump. Self-recursion keeps
+# everything in one file.
+#
+# sops-nix's `sops-install-secrets` logs every imported host key on
+# both build and activation, which floods the rebuild pane with
+# fingerprint lines that don't tell the user anything actionable.
+# Collapse each contiguous run of `Imported …` lines into a single
+# "activating sops..." header. Non-Imported sops output (errors,
+# warnings) is left untouched so real failures still surface.
+if [ "${1:-}" = "--__exec" ]; then
+  shift
+  set -o pipefail
+  "$@" 2>&1 | awk '
+    /^sops-install-secrets: Imported / {
+      if (!in_sops) { print "activating sops..."; fflush(); in_sops = 1 }
+      next
+    }
+    { in_sops = 0; print; fflush() }
+  '
+  rc=$?
+  ts=$(date "+%Y-%m-%d %H:%M:%S")
+  if [ "$rc" -eq 0 ]; then
+    printf "\033[1;32m[watch-rebuild %s] rebuild OK\033[0m\n" "$ts"
+  else
+    printf "\033[1;31m[watch-rebuild %s] rebuild FAILED (exit %d)\033[0m\n" "$ts" "$rc"
+  fi
+  exit "$rc"
+fi
+
 cd "$REPO_DIR"
 
 case "$(uname -s)" in
@@ -82,32 +114,40 @@ log "press Ctrl-C to stop"
 
 # --on-busy-update=queue: if changes land mid-rebuild, queue exactly
 #   one follow-up rather than killing the in-flight activation.
-# --no-vcs-ignore disabled (default honors .gitignore) so generated
-#   files in ignored paths don't trigger rebuilds.
-# Explicit --ignore below for high-churn paths that used to be untracked
-#   (pi-rs .bench-* scratch dirs) — keeps watchexec's event channel from
-#   overflowing during cargo builds. See watchexec#920.
-# flake.lock is excluded explicitly so the auto-flake-update timer
-#   doesn't kick off interactive rebuilds.
-# The bash -c wrapper records each rebuild's exit status and prints a
-# timestamped result line so the pane keeps visible history of when the
-# last attempt ran and whether it succeeded — useful when leaving the
-# watcher in a background pane.
+# --ignore <pattern>: keeps high-churn paths under watched dirs from
+#   overflowing watchexec's event channel during cargo builds (see
+#   watchexec#920). flake.lock is NOT watched, so the auto-flake-update
+#   timer can't kick off interactive rebuilds.
+# The --__exec re-entry above records each rebuild's exit status and
+# prints a timestamped result line so the pane keeps visible history of
+# when the last attempt ran and whether it succeeded.
+#
+# Why explicit --watch instead of recursive on cwd: the repo root holds
+# a `result` symlink (output of `nix build`) pointing into /nix/store.
+# Watchexec's recursive scan follows symlinks unconditionally, then
+# trips on read-only paths like `result/etc/cups/ssl` and emits
+# "Native fs watcher error" on stderr — which the interactive shell
+# wrapper amplifies into "[[Error (not fatal)]]" banners. Listing
+# source roots explicitly avoids the symlink entirely. Keep this list
+# in sync if a new top-level source dir is added to the flake.
 exec watchexec \
+  --quiet \
   --debounce "${DEBOUNCE_SECS}s" \
   --exts "$EXTS" \
-  --ignore flake.lock \
+  --watch home \
+  --watch system \
+  --watch hardware \
+  --watch darwin \
+  --watch secrets \
+  --watch assets \
+  --watch scripts \
+  --watch flake.nix \
+  --watch machines.toml \
+  --watch statix.toml \
   --ignore '**/target/**' \
   --ignore '**/.bench-*/**' \
   --on-busy-update=queue \
-  -- bash -c '
-    "$@"
-    rc=$?
-    ts=$(date "+%Y-%m-%d %H:%M:%S")
-    if [ "$rc" -eq 0 ]; then
-      printf "\033[1;32m[watch-rebuild %s] rebuild OK\033[0m\n" "$ts"
-    else
-      printf "\033[1;31m[watch-rebuild %s] rebuild FAILED (exit %d)\033[0m\n" "$ts" "$rc"
-    fi
-    exit "$rc"
-  ' _ "${SUDO[@]}" "$REBUILD_BIN" switch --flake ".#${HOST}"
+  --shell=none \
+  -- "${BASH_SOURCE[0]}" --__exec "${SUDO[@]}" "$REBUILD_BIN" switch \
+    --flake ".#${HOST}" \
+    --option warn-dirty false
