@@ -41,9 +41,11 @@
 
   # Auto-rename any plain /etc file we're about to take over so
   # nix-darwin's etcChecks safety net can proceed without an operator
-  # in the loop. Idempotent: skips files that are already symlinks
-  # (nix-managed) or have an existing backup, so subsequent rebuilds
-  # are no-ops here.
+  # in the loop. Idempotent on symlinks (already nix-managed). When a
+  # plain file reappears after the original `.pre-nix` backup is in
+  # place (Jamf/IT re-spawning /etc/hosts, macOS major upgrades, etc.),
+  # the suffix is bumped to `.pre-nix.N` so the rebuild is never
+  # blocked by a single stuck slot.
   #
   # NOTE: we deliberately do NOT use the `.before-nix-darwin` suffix
   # the error message suggests — nix-darwin's `configuring networking`
@@ -54,10 +56,16 @@
   system.activationScripts.preActivation.text = ''
     backup_untracked() {
       local f="$1"
-      if [ -e "$f" ] && [ ! -L "$f" ] && [ ! -e "$f.pre-nix" ]; then
-        echo "[preActivation] backing up untracked $f -> $f.pre-nix"
-        mv "$f" "$f.pre-nix"
+      [ -e "$f" ] || return 0
+      [ -L "$f" ] && return 0
+      local dest="$f.pre-nix"
+      if [ -e "$dest" ]; then
+        local n=2
+        while [ -e "$f.pre-nix.$n" ]; do n=$((n + 1)); done
+        dest="$f.pre-nix.$n"
       fi
+      echo "[preActivation] backing up untracked $f -> $dest"
+      mv "$f" "$dest"
     }
     backup_untracked /etc/hosts
   '';

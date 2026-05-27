@@ -92,6 +92,7 @@ homebrewCasks = [
     "chromium",
     # Editors mirroring the Linux home/desktop/{vscode,zed}.nix set.
     "visual-studio-code",
+    "vscodium",
     "cursor",
     "zed",
     # Notes / secrets / chat — matches Linux home.packages.
