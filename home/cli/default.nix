@@ -239,8 +239,12 @@ in
       # channel ships 1.91.1; use unstable until the channel revert
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
-
+    ]
+    ++ lib.optionals isLinux [
       # Terminal Winamp — only in unstable for now.
+      # Linux-only: cliamp's IPC test binds a unix socket under
+      # /nix/var/nix/builds/... which exceeds macOS's sun_path limit
+      # (104 bytes) and fails with EINVAL in the Darwin build sandbox.
       unstable-pkgs.cliamp
     ]
     ++ lib.optionals isDarwinHost [
