@@ -239,6 +239,9 @@ in
       # channel ships 1.91.1; use unstable until the channel revert
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
+
+      # Terminal Winamp — only in unstable for now.
+      unstable-pkgs.cliamp
     ]
     ++ lib.optionals isDarwinHost [
       # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS

@@ -89,6 +89,10 @@ log "press Ctrl-C to stop"
 #   overflowing during cargo builds. See watchexec#920.
 # flake.lock is excluded explicitly so the auto-flake-update timer
 #   doesn't kick off interactive rebuilds.
+# The bash -c wrapper records each rebuild's exit status and prints a
+# timestamped result line so the pane keeps visible history of when the
+# last attempt ran and whether it succeeded — useful when leaving the
+# watcher in a background pane.
 exec watchexec \
   --debounce "${DEBOUNCE_SECS}s" \
   --exts "$EXTS" \
@@ -96,4 +100,14 @@ exec watchexec \
   --ignore '**/target/**' \
   --ignore '**/.bench-*/**' \
   --on-busy-update=queue \
-  -- "${SUDO[@]}" "$REBUILD_BIN" switch --flake ".#${HOST}"
+  -- bash -c '
+    "$@"
+    rc=$?
+    ts=$(date "+%Y-%m-%d %H:%M:%S")
+    if [ "$rc" -eq 0 ]; then
+      printf "\033[1;32m[watch-rebuild %s] rebuild OK\033[0m\n" "$ts"
+    else
+      printf "\033[1;31m[watch-rebuild %s] rebuild FAILED (exit %d)\033[0m\n" "$ts" "$rc"
+    fi
+    exit "$rc"
+  ' _ "${SUDO[@]}" "$REBUILD_BIN" switch --flake ".#${HOST}"
