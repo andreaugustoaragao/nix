@@ -145,6 +145,19 @@ in
       # Clear them during init so command execution does not echo aliases/functions.
       unsetopt xtrace verbose 2>/dev/null || true
 
+      # Match fish.nix: expose AI credentials from sops for interactive
+      # zsh sessions too. This is the default shell on mac-work, so pi
+      # would otherwise miss the built-in Anthropic provider even though
+      # /run/secrets/anthropic_api_key exists.
+      if [[ -z "''${LITELLM_API_KEY:-}" && -r /run/secrets/litellm_api_key ]]; then
+        export LITELLM_API_KEY="$(cat /run/secrets/litellm_api_key)"
+      fi
+      if [[ -z "''${ANTHROPIC_API_KEY:-}" && -r /run/secrets/anthropic_api_key ]]; then
+        anthropic_key_raw="$(cat /run/secrets/anthropic_api_key)"
+        export ANTHROPIC_API_KEY="''${anthropic_key_raw#ANTHROPIC_API_KEY=}"
+        unset anthropic_key_raw
+      fi
+
       # Edit a sops file. On macOS the personal age key sits at the
       # default ~/.config/sops/age/keys.txt (see darwin/sops.nix) so
       # plain sops works. On NixOS the decryption key is the host
