@@ -116,6 +116,51 @@
         # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
         # hyprpolkitagent) are not autostarted so DMS owns the screen.
         useDms = host.useDms or false;
+        # Per-host connector name map. The DMS config (and anywhere else
+        # this flake references monitor outputs by name) thinks in
+        # canonical dp1/dp2 slots — landscape primary on the right,
+        # portrait secondary on the left on the workstation. The Wayland
+        # connector names are platform-dependent: bare-metal DP outputs
+        # come up as DP-1/DP-2, while Parallels (and VMware) virtio_gpu
+        # exposes Virtual-1/Virtual-2. Map them here so screenPreferences,
+        # monitorWallpapers, etc. resolve to the right strings without
+        # per-host branches downstream. Override in machines.toml if a
+        # host needs different names (e.g. eDP-1 on a laptop).
+        displays =
+          host.displays or (
+            if host.profile == "vm" then
+              {
+                dp1 = "Virtual-1";
+                dp2 = "Virtual-2";
+              }
+            else
+              {
+                dp1 = "DP-1";
+                dp2 = "DP-2";
+              }
+          );
+        # Logical dimensions of the dp2 slot (the portrait/secondary
+        # screen) in scaled pixels. Used by DMS to anchor desktop widgets
+        # — the cava visualizer in particular has its rectangle computed
+        # from these so it lands flush with the bottom edge on whatever
+        # connector the slot resolves to. Workstation = Dell S2725QS
+        # rotated 270° at scale 1.5 (3840x2160 → 1440x2560 portrait); VM
+        # = Parallels Virtual-2 retina mode at scale 2.0 (3384x6016 →
+        # 1692x3008). Override in machines.toml if the Parallels window
+        # size or workstation monitor changes.
+        dp2Dimensions =
+          host.dp2Dimensions or (
+            if host.profile == "vm" then
+              {
+                width = 1692;
+                height = 3008;
+              }
+            else
+              {
+                width = 1440;
+                height = 2560;
+              }
+          );
         # Optional homebrew casks / brews for Darwin hosts. Ignored on
         # Linux where the darwin/homebrew.nix module isn't imported.
         homebrewCasks = host.homebrewCasks or [ ];

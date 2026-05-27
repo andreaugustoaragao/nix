@@ -7,6 +7,19 @@
   useDms ? false,
   isVm ? false,
   lockScreen ? false,
+  # Canonical landscape (dp1) / portrait (dp2) display slots; the actual
+  # Wayland connector names are resolved per-host in flake.nix (DP-1/DP-2
+  # on the workstation, Virtual-1/Virtual-2 on Parallels VMs).
+  displays ? {
+    dp1 = "DP-1";
+    dp2 = "DP-2";
+  },
+  # Logical dimensions of the dp2 slot in scaled pixels, used to anchor
+  # desktop widgets (cava). Resolved per-host in flake.nix.
+  dp2Dimensions ? {
+    width = 1440;
+    height = 2560;
+  },
   ...
 }:
 
@@ -166,25 +179,36 @@ let
     # for windows. `config.displayPreferences` is what DMS actually
     # consults to decide visibility (see DesktopWidgetLayer.qml);
     # the `positions` map only carries x/y/width/height per display.
-    desktopWidgetInstances = [
-      {
-        id = "dw_cava_primary";
-        widgetType = "cavaVisualizer";
-        name = "Cava Visualizer";
-        enabled = true;
-        config = {
-          displayPreferences = [ "DP-2" ];
+    # Cava strip anchored 40px above the bottom edge of dp2, with 16px
+    # side margins. Computed from dp2Dimensions so the rect tracks the
+    # connector's actual logical size (1440x2560 on the workstation
+    # portrait monitor, 1692x3008 on the Parallels VM at scale 2).
+    desktopWidgetInstances =
+      let
+        cavaMargin = 16;
+        cavaHeight = 280;
+        cavaBottomGap = 40;
+        cavaRect = {
+          x = cavaMargin;
+          y = dp2Dimensions.height - cavaHeight - cavaBottomGap;
+          width = dp2Dimensions.width - 2 * cavaMargin;
+          height = cavaHeight;
         };
-        positions = {
-          "DP-2" = {
-            x = 16;
-            y = 2240;
-            width = 1408;
-            height = 280;
+      in
+      [
+        {
+          id = "dw_cava_primary";
+          widgetType = "cavaVisualizer";
+          name = "Cava Visualizer";
+          enabled = true;
+          config = {
+            displayPreferences = [ displays.dp2 ];
           };
-        };
-      }
-    ];
+          positions = {
+            ${displays.dp2} = cavaRect;
+          };
+        }
+      ];
 
     # Per-monitor bars. The default bar (full widget set) is scoped to
     # DP-1; DP-2 (portrait, only 1440 logical wide) gets a slimmed-down
@@ -214,7 +238,7 @@ let
         (
           base
           // {
-            screenPreferences = [ "DP-1" ];
+            screenPreferences = [ displays.dp1 ];
           }
         )
         (
@@ -222,7 +246,7 @@ let
           // {
             id = "dp2";
             name = "Portrait Bar";
-            screenPreferences = [ "DP-2" ];
+            screenPreferences = [ displays.dp2 ];
             showOnLastDisplay = false;
             leftWidgets = [
               "clock"
@@ -298,20 +322,20 @@ let
     # renders correctly without a mode toggle; the first setLightMode(true)
     # of the day overwrites it from monitorWallpapersLight.
     monitorWallpapers = {
-      "DP-1" = dp1Wallpapers.dark;
-      "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
+      ${displays.dp1} = dp1Wallpapers.dark;
+      ${displays.dp2} = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
     };
     monitorWallpapersDark = {
-      "DP-1" = dp1Wallpapers.dark;
-      "DP-2" = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
+      ${displays.dp1} = dp1Wallpapers.dark;
+      ${displays.dp2} = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
     };
     monitorWallpapersLight = {
-      "DP-1" = dp1Wallpapers.light;
-      "DP-2" = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
+      ${displays.dp1} = dp1Wallpapers.light;
+      ${displays.dp2} = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
     };
     monitorWallpaperFillModes = {
-      "DP-1" = "Fill";
-      "DP-2" = "Fit";
+      ${displays.dp1} = "Fill";
+      ${displays.dp2} = "Fit";
     };
   };
 
@@ -327,13 +351,21 @@ in
   programs.dank-material-shell = {
     enable = useDms;
     package = dmsPackage;
-    # Don't generate the systemd user unit. The unit lands in app.slice,
-    # outside the graphical logind session — polkit refuses to register
-    # DMS's PolkitAuthModal from there. Instead, niri spawns DMS via
-    # spawn-at-startup so it inherits niri's logind session (class=user),
-    # which lets DMS own the polkit auth-agent slot.
+    # Run DMS as a systemd user service bound to graphical-session.target
+    # (armed by niri-graphical-session.service in system/desktop.nix). The
+    # upstream unit adds Restart=on-failure, journal logging, and clean
+    # teardown when the target deactivates — none of which a niri/hyprland
+    # spawn-at-startup invocation gives us.
+    #
+    # An earlier iteration disabled this unit on the theory that DMS's
+    # PolkitAuthModal needed to inherit niri's logind session-N.scope to
+    # register as a polkit auth-agent. That rationale doesn't hold: DMS
+    # 1.4.6's PolkitService is a no-op ("Polkit not available" in the
+    # quickshell log), hyprpolkitagent already owns the auth-agent slot,
+    # and the autologin greetd path runs niri as class=greeter anyway —
+    # so DMS would never have inherited a class=user scope on VMs.
     systemd = {
-      enable = false;
+      enable = true;
       target = "graphical-session.target";
     };
 
@@ -350,6 +382,25 @@ in
     # are written to writable copies via home.activation.dms-write-state
     # below, with Nix as the authoritative source on every rebuild.
     # See `desiredSettings` and `desiredSession` in the let block.
+  };
+
+  # The upstream dms.service unit only sets ExecStart + Restart; the
+  # systemd-user PATH is the bare `/.../systemd/bin/` from PAM. DMS
+  # shells out to a handful of binaries that all need to be findable:
+  #   - `qs`   (quickshell CLI; DMS's Go launcher calls exec.LookPath)
+  #   - `cava` (audio visualizer; spawned by the cavaVisualizer widget)
+  #   - `wpctl`, `brightnessctl`, `notify-send`, `darkman`, ...
+  # Without an augmented PATH, DMS either fails to start or runs with
+  # broken widgets. Compose it from the exact quickshell package DMS
+  # was built against (same one display-manager.nix pulls in for the
+  # greeter), the user's HM profile, /run/wrappers (pkexec et al.),
+  # and the system profile.
+  systemd.user.services.dms = lib.mkIf useDms {
+    Service.Environment = [
+      "PATH=${
+        inputs.dms.inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default
+      }/bin:%h/.nix-profile/bin:/etc/profiles/per-user/%u/bin:/run/wrappers/bin:/run/current-system/sw/bin"
+    ];
   };
 
   # Optional DMS feature backends — only installed when DMS is active.
