@@ -1,0 +1,549 @@
+{
+  "metadata": {
+    "label": "prl-dev-vm",
+    "binary": "codium",
+    "time_utc": "2026-05-26T18:35:27Z",
+    "platform": "Linux-7.0.9-aarch64-with-glibc2.40",
+    "machine": "aarch64",
+    "python": "3.13.12",
+    "hostname": {
+      "code": 0,
+      "stdout": "prl-dev-vm",
+      "stderr": ""
+    },
+    "uname": {
+      "code": 0,
+      "stdout": "Linux prl-dev-vm 7.0.9 #1-NixOS SMP PREEMPT Sun May 17 15:16:34 UTC 2026 aarch64 GNU/Linux",
+      "stderr": ""
+    },
+    "virtualization": {
+      "code": 0,
+      "stdout": "parallels",
+      "stderr": ""
+    },
+    "code_version": {
+      "code": 0,
+      "stdout": "1.116.02821\n221e0a382c0be3a673a4e4cab0601344a0b3de3a\narm64",
+      "stderr": ""
+    },
+    "node_version": {
+      "code": 0,
+      "stdout": "v22.22.2",
+      "stderr": ""
+    },
+    "cpu_summary": {
+      "code": 0,
+      "stdout": "Architecture:                            aarch64\nCPU op-mode(s):                          64-bit\nByte Order:                              Little Endian\nCPU(s):                                  12\nOn-line CPU(s) list:                     0-11\nVendor ID:                               ARM\nModel name:                              -\nModel:                                   0\nThread(s) per core:                      1\nCore(s) per socket:                      12\nSocket(s):                               1\nStepping:                                r0p0\nBogoMIPS:                                48.00\nFlags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint bf16 afp ebf16\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-11\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected",
+      "stderr": ""
+    },
+    "memory_summary": {
+      "code": 0,
+      "stdout": "total        used        free      shared  buff/cache   available\nMem:            62Gi        13Gi        20Gi       7.2Gi        36Gi        48Gi\nSwap:           15Gi          0B        15Gi",
+      "stderr": ""
+    },
+    "disk_summary": {
+      "code": 0,
+      "stdout": "NAME   TYPE    SIZE MODEL               ROTA SCHED       FSTYPE  MOUNTPOINTS\nsda    disk      1T dev-vm-0 SSD           0 mq-deadline         \n\u251c\u2500sda1 part    512M                        0 mq-deadline vfat    /boot\n\u2514\u2500sda2 part 1023.5G                        0 mq-deadline btrfs   /home/aragao\n                                                                 /swap\n                                                                 /.snapshots\n                                                                 /nix/store\n                                                                 /nix\n                                                                 /\nsr0    rom     1.6G Virtual DVD-ROM [1]    1 mq-deadline iso9660",
+      "stderr": ""
+    },
+    "mount_summary": {
+      "code": 0,
+      "stdout": "/dev/sda2 on / type btrfs (rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=256,subvol=/@root)\n/dev/sda2 on /nix type btrfs (rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=257,subvol=/@nix)\n/dev/sda2 on /home/aragao type btrfs (rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=261,subvol=/@home-aragao)\ntmpfs on /tmp type tmpfs (rw,nosuid,nodev,size=32845992k)",
+      "stderr": ""
+    }
+  },
+  "results": [
+    {
+      "id": "version",
+      "category": "Bootstrap",
+      "description": "`code --version` (Node + V8 bootstrap, no engine)",
+      "command": "\"codium\" --version 2>/dev/null",
+      "warmups": 3,
+      "runs": 20,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.09639701499963849,
+          "runner_cpu": 0.00021974899999999825,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09604684300029476,
+          "runner_cpu": 0.00021958300000000236,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09476223699948605,
+          "runner_cpu": 0.00020229100000000028,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12019704500016815,
+          "runner_cpu": 0.000220208999999999,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.10433627499969589,
+          "runner_cpu": 0.00022795800000000033,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0945899409998674,
+          "runner_cpu": 0.00020933199999999957,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09624584499943012,
+          "runner_cpu": 0.00020083400000000043,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09580708700013929,
+          "runner_cpu": 0.0002279179999999971,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09449614800087147,
+          "runner_cpu": 0.00022203999999999974,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09759999299967603,
+          "runner_cpu": 0.00021149999999999988,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11299204499937332,
+          "runner_cpu": 0.00022558199999999848,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.0986105090005367,
+          "runner_cpu": 0.00024008300000000204,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09438402100022358,
+          "runner_cpu": 0.0002115830000000013,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09524945300017862,
+          "runner_cpu": 0.00020366600000000165,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09583583699986775,
+          "runner_cpu": 0.0002082919999999988,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09975652699995408,
+          "runner_cpu": 0.00022012500000000157,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.10570958599964797,
+          "runner_cpu": 0.00023516699999999793,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09814895799991064,
+          "runner_cpu": 0.00022258299999999842,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09566112399988924,
+          "runner_cpu": 0.00021933299999999864,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.09638309499950992,
+          "runner_cpu": 0.00021829200000000187,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.09916047919991797,
+      "median": 0.09631446999947002,
+      "stdev": 0.0067894283849433195,
+      "min": 0.09438402100022358,
+      "max": 0.12019704500016815,
+      "runs_completed": 20
+    },
+    {
+      "id": "list_extensions_empty",
+      "category": "Bootstrap",
+      "description": "list-extensions against a fresh empty extensions dir",
+      "command": "D=\"/tmp/codium-bench-work/ext-fresh/le-empty\"; rm -rf \"$D\" && mkdir -p \"$D\" && \"codium\" --user-data-dir \"/tmp/codium-bench-work/udd-pool/le_empty\" --extensions-dir \"$D\" --list-extensions 2>/dev/null",
+      "warmups": 2,
+      "runs": 15,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.16745292600080575,
+          "runner_cpu": 0.00021066599999999824,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1722315039996829,
+          "runner_cpu": 0.00020345899999999958,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1686438189999535,
+          "runner_cpu": 0.0002082089999999974,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.18355944700033433,
+          "runner_cpu": 0.00021225000000000063,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.15959028999986913,
+          "runner_cpu": 0.00020862500000000048,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16433441300068807,
+          "runner_cpu": 0.0002432080000000017,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.18076435700004367,
+          "runner_cpu": 0.0002102920000000008,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16764571599924238,
+          "runner_cpu": 0.000226291,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.15008512699932908,
+          "runner_cpu": 0.0002239999999999985,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16157323799961887,
+          "runner_cpu": 0.00028283399999999917,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1760299830002623,
+          "runner_cpu": 0.000280209,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17141786299998785,
+          "runner_cpu": 0.0002923769999999999,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1640868619997491,
+          "runner_cpu": 0.00022866699999999837,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.163974817000053,
+          "runner_cpu": 0.00021754400000000007,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.18422311899939814,
+          "runner_cpu": 0.00024249999999999966,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.16904089873326786,
+      "median": 0.16764571599924238,
+      "stdev": 0.009353343674904426,
+      "min": 0.15008512699932908,
+      "max": 0.18422311899939814,
+      "runs_completed": 15
+    },
+    {
+      "id": "list_extensions_preloaded",
+      "category": "Bootstrap",
+      "description": "list-extensions against a dir with 1 extension installed",
+      "command": "\"codium\" --user-data-dir \"/tmp/codium-bench-work/udd-pool/le_pre\" --extensions-dir \"/tmp/codium-bench-work/ext-preloaded\" --list-extensions 2>/dev/null",
+      "warmups": 2,
+      "runs": 15,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.16244770800039987,
+          "runner_cpu": 0.00021699900000000244,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16559067700018204,
+          "runner_cpu": 0.00022583500000000062,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17190294800002448,
+          "runner_cpu": 0.00020212499999999745,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.15637376999984554,
+          "runner_cpu": 0.00020658300000000324,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17496633300015674,
+          "runner_cpu": 0.00021729399999999982,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16107788999943295,
+          "runner_cpu": 0.00023424999999999835,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16371197699936602,
+          "runner_cpu": 0.0002054169999999994,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1606982169996627,
+          "runner_cpu": 0.00022445799999999683,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.19559913800003415,
+          "runner_cpu": 0.00021433300000000405,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16357834700011153,
+          "runner_cpu": 0.00022108400000000333,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16390476900051,
+          "runner_cpu": 0.00020662500000000195,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17866964400036522,
+          "runner_cpu": 0.00021941699999999953,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1701946670000325,
+          "runner_cpu": 0.00023512499999999575,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16740561800088472,
+          "runner_cpu": 0.00024712400000000134,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16801704400040762,
+          "runner_cpu": 0.00021812599999999904,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.16827591646676107,
+      "median": 0.16559067700018204,
+      "stdev": 0.009528481509667801,
+      "min": 0.15637376999984554,
+      "max": 0.19559913800003415,
+      "runs_completed": 15
+    },
+    {
+      "id": "install_extension_from_vsix",
+      "category": "Install pipeline",
+      "description": "install pinned EditorConfig VSIX into a fresh extensions dir",
+      "command": "D=\"/tmp/codium-bench-work/ext-fresh/install\"; rm -rf \"$D\" && mkdir -p \"$D\" && \"codium\" --user-data-dir \"/tmp/codium-bench-work/udd-pool/install\" --extensions-dir \"$D\" --install-extension \"/tmp/codium-bench-work/vsix-cache/EditorConfig.EditorConfig-0.18.2.vsix\" 2>/dev/null",
+      "warmups": 1,
+      "runs": 8,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.2761063260004448,
+          "runner_cpu": 0.000239375,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.324062841000341,
+          "runner_cpu": 0.00021608399999999833,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.28004342900021584,
+          "runner_cpu": 0.00019941600000000087,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.33933497100042587,
+          "runner_cpu": 0.0002031670000000041,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.2929378529997848,
+          "runner_cpu": 0.0002211259999999951,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.32752439100022457,
+          "runner_cpu": 0.00021470900000000043,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.28746584199961944,
+          "runner_cpu": 0.00020395800000000408,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3163535769999726,
+          "runner_cpu": 0.00021508299999999786,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.3054786537501286,
+      "median": 0.3046457149998787,
+      "stdev": 0.02416407630650603,
+      "min": 0.2761063260004448,
+      "max": 0.33933497100042587,
+      "runs_completed": 8
+    },
+    {
+      "id": "uninstall_extension",
+      "category": "Install pipeline",
+      "description": "uninstall EditorConfig from a freshly-cloned preloaded ext dir",
+      "command": "D=\"/tmp/codium-bench-work/ext-preloaded-scratch\"; rm -rf \"$D\" && cp -R \"/tmp/codium-bench-work/ext-preloaded\" \"$D\" && \"codium\" --user-data-dir \"/tmp/codium-bench-work/udd-pool/uninstall\" --extensions-dir \"$D\" --uninstall-extension editorconfig.editorconfig 2>/dev/null",
+      "warmups": 1,
+      "runs": 8,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.19588521199966635,
+          "runner_cpu": 0.00021570800000000195,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.20809400100006314,
+          "runner_cpu": 0.00021899900000000444,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1927130349995423,
+          "runner_cpu": 0.0002253320000000017,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.18821666599978926,
+          "runner_cpu": 0.00024112600000000123,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.21483156900012546,
+          "runner_cpu": 0.00026154199999999656,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1920437700000548,
+          "runner_cpu": 0.0002207089999999995,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1841652620005334,
+          "runner_cpu": 0.0002449169999999973,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.21212677400035318,
+          "runner_cpu": 0.00024141600000000124,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.19850953612501598,
+      "median": 0.19429912349960432,
+      "stdev": 0.011573947968476295,
+      "min": 0.1841652620005334,
+      "max": 0.21483156900012546,
+      "runs_completed": 8
+    }
+  ],
+  "config": {
+    "vsix_url": "https://open-vsx.org/api/EditorConfig/EditorConfig/0.18.2/file/EditorConfig.EditorConfig-0.18.2.vsix",
+    "vsix_path": "/tmp/codium-bench-work/vsix-cache/EditorConfig.EditorConfig-0.18.2.vsix",
+    "preloaded_ext_dir": "/tmp/codium-bench-work/ext-preloaded",
+    "work": "/tmp/codium-bench-work"
+  }
+}

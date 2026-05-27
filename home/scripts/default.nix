@@ -1,18 +1,9 @@
-{ pkgs, lib, ... }:
+{ pkgs, ... }:
 
 let
-  # Auto-detect terminal for screensaver — mirrors default-terminal.nix.
-  # aarch64 (VMs) → kitty, x86_64 (desktops) → ghostty.
-  isVm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
-  termBin = if isVm then "kitty" else "ghostty";
-
-  screensaver = pkgs.writeShellScript "screensaver" ''
-    #!/usr/bin/env bash
-    if pgrep -f "^${termBin}" 2>/dev/null | grep -q "cmatrix"; then
-      exit 0
-    fi
-    ${termBin} --class Screensaver -- cmatrix -b -C green
-  '';
+  # Shared with home/desktop/lockscreen.nix so the swayidle timeout and
+  # the Mod+Ctrl+S keybinding both resolve to the same store path.
+  screensaver = import ./_screensaver.nix { inherit pkgs; };
 
   lockscreen = pkgs.writeShellScript "lockscreen" ''
     #!/usr/bin/env bash

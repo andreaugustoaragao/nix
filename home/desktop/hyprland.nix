@@ -13,13 +13,6 @@ let
   # version the guest 3D driver doesn't expose.
   term = import ./default-terminal.nix { inherit isVm; };
 
-  # When DMS owns the shell, spawn it into the graphical session via
-  # uwsm so it lands in the same scope as Hyprland itself (polkit
-  # auth-agent registration needs class=user). Mirrors niri.nix.
-  dmsExecOnce = lib.optionals useDms [
-    "uwsm app -- dms run --session"
-  ];
-
   # DMS Settings window: float + size to match the Niri equivalent.
   dmsWindowRules = lib.optionals useDms [
     "float, class:^(org.quickshell)$, title:^(Settings)$"
@@ -120,8 +113,9 @@ in
         "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
         "uwsm app -- ${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
         "uwsm app -- alacritty --daemon" # Terminal daemon for faster startup
-      ]
-      ++ dmsExecOnce;
+      ];
+      # DMS is started as a systemd user unit bound to graphical-session.target
+      # (see home/desktop/quickshell.nix), so no exec-once entry is needed here.
 
       # Environment variables (optimized for memory)
       env = [

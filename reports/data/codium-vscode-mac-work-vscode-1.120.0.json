@@ -1,0 +1,549 @@
+{
+  "metadata": {
+    "label": "mac-work",
+    "binary": "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+    "time_utc": "2026-05-26T18:35:58Z",
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.13.12",
+    "hostname": {
+      "code": 0,
+      "stdout": "G7CH2W2XYR",
+      "stderr": ""
+    },
+    "uname": {
+      "code": 0,
+      "stdout": "Darwin G7CH2W2XYR 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:41:12 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6050 arm64",
+      "stderr": ""
+    },
+    "virtualization": {
+      "code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "code_version": {
+      "code": 0,
+      "stdout": "1.120.0\n0958016b2af9f09bb4257e0df4a95e2f90590f9f\narm64",
+      "stderr": ""
+    },
+    "node_version": {
+      "code": 0,
+      "stdout": "v22.22.2",
+      "stderr": ""
+    },
+    "cpu_summary": {
+      "code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "memory_summary": {
+      "code": 0,
+      "stdout": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                     4711.\nPages active:                                3772315.\nPages inactive:                              3767279.\nPages speculative:                              4164.\nPages throttled:                                   0.\nPages wired down:                             433322.\nPages purgeable:                               20908.\n\"Translation faults\":                       64566199.\nPages copy-on-write:                         2027906.\nPages zero filled:                          67213652.\nPages reactivated:                           4481645.\nPages purged:                                 780671.\nFile-backed pages:                           2867897.\nAnonymous pages:                             4675861.\nPages stored in compressor:                   613687.\nPages occupied by compressor:                 331023.\nDecompressions:                               551139.\nCompressions:                                1181665.\nPageins:                                     5127699.",
+      "stderr": ""
+    },
+    "disk_summary": {
+      "code": 0,
+      "stdout": "File System Personality:   APFS\n   Name (User Visible):       APFS\n   Protocol:                  Apple Fabric\n   Solid State:               Yes\n   This disk is an APFS Volume Snapshot.  APFS Information:\n   APFS Snapshot Name:        com.apple.os.update-DEDECEC55622993FB7EF1CB6A97E976433E7F84ECCE5514C9C380AF59534732D\n   APFS Snapshot UUID:        D1E49FB9-B889-405E-BDF1-D6E7BFEE979F\n   APFS Container:            disk3\n   APFS Physical Store:       disk0s2\n   APFS Volume Group:         328254C0-CF83-48D0-B0C2-BAAA75D7ACB3\n   APFS Snapshots are defined upon this APFS Volume.  Snapshot list:",
+      "stderr": ""
+    },
+    "mount_summary": {
+      "code": 0,
+      "stdout": "/dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)\n/dev/disk3s7 on /nix (apfs, local, nosuid, journaled, noatime, nobrowse, protect)",
+      "stderr": ""
+    }
+  },
+  "results": [
+    {
+      "id": "version",
+      "category": "Bootstrap",
+      "description": "`code --version` (Node + V8 bootstrap, no engine)",
+      "command": "\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --version 2>/dev/null",
+      "warmups": 3,
+      "runs": 20,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.12178120799944736,
+          "runner_cpu": 0.0010339999999999794,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12772033300007024,
+          "runner_cpu": 0.0009569999999999856,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12444595800025127,
+          "runner_cpu": 0.0010110000000000119,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11564579200057779,
+          "runner_cpu": 0.0008879999999999999,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12085208300049999,
+          "runner_cpu": 0.0009049999999999891,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11425266700007342,
+          "runner_cpu": 0.0008919999999999761,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12412420800046675,
+          "runner_cpu": 0.0009299999999999864,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1275260829997933,
+          "runner_cpu": 0.0014470000000000038,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12034658300035517,
+          "runner_cpu": 0.0009090000000000209,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11883079099970928,
+          "runner_cpu": 0.0009149999999999991,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11943629100005637,
+          "runner_cpu": 0.0010290000000000021,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12716445899968676,
+          "runner_cpu": 0.0009820000000000106,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12665566699979536,
+          "runner_cpu": 0.0011089999999999989,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11814616700030456,
+          "runner_cpu": 0.0009260000000000101,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12094879100004619,
+          "runner_cpu": 0.0011569999999999914,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11664591699991433,
+          "runner_cpu": 0.0010360000000000091,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12431562500023574,
+          "runner_cpu": 0.0008260000000000212,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12411174999942887,
+          "runner_cpu": 0.0011869999999999936,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.11974179199933133,
+          "runner_cpu": 0.0009230000000000071,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.12094291600078577,
+          "runner_cpu": 0.0009050000000000169,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.12168175405004149,
+      "median": 0.12094585350041598,
+      "stdev": 0.003985835678523529,
+      "min": 0.11425266700007342,
+      "max": 0.12772033300007024,
+      "runs_completed": 20
+    },
+    {
+      "id": "list_extensions_empty",
+      "category": "Bootstrap",
+      "description": "list-extensions against a fresh empty extensions dir",
+      "command": "D=\"/private/tmp/codium-bench-work/ext-fresh/le-empty\"; rm -rf \"$D\" && mkdir -p \"$D\" && \"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --user-data-dir \"/private/tmp/codium-bench-work/udd-pool/le_empty\" --extensions-dir \"$D\" --list-extensions 2>/dev/null",
+      "warmups": 2,
+      "runs": 15,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.3283704170007695,
+          "runner_cpu": 0.0009069999999999911,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.19534033400032058,
+          "runner_cpu": 0.0010369999999999824,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17781800000011572,
+          "runner_cpu": 0.0009929999999999939,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1764692090000608,
+          "runner_cpu": 0.0009220000000000061,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17568725000000995,
+          "runner_cpu": 0.0010789999999999966,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.19499345799977164,
+          "runner_cpu": 0.0009790000000000076,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17320558299979893,
+          "runner_cpu": 0.0008800000000000197,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17455612499998097,
+          "runner_cpu": 0.0009050000000000169,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.19002987499970914,
+          "runner_cpu": 0.0009609999999999896,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1844649169997865,
+          "runner_cpu": 0.0010390000000000121,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1753856249997625,
+          "runner_cpu": 0.0009540000000000104,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1823860419999619,
+          "runner_cpu": 0.0008999999999999841,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.18200633299966285,
+          "runner_cpu": 0.0009969999999999979,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17293716699987272,
+          "runner_cpu": 0.0009360000000000201,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17690250000032393,
+          "runner_cpu": 0.0009620000000000184,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.19070352233332719,
+      "median": 0.17781800000011572,
+      "stdev": 0.0388017670185669,
+      "min": 0.17293716699987272,
+      "max": 0.3283704170007695,
+      "runs_completed": 15
+    },
+    {
+      "id": "list_extensions_preloaded",
+      "category": "Bootstrap",
+      "description": "list-extensions against a dir with 1 extension installed",
+      "command": "\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --user-data-dir \"/private/tmp/codium-bench-work/udd-pool/le_pre\" --extensions-dir \"/private/tmp/codium-bench-work/ext-preloaded\" --list-extensions 2>/dev/null",
+      "warmups": 2,
+      "runs": 15,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.16617104199940513,
+          "runner_cpu": 0.0008910000000000029,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16288979099954304,
+          "runner_cpu": 0.0008690000000000087,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1780637920001027,
+          "runner_cpu": 0.0008859999999999979,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17264979200081143,
+          "runner_cpu": 0.0009910000000000196,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16533187499953783,
+          "runner_cpu": 0.0012310000000000099,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17441274999964662,
+          "runner_cpu": 0.0008770000000000167,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17659716599973763,
+          "runner_cpu": 0.0011869999999999936,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16196341699924233,
+          "runner_cpu": 0.0008650000000000047,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16423624999970343,
+          "runner_cpu": 0.0008409999999999807,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.17498770800011698,
+          "runner_cpu": 0.0008930000000000049,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16965079200053879,
+          "runner_cpu": 0.0009870000000000156,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1612695829999211,
+          "runner_cpu": 0.0009490000000000054,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.16564699999980803,
+          "runner_cpu": 0.0008890000000000009,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1755452500001411,
+          "runner_cpu": 0.0010270000000000001,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.1659687089995714,
+          "runner_cpu": 0.0009750000000000036,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.1690256611331885,
+      "median": 0.16617104199940513,
+      "stdev": 0.00581122677159202,
+      "min": 0.1612695829999211,
+      "max": 0.1780637920001027,
+      "runs_completed": 15
+    },
+    {
+      "id": "install_extension_from_vsix",
+      "category": "Install pipeline",
+      "description": "install pinned EditorConfig VSIX into a fresh extensions dir",
+      "command": "D=\"/private/tmp/codium-bench-work/ext-fresh/install\"; rm -rf \"$D\" && mkdir -p \"$D\" && \"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --user-data-dir \"/private/tmp/codium-bench-work/udd-pool/install\" --extensions-dir \"$D\" --install-extension \"/private/tmp/codium-bench-work/vsix-cache/EditorConfig.EditorConfig-0.18.2.vsix\" 2>/dev/null",
+      "warmups": 1,
+      "runs": 8,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.35214079200068227,
+          "runner_cpu": 0.0009669999999999956,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.34772945799977606,
+          "runner_cpu": 0.0010280000000000011,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.34192724999957136,
+          "runner_cpu": 0.0009649999999999936,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3412544169996181,
+          "runner_cpu": 0.0008660000000000057,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.339286832999278,
+          "runner_cpu": 0.0008999999999999841,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3421867500001099,
+          "runner_cpu": 0.0008960000000000079,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.33372583300024417,
+          "runner_cpu": 0.0008520000000000194,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.35448420899956545,
+          "runner_cpu": 0.0009349999999999914,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.34409194274985566,
+      "median": 0.3420569999998406,
+      "stdev": 0.006896450503358939,
+      "min": 0.33372583300024417,
+      "max": 0.35448420899956545,
+      "runs_completed": 8
+    },
+    {
+      "id": "uninstall_extension",
+      "category": "Install pipeline",
+      "description": "uninstall EditorConfig from a freshly-cloned preloaded ext dir",
+      "command": "D=\"/private/tmp/codium-bench-work/ext-preloaded-scratch\"; rm -rf \"$D\" && cp -R \"/private/tmp/codium-bench-work/ext-preloaded\" \"$D\" && \"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --user-data-dir \"/private/tmp/codium-bench-work/udd-pool/uninstall\" --extensions-dir \"$D\" --uninstall-extension editorconfig.editorconfig 2>/dev/null",
+      "warmups": 1,
+      "runs": 8,
+      "unit": "s",
+      "better": "lower",
+      "runs_raw": [
+        {
+          "wall": 0.3099878749999334,
+          "runner_cpu": 0.0009389999999999954,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.27446537499963597,
+          "runner_cpu": 0.0009429999999999994,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.29819779099943844,
+          "runner_cpu": 0.0010120000000000129,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.27613533299972914,
+          "runner_cpu": 0.0009539999999999826,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3069089589998839,
+          "runner_cpu": 0.0009739999999999749,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3168699170000764,
+          "runner_cpu": 0.0011499999999999844,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3416045000003578,
+          "runner_cpu": 0.0012280000000000069,
+          "code": 0,
+          "stderr_tail": ""
+        },
+        {
+          "wall": 0.3291577090003557,
+          "runner_cpu": 0.0011339999999999961,
+          "code": 0,
+          "stderr_tail": ""
+        }
+      ],
+      "mean": 0.30666593237492634,
+      "median": 0.30844841699990866,
+      "stdev": 0.02355086289684836,
+      "min": 0.27446537499963597,
+      "max": 0.3416045000003578,
+      "runs_completed": 8
+    }
+  ],
+  "config": {
+    "vsix_url": "https://open-vsx.org/api/EditorConfig/EditorConfig/0.18.2/file/EditorConfig.EditorConfig-0.18.2.vsix",
+    "vsix_path": "/private/tmp/codium-bench-work/vsix-cache/EditorConfig.EditorConfig-0.18.2.vsix",
+    "preloaded_ext_dir": "/private/tmp/codium-bench-work/ext-preloaded",
+    "work": "/private/tmp/codium-bench-work"
+  }
+}

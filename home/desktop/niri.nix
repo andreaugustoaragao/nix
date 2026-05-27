@@ -1,10 +1,22 @@
 {
-  config,
   pkgs,
   lib,
   isVm ? false,
   lockScreen ? false,
   useDms ? false,
+  # Canonical dp1 (landscape) / dp2 (portrait) → Wayland connector name
+  # map; resolved per-host in flake.nix. Workstation: DP-1/DP-2.
+  # VM: Virtual-1/Virtual-2.
+  displays ? {
+    dp1 = "DP-1";
+    dp2 = "DP-2";
+  },
+  # Logical dimensions of the dp2 slot, used to compute the dp1 output's
+  # x-offset so dp1 sits flush to the right of dp2 (matches workstation).
+  dp2Dimensions ? {
+    width = 1440;
+    height = 2560;
+  },
   ...
 }:
 
@@ -13,83 +25,100 @@ let
   # logic and per-consumer string forms).
   term = import ./default-terminal.nix { inherit isVm; };
 
-  # Single-output hosts (the VM) don't have DP-1/DP-2, so pinning
-  # workspaces to those outputs makes niri stack all 18 named
-  # workspaces onto the lone Virtual-1 output. Declare a smaller,
-  # unpinned set instead — niri places them on whichever output is
-  # present.
+  # Per-output workspaces. The Mod+1..N keybindings use niri's
+  # per-output `focus-workspace <int>` so the names below are just
+  # unique labels — Mod+1 on dp1 lands on "1", Mod+1 on dp2 lands on
+  # "p1". Without open-on-output niri stacks every workspace on the
+  # first-enumerated output. VM gets 5+5; workstation gets 9+9.
   workspaceBlock =
     if isVm then
       ''
-        // Single-output VM: 5 persistent workspaces, no open-on-output
-        // (only Virtual-1 exists, so niri places them there anyway).
-        workspace "1" { }
-        workspace "2" { }
-        workspace "3" { }
-        workspace "4" { }
-        workspace "5" { }
+        workspace "1" {
+            open-on-output "${displays.dp1}"
+        }
+        workspace "2" {
+            open-on-output "${displays.dp1}"
+        }
+        workspace "3" {
+            open-on-output "${displays.dp1}"
+        }
+        workspace "4" {
+            open-on-output "${displays.dp1}"
+        }
+        workspace "5" {
+            open-on-output "${displays.dp1}"
+        }
+        workspace "p1" {
+            open-on-output "${displays.dp2}"
+        }
+        workspace "p2" {
+            open-on-output "${displays.dp2}"
+        }
+        workspace "p3" {
+            open-on-output "${displays.dp2}"
+        }
+        workspace "p4" {
+            open-on-output "${displays.dp2}"
+        }
+        workspace "p5" {
+            open-on-output "${displays.dp2}"
+        }
       ''
     else
       ''
-        // 9 persistent workspaces per output. The Mod+1..9 bindings use
-        // niri's per-output index (focus-workspace <int>), so the names
-        // below are just unique labels — Mod+1 on DP-1 lands on "1", on
-        // DP-2 it lands on "p1". DP-1 = landscape (right), DP-2 = portrait
-        // (left); without open-on-output niri stacks every workspace on
-        // the first-enumerated output.
         workspace "1" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "2" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "3" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "4" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "5" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "6" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "7" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "8" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "9" {
-            open-on-output "DP-1"
+            open-on-output "${displays.dp1}"
         }
         workspace "p1" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p2" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p3" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p4" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p5" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p6" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p7" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p8" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
         workspace "p9" {
-            open-on-output "DP-2"
+            open-on-output "${displays.dp2}"
         }
       '';
 in
@@ -106,12 +135,25 @@ in
   xdg.configFile."niri/config.kdl".text = ''
     ${workspaceBlock}
 
-    // Monitor/Output configuration (matching Hyprland 2.0 scale)
-    output "Virtual-1" {
-        // Default configuration for all outputs
-        scale 2.0 
+    // Monitor/Output configuration. Parallels Virtual-* outputs run on
+    // a retina host display so scale=2.0 gives 1:1 logical pixels;
+    // bare-metal DP-* outputs use per-monitor scale below. niri silently
+    // skips output blocks for absent connectors, so leaving all four
+    // here is harmless on either host.
+    //
+    // Layout mirrors the workstation: dp2 (portrait) anchored at x=0 on
+    // the left, dp1 (landscape) flush to its right. Without explicit
+    // positions niri orders outputs by connection order, which on
+    // Parallels lands Virtual-1 on the left — opposite of what we want.
+    output "Virtual-2" {
+        scale 2.0
+        position x=0 y=0
     }
 
+    output "Virtual-1" {
+        scale 2.0
+        position x=${toString dp2Dimensions.width} y=0
+    }
 
     // DP-2: Dell S2725QS, 27" 4K, mounted in portrait to the left of DP-1.
     // Logical size after scale=1.5 + 90° rotation = 1440 wide x 2560 tall.
@@ -137,14 +179,13 @@ in
     // The polkit auth agent must be spawned by niri itself (not via
     // systemd user service) so it lands in the graphical logind session's
     // cgroup — polkit refuses auth-agent listeners that aren't attached
-    // to a class=user logind session. DMS itself is also spawned here
-    // (when active) for the same scope reason, even though its
-    // PolkitService is currently a no-op on the Quickshell version we
-    // run — see home.packages above for context.
+    // to a class=user logind session.
+    //
+    // DMS is *not* spawned here. It runs as a systemd user service bound
+    // to graphical-session.target (see programs.dank-material-shell.systemd
+    // in home/desktop/quickshell.nix), which gives it Restart=on-failure
+    // and journal logging that a spawn-at-startup launch cannot.
     spawn-at-startup "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
-    ${lib.optionalString useDms ''
-      spawn-at-startup "${config.programs.dank-material-shell.package}/bin/dms" "run" "--session"
-    ''}
     // niri runs in the logind session scope (not niri.service), so the
     // user-systemd graphical-session.target is never armed and any unit
     // with Requisite=graphical-session.target (e.g. xdg-desktop-portal-gnome)
