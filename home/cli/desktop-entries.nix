@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 # Linux-only module: home-manager's `xdg.desktopEntries` only exists on
 # Linux (the option itself is undefined on Darwin, so we can't just gate

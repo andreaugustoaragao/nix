@@ -28,7 +28,7 @@
 # parallel array.
 
 let
-  macMenu      = "/opt/homebrew/bin/mac-menu";
+  macMenu = "/opt/homebrew/bin/mac-menu";
   aerospaceBin = "/opt/homebrew/bin/aerospace";
 in
 {

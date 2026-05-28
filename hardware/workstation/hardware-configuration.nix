@@ -32,7 +32,7 @@
       "k10temp"
       "nct6775" # ASRock X870E Taichi Super I/O sensors for board fan RPMs
       "mt7925e"
-      "msr"     # MSR access for CPU power management
+      "msr" # MSR access for CPU power management
     ];
     extraModulePackages = [ ];
     # Use the modern AMD P-State driver in active mode (EPP-based) for the 9950X
@@ -48,7 +48,7 @@
     smartmontools
     s-tui
     stress-ng
-    lm_sensors  # sensors, pwmconfig for fan control
+    lm_sensors # sensors, pwmconfig for fan control
   ];
 
   fileSystems = {

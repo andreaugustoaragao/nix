@@ -7,7 +7,22 @@
 # Tests for the AST orchestration live in `cmd::ast::tests` and run as
 # part of `cargo test` in the workspace; integration is covered by the
 # extension layer.
-{ lib, rustPlatform, ... }:
+{
+  lib,
+  rustPlatform,
+  callPackage,
+  cargo,
+  ...
+}:
+
+let
+  # Local copy of nixpkgs's importCargoLock with the default crates.io
+  # URL swapped for static.crates.io — crates.io/api/v1 now 403s under
+  # curl's default user-agent. See overlays/import-cargo-lock.nix.
+  importCargoLockStatic = callPackage ../../../overlays/import-cargo-lock.nix {
+    inherit cargo;
+  };
+in
 rustPlatform.buildRustPackage {
   pname = "pi-rs";
   version = "0.1.0";
@@ -19,14 +34,14 @@ rustPlatform.buildRustPackage {
     # store path is reproducible. Everything else (Cargo.toml, Cargo.lock,
     # crates/, bigrams.json) is included verbatim.
     filter =
-      path: type:
+      path: _type:
       let
         rel = lib.removePrefix (toString ./. + "/") (toString path);
       in
       !(lib.hasPrefix "target" rel) && !(lib.hasPrefix ".git" rel);
   };
 
-  cargoLock = {
+  cargoDeps = importCargoLockStatic {
     lockFile = ./Cargo.lock;
   };
 

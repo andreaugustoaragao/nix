@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 # Opinionated macOS system defaults. Each `system.defaults.*` option
 # maps to a `defaults write` invocation that nix-darwin runs on every

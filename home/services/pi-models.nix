@@ -13,7 +13,7 @@ let
   # activation time so secret base URLs (corporate gateway hostnames)
   # never enter /nix/store.
   modelsTemplate = pkgs.writeText "pi-models.json.template" (
-    builtins.toJSON { providers = cfg.providers; }
+    builtins.toJSON { inherit (cfg) providers; }
   );
 
   # Per-placeholder substitution snippets, mirroring the codex.nix

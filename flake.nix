@@ -560,14 +560,17 @@
           peers-bootstrap = {
             type = "app";
             program = "${peersBootstrap}/bin/peers-bootstrap";
+            meta.description = "Generate the peer identity key, exchange host keys, and authorise this host on every other machine in the flake.";
           };
           peers-kube-fetch = {
             type = "app";
             program = "${peersKubeFetch}/bin/peers-kube-fetch";
+            meta.description = "Fetch a remote host's k3s/kubectl kubeconfig over SSH and merge it into ~/.kube/config.";
           };
           peers-docker-setup = {
             type = "app";
             program = "${peersDockerSetup}/bin/peers-docker-setup";
+            meta.description = "Configure a Docker context that talks to a remote host's Docker daemon over the peer SSH link.";
           };
         }
       );

@@ -34,23 +34,23 @@
     ./litellm.nix
   ]
   ++ lib.optionals (!isDarwinHost) [
-      ./notes-sync.nix
-      ./darkman.nix
-    ]
-    ++ lib.optionals (!isDarwinHost && !isServer) [
-      ./fulcrum.nix
-    ]
-    ++ lib.optionals isDarwinHost [
-      ./notes-sync-darwin.nix
-    ]
-    # local-llm.nix runs in two modes: server (workstation, llama.cpp
-    # + ROCm + systemd user service) and client (prl-dev-vm / vmw-dev-vm,
-    # baseUrl points at mac-work's LaunchAgent). The module itself
-    # branches on `isWorkstation`; this gate just keeps the file off
-    # hosts where neither mode applies (hp-laptop, tala).
-    ++
-      lib.optionals (hostName == "workstation" || hostName == "prl-dev-vm" || hostName == "vmw-dev-vm")
-        [
-          ./local-llm.nix
-        ];
+    ./notes-sync.nix
+    ./darkman.nix
+  ]
+  ++ lib.optionals (!isDarwinHost && !isServer) [
+    ./fulcrum.nix
+  ]
+  ++ lib.optionals isDarwinHost [
+    ./notes-sync-darwin.nix
+  ]
+  # local-llm.nix runs in two modes: server (workstation, llama.cpp
+  # + ROCm + systemd user service) and client (prl-dev-vm / vmw-dev-vm,
+  # baseUrl points at mac-work's LaunchAgent). The module itself
+  # branches on `isWorkstation`; this gate just keeps the file off
+  # hosts where neither mode applies (hp-laptop, tala).
+  ++
+    lib.optionals (hostName == "workstation" || hostName == "prl-dev-vm" || hostName == "vmw-dev-vm")
+      [
+        ./local-llm.nix
+      ];
 }

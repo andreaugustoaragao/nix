@@ -18,7 +18,7 @@ let
   # pkgs.stdenv.hostPlatform.isLinux IS safe inside `config = { ... }`
   # (post-evaluation), so we keep this binding for the home.packages
   # and xdg.desktopEntries gates below.
-  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  inherit (pkgs.stdenv.hostPlatform) isLinux;
 in
 {
   imports = [

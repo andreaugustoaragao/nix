@@ -16,8 +16,8 @@
 
 let
   flakeUrl = "github:andreaugustoaragao/nix";
-  logFile  = "/var/log/darwin-auto-upgrade.log";
-  lockDir  = "/var/run/darwin-auto-upgrade.lock.d";
+  logFile = "/var/log/darwin-auto-upgrade.log";
+  lockDir = "/var/run/darwin-auto-upgrade.lock.d";
 
   # Path to the activated darwin-rebuild — stable across rebuilds.
   darwinRebuild = "/run/current-system/sw/bin/darwin-rebuild";

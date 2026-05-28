@@ -381,6 +381,17 @@ in
         open-on-output "current"
     }
 
+    // Satty (screenshot annotation) opens via the `screenshot` /
+    // `screenshot-niri` scripts. Without a rule it lands as a tiled
+    // column, which on multi-monitor setups looks off-center. Floating
+    // + open-on-output=current pins it to the display the user just
+    // captured from, and niri centers floating windows by default.
+    window-rule {
+        match app-id="com.gabm.satty"
+        open-floating true
+        open-on-output "current"
+    }
+
     ${lib.optionalString useDms ''
       window-rule {
           match app-id="org.quickshell" title="Settings"

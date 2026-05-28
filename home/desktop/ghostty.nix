@@ -10,7 +10,7 @@ let
     inherit (pkgs.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
-  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  inherit (pkgs.stdenv.hostPlatform) isLinux;
 
   # Parallels' guest 3D driver tops out at OpenGL 4.0/4.1, but ghostty
   # >=1.3 requires 4.3. Force Mesa to use llvmpipe (software, OpenGL

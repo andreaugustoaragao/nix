@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 # Pi provider entry for the corporate LiteLLM gateway. Routes four
 # non-Anthropic frontier models through the same gateway that codex

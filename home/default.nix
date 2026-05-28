@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   owner,
   isServer ? false,
   # Comes from flake.nix specialArgs. Using pkgs.stdenv.hostPlatform here
@@ -61,6 +60,15 @@
 
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
+
+  # Default _module.args so headless hosts (tala / mac-work) can import
+  # ./cli without the wallpapers derivation pulled in by ./desktop. The
+  # NixOS module system constructs an explicit args attrset for every
+  # formal in a module function, so a bare `wallpapers ? null` default
+  # inside fastfetch.nix is never reached — the system forces the
+  # _module.args lookup first. Override happens at priority 100 in
+  # ./desktop/wallpapers.nix on graphical hosts.
+  _module.args.wallpapers = lib.mkDefault null;
 
   # XDG user directories are a Linux desktop concept (~/.config/user-dirs.dirs
   # consumed by GNOME/KDE/file managers). macOS has its own ~/Pictures,

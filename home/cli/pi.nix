@@ -408,12 +408,14 @@ let
   # Mirror of the per-agent shims for claude/cursor/codex — same binary
   # contract, single source of truth in rewrite/rules.rs.
   #
-  # The template is materialized by the pi-rs derivation under
-  # share/pi-rs/agent-hooks/ so the same source file feeds both the pi
-  # extension and the documentation surface.
+  # The template lives in the source tree and is also copied verbatim
+  # into the pi-rs derivation's share/ output for the documentation
+  # surface — we read directly from the source path here to avoid an
+  # import-from-derivation that would force pi-rs to build during eval
+  # (which breaks cross-arch `nix flake check`).
   piRsRewriteExtension = pkgs.writeText "pi-rs-rewrite.ts" (
     builtins.replaceStrings [ "___PI_RS_BIN___" ] [ "${piRs}/bin/pi-rs" ] (
-      builtins.readFile (piRs + "/share/pi-rs/agent-hooks/pi-rewrite-extension.ts")
+      builtins.readFile ../../home/cli/pi-rs/agent-hooks/pi-rewrite-extension.ts
     )
   );
 

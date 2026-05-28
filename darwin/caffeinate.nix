@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 # Clamshell-sleep override for mac-work.
 #

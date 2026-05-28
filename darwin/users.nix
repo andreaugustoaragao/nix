@@ -11,7 +11,7 @@
   # which existing account is "ours" so home-manager can write into
   # the right home directory and shell/path defaults apply.
   users.users.${owner.name} = {
-    name = owner.name;
+    inherit (owner) name;
     home = "${homePrefix}/${owner.name}";
     shell = pkgs.fish;
   };

@@ -1,7 +1,11 @@
 {
   pkgs,
   inputs,
-  wallpapers,
+  # wallpapers is exposed via _module.args by home/desktop/wallpapers.nix,
+  # which is only loaded on graphical hosts. On tala (server) and mac-work
+  # (darwin), the desktop module is skipped, so wallpapers is absent —
+  # fall back to stock fastfetch (built-in distro logo) on those hosts.
+  wallpapers ? null,
   ...
 }:
 
@@ -49,7 +53,7 @@ let
 in
 {
   home.packages = [
-    fastfetchWrapper
+    (if wallpapers != null then fastfetchWrapper else fastfetchPkg)
     pkgs.chafa
     pkgs.fortune
     pkgs.lolcat

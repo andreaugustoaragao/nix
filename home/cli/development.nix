@@ -211,11 +211,14 @@ in
         unstable-pkgs.gotests # Generate Go tests from source code
         unstable-pkgs.impl # Generate method stubs for implementing an interface
       ]
-      ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
-        # Linux-only containerd CLI; Darwin uses Docker Desktop /
-        # podman-machine instead.
-        nerdctl
-      ]);
+      ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux (
+        with pkgs;
+        [
+          # Linux-only containerd CLI; Darwin uses Docker Desktop /
+          # podman-machine instead.
+          nerdctl
+        ]
+      );
 
     # Development environment variables
     sessionVariables = {
