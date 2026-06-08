@@ -197,7 +197,13 @@ in
       ++ [
         unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
 
-        unstable-pkgs.semgrep # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues)
+        # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues).
+        # semgrep 1.164.0's pytest suite runs in installCheck and fails in the
+        # sandbox (86 tests die with BrokenPipeError); the package itself is
+        # fine, so skip the tests.
+        (unstable-pkgs.semgrep.overrideAttrs (_: {
+          doInstallCheck = false;
+        }))
 
         # Go toolchain pulled from unstable to get the newer runtime (stable
         # nixpkgs' default `go` lags). The companion tools follow so they're
@@ -239,10 +245,11 @@ in
       # Python
       PYTHONDONTWRITEBYTECODE = "1";
 
-      # Local OpenAI-compatible llama.cpp server.
-      OPENAI_API_KEY = "local"; # llama.cpp requires no real key
-      OPENAI_BASE_URL = "http://127.0.0.1:8080/v1";
-      OPENAI_MODEL = "qwen3-coder-30b-a3b-local";
+      # NOTE: OPENAI_* are intentionally NOT set globally. They would shadow a
+      # real key for any OpenAI-compatible tool, and the base URL/model are
+      # only valid on the host running the local llama.cpp server. The
+      # local-qwen-code wrapper (home/services/local-llm.nix) exports the
+      # correct OPENAI_API_KEY/BASE_URL/MODEL at launch, where they apply.
 
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";

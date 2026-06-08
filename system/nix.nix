@@ -37,6 +37,9 @@
   systemd.services.nix-gc.onFailure = [ "matrix-alert@nix-gc.service" ];
 
   nixpkgs.config.allowUnfree = true;
+  # bitwarden-desktop bundles an EOL Electron upstream; there's no version we
+  # can pin without rebuilding Bitwarden, so allow this specific build.
+  nixpkgs.config.permittedInsecurePackages = [ "electron-39.8.10" ];
 
   # Allow root to treat the repo as safe when rebuilding from the system service
   programs.git = {

@@ -21,9 +21,9 @@
       export TZ=America/Denver
 
       while true; do
-        ${pkgs.docker}/bin/docker logs -f fulcrum 2>&1 | ${pkgs.jq}/bin/jq -Rr "try (fromjson | $JQ_FILTER) catch ."
+        ${pkgs.docker_29}/bin/docker logs -f fulcrum 2>&1 | ${pkgs.jq}/bin/jq -Rr "try (fromjson | $JQ_FILTER) catch ."
         printf '\u001b[33m%s Fulcrum stopped, waiting for restart...\u001b[0m\n' "$(date +%H:%M:%S)"
-        while ! ${pkgs.docker}/bin/docker inspect -f '{{.State.Running}}' fulcrum 2>/dev/null | grep -q true; do
+        while ! ${pkgs.docker_29}/bin/docker inspect -f '{{.State.Running}}' fulcrum 2>/dev/null | grep -q true; do
           sleep 2
         done
         printf '\u001b[32m%s Fulcrum restarted, resuming logs\u001b[0m\n' "$(date +%H:%M:%S)"

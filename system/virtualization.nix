@@ -6,7 +6,12 @@
 }:
 
 {
-  virtualisation.docker.enable = true;
+  virtualisation.docker = {
+    enable = true;
+    # Default `docker` was bumped to docker_28, which is now marked insecure
+    # (unmaintained since 2025-11). Pin to docker_29 per the upstream notice.
+    package = pkgs.docker_29;
+  };
 
   systemd = {
     # Cap any stuck unit's stop phase so a single hung service can't
@@ -30,7 +35,13 @@
       # docker-lazy can rescue it.
       docker = {
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
-        requisite = [ "network-online.target" ]; # Still require network
+        # network-online via wants+after, not requisite: requisite only
+        # succeeds if the target is ALREADY active and never pulls it up, so
+        # with systemd-networkd-wait-online disabled and dockerd started
+        # imperatively by docker-lazy, a bare requisite could hard-fail the
+        # unit. wants+after pulls the target in and just orders against it.
+        wants = [ "network-online.target" ];
+        after = [ "network-online.target" ];
         serviceConfig = {
           # Default is KillMode=process which only kills dockerd itself,
           # leaving containerd-shim and container processes orphaned —
@@ -64,7 +75,9 @@
       k3s = lib.mkIf (hostName != "hp-laptop") {
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
         after = [ "graphical-session.target" ]; # Start after graphical session
-        requisite = [ "network-online.target" ]; # Still require network
+        # network-online requisite dropped: the upstream k3s module already
+        # orders k3s after (and wants) network-online.target, and requisite
+        # only risked a hard-fail since it never pulls the target up.
         serviceConfig = {
           # Same pattern as docker — kill the whole cgroup, not just the
           # main process. Without this, containerd-shim, tini, and pod

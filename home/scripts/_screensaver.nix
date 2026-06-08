@@ -4,7 +4,21 @@ let
   # Mirrors default-terminal.nix selection. Kept private to this file —
   # consumers should reference the resulting derivation, not termBin.
   isVm = pkgs.stdenv.hostPlatform.system == "aarch64-linux";
+  terminal = if isVm then pkgs.kitty else pkgs.ghostty;
   termBin = if isVm then "kitty" else "ghostty";
+
+  # swayidle invokes this with PATH set to just bash — the home-manager
+  # `services.swayidle` module hardcodes `Environment=PATH=<bash>/bin`, so
+  # without an explicit PATH the script dies at its very first `mkdir`
+  # (coreutils isn't reachable) and the screensaver never appears. Pin the
+  # must-have tools by store path; the compositor IPC (niri/hyprctl) comes
+  # from the system profile so it tracks the running compositor's version
+  # rather than a possibly-skewed pkgs pin.
+  binPath = pkgs.lib.makeBinPath [
+    pkgs.coreutils
+    pkgs.cmatrix
+    terminal
+  ];
 in
 
 # Fullscreen cmatrix on every connected output. cmatrix -s (screensaver
@@ -17,6 +31,10 @@ in
 pkgs.writeShellScript "screensaver" ''
   #!/usr/bin/env bash
   set -u
+
+  # swayidle hands us a bash-only PATH; prepend our pinned tools and the
+  # system profile (for the running niri/hyprctl) so bare-name calls resolve.
+  export PATH="${binPath}:/run/current-system/sw/bin:''${PATH:-}"
 
   lockdir="''${XDG_RUNTIME_DIR:-/tmp}/screensaver.lock"
   if ! mkdir "$lockdir" 2>/dev/null; then
