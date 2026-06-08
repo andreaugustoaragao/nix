@@ -135,12 +135,18 @@ in
 
           echo "Downloading ${model.name}"
           echo "Target: ${modelPath}"
+          # Download to `.tmp` and atomically rename on success, mirroring
+          # the Darwin sibling. The naive `[ -s $path ]` gate treats any
+          # partial download as complete, so an interrupted curl would leave
+          # a truncated GGUF that llama-server rejects with "tensor data is
+          # not within the file bounds". --continue-at - resumes the .tmp.
           ${pkgs.curl}/bin/curl \
             --location \
             --fail \
             --continue-at - \
-            --output ${lib.escapeShellArg modelPath} \
+            --output ${lib.escapeShellArg "${modelPath}.tmp"} \
             ${lib.escapeShellArg modelUrl}
+          mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
         '')
         (pkgs.writeShellScriptBin "local-llm-start" ''
           set -euo pipefail

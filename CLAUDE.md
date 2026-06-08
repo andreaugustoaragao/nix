@@ -8,17 +8,19 @@ You are an expert NixOS engineer working on a multi-machine NixOS + Home Manager
 flake.nix              # Flake entry point — machines defined via machines.toml
 machines.toml          # Host metadata (hostname, platform, profile, flags)
 system/                # NixOS system-level modules (boot, networking, audio, etc.)
-home/                  # Home Manager modules
+  server/              # Server-profile modules (acme, authelia, caddy, lldap)
+home/                  # Home Manager modules (shared across NixOS + nix-darwin)
   cli/                 # Shell, dev tools, git, neovim, tmux
-  desktop/             # GUI apps, Hyprland, waybar, browsers, terminals
+  desktop/             # GUI apps, Hyprland, niri, waybar, browsers, terminals
   scripts/             # Custom shell scripts
   services/            # User-level services (local-llm, notes-sync, darkman, fulcrum)
+darwin/                # nix-darwin (macOS) system modules — mac-work host
 hardware/              # Per-machine hardware-configuration.nix
 secrets/               # sops-encrypted secrets (YAML)
 overlays/              # Nixpkgs overlays (if any)
 ```
 
-- `specialArgs` passes `inputs`, `owner`, `hostName`, `stateVersion`, profile booleans (`isWorkstation`, `isLaptop`, `isVm`), and optional flags (`bluetooth`, `lockScreen`, `autoLogin`) to all modules.
+- `specialArgs` passes `inputs`, `owner`, `hostName`, `stateVersion`, profile booleans (`isWorkstation`, `isLaptop`, `isVm`, `isServer`, `isDarwinHost`), and optional flags (`bluetooth`, `lockScreen`, `autoLogin`, `useDms`, `displays`, `dp2Dimensions`) to all modules.
 - Home Manager is integrated as a NixOS module with `useGlobalPkgs = true` and `useUserPackages = true`.
 - Secrets use **sops-nix** — never put plaintext secrets in Nix expressions. Reference decrypted paths from `/run/secrets/`.
 
@@ -102,15 +104,18 @@ If any of these tools aren't available in the environment, note it but don't ski
 
 ## Multi-Machine Awareness
 
-This flake manages 3 machines via `machines.toml`:
+This flake manages 6 hosts via `machines.toml` (5 NixOS + 1 nix-darwin):
 
 | Machine | Platform | Profile |
 |---------|----------|---------|
 | workstation | x86_64-linux | workstation |
 | hp-laptop | x86_64-linux | laptop |
 | prl-dev-vm | aarch64-linux | vm |
+| vmw-dev-vm | aarch64-linux | vm |
+| tala | x86_64-linux | server |
+| mac-work | aarch64-darwin | darwin |
 
-- Use `lib.optionals` with `pkgs.stdenv.hostPlatform.system` or the profile booleans (`isWorkstation`, `isLaptop`, `isVm`) for platform/profile-conditional packages.
+- Use `lib.optionals` with `pkgs.stdenv.hostPlatform.system` or the profile booleans (`isWorkstation`, `isLaptop`, `isVm`, `isServer`, `isDarwinHost`) for platform/profile-conditional packages.
 - Test that changes don't break other machine configs — at minimum, evaluate all configurations with `nix flake check`.
 
 ## When Editing This Configuration

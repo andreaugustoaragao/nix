@@ -39,11 +39,11 @@ in
     enable = true;
     enableDefaultConfig = false;
 
-    extraConfig = ''
-      # Forward the local agent so remote shells can SSH onward (used
-      # for chained jumps; harmless when there's no agent running).
-      ForwardAgent yes
-    '';
+    # ForwardAgent is intentionally NOT enabled globally: the agent holds
+    # non-expiring personal + work GitHub keys, and forwarding it to every
+    # destination lets any root on a remote host authenticate as us. There
+    # are no jump hosts today; if one appears, set `forwardAgent = true` on
+    # that matchBlock only (and prefer ProxyJump).
 
     matchBlocks = {
       "*" = {

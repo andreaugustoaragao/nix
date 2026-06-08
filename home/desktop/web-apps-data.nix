@@ -240,6 +240,14 @@
     profile = "Personal";
   }
   {
+    key = "linkedin";
+    name = "LinkedIn";
+    icon = "linkedin";
+    url = "https://www.linkedin.com/feed/";
+    mode = "app";
+    profile = "Personal";
+  }
+  {
     key = "whatsapp";
     name = "WhatsApp";
     icon = "whatsapp";

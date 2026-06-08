@@ -11,6 +11,8 @@ home/cli/pi-rs/**/target/
 # Ephemeral pi-rs benchmark trees (each .bench-* dir holds a cargo target/)
 home/cli/pi-rs/.bench-*/
 .loop/
+# Transient Claude Code scheduled-task lock (per-session runtime state)
+.claude/scheduled_tasks.lock
 core
 core.*
 # `nix build` output symlink

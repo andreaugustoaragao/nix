@@ -49,6 +49,11 @@
 
     claude-code = {
       url = "github:sadjow/claude-code-nix";
+      # Follow our nixpkgs so the lock doesn't carry a second, independently
+      # versioned nixpkgs node. The overlay builds claude-code with
+      # final.callPackage against the host's nixpkgs, and the package is a
+      # sha256-pinned prebuilt fetch, so following changes no built byte.
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     dms = {
@@ -574,5 +579,9 @@
           };
         }
       );
+
+      # `nix fmt` runs the RFC 166 formatter (nixfmt-rfc-style), matching the
+      # CLAUDE.md quality gate. Exposed for every system in appSystems.
+      formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
     };
 }

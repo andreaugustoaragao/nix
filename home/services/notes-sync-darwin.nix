@@ -159,18 +159,14 @@ let
             echo "# Auto-merged on $(date '+%Y-%m-%d %H:%M:%S')"
             echo "# This file contains all changes from both local and remote versions"
             echo ""
-            ${pkgs.gnused}/bin/sed -n '
-              /^<<<<<<< HEAD$/,/^=======$/{
-                /^<<<<<<< HEAD$/d
-                /^=======$/d
-                p
-              }
-              /^=======$/,/^>>>>>>> /{
-                /^=======$/d
-                /^>>>>>>> /d
-                p
-              }
-              /^[^<>=]/p
+            # Combine both sides by deleting only the conflict markers,
+            # keeping every content line once. The previous range+catch-all
+            # sed printed each conflict-body line twice, duplicating the
+            # local side.
+            ${pkgs.gnused}/bin/sed '
+              /^<<<<<<< /d
+              /^=======$/d
+              /^>>>>>>> /d
             ' "$file"
           } > "$TEMP_FILE"
           mv "$TEMP_FILE" "$file"

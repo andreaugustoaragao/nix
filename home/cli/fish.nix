@@ -27,7 +27,6 @@ in
 
       # Safety/coloring overrides on stdlib commands
       grep = "grep --color=auto";
-      cat = "cat -v";
       mkdir = "mkdir -p";
       rm = "rm -i";
       cp = "cp -i";

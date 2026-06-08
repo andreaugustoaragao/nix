@@ -36,10 +36,15 @@
     enable = true;
     extraConfig = ''
       Defaults timestamp_timeout=60
-      # Allow ${owner.name} to run nixos-rebuild without password for auto-rebuild service
+      # Passwordless nixos-rebuild is required by scripts/watch-rebuild.sh,
+      # which runs `sudo --non-interactive nixos-rebuild` in its edit loop and
+      # would hard-fail once the 60-minute sudo timestamp expires. Security
+      # trade-off, eyes open: a user-controlled `--flake` here is effectively
+      # passwordless root. The tighter fix — a root oneshot pinned to THIS
+      # flake path plus a narrow `systemctl start` grant, so the loop keeps
+      # working without granting arbitrary-flake root — is left as a follow-up.
       ${owner.name} ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/nixos-rebuild
-      # Allow ${owner.name} to manage k3s containerd images without password
-      ${owner.name} ALL=(root) NOPASSWD: /run/current-system/sw/bin/k3s
+      # (The previously-present k3s image NOPASSWD rule was unused; dropped.)
     '';
   };
 }

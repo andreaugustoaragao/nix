@@ -2,6 +2,7 @@
   pkgs,
   lib,
   isVm ? false,
+  isWorkstation ? false,
   lockScreen ? false,
   useDms ? false,
   # Canonical dp1 (landscape) / dp2 (portrait) → Wayland connector name
@@ -25,102 +26,43 @@ let
   # logic and per-consumer string forms).
   term = import ./default-terminal.nix { inherit isVm; };
 
-  # Per-output workspaces. The Mod+1..N keybindings use niri's
-  # per-output `focus-workspace <int>` so the names below are just
-  # unique labels — Mod+1 on dp1 lands on "1", Mod+1 on dp2 lands on
-  # "p1". Without open-on-output niri stacks every workspace on the
-  # first-enumerated output. VM gets 5+5; workstation gets 9+9.
+  # Per-output workspaces. Only the workstation has a fixed dual-monitor
+  # layout (landscape dp1 + portrait dp2) worth pinning workspaces to, so it
+  # gets an explicit set: Mod+1..9 land on "1".."9" while dp1 is focused and
+  # on "p1".."p9" while the portrait dp2 is focused (focus-workspace is
+  # per-output and index-based).
+  #
+  # The laptop (single eDP-1) emits NO workspace block and uses niri's
+  # built-in dynamic workspaces — the on-screen set follows the live output
+  # and grows on demand.
+  #
+  # The VMs get a fixed set of 5 *named* workspaces with NO open-on-output
+  # pin: niri keeps named workspaces persistent (so the bar always shows
+  # exactly five, instead of dynamically growing to 10+ the first time a
+  # high focus-workspace index is hit), while leaving them unpinned means
+  # they migrate to whatever outputs are live as the Mac docks/undocks —
+  # avoiding the fixed landscape+portrait grid that, on a single screen,
+  # piled the portrait half onto the one output.
+  mkPinnedWorkspaces =
+    output: prefix: count:
+    lib.concatMapStringsSep "\n" (n: ''
+      workspace "${prefix}${toString n}" {
+          open-on-output "${output}"
+      }'') (lib.range 1 count);
+
+  mkNamedWorkspaces =
+    count: lib.concatMapStringsSep "\n" (n: ''workspace "${toString n}"'') (lib.range 1 count);
+
   workspaceBlock =
-    if isVm then
+    if isWorkstation then
       ''
-        workspace "1" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "2" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "3" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "4" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "5" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "p1" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p2" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p3" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p4" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p5" {
-            open-on-output "${displays.dp2}"
-        }
+        ${mkPinnedWorkspaces displays.dp1 "" 9}
+        ${mkPinnedWorkspaces displays.dp2 "p" 9}
       ''
+    else if isVm then
+      mkNamedWorkspaces 5
     else
-      ''
-        workspace "1" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "2" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "3" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "4" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "5" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "6" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "7" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "8" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "9" {
-            open-on-output "${displays.dp1}"
-        }
-        workspace "p1" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p2" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p3" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p4" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p5" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p6" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p7" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p8" {
-            open-on-output "${displays.dp2}"
-        }
-        workspace "p9" {
-            open-on-output "${displays.dp2}"
-        }
-      '';
+      "";
 
   animationsBlock =
     if isVm then
@@ -201,8 +143,6 @@ in
         scale 1.25
         position x=1440 y=0
     }
-
-    // Define workspaces with numbers
 
     // Spawn programs on startup (others managed by systemd user services).
     // The polkit auth agent must be spawned by niri itself (not via
@@ -472,8 +412,8 @@ in
         Mod+Shift+M { spawn "bookmarks"; }
         Mod+Shift+N { spawn "notes"; }
         Mod+Backslash { spawn "bitwarden"; }
-        Mod+Shift+A { spawn "browser-app" "https://grok.com"; }
-        Mod+Shift+X { spawn "browser-app" "https://x.com"; }
+        Mod+Shift+A { spawn "browser-app" "--class=brave-grok" "https://grok.com"; }
+        Mod+Shift+X { spawn "browser-app" "--class=brave-x-twitter" "https://x.com"; }
         Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
@@ -577,9 +517,11 @@ in
 
         // Screenshots
         // Mod+Shift+S → niri-native interactive overlay piped through satty.
-        // Mod+Shift+F keeps the existing hyprshot-based output capture.
+        // Mod+Shift+F → niri-native focused-output capture. (Previously
+        // spawned `screenshot output` → hyprshot, which needs Hyprland IPC
+        // and silently failed under niri on every host.)
         Mod+Shift+S { spawn "screenshot-niri"; }
-        Mod+Shift+F { spawn "screenshot" "output"; }
+        Mod+Shift+F { spawn "screenshot-niri" "output"; }
         
         ${lib.optionalString lockScreen (
           if useDms then

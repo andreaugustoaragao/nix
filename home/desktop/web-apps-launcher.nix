@@ -26,6 +26,13 @@ let
     else
       icon;
 
+  # Stable Wayland app_id for PWA-style windows. Kept under the `brave-`
+  # prefix so niri's `^brave` window-rules still match, while being unique
+  # per app so the shell maps the window back to this very desktop entry
+  # (via StartupWMClass) — turning the bar label from the auto-generated
+  # `brave-meet.google.com__-Default` into the friendly `name` below.
+  appClass = app: "brave-${app.key}";
+
   mkEntry =
     app:
     {
@@ -36,14 +43,20 @@ let
       exec =
         let
           cmd = if app.mode == "app" then "browser-app" else "browser-default";
+          classArg = lib.optionalString (app.mode == "app") ''"--class=${appClass app}" '';
         in
-        ''${cmd} "${app.profile}" "${app.url}"'';
+        ''${cmd} ${classArg}"${app.profile}" "${app.url}"'';
       type = "Application";
       terminal = false;
       categories = [ "Network" ];
     }
     // lib.optionalAttrs (resolveIcon app.icon != null) {
       icon = resolveIcon app.icon;
+    }
+    // lib.optionalAttrs (app.mode == "app") {
+      # Match the window's --class app_id so the shell resolves it to this
+      # entry's name/icon instead of the raw Brave-generated app_id.
+      settings.StartupWMClass = appClass app;
     };
 in
 {
