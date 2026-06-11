@@ -34,8 +34,11 @@ let
     cost=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_cost_usd // 0')
     duration_ms=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_duration_ms // 0')
     project_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.project_dir // .workspace.current_dir // "unknown"')
+    current_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.current_dir // .workspace.project_dir // "."')
 
     project=$(${pkgs.coreutils}/bin/basename "$project_dir")
+
+    branch=$(${pkgs.git}/bin/git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
 
     cost_fmt=$(${pkgs.coreutils}/bin/printf '$%.2f' "$cost")
 
@@ -61,8 +64,15 @@ let
     fi
     reset="\033[0m"
     dim="\033[2m"
+    branch_color="\033[38;2;137;180;250m"
 
-    echo -e "''${model} ''${dim}│''${reset} ''${ctx_color}''${remaining}% ctx''${reset} ''${dim}│''${reset} ''${cost_fmt} ''${dim}│''${reset} ''${duration_fmt} ''${dim}│''${reset} ''${project}"
+    if [ -n "$branch" ]; then
+      branch_fmt=" ''${dim}│''${reset} ''${branch_color}⎇ ''${branch}''${reset}"
+    else
+      branch_fmt=""
+    fi
+
+    echo -e "''${model} ''${dim}│''${reset} ''${ctx_color}''${remaining}% ctx''${reset} ''${dim}│''${reset} ''${cost_fmt} ''${dim}│''${reset} ''${duration_fmt} ''${dim}│''${reset} ''${project}''${branch_fmt}"
   '';
 in
 {
