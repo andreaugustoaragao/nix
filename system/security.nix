@@ -55,6 +55,23 @@
         item = "nofile";
         value = "1048576";
       }
+      # Disable core dumps for all PAM sessions (interactive shells,
+      # graphical logins). With a non-zero core limit a crashing process
+      # drops a `core` file into its cwd (see the systemd.coredump note
+      # below) — a 7.6GB app crash once got committed straight into a git
+      # repo that way. hard+soft 0 = off and not user-raisable.
+      {
+        domain = "*";
+        type = "soft";
+        item = "core";
+        value = "0";
+      }
+      {
+        domain = "*";
+        type = "hard";
+        item = "core";
+        value = "0";
+      }
     ];
   };
 
@@ -208,7 +225,15 @@
   # ============================================================================
 
   systemd = {
-    # Disable core dumps (prevent information disclosure)
+    # Disable core dumps. `coredump.enable = false` stops systemd from
+    # collecting/storing dumps (no information disclosure via
+    # /var/lib/systemd/coredump), but on its own NixOS then reverts
+    # kernel.core_pattern to the literal "core" — which writes the dump into
+    # the crashing process's *current working directory*. The real off
+    # switch is the core RLIMIT: set to 0 here for services (and in
+    # pam.loginLimits above for interactive sessions) so the kernel never
+    # generates a dump regardless of core_pattern. (A pipe like |/bin/false
+    # is no good here — NixOS has no /bin/false.)
     coredump.enable = false;
 
     services.silence-log-martians = {
@@ -255,10 +280,16 @@
       };
     };
 
-    # Raise the systemd manager file-descriptor defaults.
-    settings.Manager.DefaultLimitNOFILE = "1048576";
+    # Raise the systemd manager file-descriptor defaults, and disable core
+    # dumps for systemd-managed services (the rlimit counterpart to the
+    # pam.loginLimits core=0 above, which only covers PAM sessions).
+    settings.Manager = {
+      DefaultLimitNOFILE = "1048576";
+      DefaultLimitCORE = "0";
+    };
     user.extraConfig = ''
       DefaultLimitNOFILE=1048576
+      DefaultLimitCORE=0
     '';
   };
 

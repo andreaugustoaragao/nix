@@ -17,6 +17,11 @@ in
     enable = true;
     package = pkgs-unstable.firefox;
 
+    # 26.05 changed the default profile path to the XDG location. Pin the
+    # legacy path so the existing ~/.mozilla/firefox profile keeps working
+    # without a manual move.
+    configPath = ".mozilla/firefox";
+
     # Policies to enable extensions by default
     policies = {
       ExtensionSettings = {

@@ -76,6 +76,9 @@
   xdg.userDirs = lib.mkIf (!isDarwinHost) {
     enable = true;
     createDirectories = true;
+    # 26.05 flipped this default to false; pin true to keep exporting the
+    # XDG_*_DIR variables into the session as before.
+    setSessionVariables = true;
     desktop = null;
     templates = null;
     publicShare = null;
@@ -86,9 +89,9 @@
     videos = "${config.home.homeDirectory}/videos";
 
     extraConfig = {
-      XDG_PROJECTS_DIR = "${config.home.homeDirectory}/projects";
-      XDG_WORK_DIR = "${config.home.homeDirectory}/projects/work";
-      XDG_PERSONAL_DIR = "${config.home.homeDirectory}/projects/personal";
+      PROJECTS = "${config.home.homeDirectory}/projects";
+      WORK = "${config.home.homeDirectory}/projects/work";
+      PERSONAL = "${config.home.homeDirectory}/projects/personal";
     };
   };
 

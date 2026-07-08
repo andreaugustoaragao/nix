@@ -103,7 +103,7 @@
     wireless = lib.mkIf (wirelessInterface != null) {
       enable = true;
       interfaces = [ wirelessInterface ];
-      userControlled.enable = true; # Allow user-space configuration
+      userControlled = true; # Allow user-space configuration
 
       # Networks configured via SOPS secrets
       networks = {
@@ -165,12 +165,12 @@
   # first regardless of which link won the network match.
   services.resolved = {
     enable = true;
-    extraConfig = lib.mkIf (hostName == "workstation") ''
-      DNS=192.168.40.3
-      FallbackDNS=1.1.1.1
-      Domains=faragao.net
-      MulticastDNS=no
-    '';
+    settings.Resolve = lib.mkIf (hostName == "workstation") {
+      DNS = "192.168.40.3";
+      FallbackDNS = "1.1.1.1";
+      Domains = "faragao.net";
+      MulticastDNS = "no";
+    };
   };
 
   # FQDN: hostname --fqdn → workstation.faragao.net.

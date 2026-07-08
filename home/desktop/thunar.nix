@@ -12,8 +12,8 @@ in
 {
   # Thunar and thumbnailing packages
   home.packages = with pkgs; [
-    xfce.thunar
-    xfce.tumbler # Thumbnail service for Thunar
+    thunar
+    tumbler # Thumbnail service for Thunar
     ffmpegthumbnailer # Video thumbnails
     poppler-utils # PDF thumbnails
   ];
@@ -40,31 +40,31 @@ in
       echo "Configuring Thunar via xfconf..."
       
       # Set default view to details (list view)  
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /default-view -s "ThunarDetailsView" --create --type string
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-view -s "ThunarDetailsView" --create --type string
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /default-view -s "ThunarDetailsView" --create --type string
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-view -s "ThunarDetailsView" --create --type string
       
       # Enable working directory for terminal commands
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /misc-exec-shell-command-working-directory -s true --create --type bool
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /misc-exec-shell-command-working-directory -s true --create --type bool
       
       # Enable thumbnails
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /misc-show-thumbnails -s true --create --type bool
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /misc-show-thumbnails -s true --create --type bool
       
       # Show toolbar and statusbar
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-toolbar-visible -s true --create --type bool
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-statusbar-visible -s true --create --type bool
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-toolbar-visible -s true --create --type bool
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-statusbar-visible -s true --create --type bool
       
       # Set folders first in sorting
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /misc-folders-first -s true --create --type bool
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /misc-folders-first -s true --create --type bool
       
       # Set reasonable window size
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-window-width -s 900 --create --type int
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-window-height -s 600 --create --type int
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-window-width -s 900 --create --type int
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-window-height -s 600 --create --type int
       
       # Column widths for details view (name, size, type, modified)
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-details-view-column-widths -s "250,100,100,150" --create --type string
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-details-view-column-widths -s "250,100,100,150" --create --type string
       
       # Show side panel with shortcuts
-      $DRY_RUN_CMD ${pkgs.xfce.xfconf}/bin/xfconf-query -c thunar -p /last-side-pane -s "ThunarShortcutsPane" --create --type string
+      $DRY_RUN_CMD ${pkgs.xfconf}/bin/xfconf-query -c thunar -p /last-side-pane -s "ThunarShortcutsPane" --create --type string
       
       echo "Thunar configuration completed"
     else

@@ -13,6 +13,6 @@
     sops
     htop
     tree
-    nixfmt-rfc-style
+    nixfmt
   ];
 }

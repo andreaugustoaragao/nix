@@ -15,6 +15,7 @@ let
     ../certs/internal-root-1.pem
     ../certs/internal-intermediate.pem
     ../certs/proxy-root.pem
+    ../certs/netskope-root.pem
   ];
 
   bundle = pkgs.runCommand "corp-ca-bundle.pem" { } ''

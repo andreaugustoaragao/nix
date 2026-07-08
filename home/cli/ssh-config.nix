@@ -45,26 +45,29 @@ in
     # are no jump hosts today; if one appears, set `forwardAgent = true` on
     # that matchBlock only (and prefer ProxyJump).
 
-    matchBlocks = {
+    # 26.05 deprecated `matchBlocks` (HM-cased keys + extraOptions) in favor
+    # of `settings`, a freeform attrset keyed by upstream OpenSSH directive
+    # names written verbatim into ~/.ssh/config.
+    settings = {
       "*" = {
-        addKeysToAgent = "yes";
-        compression = true;
-        serverAliveInterval = 60;
-        serverAliveCountMax = 3;
+        AddKeysToAgent = "yes";
+        Compression = true;
+        ServerAliveInterval = 60;
+        ServerAliveCountMax = 3;
       };
 
       "github-personal" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/id_rsa_personal"; # From sops
-        identitiesOnly = true;
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/id_rsa_personal"; # From sops
+        IdentitiesOnly = true;
       };
 
       "github-work" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/id_rsa_work"; # From sops
-        identitiesOnly = true;
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/id_rsa_work"; # From sops
+        IdentitiesOnly = true;
       };
 
       # Parallels dev VM. Reached over the Parallels Shared Network at
@@ -75,14 +78,12 @@ in
       # StrictHostKeyChecking is hard-on, with the known_hosts file
       # written declaratively from secrets/ssh_host_keys/. No TOFU.
       "prl-dev-vm" = {
-        hostname = "prl-dev-vm.local";
-        user = "aragao";
-        identityFile = "~/.ssh/id_ed25519_peers";
-        identitiesOnly = true;
-        extraOptions = {
-          StrictHostKeyChecking = "yes";
-          UserKnownHostsFile = "~/.ssh/known_hosts_peers";
-        };
+        HostName = "prl-dev-vm.local";
+        User = "aragao";
+        IdentityFile = "~/.ssh/id_ed25519_peers";
+        IdentitiesOnly = true;
+        StrictHostKeyChecking = "yes";
+        UserKnownHostsFile = "~/.ssh/known_hosts_peers";
       };
 
       # VMware Fusion sibling of prl-dev-vm — same flake profile, just a
@@ -91,14 +92,12 @@ in
       # bootstrap runs on the VMware VM (or pubkey lands via another
       # client's bootstrap), and a hostkey is ssh-keyscanned in.
       "vmw-dev-vm" = {
-        hostname = "vmw-dev-vm.local";
-        user = "aragao";
-        identityFile = "~/.ssh/id_ed25519_peers";
-        identitiesOnly = true;
-        extraOptions = {
-          StrictHostKeyChecking = "yes";
-          UserKnownHostsFile = "~/.ssh/known_hosts_peers";
-        };
+        HostName = "vmw-dev-vm.local";
+        User = "aragao";
+        IdentityFile = "~/.ssh/id_ed25519_peers";
+        IdentitiesOnly = true;
+        StrictHostKeyChecking = "yes";
+        UserKnownHostsFile = "~/.ssh/known_hosts_peers";
       };
     };
   };

@@ -50,7 +50,7 @@ let
   '';
 
   nixfmt-rfc-style-command = pkgs.writeShellScriptBin "nixfmt-rfc-style" ''
-    exec ${pkgs.nixfmt-rfc-style}/bin/nixfmt "$@"
+    exec ${pkgs.nixfmt}/bin/nixfmt "$@"
   '';
 
 in
@@ -62,7 +62,7 @@ in
       [
         # Language Servers
         nil # Nix LSP
-        nixfmt-rfc-style # Nix formatter (provides the `nixfmt` binary)
+        nixfmt # Nix formatter (RFC 166 style; provides the `nixfmt` binary)
         nixfmt-rfc-style-command # Compatibility command for `nixfmt-rfc-style`
         statix # Nix linter (anti-pattern detection)
         deadnix # Nix dead-code detector
@@ -70,22 +70,22 @@ in
         marksman # Markdown LSP
         pyright # Python LSP
         gopls # Go LSP
-        nodePackages.typescript-language-server # TypeScript LSP
-        nodePackages.vscode-langservers-extracted # CSS/HTML/JSON LSP
+        typescript-language-server # TypeScript LSP
+        vscode-langservers-extracted # CSS/HTML/JSON LSP
         jdt-language-server # Java LSP
 
         # Node.js/TypeScript Development
         nodejs_22 # Node.js runtime (includes npm)
-        nodePackages.pnpm # Fast package manager
+        pnpm # Fast package manager
         yarn # Alternative package manager
         bun # Ultra-fast JS runtime & package manager
-        nodePackages.typescript # TypeScript compiler
-        nodePackages.nodemon # Development server with auto-restart
+        typescript # TypeScript compiler
+        nodemon # Development server with auto-restart
 
         # Formatting & Linting
-        nodePackages.prettier # Code formatter
-        nodePackages.eslint # JavaScript/TypeScript linter
-        nodePackages.eslint_d # ESLint daemon for faster linting
+        prettier # Code formatter
+        eslint # JavaScript/TypeScript linter
+        eslint_d # ESLint daemon for faster linting
 
         # Python Development
         (python3.withPackages (
@@ -160,7 +160,7 @@ in
         sqlite # Database for development
 
         # Database tools
-        nodePackages.sql-formatter # SQL formatter
+        sql-formatter # SQL formatter
 
         # API development
         httpie # Modern HTTP client
@@ -197,13 +197,12 @@ in
       ++ [
         unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
 
-        # Static analysis / SAST (from unstable — stable has Python 3.13 SSL issues).
-        # semgrep 1.164.0's pytest suite runs in installCheck and fails in the
-        # sandbox (86 tests die with BrokenPipeError); the package itself is
-        # fine, so skip the tests.
-        (unstable-pkgs.semgrep.overrideAttrs (_: {
-          doInstallCheck = false;
-        }))
+        # Static analysis / SAST — pinned to stable (1.161.0). Unstable's 1.164.0
+        # ships a semgrep-core that segfaults on startup on aarch64-linux
+        # (verified on prl-dev-vm: `semgrep-core -version` → SIGSEGV; 1.161.0 is
+        # fine). Both engines shell out to semgrep-core, so there's no runtime
+        # workaround. Stable scans cleanly with no SSL issues.
+        pkgs.semgrep
 
         # Go toolchain pulled from unstable to get the newer runtime (stable
         # nixpkgs' default `go` lags). The companion tools follow so they're

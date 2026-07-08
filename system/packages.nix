@@ -45,7 +45,7 @@
       ripgrep
       fd
       bat
-      nixfmt-rfc-style
+      nixfmt
       eza
       lsd
       dust

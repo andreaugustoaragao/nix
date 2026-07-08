@@ -18,6 +18,11 @@ in
     theme = {
       name = "Adwaita";
     };
+    # 26.05 changed the gtk4 theme default from `config.gtk.theme` to null;
+    # pin it to Adwaita to keep the pre-upgrade gtk4 appearance.
+    gtk4.theme = {
+      name = "Adwaita";
+    };
     iconTheme = {
       name = iconTheme;
       package = iconPkg;

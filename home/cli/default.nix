@@ -162,7 +162,8 @@ in
       mtr
       iperf
       speedtest-cli
-      neofetch
+      # fastfetch is provided by ./fastfetch.nix (random-logo wrapper on the
+      # unstable build); don't add it here or buildEnv sees two copies.
       screenfetch
       lolcat
       figlet

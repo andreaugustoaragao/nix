@@ -89,6 +89,9 @@ in
   # Hyprland configuration
   wayland.windowManager.hyprland = {
     enable = true;
+    # 26.05 changed the default from "hyprlang" to "lua"; our config below
+    # is written as a structured hyprlang attrset, so pin the old type.
+    configType = "hyprlang";
 
     settings = {
       # Monitor configuration (mirrors home/desktop/niri.nix output blocks).

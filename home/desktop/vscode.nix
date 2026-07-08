@@ -14,7 +14,7 @@ let
       name = "sqlite-viewer";
       publisher = "qwtel";
       version = "26.2.5";
-      sha256 = "sha256-mPzgci1hgjCmdylQd6co/WLsJJGFl8FRjXsWWoqB5oQ=";
+      sha256 = "sha256-fAhUWv2hyoh2G9EXQwKeBuMEwp+1kjBl12WM8/W/4zs=";
     };
   };
 
@@ -29,7 +29,10 @@ let
 in
 {
   # VSCodium configuration
-  programs.vscode = {
+  # 26.05 split each VSCode fork into its own module; programs.vscode now
+  # always writes to upstream Code paths, so a vscodium package must use
+  # programs.vscodium to land config in the fork's own dirs.
+  programs.vscodium = {
     enable = true;
     package = pkgs-unstable.vscodium.overrideAttrs (oldAttrs: {
       postInstall = (oldAttrs.postInstall or "") + ''
@@ -322,11 +325,11 @@ in
         # Nix
         "nix.enableLanguageServer" = true;
         "nix.serverPath" = "${pkgs.nil}/bin/nil";
-        "nix.formatterPath" = "${pkgs.nixfmt-rfc-style}/bin/nixfmt-rfc-style";
+        "nix.formatterPath" = "${pkgs.nixfmt}/bin/nixfmt";
         "nix.serverSettings" = {
           "nil" = {
             "formatting" = {
-              "command" = [ "${pkgs.nixfmt-rfc-style}/bin/nixfmt-rfc-style" ];
+              "command" = [ "${pkgs.nixfmt}/bin/nixfmt" ];
             };
           };
         };

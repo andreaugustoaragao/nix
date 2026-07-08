@@ -13,6 +13,12 @@ _:
         org_role = "Admin";
       };
       auth.disable_login_form = true;
+      # 26.05 dropped the built-in default for secret_key. This instance runs
+      # anonymous-admin with a single credential-less Loki datasource, so its DB
+      # holds nothing worth protecting; we pin the old public default so any
+      # pre-existing DB entries stay decryptable (changelog-sanctioned path for
+      # setups with no sensitive secrets).
+      security.secret_key = "SW2YcwTIb9zpOOhoPsMm";
       analytics.reporting_enabled = false;
       analytics.check_for_updates = false;
     };

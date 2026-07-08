@@ -99,16 +99,10 @@ in
         command = "${screensaverLock}";
       }
     ];
-    events = lib.optionals wantLock [
-      {
-        event = "before-sleep";
-        command = "${pkgs.swaylock-effects}/bin/swaylock -f";
-      }
-      {
-        event = "lock";
-        command = "${pkgs.swaylock-effects}/bin/swaylock -f";
-      }
-    ];
+    events = lib.mkIf wantLock {
+      before-sleep = "${pkgs.swaylock-effects}/bin/swaylock -f";
+      lock = "${pkgs.swaylock-effects}/bin/swaylock -f";
+    };
   };
 
   # Surfaced for window-manager keybindings that want to invoke the lock

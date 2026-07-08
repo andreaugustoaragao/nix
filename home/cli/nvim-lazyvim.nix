@@ -104,6 +104,11 @@ in
     vimAlias = true;
     package = unstable-pkgs.neovim-unwrapped;
 
+    # 26.05 flipped both provider defaults to false; pin them to preserve
+    # the pre-upgrade behavior (LazyVim health checks expect both present).
+    withPython3 = true;
+    withRuby = true;
+
     # lazy.nvim is the only plugin we need available before the
     # bootstrap clone fires; everything else is managed by lazy from
     # its own clones under ~/.local/share/nvim/lazy/. Parsers and
@@ -122,7 +127,7 @@ in
         jsregexp
       ];
 
-    extraLuaConfig = ''
+    initLua = ''
       -- Bootstrap lazy.nvim
       local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
       if not vim.uv.fs_stat(lazypath) then

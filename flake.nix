@@ -2,8 +2,8 @@
   description = "NixOS + nix-darwin configuration for a handful of personal hosts";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    # Tracks nixpkgs-unstable for packages we want fresher than 25.11
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # Tracks nixpkgs-unstable for packages we want fresher than 26.05
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -23,12 +23,12 @@
     nixpkgs-gnome48.url = "github:NixOS/nixpkgs/nixos-25.05";
 
     home-manager = {
-      url = "github:nix-community/home-manager/release-25.11";
+      url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     nix-darwin = {
-      url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
+      url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -580,8 +580,8 @@
         }
       );
 
-      # `nix fmt` runs the RFC 166 formatter (nixfmt-rfc-style), matching the
+      # `nix fmt` runs the RFC 166 formatter (nixfmt), matching the
       # CLAUDE.md quality gate. Exposed for every system in appSystems.
-      formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
+      formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt);
     };
 }

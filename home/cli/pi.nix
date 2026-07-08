@@ -377,7 +377,7 @@ let
       [ "___GOLANG_LSP___" "___TS_LSP___" "___RUST_ANALYZER___" "___NIX_LSP___" ]
       [
         "${pkgs.gopls}/bin/gopls"
-        "${pkgs.nodePackages.typescript-language-server}/bin/typescript-language-server"
+        "${pkgs.typescript-language-server}/bin/typescript-language-server"
         "${pkgs.rust-analyzer}/bin/rust-analyzer"
         "${pkgs.nil}/bin/nil"
       ]
@@ -623,7 +623,13 @@ in
   # Install pi-rs into the user environment so the TS extensions can
   # spawn `pi-rs <subcommand>` without baking a per-host store path. Same
   # binary, three triples (x86_64-linux, aarch64-linux, aarch64-darwin).
-  home.packages = [ piRs ];
+  # piRs backs the code-* extensions; mcp-nixos is spawned per call by
+  # the `nixos` bridge extension (and is the same binary Claude Code
+  # registers over stdio via `claude mcp add`).
+  home.packages = [
+    piRs
+    pkgs.mcp-nixos
+  ];
 
   # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
   # with a vim-modal editor. Seed the package into settings.json so pi
@@ -658,6 +664,11 @@ in
   home.file.".pi/agent/extensions/code-search.ts".source = ./pi-extensions/code-search.ts;
   home.file.".pi/agent/extensions/code-summary.ts".source = ./pi-extensions/code-summary.ts;
   home.file.".pi/agent/extensions/code-hash.ts".source = ./pi-extensions/code-hash.ts;
+
+  # MCP bridge: pi has no native MCP client, so this `nixos` tool spawns
+  # the mcp-nixos server (home.packages) over stdio per call. Claude Code
+  # talks to the same binary directly; this exists only because pi can't.
+  home.file.".pi/agent/extensions/mcp-nixos.ts".source = ./pi-extensions/mcp-nixos.ts;
 
   # Directory-style `web_fetch` and `web_search` extensions, both forked
   # from oh-my-pi. They register the canonical tool names; the older
