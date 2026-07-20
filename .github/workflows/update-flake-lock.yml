@@ -1,0 +1,30 @@
+# Weekly flake.lock bump as a pull request, so CI (ci.yml) validates
+# every host still evaluates against the new pins BEFORE the lock lands
+# on main. This complements system/flake-update.nix / auto-upgrade:
+# hosts keep pulling main; main only moves when a lock bump is green.
+#
+# Merge the PR to roll the fleet forward; close it to skip a week.
+name: update-flake-lock
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays 08:00 UTC (01:00 America/Denver)
+    - cron: "0 8 * * 1"
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Update flake.lock
+        uses: DeterminateSystems/update-flake-lock@main
+        with:
+          pr-title: "chore: update flake.lock"
+          pr-labels: |
+            dependencies
+            automated

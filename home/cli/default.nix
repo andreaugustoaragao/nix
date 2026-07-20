@@ -1,7 +1,7 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -11,10 +11,6 @@
 }:
 
 let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
   # pkgs.stdenv.hostPlatform.isLinux IS safe inside `config = { ... }`
   # (post-evaluation), so we keep this binding for the home.packages
   # and xdg.desktopEntries gates below.
@@ -129,6 +125,7 @@ in
       databricks-cli
       google-cloud-sdk
       kubectl
+      kubelogin
       kubernetes-helm
       kubectx
       stern

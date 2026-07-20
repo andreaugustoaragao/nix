@@ -1,6 +1,6 @@
 {
   pkgs,
-  inputs,
+  unstable-pkgs,
   # wallpapers is exposed via _module.args by home/desktop/wallpapers.nix,
   # which is only loaded on graphical hosts. On tala (server) and mac-work
   # (darwin), the desktop module is skipped, so wallpapers is absent —
@@ -10,7 +10,7 @@
 }:
 
 let
-  fastfetchPkg = inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.fastfetch;
+  fastfetchPkg = unstable-pkgs.fastfetch;
 
   # Logos to rotate through on each invocation. Each entry carries its
   # own width/height so portrait and landscape sources render at the

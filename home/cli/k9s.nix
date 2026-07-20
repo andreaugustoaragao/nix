@@ -1,15 +1,8 @@
 {
-  pkgs,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 
-let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   home.packages = [
     unstable-pkgs.k9s

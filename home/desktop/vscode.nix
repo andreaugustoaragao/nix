@@ -1,13 +1,9 @@
 {
   pkgs,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   sqlite-viewer = pkgs.vscode-utils.buildVscodeMarketplaceExtension {
     mktplcRef = {
@@ -34,7 +30,7 @@ in
   # programs.vscodium to land config in the fork's own dirs.
   programs.vscodium = {
     enable = true;
-    package = pkgs-unstable.vscodium.overrideAttrs (oldAttrs: {
+    package = unstable-pkgs.vscodium.overrideAttrs (oldAttrs: {
       postInstall = (oldAttrs.postInstall or "") + ''
         wrapProgram "$out/bin/codium" \
           --set NIXOS_OZONE_WL 1 \

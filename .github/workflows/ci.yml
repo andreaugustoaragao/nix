@@ -1,0 +1,53 @@
+# CI for the flake: lint checks as derivations + per-host evaluation.
+#
+# Two layers, mirroring the CLAUDE.md quality gates:
+#   lint — builds .#checks (nixfmt --check, statix, deadnix). Cheap;
+#          fails fast on style/anti-pattern/dead-code drift.
+#   eval — evaluates each host's system.build.toplevel drvPath. This
+#          catches type errors, infinite recursion, missing options,
+#          and module-arg mistakes for every machine WITHOUT building
+#          anything (a full build of the desktop hosts — cachyos kernel
+#          included — is far too heavy for GitHub-hosted runners).
+#
+# Evaluation is platform-independent, so the aarch64-linux VMs and the
+# aarch64-darwin mac evaluate fine on an x86_64-linux runner.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: lint (nixfmt / statix / deadnix)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Build lint checks
+        run: |
+          nix build -L \
+            .#checks.x86_64-linux.format \
+            .#checks.x86_64-linux.statix \
+            .#checks.x86_64-linux.deadnix
+
+  eval:
+    name: eval ${{ matrix.host }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep this list aligned with machines.toml.
+        host: [workstation, hp-laptop, prl-dev-vm, vmw-dev-vm, tala, mac-work]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Evaluate system closure
+        run: |
+          case "${{ matrix.host }}" in
+            mac-work) attr="darwinConfigurations.mac-work" ;;
+            *)        attr="nixosConfigurations.${{ matrix.host }}" ;;
+          esac
+          nix eval ".#$attr.config.system.build.toplevel.drvPath"

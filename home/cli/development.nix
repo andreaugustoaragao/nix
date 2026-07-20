@@ -1,15 +1,11 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 
 let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   # Script to install qwen-code via npm
   install-qwen-code = pkgs.writeShellScriptBin "install-qwen-code" ''

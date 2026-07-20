@@ -208,6 +208,14 @@
     profile = "Personal";
   }
   {
+    key = "kindle";
+    name = "Kindle";
+    icon = "kindle";
+    url = "https://read.amazon.com";
+    mode = "app";
+    profile = "Personal";
+  }
+  {
     key = "m1-finance";
     name = "M1 Finance";
     icon = "m1finance";

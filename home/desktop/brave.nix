@@ -1,16 +1,11 @@
 {
-  pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   isVm ? false,
   ...
 }:
 
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   # IMPORTANT: Chromium's command-line parser stores switches in a map
   # keyed by switch name, so passing --enable-features= (or
@@ -67,7 +62,7 @@ in
   # Brave Browser configuration using unstable version
   programs.brave = {
     enable = true;
-    package = pkgs-unstable.brave;
+    package = unstable-pkgs.brave;
     commandLineArgs = [
       "--enable-features=${commaJoin enableFeatures}"
       "--disable-features=${commaJoin disableFeatures}"

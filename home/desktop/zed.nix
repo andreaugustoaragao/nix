@@ -1,9 +1,5 @@
-{ pkgs, inputs, ... }:
+{ pkgs, unstable-pkgs, ... }:
 let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   # Wrap zed-editor without rebuilding it from source: symlinkJoin the
   # cached binary into a thin wrapper derivation, then makeWrapper only

@@ -1,16 +1,10 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   programs = {
     # Hyprland compositor
@@ -22,7 +16,7 @@ in
 
     niri = {
       enable = true;
-      package = pkgs-unstable.niri;
+      package = unstable-pkgs.niri;
     };
 
     dconf.enable = true;

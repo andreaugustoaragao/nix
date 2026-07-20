@@ -2,7 +2,10 @@
   config,
   pkgs,
   lib,
-  inputs,
+  # Shared nixpkgs-llama instance from flake.nix specialArgs — pinned to
+  # the rev with llama-cpp b9190 (first build with MTP speculative
+  # decoding). See the nixpkgs-llama input comment in flake.nix.
+  llama-pkgs,
   isWorkstation,
   ...
 }:
@@ -45,13 +48,6 @@ let
   baseUrl = if isWorkstation then "http://127.0.0.1:8080/v1" else "http://mac-work.local:8080/v1";
 
   # ===== Workstation-only: locally-built llama.cpp + systemd service =====
-
-  # Pinned to a nixpkgs rev with llama-cpp b9190 (first build with MTP
-  # speculative decoding). See flake.nix nixpkgs-llama input.
-  llama-pkgs = import inputs.nixpkgs-llama {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   llama-cpp-rocm = llama-pkgs.llama-cpp.override {
     rocmSupport = true;

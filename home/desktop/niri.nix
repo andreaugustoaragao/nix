@@ -1,27 +1,22 @@
 {
+  config,
   pkgs,
   lib,
   isVm ? false,
   isWorkstation ? false,
   lockScreen ? false,
   useDms ? false,
-  # Canonical dp1 (landscape) / dp2 (portrait) → Wayland connector name
-  # map; resolved per-host in flake.nix. Workstation: DP-1/DP-2.
-  # VM: Virtual-1/Virtual-2.
-  displays ? {
-    dp1 = "DP-1";
-    dp2 = "DP-2";
-  },
-  # Logical dimensions of the dp2 slot, used to compute the dp1 output's
-  # x-offset so dp1 sits flush to the right of dp2 (matches workstation).
-  dp2Dimensions ? {
-    width = 1440;
-    height = 2560;
-  },
   ...
 }:
 
 let
+  # Canonical dp1 (landscape) / dp2 (portrait) slot metadata — typed
+  # my.displays.* options declared in ./display-options.nix, values
+  # resolved per-host in flake.nix. dp2Dimensions computes the dp1
+  # output's x-offset so dp1 sits flush to the right of dp2.
+  inherit (config.my) displays;
+  inherit (config.my.displays) dp2Dimensions;
+
   # Daily-driver terminal (see ./default-terminal.nix for selection
   # logic and per-consumer string forms).
   term = import ./default-terminal.nix { inherit isVm; };

@@ -1,17 +1,15 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   ...
 }:
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   imports = [
+    # Typed my.displays.* options — single entry point for the
+    # dp1/dp2 slot metadata resolved in flake.nix. Import first so
+    # consumers below can read config.my.displays.
+    ./display-options.nix
     ./hyprland.nix
     ./niri.nix
     ./portal.nix
@@ -70,7 +68,7 @@ in
   # Surfacing it under the hicolor theme so .desktop's Icon=cursor
   # resolves in launchers.
   xdg.dataFile."icons/hicolor/512x512/apps/cursor.png".source =
-    "${pkgs-unstable.code-cursor}/share/pixmaps/cursor.png";
+    "${unstable-pkgs.code-cursor}/share/pixmaps/cursor.png";
 
   home.packages =
     with pkgs;
@@ -78,9 +76,9 @@ in
       pavucontrol
       easyeffects
       teams-for-linux
-      pkgs-unstable.telegram-desktop
+      unstable-pkgs.telegram-desktop
       bitwarden-desktop
-      pkgs-unstable.code-cursor
+      unstable-pkgs.code-cursor
       neovide
       sniffnet
       swayimg

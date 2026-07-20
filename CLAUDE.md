@@ -67,7 +67,7 @@ overlays/              # Nixpkgs overlays (if any)
 - `home.packages` (in `home/` modules): user-specific packages.
 - Prefer `.override { }` for changing `callPackage` args and `.overrideAttrs` for changing derivation attributes. Use overlays (`final: prev:`) only when the change must propagate to all dependents.
 - In overlays: use `final` for referencing other packages (allows downstream overlays to override), use `prev` for the package being modified. Never use `rec` or `self`/`super` (deprecated).
-- For unstable packages: this project uses `inputs.nixpkgs-unstable` imported as `unstable-pkgs` in `home/cli/development.nix`. Follow that pattern.
+- For unstable packages: a single shared `nixpkgs-unstable` instance is created once per host in `flake.nix` (`setSpecialArgs`) and passed to modules as the `unstable-pkgs` function argument (same for `llama-pkgs`). Take `unstable-pkgs` as a module argument — **never** call `import inputs.nixpkgs-unstable { ... }` inside a module; each such import re-evaluates the entire package set.
 
 ## Secrets Management
 

@@ -2,7 +2,7 @@
   config,
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 
@@ -12,10 +12,6 @@ let
   # is still on neovim 0.11, and the nvim-treesitter `main` branch (now
   # default on unstable) is incompatible with the 0.11 runtime's
   # treesitter API.
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
 
   # Treesitter parsers we want available to vim.treesitter. Each entry
   # here resolves to an nvim-treesitter.grammarPlugins.<lang> derivation

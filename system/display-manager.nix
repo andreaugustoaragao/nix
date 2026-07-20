@@ -2,6 +2,7 @@
   pkgs,
   lib,
   inputs,
+  unstable-pkgs,
   owner,
   hostName,
   autoLogin,
@@ -9,12 +10,6 @@
   ...
 }:
 
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
   # via lib.mkDefault, so on useDms hosts we omit the command here and let
@@ -29,8 +24,7 @@ in
   programs.dank-material-shell.greeter = {
     enable = true;
     compositor.name = "niri";
-    quickshell.package =
-      inputs.dms.inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    quickshell.package = unstable-pkgs.quickshell;
     # Sync the user's DMS theme/wallpaper into the greeter cache so
     # the login screen mirrors the desktop. The greetd preStart copies
     # settings.json + session.json + dms-colors.json from this home.
@@ -46,7 +40,7 @@ in
         {
           # Auto-login configuration - goes straight to desktop
           default_session = {
-            command = "${pkgs-unstable.niri}/bin/niri --session";
+            command = "${unstable-pkgs.niri}/bin/niri --session";
             # command = "${pkgs.hyprland}/bin/Hyprland";
             user = owner.name;
           };
@@ -58,7 +52,7 @@ in
           }
           // lib.optionalAttrs (!useDms) {
             # Interactive tuigreet — replaced by DMS greeter when useDms.
-            command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${pkgs-unstable.niri}/bin/niri --session'";
+            command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${unstable-pkgs.niri}/bin/niri --session'";
           };
         };
   };
@@ -117,7 +111,7 @@ in
     systemPackages = [
       (lib.hiPrio (
         pkgs.writeShellScriptBin "niri-session" ''
-          exec ${pkgs-unstable.niri}/bin/niri --session
+          exec ${unstable-pkgs.niri}/bin/niri --session
         ''
       ))
     ];

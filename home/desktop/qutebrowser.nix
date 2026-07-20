@@ -1,20 +1,13 @@
 {
-  pkgs,
-  inputs,
+  unstable-pkgs,
   ...
 }:
 
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   # Qutebrowser configuration using unstable version
   programs.qutebrowser = {
     enable = true;
-    package = pkgs-unstable.qutebrowser;
+    package = unstable-pkgs.qutebrowser;
 
     settings = {
       # General settings

@@ -2,22 +2,16 @@
   config,
   pkgs,
   lib,
-  inputs,
+  # Shared nixpkgs-llama instance from flake.nix specialArgs. Same
+  # instance is used in home/services/local-llm.nix so both hosts ship
+  # the same binary semantics; only the GPU backend differs.
+  llama-pkgs,
   owner,
   homePrefix,
   ...
 }:
 
 let
-  # Mirror the workstation pin (nixpkgs-llama is the rev with llama.cpp
-  # b9190 — first build with MTP speculative decoding). Same input is
-  # used in home/services/local-llm.nix so both hosts ship the same
-  # binary semantics; only the GPU backend differs.
-  llama-pkgs = import inputs.nixpkgs-llama {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-
   # No override here: nixpkgs builds llama.cpp with Metal acceleration
   # by default on Darwin. The workstation derivation passes
   # `rocmSupport = true` because its AMD GPU needs explicit ROCm

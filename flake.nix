@@ -76,6 +76,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       home-manager,
       nix-darwin,
@@ -99,6 +100,24 @@
 
       # Set special args for each machine
       setSpecialArgs = host: {
+        # Shared alternate-nixpkgs instances, instantiated ONCE per host
+        # eval and threaded to every consumer through specialArgs /
+        # extraSpecialArgs. Modules must take `unstable-pkgs` (or
+        # `llama-pkgs`) as a function argument instead of calling
+        # `import inputs.nixpkgs-unstable { ... }` locally — each such
+        # import re-evaluates the entire package set, and at one point
+        # 15+ modules were paying that cost independently.
+        unstable-pkgs = import inputs.nixpkgs-unstable {
+          system = host.platform;
+          config.allowUnfree = true;
+          overlays = [ ];
+        };
+        # See the nixpkgs-llama input comment for the pin rationale.
+        llama-pkgs = import inputs.nixpkgs-llama {
+          system = host.platform;
+          config.allowUnfree = true;
+          overlays = [ ];
+        };
         isWorkstation = host.profile == "workstation";
         isLaptop = host.profile == "laptop";
         isVm = host.profile == "vm";
@@ -583,5 +602,50 @@
       # `nix fmt` runs the RFC 166 formatter (nixfmt), matching the
       # CLAUDE.md quality gate. Exposed for every system in appSystems.
       formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt);
+
+      # Quality gates as derivations: `nix flake check` (and CI) builds
+      # these, so a formatting drift, statix warning, or dead binding
+      # fails the build instead of relying on manual discipline. Same
+      # three tools CLAUDE.md mandates. `self.outPath` is the clean
+      # flake source (git-index snapshot, no untracked files), so local
+      # runs match what CI sees.
+      checks = forEachAppSystem (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          format =
+            pkgs.runCommand "check-nixfmt"
+              {
+                nativeBuildInputs = [ pkgs.nixfmt ];
+              }
+              ''
+                find ${self.outPath} -name '*.nix' -print0 | xargs -0 nixfmt --check
+                touch $out
+              '';
+          statix =
+            pkgs.runCommand "check-statix"
+              {
+                nativeBuildInputs = [ pkgs.statix ];
+              }
+              ''
+                # --config: statix resolves statix.toml relative to cwd
+                # (the sandbox build dir), not the checked target — point
+                # it at the flake source explicitly.
+                statix check --config ${self.outPath} ${self.outPath}
+                touch $out
+              '';
+          deadnix =
+            pkgs.runCommand "check-deadnix"
+              {
+                nativeBuildInputs = [ pkgs.deadnix ];
+              }
+              ''
+                deadnix --fail ${self.outPath}
+                touch $out
+              '';
+        }
+      );
     };
 }

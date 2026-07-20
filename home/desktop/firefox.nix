@@ -2,20 +2,15 @@
   config,
   pkgs,
   inputs,
+  unstable-pkgs,
   ...
 }:
 
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   # Firefox Browser configuration using unstable version
   programs.firefox = {
     enable = true;
-    package = pkgs-unstable.firefox;
+    package = unstable-pkgs.firefox;
 
     # 26.05 changed the default profile path to the XDG location. Pin the
     # legacy path so the existing ~/.mozilla/firefox profile keeps working

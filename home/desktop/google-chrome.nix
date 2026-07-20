@@ -1,14 +1,8 @@
-{ pkgs, inputs, ... }:
-let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
+{ unstable-pkgs, ... }:
 {
   programs.chromium = {
     enable = true;
-    package = pkgs-unstable.chromium;
+    package = unstable-pkgs.chromium;
     commandLineArgs = [
       "--enable-features=UseOzonePlatform"
       "--ozone-platform=wayland"

@@ -43,6 +43,17 @@ in
     };
   };
 
+  # Adwaita ships a complete symbolic icon set. Papirus/Yaru inherit from
+  # it, but a few symbolic names DMS/Qt request (input-keyboard-symbolic,
+  # application-x-executable, …) aren't in those themes; installing Adwaita
+  # into the profile makes them resolvable via the icon-lookup fallback.
+  home.packages = [ pkgs.adwaita-icon-theme ];
+
+  # User avatar. DMS (and other freedesktop consumers) look for ~/.face;
+  # mirror the AccountsService login avatar here so the shell profile pic
+  # and lock screen render instead of falling back to a placeholder.
+  home.file.".face".source = ../../assets/avatar.png;
+
   # Ensure GTK3 uses xdg-desktop-portal for file dialogs, etc.
   home.sessionVariables = {
     GTK_USE_PORTAL = "1";

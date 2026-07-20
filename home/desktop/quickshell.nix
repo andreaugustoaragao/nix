@@ -1,33 +1,24 @@
 {
+  config,
   pkgs,
   lib,
   inputs,
+  unstable-pkgs,
   wallpapers,
   dp1Wallpapers,
   useDms ? false,
   isVm ? false,
   lockScreen ? false,
-  # Canonical landscape (dp1) / portrait (dp2) display slots; the actual
-  # Wayland connector names are resolved per-host in flake.nix (DP-1/DP-2
-  # on the workstation, Virtual-1/Virtual-2 on Parallels VMs).
-  displays ? {
-    dp1 = "DP-1";
-    dp2 = "DP-2";
-  },
-  # Logical dimensions of the dp2 slot in scaled pixels, used to anchor
-  # desktop widgets (cava). Resolved per-host in flake.nix.
-  dp2Dimensions ? {
-    width = 1440;
-    height = 2560;
-  },
   ...
 }:
 
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
+  # Canonical landscape (dp1) / portrait (dp2) display slots — typed
+  # my.displays.* options declared in ./display-options.nix, values
+  # resolved per-host in flake.nix. dp2Dimensions anchors desktop
+  # widgets (cava) to the dp2 bottom edge.
+  inherit (config.my) displays;
+  inherit (config.my.displays) dp2Dimensions;
 
   # DMS currently ignores `useFahrenheit` for CPU temperature widgets and
   # process popouts, so patch the packaged QML to keep hardware temps aligned
@@ -370,7 +361,7 @@ in
     };
 
     # `dgop` is not in nixpkgs-25.11 yet — pull from unstable.
-    dgop.package = pkgs-unstable.dgop;
+    dgop.package = unstable-pkgs.dgop;
 
     # No VPN widget is configured, so skip pulling glib/networkmanager
     # dependencies just for it.
@@ -391,15 +382,13 @@ in
   #   - `cava` (audio visualizer; spawned by the cavaVisualizer widget)
   #   - `wpctl`, `brightnessctl`, `notify-send`, `darkman`, ...
   # Without an augmented PATH, DMS either fails to start or runs with
-  # broken widgets. Compose it from the exact quickshell package DMS
-  # was built against (same one display-manager.nix pulls in for the
-  # greeter), the user's HM profile, /run/wrappers (pkexec et al.),
-  # and the system profile.
+  # broken widgets. Compose it from quickshell (pulled from
+  # nixpkgs-unstable — DMS no longer bundles it as a flake input, same
+  # one display-manager.nix pulls in for the greeter), the user's HM
+  # profile, /run/wrappers (pkexec et al.), and the system profile.
   systemd.user.services.dms = lib.mkIf useDms {
     Service.Environment = [
-      "PATH=${
-        inputs.dms.inputs.quickshell.packages.${pkgs.stdenv.hostPlatform.system}.default
-      }/bin:%h/.nix-profile/bin:/etc/profiles/per-user/%u/bin:/run/wrappers/bin:/run/current-system/sw/bin"
+      "PATH=${unstable-pkgs.quickshell}/bin:%h/.nix-profile/bin:/etc/profiles/per-user/%u/bin:/run/wrappers/bin:/run/current-system/sw/bin"
     ];
   };
 

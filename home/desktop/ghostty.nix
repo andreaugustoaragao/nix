@@ -1,15 +1,11 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   isVm,
   ...
 }:
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
   inherit (pkgs.stdenv.hostPlatform) isLinux;
 
   # Parallels' guest 3D driver tops out at OpenGL 4.0/4.1, but ghostty
@@ -19,8 +15,8 @@ let
   ghosttyPkg =
     if isVm then
       pkgs.symlinkJoin {
-        name = "ghostty-vm-${pkgs-unstable.ghostty.version}";
-        paths = [ pkgs-unstable.ghostty ];
+        name = "ghostty-vm-${unstable-pkgs.ghostty.version}";
+        paths = [ unstable-pkgs.ghostty ];
         nativeBuildInputs = [ pkgs.makeWrapper ];
         postBuild = ''
           wrapProgram $out/bin/ghostty \
@@ -28,7 +24,7 @@ let
         '';
       }
     else
-      pkgs-unstable.ghostty;
+      unstable-pkgs.ghostty;
 in
 {
   # Ghostty binary: installed via nix on Linux, via the homebrew cask on

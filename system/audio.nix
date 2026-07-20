@@ -1,17 +1,11 @@
 {
   pkgs,
   lib,
-  inputs,
+  unstable-pkgs,
   hostName,
   ...
 }:
 
-let
-  unstable-pkgs = import inputs.nixpkgs-unstable {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    config.allowUnfree = true;
-  };
-in
 {
   security.rtkit.enable = true;
   services.pipewire = {
