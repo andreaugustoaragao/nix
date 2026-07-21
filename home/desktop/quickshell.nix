@@ -31,13 +31,14 @@ let
       substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/PerformanceView.qml \
         --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°C") : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
 
-      # DMS writes gsettings color-scheme = "default" for light mode,
-      # which the freedesktop spec defines as "no preference" — portal
-      # clients (ghostty, etc.) treat it as a fallback to their default
-      # (usually dark). Patch to write "prefer-light" instead so ghostty's
-      # `theme = dark:...,light:...` syntax actually flips.
+      # DMS writes gsettings color-scheme = "default" for light mode
+      # unless the portal already reported "prefer-light" (systemColorScheme
+      # == 2). "default" is defined by the freedesktop spec as "no
+      # preference" — portal clients (ghostty, etc.) treat it as a fallback
+      # to their default (usually dark). Patch to always write "prefer-light"
+      # in light mode so ghostty's `theme = dark:...,light:...` flips.
       substituteInPlace $out/share/quickshell/dms/Services/PortalService.qml \
-        --replace-fail 'const targetScheme = isLightMode ? "default" : "prefer-dark";' 'const targetScheme = isLightMode ? "prefer-light" : "prefer-dark";'
+        --replace-fail 'const targetScheme = isLightMode ? (preferLight ? "prefer-light" : "default") : "prefer-dark";' 'const targetScheme = isLightMode ? "prefer-light" : "prefer-dark";'
 
       # DMS bar clock renders children in source order: time, dot, date.
       # Flip the Row to RightToLeft so it visually reads "date • time"
