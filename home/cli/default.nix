@@ -130,11 +130,12 @@ in
       kubectx
       stern
       ansible
-      # terraform, terragrunt, packer: HashiCorp relicensed all three to
-      # BSL in 2023. nixpkgs treats BSL as unfree → cache.nixos.org has
-      # no prebuilt binaries → builds from source → packer's go test
-      # suite SIGABRTs on aarch64-darwin in 25.11. Linux-only block
-      # below re-adds them where the cache works.
+      # terraform, terragrunt and packer are deliberately absent. HashiCorp
+      # relicensed all three to BSL in 2023, so nixpkgs marks them unfree
+      # and cache.nixos.org carries no substitutes on any platform — every
+      # bump compiles from source, and packer's module graph (GCP SDK,
+      # containerd, syft) makes that a long, network-flaky Go build. Get
+      # them per-project through a devShell + direnv instead.
 
       # General tools
       code2prompt # CLI tool with token counting functionality
@@ -273,12 +274,6 @@ in
         # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
         # build is Linux-only.
         traceroute
-        # HashiCorp BSL-licensed tools — see comment above. Re-added
-        # here so they keep working on Linux where nixpkgs CI does push
-        # binary substitutes despite the unfree flag.
-        terraform
-        terragrunt
-        packer
       ]
     );
 
