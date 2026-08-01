@@ -57,38 +57,61 @@ let
   enableFeatures = enableFeaturesCommon ++ lib.optionals (!isVm) enableFeaturesBareMetal;
   disableFeatures = disableFeaturesCommon ++ lib.optionals isVm disableFeaturesVm;
   commaJoin = builtins.concatStringsSep ",";
+
+  commandLineArgs = [
+    "--enable-features=${commaJoin enableFeatures}"
+    "--disable-features=${commaJoin disableFeatures}"
+    "--ozone-platform=wayland"
+    "--disable-brave-ads"
+    "--disable-background-mode"
+    "--password-store=gnome-libsecret"
+    # Out-of-process canvas rasterization. Default-on in modern
+    # Chromium but worth being explicit; cuts main-thread paint cost
+    # for sites heavy on 2D canvas (YouTube thumbnails, Meet's tile
+    # compositor).
+    "--enable-oop-rasterization"
+    # Zero-copy texture upload. Safe on virgl (guest GBM handles
+    # dmabuf import) and on bare metal (native dmabuf support).
+    "--enable-zero-copy"
+  ]
+  ++ lib.optionals isVm [
+    # virgl sometimes lands on Chromium's driver-bug blocklist
+    # depending on the Mesa version advertised to the renderer.
+    # Force features on regardless — safe because the only "GPU"
+    # in this VM is virgl, with no real driver bugs to work around.
+    # Do NOT enable on bare metal: the blocklist exists to protect
+    # against real AMD/Intel driver bugs that --ignore-gpu-blocklist
+    # would re-expose.
+    "--ignore-gpu-blocklist"
+  ];
+
+  # nixpkgs restructured the brave recipe: make-brave.nix is now a
+  # curried function (callPackage's makeOverridable wrapper is consumed
+  # by the first argument set), so `pkgs.brave` is a plain derivation
+  # with no `.override`. home-manager's chromium module calls
+  # `cfg.package.override { commandLineArgs = ...; }` whenever
+  # `commandLineArgs != []`, which fails with "attribute 'override'
+  # missing". Bake the switches in here instead, appending to the same
+  # gappsWrapperArgs the recipe uses (so our flags land after the
+  # wrapper's own --enable-features/--disable-features and win the
+  # last-value-wins switch map), and leave programs.brave.commandLineArgs
+  # empty so home-manager passes the package through untouched.
+  # Linux-only module — the Darwin brave build wraps with makeWrapper
+  # and has no gappsWrapperArgs, but home/desktop is never imported
+  # on mac-work.
+  bravePackage = unstable-pkgs.brave.overrideAttrs (old: {
+    preFixup = old.preFixup + ''
+      gappsWrapperArgs+=(
+        --add-flags ${lib.escapeShellArg (builtins.concatStringsSep " " commandLineArgs)}
+      )
+    '';
+  });
 in
 {
   # Brave Browser configuration using unstable version
   programs.brave = {
     enable = true;
-    package = unstable-pkgs.brave;
-    commandLineArgs = [
-      "--enable-features=${commaJoin enableFeatures}"
-      "--disable-features=${commaJoin disableFeatures}"
-      "--ozone-platform=wayland"
-      "--disable-brave-ads"
-      "--disable-background-mode"
-      "--password-store=gnome-libsecret"
-      # Out-of-process canvas rasterization. Default-on in modern
-      # Chromium but worth being explicit; cuts main-thread paint cost
-      # for sites heavy on 2D canvas (YouTube thumbnails, Meet's tile
-      # compositor).
-      "--enable-oop-rasterization"
-      # Zero-copy texture upload. Safe on virgl (guest GBM handles
-      # dmabuf import) and on bare metal (native dmabuf support).
-      "--enable-zero-copy"
-    ]
-    ++ lib.optionals isVm [
-      # virgl sometimes lands on Chromium's driver-bug blocklist
-      # depending on the Mesa version advertised to the renderer.
-      # Force features on regardless — safe because the only "GPU"
-      # in this VM is virgl, with no real driver bugs to work around.
-      # Do NOT enable on bare metal: the blocklist exists to protect
-      # against real AMD/Intel driver bugs that --ignore-gpu-blocklist
-      # would re-expose.
-      "--ignore-gpu-blocklist"
-    ];
+    package = bravePackage;
     # Soft extension installs: a JSON manifest is dropped into Brave's
     # External Extensions/ dir, so the extension shows up on first
     # profile creation but the user can disable or remove it later.
