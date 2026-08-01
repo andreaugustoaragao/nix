@@ -56,18 +56,41 @@ in
         ServerAliveCountMax = 3;
       };
 
+      # GitHub over 443 rather than 22. GitHub serves the same SSH endpoint
+      # on ssh.github.com:443 precisely for networks that block or intercept
+      # port 22, and at least one network this fleet sits behind terminates
+      # every outbound :22 connection on a middlebox that presents its own
+      # host keys. HostKeyAlias pins the session to the `github.com` entries
+      # already in known_hosts, so the real GitHub keys still gate the
+      # connection — this routes around the interception without weakening
+      # verification. Harmless on clean networks; 443 is a first-class
+      # GitHub endpoint, not a fallback.
       "github-personal" = {
-        HostName = "github.com";
+        HostName = "ssh.github.com";
+        Port = 443;
+        HostKeyAlias = "github.com";
         User = "git";
         IdentityFile = "~/.ssh/id_rsa_personal"; # From sops
         IdentitiesOnly = true;
       };
 
       "github-work" = {
-        HostName = "github.com";
+        HostName = "ssh.github.com";
+        Port = 443;
+        HostKeyAlias = "github.com";
         User = "git";
         IdentityFile = "~/.ssh/id_rsa_work"; # From sops
         IdentitiesOnly = true;
+      };
+
+      # Bare `git@github.com:...` remotes (this flake's own origin, among
+      # others) don't match the aliases above, so they need the same
+      # treatment or they go out on :22.
+      "github.com" = {
+        HostName = "ssh.github.com";
+        Port = 443;
+        HostKeyAlias = "github.com";
+        User = "git";
       };
 
       # Parallels dev VM. Reached over the Parallels Shared Network at

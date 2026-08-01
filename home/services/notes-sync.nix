@@ -252,9 +252,15 @@
                 echo "Notes sync completed successfully"
       '';
 
-      # Restart policy
-      Restart = "on-failure";
-      RestartSec = "30s";
+      # No Restart=. The 15-minute timer below IS the retry mechanism, and
+      # layering Restart=on-failure/RestartSec=30s on top of it meant a
+      # *persistent* failure (e.g. the remote being unreachable) retried
+      # every 30s forever — 166 restarts and ~42 critical desktop
+      # notifications an hour during one such outage. A start-limit cap
+      # isn't the fix either: once systemd trips a start limit it refuses
+      # further starts, which would block the timer too. Letting the unit
+      # fail and wait for the next timer tick backs off correctly and keeps
+      # the failure notification to once per quarter hour.
     };
   };
 
