@@ -12,10 +12,9 @@
 # undefined. The Darwin notes-sync is a structurally separate launchd
 # agent in notes-sync-darwin.nix.
 #
-# fulcrum is additionally gated to non-server hosts: its systemd
-# unit unconditionally reads /run/secrets/anthropic_api_key, and that
-# secret is declared `lib.optionalAttrs (!isServer)` in system/sops.nix,
-# so loading fulcrum on the `server` profile (tala) blows up at eval.
+# fulcrum is additionally gated to non-server hosts: its systemd unit
+# unconditionally reads the LiteLLM API key and base URL secrets, which
+# are declared only for interactive workstation/VM profiles.
 {
   imports = [
     # Pi models aggregator. Materializes ~/.pi/agent/models.json from

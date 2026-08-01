@@ -114,26 +114,43 @@ in
         "MATRIX_DEVICE_ID=AeSV8hGVoC"
         "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
       ];
-      # ANTHROPIC_API_KEY comes from the sops-managed system secret
-      # (see system/sops.nix → anthropic_api_key) so it's the same key
-      # the fish shell and Zed wrapper use. Fulcrum has no built-in
-      # ANTHROPIC_API_KEY_FILE support, so a thin wrapper reads the
-      # file and exports the value before exec'ing bun. The vault's
+      # OpenAI-compatible inference is routed through the same corporate
+      # LiteLLM gateway and bearer token that Codex uses. Both values stay
+      # in sops-managed runtime files; the wrapper exports the conventional
+      # OpenAI variables only in the service process, so neither secret nor
+      # the employer-specific gateway hostname enters the Nix store.
+      # The vault's
       # ${projectRoot}/.env (symlinked to ~/projects/work/notes/.fulcrum/.env)
       # is still auto-loaded by bun for the other secrets (TELEGRAM,
       # ELEVENLABS, MPC, …); bun does not override env vars already set
       # by the wrapper, so the sops key wins.
       ExecStart = pkgs.writeShellScript "fulcrum-start" ''
         set -eu
-        secret=${osConfig.sops.secrets.anthropic_api_key.path}
-        if [ ! -r "$secret" ]; then
-          echo "Fatal: $secret not readable" >&2
+        api_key_secret=${osConfig.sops.secrets.litellm_api_key.path}
+        base_url_secret=${osConfig.sops.secrets.litellm_base_url.path}
+        if [ ! -r "$api_key_secret" ]; then
+          echo "Fatal: $api_key_secret not readable" >&2
           exit 1
         fi
-        raw=$(cat "$secret")
-        # Accept either bare key bytes or `ANTHROPIC_API_KEY=...` shell form,
-        # mirroring how fish/zed strip the prefix.
-        export ANTHROPIC_API_KEY="''${raw#ANTHROPIC_API_KEY=}"
+        if [ ! -r "$base_url_secret" ]; then
+          echo "Fatal: $base_url_secret not readable" >&2
+          exit 1
+        fi
+        api_key=$(cat "$api_key_secret")
+        base_url=$(cat "$base_url_secret")
+        if [ -z "$api_key" ] || [ "$api_key" = "placeholder" ]; then
+          echo "Fatal: LiteLLM API key is empty or placeholder-valued" >&2
+          exit 1
+        fi
+        if [ -z "$base_url" ] || [ "$base_url" = "placeholder" ]; then
+          echo "Fatal: LiteLLM base URL is empty or placeholder-valued" >&2
+          exit 1
+        fi
+        export LITELLM_API_KEY="$api_key"
+        export LITELLM_BASE_URL="$base_url"
+        export OPENAI_API_KEY="$api_key"
+        export OPENAI_BASE_URL="$base_url"
+        unset api_key base_url
 
         # Lazily provision a self-signed cert for the HTTPS listener.
         # Fulcrum's startup picks up the cert/key via
