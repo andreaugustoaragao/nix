@@ -28,8 +28,11 @@ let
     model = "gpt-5.4"
     model_provider = "litellm"
     model_reasoning_effort = "high"
-    sandbox_mode = "workspace-write"
-    approval_policy = "on-request"
+    # Codex always starts without sandboxing or approval prompts. This is the
+    # persistent config equivalent of
+    # `--dangerously-bypass-approvals-and-sandbox` (`--yolo`).
+    sandbox_mode = "danger-full-access"
+    approval_policy = "never"
 
     [model_providers.litellm]
     name = "LiteLLM"
@@ -42,6 +45,8 @@ let
 
     [tui]
     vim_mode_default = true
+    status_line_use_colors = true
+    status_line = ["model-with-reasoning", "current-dir", "git-branch", "run-state", "permissions", "approval-mode"]
   '';
 
   # Stage the template into the Nix store so activation has a stable,
