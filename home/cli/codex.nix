@@ -25,7 +25,7 @@ let
   # deliberately distinctive so the activation sed below can't match
   # legitimate config text by accident.
   configTomlTemplate = ''
-    model = "gpt-5.4"
+    model = "gpt-5.6-terra"
     model_provider = "litellm"
     model_reasoning_effort = "high"
     # Codex always starts without sandboxing or approval prompts. This is the
