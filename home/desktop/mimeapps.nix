@@ -28,12 +28,14 @@ _:
   xdg.mimeApps = {
     enable = true;
     defaultApplications = {
-      # Web browser - Brave in app mode
-      "text/html" = "brave-app-mode.desktop";
-      "x-scheme-handler/http" = "brave-app-mode.desktop";
-      "x-scheme-handler/https" = "brave-app-mode.desktop";
-      "x-scheme-handler/about" = "brave-app-mode.desktop";
-      "x-scheme-handler/unknown" = "brave-app-mode.desktop";
+      # Web browser - normal Brave windows. App mode is reserved for the
+      # dedicated web-app launchers above; using it as the generic URL
+      # handler causes xdg-open links to open as blank standalone windows.
+      "text/html" = "brave-browser.desktop";
+      "x-scheme-handler/http" = "brave-browser.desktop";
+      "x-scheme-handler/https" = "brave-browser.desktop";
+      "x-scheme-handler/about" = "brave-browser.desktop";
+      "x-scheme-handler/unknown" = "brave-browser.desktop";
 
       # Image viewer - swayimg (Wayland-native)
       "image/jpeg" = "swayimg.desktop";
