@@ -37,6 +37,16 @@ let
     echo "Run 'pi --model llama-cpp/qwen3-coder-30b-a3b-local' to use the local model"
   '';
 
+  # Keep fast-moving npm CLIs out of activation. Rebuilds must be
+  # repeatable and offline once the tools have been bootstrapped; updates are
+  # an explicit user action instead.
+  update-npm-ai-tools = pkgs.writeShellScriptBin "update-npm-ai-tools" ''
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$NPM_CONFIG_PREFIX/bin"
+    export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
+    ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest @earendil-works/pi-coding-agent@latest
+  '';
+
   # Script to install goplay (Go Playground client) via go install
   install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
     export GOPATH="''${GOPATH:-$HOME/go}"
@@ -82,6 +92,8 @@ in
         prettier # Code formatter
         eslint # JavaScript/TypeScript linter
         eslint_d # ESLint daemon for faster linting
+        stylua # Lua formatter used by conform.nvim
+        shfmt # Shell formatter used by conform.nvim
 
         # Python Development
         (python3.withPackages (
@@ -189,6 +201,7 @@ in
         install-qwen-code # Script to install Qwen Code CLI tool
         install-gemini-cli # Script to install Google Gemini CLI
         install-pi-coding-agent # Script to install Pi coding agent
+        update-npm-ai-tools # Explicit updater for Codex + Pi
       ]
       ++ [
         unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
@@ -204,6 +217,7 @@ in
         # nixpkgs' default `go` lags). The companion tools follow so they're
         # built against the same Go stdlib as the runtime.
         unstable-pkgs.go # Go runtime
+        unstable-pkgs.gotools # Provides goimports for conform.nvim
         unstable-pkgs.delve # Go debugger
         unstable-pkgs.golangci-lint # Go meta-linter
         unstable-pkgs.govulncheck # Go vulnerability checker
@@ -270,16 +284,18 @@ in
           ${pkgs.nodejs_22}/bin/npm install -g dev-browser
         fi
 
-        # Always pull the latest OpenAI Codex CLI — releases move fast and
-        # the guarded "install once" pattern leaves stale binaries behind.
-        echo "Updating OpenAI Codex CLI..."
-        ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
+        # Bootstrap missing CLIs, but never upgrade them during activation.
+        # `update-npm-ai-tools` performs intentional updates outside a
+        # rebuild, avoiding network failures and npm staging collisions.
+        if ! command -v codex &> /dev/null; then
+          echo "Installing OpenAI Codex CLI..."
+          ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
+        fi
 
-        # Always pull the latest Pi coding agent — same reasoning as Codex
-        # above: releases move fast and a guarded install leaves stale
-        # binaries behind.
-        echo "Updating Pi coding agent..."
-        ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
+        if ! command -v pi &> /dev/null; then
+          echo "Installing Pi coding agent..."
+          ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
+        fi
       '';
 
       # Auto-install Cursor Agent CLI.

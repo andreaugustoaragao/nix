@@ -46,7 +46,7 @@ let
     [tui]
     vim_mode_default = true
     status_line_use_colors = true
-    status_line = ["model-with-reasoning", "current-dir", "git-branch", "run-state", "permissions", "approval-mode"]
+    status_line = ["model-with-reasoning", "current-dir", "git-branch", "estimated-thread-cost", "run-state", "permissions", "approval-mode"]
   '';
 
   # Stage the template into the Nix store so activation has a stable,

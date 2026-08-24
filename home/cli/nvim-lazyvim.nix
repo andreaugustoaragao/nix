@@ -84,6 +84,14 @@ in
       # reference. Languages without a parser cost nothing.
       "nvim/queries".source = "${unstable-pkgs.vimPlugins.nvim-treesitter}/runtime/queries";
 
+      # Keep Lazy's exact plugin revisions in the flake instead of mutable
+      # state under ~/.config/nvim. `force` intentionally makes Nix the
+      # authority after a manual :Lazy update.
+      "nvim/lazy-lock.json" = {
+        source = ./nvim-lazy-lock.json;
+        force = true;
+      };
+
       # Norg parser lives outside nvim-treesitter's grammarPlugins set
       # and has a different layout — the .so file is the `parser`
       # output itself, not `parser/<lang>.so`. snacks.image references
@@ -105,37 +113,19 @@ in
     withPython3 = true;
     withRuby = true;
 
-    # lazy.nvim is the only plugin we need available before the
-    # bootstrap clone fires; everything else is managed by lazy from
-    # its own clones under ~/.local/share/nvim/lazy/. Parsers and
-    # queries are shipped via xdg.configFile above, not via packpath.
-    plugins = [ unstable-pkgs.vimPlugins.lazy-nvim ];
-
     # Native Lua dependencies provided declaratively via nixpkgs's
     # luajitPackages set (luajit is what neovim embeds, so 5.1 ABI).
-    #   sqlite  — backs snacks.picker frecency scoring (otherwise falls
-    #             back to a flat-file ranking which doesn't learn well).
-    #   jsregexp — enables luasnip's JS-style transform syntax
+    # jsregexp enables luasnip's JS-style transform syntax
     #             (e.g. `${1/foo/bar/g}` in snippet bodies).
     extraLuaPackages =
       ps: with ps; [
-        sqlite
         jsregexp
       ];
 
     initLua = ''
-      -- Bootstrap lazy.nvim
-      local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-      if not vim.uv.fs_stat(lazypath) then
-        vim.fn.system({
-          "git",
-          "clone",
-          "--filter=blob:none",
-          "https://github.com/folke/lazy.nvim.git",
-          "--branch=stable",
-          lazypath,
-        })
-      end
+      -- lazy.nvim itself comes from the read-only Nix store. Its managed
+      -- plugins are pinned by the Home Manager-deployed lazy-lock.json.
+      local lazypath = "${unstable-pkgs.vimPlugins.lazy-nvim}"
       vim.opt.rtp:prepend(lazypath)
 
       -- Configure leader keys before lazy.nvim setup
@@ -447,6 +437,12 @@ in
               picker = {
                 enabled = true,
                 ui_select = true, -- replace vim.ui.select with snacks picker
+                -- Snacks loads SQLite through LuaJIT FFI, which does not
+                -- consult Nix's dependency closure. Give it the portable
+                -- library path for the current platform explicitly.
+                db = {
+                  sqlite3_path = "${pkgs.sqlite.out}/lib/libsqlite3.so",
+                },
                 layout = {
                   preset = "default",
                 },
@@ -1417,7 +1413,7 @@ in
                 bash = { "shfmt" },
               },
               format_on_save = {
-                timeout_ms = 500,
+                timeout_ms = 2000,
                 lsp_format = "fallback",
               },
             },
@@ -1445,10 +1441,12 @@ in
                 dockerfile = { "hadolint" },
               }
               
-              -- Create autocmd which carries out the actual linting
+              -- Lint once when opening and after saving. Running project
+              -- linters on every InsertLeave made cargo clippy, pylint, and
+              -- golangci-lint needlessly expensive in large repositories.
               local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
               
-              vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
+              vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
                 group = lint_augroup,
                 callback = function()
                   lint.try_lint()
