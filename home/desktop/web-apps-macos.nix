@@ -57,8 +57,11 @@ let
         # `-resize 512x512>` only shrinks (`>`); never enlarges, so small
         # source icons aren't smeared. `-extent` then letterboxes onto a
         # 512x512 transparent canvas centered by `-gravity`.
+        # PNG32: forces 8-bit RGBA. ImageMagick 7's default quantum
+        # depth is 16, and png2icns rejects 16-bit PNGs (seen on
+        # palette sources such as claude.png: "Bit depth 16 unsupported").
         magick "$src" -background none -gravity center \
-          -resize '512x512>' -extent 512x512 padded.png
+          -resize '512x512>' -extent 512x512 PNG32:padded.png
         png2icns "$out" padded.png
       '';
 

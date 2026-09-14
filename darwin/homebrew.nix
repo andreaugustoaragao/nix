@@ -14,8 +14,18 @@
 
     onActivation = {
       autoUpdate = false; # don't slow down rebuilds
-      cleanup = "zap"; # remove anything not declared here
       upgrade = true;
+      # nix-darwin-26.05 still emits `--force-cleanup` when cleanup is
+      # "uninstall" or "zap". Current Homebrew dropped that flag
+      # (`Error: invalid option: --force-cleanup`) and restored
+      # `--cleanup` / `--zap` on `brew bundle`. Keep nix-darwin's
+      # cleanup enum at "none" and pass the live flags ourselves until
+      # nix-darwin-26.05 catches up.
+      cleanup = "none";
+      extraFlags = [
+        "--cleanup"
+        "--zap"
+      ];
     };
 
     # Third-party taps. AeroSpace is shipped from its author's tap

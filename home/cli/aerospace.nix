@@ -187,20 +187,24 @@ in
     alt-leftSquareBracket  = "layout tiles horizontal vertical"
     alt-rightSquareBracket = "layout accordion horizontal vertical"
 
-    # --- Workspace bindings: glue each workspace to a monitor when
-    #     two displays are connected. AeroSpace will only enforce this
-    #     when both monitor patterns match; otherwise workspaces float.
+    # --- Workspace bindings: pin each workspace to a specific display.
+    #     Match by display model name (case-insensitive, glob-aware) so
+    #     the assignment is stable even when macOS reshuffles display
+    #     ordinals after unplug/replug. Physical layout left-to-right:
+    #       DELL S2725QS  →  32M2V (LG, center, 32")  →  DELL S2725QC
+    #     If a listed display is not connected at the moment, AeroSpace
+    #     falls back to the macOS main display for that workspace.
     [workspace-to-monitor-force-assignment]
-    1 = "main"
-    2 = "main"
-    3 = "main"
-    4 = "main"
-    5 = "main"
-    6 = "secondary"
-    7 = "secondary"
-    8 = "secondary"
-    9 = "secondary"
-    10 = "secondary"
+    1  = "DELL S2725QS"
+    2  = "DELL S2725QS"
+    3  = "DELL S2725QS"
+    4  = "32M2V"
+    5  = "32M2V"
+    6  = "32M2V"
+    7  = "DELL S2725QC"
+    8  = "DELL S2725QC"
+    9  = "DELL S2725QC"
+    10 = "DELL S2725QC"
   '';
 
   # Tell the running AeroSpace daemon to re-read ~/.config/aerospace/
