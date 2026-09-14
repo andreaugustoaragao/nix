@@ -361,9 +361,6 @@ in
       target = "graphical-session.target";
     };
 
-    # `dgop` is not in nixpkgs-25.11 yet — pull from unstable.
-    dgop.package = unstable-pkgs.dgop;
-
     # No VPN widget is configured, so skip pulling glib/networkmanager
     # dependencies just for it.
     enableVPN = false;

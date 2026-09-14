@@ -8,12 +8,19 @@
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
 
-  # pi-rs token compression. Codex has no PreToolUse hook protocol, so
-  # integration is instructional: AGENTS.md tells the LLM to prefer
-  # `pi-rs <tool>` over raw `<tool>` for the rules-table set. Reliability
-  # depends on the model remembering across long sessions — same
-  # constraint Claude Code's older hookless integrations had.
+  # pi-rs token compression is instructional here: AGENTS.md asks Codex
+  # to prefer `pi-rs <tool>`. Project lifecycle hooks remain independent.
   piRs = pkgs.callPackage ./pi-rs { };
+
+  # Lifecycle hooks inherit the Codex process environment; they do not
+  # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
+  # adapter identity only in this launcher, never in home.sessionVariables
+  # or shell initialization shared with Cursor, Claude, and Pi.
+  # Use the npm entrypoint explicitly to avoid recursing through PATH.
+  codexLauncher = pkgs.writeShellScript "codex" ''
+    export AGENT_TOOL=codex
+    exec "${config.home.homeDirectory}/.npm-global/bin/codex" "$@"
+  '';
 
   # The base URL points at the corporate LiteLLM gateway. The hostname
   # itself encodes the employer DNS, so we keep the literal out of the
@@ -82,6 +89,11 @@ in
   # Materialize ~/.codex/AGENTS.md from the pi-rs-managed rules fragment.
   # Codex reads this file as global instruction context.
   home.file.".codex/AGENTS.md".source = "${piRs}/share/pi-rs/agent-hooks/codex-rules.md";
+
+  # ~/.local/bin already precedes the npm prefix in home/default.nix.
+  # Keep the npm-managed installation intact so explicit upgrades continue
+  # to replace the underlying CLI without removing this launcher.
+  home.file.".local/bin/codex".source = codexLauncher;
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"

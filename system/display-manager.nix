@@ -12,16 +12,13 @@
 
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
-  # via lib.mkDefault, so on useDms hosts we omit the command here and let
-  # DMS's dms-greeter script win. On !useDms hosts the tuigreet command
-  # below is used instead. The greeter module's option namespace
-  # (programs.dank-material-shell.greeter.*) only exists when its module
-  # is imported — using lib.optionalAttrs so the assignment itself is
-  # absent on hosts that don't import it.
-  imports = lib.optionals useDms [ inputs.dms.nixosModules.greeter ];
+  # via lib.mkDefault, so on interactive useDms hosts we omit the command here
+  # and let dms-greeter win. On !useDms hosts the tuigreet command below is
+  # used instead. Auto-login hosts do not need a greeter module at all.
+  imports = lib.optionals (useDms && !autoLogin) [ inputs.dank-greeter.nixosModules.default ];
 }
 // lib.optionalAttrs (useDms && !autoLogin) {
-  programs.dank-material-shell.greeter = {
+  programs.dms-greeter = {
     enable = true;
     compositor.name = "niri";
     quickshell.package = unstable-pkgs.quickshell;

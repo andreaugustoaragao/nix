@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 {
-  # Window switcher script with fuzzel integration for niri
+  # Window switcher script with fuzzel integration for Niri and Hyprland.
   home.packages = [
     (pkgs.writeShellApplication {
       name = "window-switcher";
@@ -10,11 +10,12 @@
         coreutils
         gnused
         gawk
+        jq
       ];
       text = ''
         #!/usr/bin/env bash
 
-        # Window switcher script with fuzzel integration for niri
+        # Window switcher script with fuzzel integration for Niri and Hyprland.
         # Usage: window-switcher
         # Description: Search, select, and switch to open windows using fuzzel
 
@@ -39,8 +40,8 @@
             --accept-nth=1
         )
 
-        # Function to get list of open windows
-        get_windows() {
+        # Niri's human-readable IPC output.
+        get_niri_windows() {
             niri msg windows | awk '
             BEGIN {
                 window_id = ""
@@ -97,10 +98,48 @@
             }'
         }
 
+        # Hyprland exposes structured client data, including a stable window
+        # address that can be passed back to `focuswindow`.
+        get_hyprland_windows() {
+            hyprctl -j clients | jq -r '
+                .[]
+                | select(.mapped != false)
+                | [
+                    .address,
+                    (if .focused then "●" else " " end),
+                    (.workspace.id // "?" | tostring),
+                    (.class // "unknown"),
+                    (.title // "(untitled)")
+                  ]
+                | @tsv
+            ' | awk -F '\t' '
+                {
+                    window_id = $1
+                    focused_marker = $2
+                    workspace_id = $3
+                    app_id = $4
+                    title = $5
+
+                    icon = app_id ",application-x-executable"
+                    if (app_id ~ /^brave-/) icon = "brave-browser,brave,web-browser"
+                    else if (app_id ~ /^chromium/) icon = "chromium-browser,chromium,web-browser"
+                    else if (app_id ~ /^dev\.zed\.Zed/) icon = "zed,dev.zed.Zed,dev.zed.Zed-Nightly,text-editor"
+                    else if (app_id == "com.mitchellh.ghostty") icon = "com.mitchellh.ghostty,ghostty,utilities-terminal"
+                    else if (app_id == "kitty") icon = "kitty,utilities-terminal"
+                    else if (app_id == "cursor") icon = "cursor,code,visual-studio-code,text-editor"
+
+                    printf "%s\t%s  WS %s  %-18s  %s\0icon\037%s\n", window_id, focused_marker, workspace_id, app_id, title, icon
+                }'
+        }
+
         # Main function
         main() {
             # Fuzzel shows only the pretty second column and returns the hidden window ID.
-            window_id=$(get_windows | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
+            if [[ -n "''${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+                window_id=$(get_hyprland_windows | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
+            else
+                window_id=$(get_niri_windows | fuzzel "''${FUZZEL_CONFIG[@]}" || true)
+            fi
             
             # Exit if nothing selected
             if [[ -z "$window_id" ]]; then
@@ -109,7 +148,11 @@
             
             # Focus the selected window
             if [[ -n "$window_id" ]]; then
-                niri msg action focus-window --id "$window_id"
+                if [[ -n "''${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+                    hyprctl dispatch focuswindow "address:$window_id"
+                else
+                    niri msg action focus-window --id "$window_id"
+                fi
             else
                 echo "Failed to extract window ID"
                 exit 1
@@ -125,7 +168,7 @@
             window-switcher [OPTIONS]
 
         DESCRIPTION:
-            A script to switch between open windows in niri using fuzzel for selection.
+            A script to switch between open windows in Niri or Hyprland using fuzzel.
             Shows all open windows across all workspaces with their titles, app IDs,
             and workspace information.
 
@@ -155,7 +198,7 @@
             • ESC to cancel without switching
 
         DEPENDENCIES:
-            • niri (window manager)
+            • niri or Hyprland (window manager)
             • fuzzel (for menu interface)
             • awk (text processing)
             • bash (shell)

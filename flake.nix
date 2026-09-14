@@ -61,6 +61,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    dank-greeter = {
+      url = "github:AvengeMedia/dank-greeter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # CachyOS-tuned kernels for NixOS. Following our nixpkgs because
     # Lantian's binary cache only holds the build deps (LLVM, patched
     # source) — never the final kernel — so the cache-hash argument

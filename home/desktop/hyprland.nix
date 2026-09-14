@@ -15,16 +15,25 @@ let
 
   # DMS Settings window: float + size to match the Niri equivalent.
   dmsWindowRules = lib.optionals useDms [
-    "float, class:^(org.quickshell)$, title:^(Settings)$"
-    "center, class:^(org.quickshell)$, title:^(Settings)$"
-    "size 1200 800, class:^(org.quickshell)$, title:^(Settings)$"
+    {
+      name = "dms_settings";
+      "match:class" = "^(org.quickshell)$";
+      "match:title" = "^(Settings)$";
+      float = true;
+      center = true;
+      size = "1200 800";
+    }
   ];
 
   # Frosted-glass on the DMS bar (matches niri layer-rule namespace=dms:bar).
   # DMS handles its own backdrop blur for popouts/control-center, so we only
   # need the compositor blur for the bar itself.
   dmsLayerRules = lib.optionals useDms [
-    "blur, dms:bar"
+    {
+      name = "dms_bar";
+      "match:namespace" = "dms:bar";
+      blur = true;
+    }
   ];
 
   powerMenuBind =
@@ -160,14 +169,17 @@ in
         };
       };
 
-      # General settings (Omarchy + Catppuccin)
+      # General settings (Omarchy + Catppuccin). Hyprland's native
+      # scrolling layout is a close match for Niri: each workspace is an
+      # unbounded tape of columns, and opening a window does not resize the
+      # existing columns.
       general = {
         gaps_in = 5;
         gaps_out = 10; # Omarchy style smaller outer gaps
         border_size = 2;
         "col.active_border" = "rgb(cdd6f4)"; # Catppuccin Mocha text
         "col.inactive_border" = "rgba(595959aa)";
-        layout = "master";
+        layout = "scrolling";
         allow_tearing = true;
         resize_on_border = false;
       };
@@ -211,7 +223,6 @@ in
 
       # Layout (Omarchy style)
       dwindle = {
-        pseudotile = true;
         preserve_split = true;
         force_split = 2; # Always split on the right
       };
@@ -220,82 +231,174 @@ in
         new_status = "master";
       };
 
+      # Match home/desktop/niri.nix: half-width columns, the same four width
+      # presets, new columns growing right, and no wrapping at a tape edge.
+      scrolling = {
+        fullscreen_on_one_column = true;
+        column_width = 0.5;
+        focus_fit_method = 1;
+        follow_focus = true;
+        follow_min_visible = 0.4;
+        explicit_column_widths = "0.25, 0.5, 0.75, 1.0";
+        wrap_focus = false;
+        wrap_swapcol = false;
+        direction = "right";
+      };
+
       misc = {
         disable_hyprland_logo = true;
         disable_splash_rendering = true;
         focus_on_activate = true;
-        # Memory optimization settings
-        vfr = true; # Variable refresh rate to reduce redraws
         vrr = 1; # Enable VRR if supported
       };
 
-      # Window rules (Omarchy transparency system)
-      windowrule = [
-        # Suppress maximize events
-        "suppressevent maximize, class:.*"
+      # Hyprland 0.55 moved VFR from misc to debug.
+      debug.vfr = true;
 
-        # Reduced opacity rules to minimize memory usage
-        # "opacity 0.97 0.9, class:.*"  # Disabled to reduce memory usage
+      # Hyprland 0.55 uses named v3 rules. Keeping them declarative fixes
+      # config verification while preserving the prior Omarchy/Niri behavior.
+      windowrule =
+        let
+          rules = {
+            suppress_maximize = {
+              "match:class" = ".*";
+              suppress_event = "maximize";
+            };
 
-        # Fix XWayland dragging issues
-        "nofocus,class:^$,title:^$,xwayland:1,floating:1,fullscreen:0,pinned:0"
+            xwayland_drag_helper = {
+              "match:class" = "^$";
+              "match:title" = "^$";
+              "match:xwayland" = "true";
+              "match:float" = "true";
+              "match:fullscreen" = "false";
+              "match:pin" = "false";
+              no_focus = true;
+            };
 
-        # System floating windows
-        "float, tag:floating-window"
-        "center, tag:floating-window"
-        "size 800 600, tag:floating-window"
+            floating_windows = {
+              "match:tag" = "floating-window";
+              float = true;
+              center = true;
+              size = "800 600";
+            };
 
-        # Fullscreen screensaver
-        "fullscreen, class:Screensaver"
+            screensaver = {
+              "match:class" = "Screensaver";
+              fullscreen = true;
+            };
 
-        # No transparency on media windows (Omarchy exact)
-        "opacity 1 1, class:^(zoom|vlc|mpv|org.kde.kdenlive|com.obsproject.Studio|com.github.PintaProject.Pinta|imv|org.gnome.NautilusPreviewer)$"
+            media_opaque = {
+              "match:class" =
+                "^(zoom|vlc|mpv|org[.]kde[.]kdenlive|com[.]obsproject[.]Studio|com[.]github[.]PintaProject[.]Pinta|imv|org[.]gnome[.]NautilusPreviewer)$";
+              opacity = "1 1";
+            };
 
-        # Force chromium-based browsers into tile mode
-        "tile, tag:chromium-based-browser"
+            chromium_tiled = {
+              "match:tag" = "chromium-based-browser";
+              tile = true;
+            };
+            chromium_opacity = {
+              "match:tag" = "chromium-based-browser";
+              opacity = "1 0.97";
+            };
+            firefox_opacity = {
+              "match:tag" = "firefox-based-browser";
+              opacity = "1 0.97";
+            };
+            video_opaque = {
+              "match:initial_title" = "(youtube[.]com_/|app[.]zoom[.]us_/wc/home)";
+              opacity = "1.0 1.0";
+            };
 
-        # Browser opacity - subtle transparency (Omarchy exact: focused 1.0, unfocused 0.97)
-        "opacity 1 0.97, tag:chromium-based-browser"
-        "opacity 1 0.97, tag:firefox-based-browser"
+            steam = {
+              "match:class" = "steam";
+              float = true;
+              opacity = "1 1";
+            };
+            steam_main = {
+              "match:class" = "steam";
+              "match:title" = "Steam";
+              center = true;
+              size = "1100 700";
+            };
+            steam_friends = {
+              "match:class" = "steam";
+              "match:title" = "Friends List";
+              size = "460 800";
+            };
 
-        # Video sites should never have opacity applied (Omarchy exact)
-        "opacity 1.0 1.0, initialTitle:(youtube\\.com_/|app\\.zoom\\.us_/wc/home)"
+            bitwarden = {
+              "match:class" = "Bitwarden";
+              float = true;
+              center = true;
+              size = "1000 700";
+            };
+            hidden_parallels_clipboard = {
+              "match:title" = "Parallels Shared Clipboard";
+              workspace = "special:hidden";
+            };
 
-        # Steam rules
-        "float, class:steam"
-        "center, class:steam, title:Steam"
-        "opacity 1 1, class:steam"
-        "size 1100 700, class:steam, title:Steam"
-        "size 460 800, class:steam, title:Friends List"
+            bitwarden_extension = {
+              "match:title" = "^(Extension: [(]Bitwarden Password Manager[)] - Bitwarden — Mozilla Firefox)$";
+              float = true;
+              center = true;
+            };
+            main_picker = {
+              "match:title" = "^(MainPicker)$";
+              float = true;
+              center = true;
+            };
 
-        # Bitwarden standalone app
-        "float, class:Bitwarden"
-        "center, class:Bitwarden"
-        "size 1000 700, class:Bitwarden"
-
-        # Hide Parallels Shared Clipboard window
-        "workspace special:hidden, title:Parallels Shared Clipboard"
-      ];
-
-      windowrulev2 = [
-        # Float+center Firefox Bitwarden extension window by title
-        "float, title:^(Extension: \(Bitwarden Password Manager\) - Bitwarden — Mozilla Firefox)$"
-        "center, title:^(Extension: \(Bitwarden Password Manager\) - Bitwarden — Mozilla Firefox)$"
-        # Float MainPicker window
-        "float, title:^(MainPicker)$"
-        "center, title:^(MainPicker)$"
-        # Tag assignments
-        "tag +floating-window, class:(blueberry.py|Impala|Wiremix|org.gnome.NautilusPreviewer|com.gabm.satty|Omarchy|About|TUI.float)"
-        "tag +floating-window, class:(xdg-desktop-portal-gtk|sublime_text|DesktopEditors), title:^(Open.*Files?|Save.*Files?|Save.*As|All Files|Save)"
-        "tag +chromium-based-browser, class:([cC]hrom(e|ium)|[bB]rave-browser|Microsoft-edge|Vivaldi-stable)"
-        "tag +firefox-based-browser, class:(Firefox|librewolf)"
-
-        # Audio controls
-        "float, class:^(org.pulseaudio.pavucontrol)$"
-        "center, class:^(org.pulseaudio.pavucontrol)$"
-        "size 800 600, class:^(org.pulseaudio.pavucontrol)$"
-      ]
-      ++ dmsWindowRules;
+            floating_window_tag = {
+              "match:class" =
+                "(blueberry[.]py|Impala|Wiremix|org[.]gnome[.]NautilusPreviewer|com[.]gabm[.]satty|Omarchy|About|TUI[.]float)";
+              tag = "+floating-window";
+            };
+            file_dialog_tag = {
+              "match:class" = "(xdg-desktop-portal-gtk|sublime_text|DesktopEditors)";
+              "match:title" = "^(Open.*Files?|Save.*Files?|Save.*As|All Files|Save)";
+              tag = "+floating-window";
+            };
+            chromium_tag = {
+              "match:class" = "([cC]hrom(e|ium)|[bB]rave-browser|Microsoft-edge|Vivaldi-stable)";
+              tag = "+chromium-based-browser";
+            };
+            firefox_tag = {
+              "match:class" = "(Firefox|librewolf)";
+              tag = "+firefox-based-browser";
+            };
+            pavucontrol = {
+              "match:class" = "^(org[.]pulseaudio[.]pavucontrol)$";
+              float = true;
+              center = true;
+              size = "800 600";
+            };
+          };
+        in
+        map (name: { inherit name; } // rules.${name}) [
+          "suppress_maximize"
+          "xwayland_drag_helper"
+          "floating_window_tag"
+          "file_dialog_tag"
+          "chromium_tag"
+          "firefox_tag"
+          "floating_windows"
+          "screensaver"
+          "media_opaque"
+          "chromium_tiled"
+          "chromium_opacity"
+          "firefox_opacity"
+          "video_opaque"
+          "steam"
+          "steam_main"
+          "steam_friends"
+          "bitwarden"
+          "hidden_parallels_clipboard"
+          "bitwarden_extension"
+          "main_picker"
+          "pavucontrol"
+        ]
+        ++ dmsWindowRules;
 
       # Layer-shell rules. Currently only used to apply blur to the DMS
       # bar — DMS handles its own backdrop blur for popouts/modals.
@@ -332,15 +435,14 @@ in
         "$mainMod, F, fullscreen, 1"
         "$mainMod, V, togglefloating,"
 
-        # Focus (arrows + hjkl). Hyprland's movefocus already falls
-        # through to neighbour monitors at workspace edges, matching
-        # niri's focus-column-or-monitor-* semantics.
-        "$mainMod, left, movefocus, l"
-        "$mainMod, right, movefocus, r"
+        # Focus (arrows + hjkl). `layoutmsg focus` follows the horizontal
+        # tape and brings the selected column into view.
+        "$mainMod, left, layoutmsg, focus l"
+        "$mainMod, right, layoutmsg, focus r"
         "$mainMod, up, movefocus, u"
         "$mainMod, down, movefocus, d"
-        "$mainMod, h, movefocus, l"
-        "$mainMod, l, movefocus, r"
+        "$mainMod, h, layoutmsg, focus l"
+        "$mainMod, l, layoutmsg, focus r"
         "$mainMod, k, movefocus, u"
         "$mainMod, j, movefocus, d"
 
@@ -348,21 +450,21 @@ in
         # is a group (tabbed stack of windows in one slot).
         "$mainMod, c, togglegroup,"
 
-        # Move windows (arrows + hjkl). Niri move-column-*-or-to-
-        # monitor-* → Hyprland swapwindow with monitor edge wrap.
-        "$mainMod SHIFT, left, swapwindow, l"
-        "$mainMod SHIFT, right, swapwindow, r"
+        # Niri moves whole columns left and right. The scrolling layout's
+        # `swapcol` retains that behavior instead of moving one window.
+        "$mainMod SHIFT, left, layoutmsg, swapcol l"
+        "$mainMod SHIFT, right, layoutmsg, swapcol r"
         "$mainMod SHIFT, up, swapwindow, u"
         "$mainMod SHIFT, down, swapwindow, d"
-        "$mainMod SHIFT, h, swapwindow, l"
-        "$mainMod SHIFT, l, swapwindow, r"
+        "$mainMod SHIFT, h, layoutmsg, swapcol l"
+        "$mainMod SHIFT, l, layoutmsg, swapcol r"
         "$mainMod SHIFT, k, swapwindow, u"
         "$mainMod SHIFT, j, swapwindow, d"
 
-        # Niri consume/expel-window-left/right. Hyprland approximation:
-        # pull the window into a group (left) or pop it out (right).
-        "$mainMod, bracketleft, moveintogroup, l"
-        "$mainMod, bracketright, moveoutofgroup,"
+        # Niri consume-or-expel-window-left/right maps directly to the
+        # scrolling layout rather than Hyprland's unrelated tab groups.
+        "$mainMod, bracketleft, layoutmsg, consume_or_expel prev"
+        "$mainMod, bracketright, layoutmsg, consume_or_expel next"
 
         # Multi-monitor (arrows only — Mod+Ctrl+L collides with lock).
         "$mainMod CTRL, left, focusmonitor, l"
@@ -401,12 +503,11 @@ in
         "$mainMod, Tab, workspace, e+1"
         "$mainMod SHIFT, Tab, workspace, e-1"
 
-        # Column width / window height. Niri set-column-width ±100 and
-        # set-window-height ±100 → Hyprland resizeactive on the X / Y
-        # axis. (Niri Mod+R switch-preset-column-width has no native
-        # Hyprland equivalent and is intentionally left unbound.)
-        "$mainMod, minus, resizeactive, -100 0"
-        "$mainMod, equal, resizeactive, 100 0"
+        # The scrolling layout has Niri's preset-width cycle natively. A
+        # 0.05 proportion step is roughly 100–150 logical pixels here.
+        "$mainMod, R, layoutmsg, colresize +conf"
+        "$mainMod, minus, layoutmsg, colresize -0.05"
+        "$mainMod, equal, layoutmsg, colresize +0.05"
         "$mainMod SHIFT, minus, resizeactive, 0 -100"
         "$mainMod SHIFT, equal, resizeactive, 0 100"
 
@@ -414,6 +515,9 @@ in
         # native overlay); Hyprland uses the hyprshot-based script.
         "$mainMod SHIFT, S, exec, screenshot"
         "$mainMod SHIFT, F, exec, screenshot output"
+
+        # Same fullscreen cmatrix screensaver toggle as the Niri session.
+        "$mainMod CTRL, S, exec, screensaver"
 
         # Notifications
         "$mainMod, semicolon, exec, makoctl restore"

@@ -287,7 +287,9 @@ in
         # Bootstrap missing CLIs, but never upgrade them during activation.
         # `update-npm-ai-tools` performs intentional updates outside a
         # rebuild, avoiding network failures and npm staging collisions.
-        if ! command -v codex &> /dev/null; then
+        # The Nix-managed Codex launcher can exist before npm bootstrap.
+        # Check its real target so the launcher cannot mask a missing CLI.
+        if [[ ! -x "$NPM_CONFIG_PREFIX/bin/codex" ]]; then
           echo "Installing OpenAI Codex CLI..."
           ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
         fi
