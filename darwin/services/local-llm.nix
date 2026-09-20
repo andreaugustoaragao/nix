@@ -2,9 +2,9 @@
   config,
   pkgs,
   lib,
-  # Shared nixpkgs-llama instance from flake.nix specialArgs. Same
-  # instance is used in home/services/local-llm.nix so both hosts ship
-  # the same binary semantics; only the GPU backend differs.
+  inputs,
+  # Reuse the pinned nixpkgs llama.cpp derivation, replacing only its
+  # source with PrismML's fork on Darwin. Linux keeps upstream llama.cpp.
   llama-pkgs,
   owner,
   homePrefix,
@@ -12,25 +12,25 @@
 }:
 
 let
-  # No override here: nixpkgs builds llama.cpp with Metal acceleration
-  # by default on Darwin. The workstation derivation passes
-  # `rocmSupport = true` because its AMD GPU needs explicit ROCm
-  # wiring; Apple Silicon needs no equivalent toggle.
-  llama-cpp-metal = llama-pkgs.llama-cpp;
+  # Bonsai's PQ2_0 tensors and Hadamard activation transform are only
+  # implemented by PrismML's fork. Keep using nixpkgs' Darwin build
+  # recipe so Metal and Accelerate are configured in the usual way.
+  llama-cpp-metal = llama-pkgs.llama-cpp.overrideAttrs (_oldAttrs: {
+    pname = "llama-cpp-prism";
+    version = "10709";
+    src = inputs.prism-llama;
+    npmDepsHash = "sha256-2Q7XhaLAArmviOLdQsNbYTfdyDE5pW9lR26cRHEVl9k=";
+  });
 
-  # M5 Max + 128 GB unified memory has none of the 16 GB-VRAM
-  # constraints that forced Q4 on workstation. Bump to Q8_K_XL of
-  # the same MoE — ~38 GB resident, near-FP16 quality at half the
-  # size, KV cache @196k still fits comfortably. The alias is
-  # deliberately distinct from workstation's `qwen3.6-35b-a3b-local`
-  # so pi conversation history makes it clear which quant served
-  # any given turn (workstation = Q4, mac-work = Q8).
+  # PQ2_0 is PrismML's preferred Apple-Silicon packing. It is slightly
+  # larger than PTQ1_0 but has cheaper unpacking and is the variant for
+  # which PrismML publishes M5 Max Metal results.
   model = {
-    id = "qwen3.6-35b-a3b-q8-local";
-    name = "Qwen3.6 35B A3B Local (Q8)";
-    repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
-    file = "Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf";
-    contextWindow = 196608;
+    id = "bonsai-2-27b-local";
+    name = "Bonsai 2 27B Local (PQ2_0)";
+    repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
+    file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
+    contextWindow = 262144;
     maxTokens = 8192;
   };
 
@@ -64,7 +64,7 @@ let
       exit 0
     fi
     mkdir -p ${lib.escapeShellArg modelDir}
-    echo "Downloading ${model.name} (~22GB) -> ${modelPath}"
+    echo "Downloading ${model.name} (~7.2GB) -> ${modelPath}"
     ${pkgs.curl}/bin/curl \
       --location \
       --fail \
@@ -74,34 +74,10 @@ let
     mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
   '';
 
-  # Flags here are tuned for Metal on Apple Silicon (M5 Max, 128 GB
-  # unified memory) and intentionally diverge from the workstation's
-  # ROCm flags in home/services/local-llm.nix. Two notable choices:
-  #
-  # 1. KV cache stays at default f16 — NOT q8_0 like the workstation.
-  #    The workstation quantizes KV because its 16 GB VRAM can't hold
-  #    fp16 KV at 196k context; here there's ~18 GiB headroom even
-  #    after the 36 GiB Q8 weights, and Metal's flash-attn path is
-  #    well-optimized for fp16. Benchmarked on M5 Max with this exact
-  #    GGUF + MTP speculative decoding: at depth=24k input,
-  #    f16 KV decodes ~21% faster than q8_0 KV (34.8 vs 28.8 tok/s)
-  #    and prefills ~20% faster (524 vs 437 tok/s). q8_0 KV is a
-  #    VRAM-pressure workaround, not a perf optimization.
-  #
-  # 2. ubatch-size = batch-size = 2048 — Metal benefits from one big
-  #    ubatch per prefill chunk. Pairing must be done together: the
-  #    benchmark showed ub=2048 with q8 KV actually regresses ~10%
-  #    (mixed dequant paths fight the larger kernels), but f16 KV +
-  #    ub=2048 is the global optimum across both shallow and deep
-  #    prompts. Workstation keeps ub=1024 because its smaller VRAM
-  #    can't comfortably hold the larger activation buffer alongside
-  #    the offloaded MoE experts.
-  #
-  # Threads pinned to 6 = M5 Max P-core count (`hw.perflevel0.physicalcpu`).
-  # With --n-gpu-layers 99 the heavy ops are on Metal, but the few
-  # CPU-resident ops (sampling, tokenization, MTP draft scoring) run
-  # faster on P-cores than the default mixed P+E pool. Explicit pin
-  # also stabilizes results across macOS scheduler changes.
+  # PrismML's published Metal invocation uses full GPU offload and flash
+  # attention. Keep the existing large prefill batches and six P-core
+  # worker threads; unlike the old Qwen MTP model, Bonsai has no embedded
+  # draft head, so speculative-decoding flags must not be passed.
   startScript = pkgs.writeShellScript "local-llm-start" ''
     set -euo pipefail
     ${ensureModel}
@@ -118,8 +94,7 @@ let
       --threads 6 \
       --parallel 1 \
       --cont-batching \
-      --spec-type draft-mtp \
-      --spec-draft-n-max 3
+      --jinja
   '';
 in
 {
@@ -144,7 +119,7 @@ in
   # to ~/.local/share/llm/models/. Mirrors the workstation pattern
   # where `local-llm.service` is a systemd --user unit.
   #
-  # The first activation kicks off a ~22GB model download via curl
+  # The first activation kicks off a ~7.2GB model download via curl
   # --continue-at -; subsequent starts are instant. launchd will
   # restart the agent on crash; ThrottleInterval=30s prevents a tight
   # loop if `bindHost` isn't up (e.g. Parallels not yet initialized

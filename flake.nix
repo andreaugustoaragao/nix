@@ -13,6 +13,13 @@
     # branch catches up past b9190 — at that point home/services/local-llm.nix
     # can switch back to using `unstable-pkgs.llama-cpp`.
     nixpkgs-llama.url = "github:NixOS/nixpkgs/dea49413a4cf3be31dc2afb836a90eeee4a5d3c2";
+    # PrismML's llama.cpp fork adds the PQ2_0 ternary kernels required by
+    # Bonsai 2. Pin the exact tested release; upstream llama.cpp cannot
+    # load this model format.
+    prism-llama = {
+      url = "github:PrismML-Eng/llama.cpp/prism-b10709-9a9394a";
+      flake = false;
+    };
     # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
     # version 48.x. GNOME 49 added a hard requirement on
     # org.gnome.Mutter.ServiceChannel that the niri 26.04 in nixpkgs

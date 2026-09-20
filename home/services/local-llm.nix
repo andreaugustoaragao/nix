@@ -11,13 +11,11 @@
 }:
 
 let
-  # Model identity differs per host because the quant does:
+  # Model identity differs per server:
   #   - workstation (16 GB VRAM, ROCm): forced into Q4_K_XL by
   #     `--n-cpu-moe 28`. Alias `qwen3.6-35b-a3b-local`.
-  #   - dev VMs (client → mac-work, 128 GB unified memory): Q8_K_XL
-  #     of the same MoE, near-FP16 quality. Alias
-  #     `qwen3.6-35b-a3b-q8-local`, kept distinct so pi history
-  #     reflects which quant served a turn.
+  #   - dev VMs (client → mac-work): PrismML Bonsai 2 27B PQ2_0,
+  #     served by the forked Metal backend in darwin/services/local-llm.nix.
   # The `repo`/`file` fields are only consulted on the server side
   # (workstation systemd unit + download script); VM clients only
   # care about `id`, `contextWindow`, `maxTokens` for models.json.
@@ -33,11 +31,11 @@ let
       }
     else
       {
-        id = "qwen3.6-35b-a3b-q8-local";
-        name = "Qwen3.6 35B A3B Local (Q8)";
-        repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
-        file = "Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf";
-        contextWindow = 196608;
+        id = "bonsai-2-27b-local";
+        name = "Bonsai 2 27B Local (PQ2_0)";
+        repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
+        file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
+        contextWindow = 262144;
         maxTokens = 8192;
       };
 
@@ -166,7 +164,7 @@ in
         # bare `pi`. Use Ctrl+P / Shift+Ctrl+P inside the session to
         # cycle to the local model (its qualified ID is included in
         # services.piModels.enabledModels via home/cli/pi.nix). Pass
-        # --model 'llama-cpp/qwen3.6-35b-a3b-*' if you want to start
+        # --model 'llama-cpp/*-local' if you want to start
         # pinned to local instead of cycling there manually.
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}

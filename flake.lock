@@ -333,6 +333,23 @@
         "type": "github"
       }
     },
+    "prism-llama": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789770275,
+        "narHash": "sha256-KDecY+v9S/193mLGse5EsJPugZR1wxWzOlOU7GuMd5Y=",
+        "owner": "PrismML-Eng",
+        "repo": "llama.cpp",
+        "rev": "9a9394a895b96003ca842a6041cb28ac49a108f7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "PrismML-Eng",
+        "ref": "prism-b10709-9a9394a",
+        "repo": "llama.cpp",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "cachyos-kernel": "cachyos-kernel",
@@ -347,6 +364,7 @@
         "nixpkgs-gnome48": "nixpkgs-gnome48",
         "nixpkgs-llama": "nixpkgs-llama",
         "nixpkgs-unstable": "nixpkgs-unstable",
+        "prism-llama": "prism-llama",
         "sops-nix": "sops-nix"
       }
     },
