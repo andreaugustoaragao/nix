@@ -44,7 +44,10 @@ let
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
     mkdir -p "$NPM_CONFIG_PREFIX/bin"
     export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
-    ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest @earendil-works/pi-coding-agent@latest
+    ${pkgs.nodejs_22}/bin/npm install -g \
+      @openai/codex@latest \
+      @earendil-works/pi-coding-agent@latest \
+      @xai-official/grok@latest
   '';
 
   # Script to install goplay (Go Playground client) via go install
@@ -201,7 +204,7 @@ in
         install-qwen-code # Script to install Qwen Code CLI tool
         install-gemini-cli # Script to install Google Gemini CLI
         install-pi-coding-agent # Script to install Pi coding agent
-        update-npm-ai-tools # Explicit updater for Codex + Pi
+        update-npm-ai-tools # Explicit updater for Codex + Pi + Grok Build
       ]
       ++ [
         unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
@@ -297,6 +300,11 @@ in
         if ! command -v pi &> /dev/null; then
           echo "Installing Pi coding agent..."
           ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
+        fi
+
+        if [[ ! -x "$NPM_CONFIG_PREFIX/bin/grok" ]]; then
+          echo "Installing xAI Grok Build CLI..."
+          ${pkgs.nodejs_22}/bin/npm install -g @xai-official/grok@latest
         fi
       '';
 

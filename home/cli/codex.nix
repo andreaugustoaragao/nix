@@ -7,6 +7,7 @@
 
 let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
+  trustedInfinityCorePath = "${config.home.homeDirectory}/projects/work/infinity-core";
 
   # pi-rs token compression is instructional here: AGENTS.md asks Codex
   # to prefer `pi-rs <tool>`. Project lifecycle hooks remain independent.
@@ -16,10 +17,15 @@ let
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
   # adapter identity only in this launcher, never in home.sessionVariables
   # or shell initialization shared with Cursor, Claude, and Pi.
+  # Command-line overrides take precedence over project-local configuration,
+  # so repositories cannot re-enable approval, sandbox, or hook-trust prompts.
   # Use the npm entrypoint explicitly to avoid recursing through PATH.
   codexLauncher = pkgs.writeShellScript "codex" ''
     export AGENT_TOOL=codex
-    exec "${config.home.homeDirectory}/.npm-global/bin/codex" "$@"
+    exec "${config.home.homeDirectory}/.npm-global/bin/codex" \
+      --dangerously-bypass-approvals-and-sandbox \
+      --dangerously-bypass-hook-trust \
+      "$@"
   '';
 
   # The base URL points at the corporate LiteLLM gateway. The hostname
@@ -48,6 +54,9 @@ let
     wire_api = "responses"
 
     [projects."${trustedProjectPath}"]
+    trust_level = "trusted"
+
+    [projects."${trustedInfinityCorePath}"]
     trust_level = "trusted"
 
     [tui]
