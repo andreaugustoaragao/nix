@@ -95,6 +95,7 @@ homebrewCasks = [
     "vscodium",
     "cursor",
     "zed",
+    "grok-bot",
     # Notes / secrets / chat — matches Linux home.packages.
     "obsidian",
     "bitwarden",

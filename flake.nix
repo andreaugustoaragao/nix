@@ -245,8 +245,9 @@
               nixpkgs.overlays = [
                 claude-code.overlays.default
                 # See nixpkgs-gnome48 input above for the why.
-                (_final: _prev: {
+                (_final: prev: {
                   inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
+                  grok-bot = prev.callPackage ./pkgs/grok-bot.nix { };
                 })
               ];
             }

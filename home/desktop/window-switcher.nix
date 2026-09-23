@@ -62,6 +62,7 @@
                 else if (app_id == "com.mitchellh.ghostty") icon = "com.mitchellh.ghostty,ghostty,utilities-terminal"
                 else if (app_id == "kitty") icon = "kitty,utilities-terminal"
                 else if (app_id == "cursor") icon = "cursor,code,visual-studio-code,text-editor"
+                else if (app_id == "grok-bot") icon = "grok-bot,application-x-executable"
 
                 focused_marker = is_focused ? "●" : " "
                 printf "%s\t%s  WS %s  %-18s  %s\0icon\037%s\n", window_id, focused_marker, workspace_id, app_id, title, icon
@@ -127,6 +128,7 @@
                     else if (app_id == "com.mitchellh.ghostty") icon = "com.mitchellh.ghostty,ghostty,utilities-terminal"
                     else if (app_id == "kitty") icon = "kitty,utilities-terminal"
                     else if (app_id == "cursor") icon = "cursor,code,visual-studio-code,text-editor"
+                else if (app_id == "grok-bot") icon = "grok-bot,application-x-executable"
 
                     printf "%s\t%s  WS %s  %-18s  %s\0icon\037%s\n", window_id, focused_marker, workspace_id, app_id, title, icon
                 }'

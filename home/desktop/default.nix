@@ -40,6 +40,7 @@
     ./qutebrowser.nix
     ./vscode.nix
     ./zed.nix
+    ./grok-bot.nix
     ./waybar.nix
     ./eww.nix
     ./wallpapers.nix
@@ -87,6 +88,7 @@
       freelens-bin
 
       # Video-related packages
+      snapshot
       mpv
       obs-studio
       obs-studio-plugins.advanced-scene-switcher

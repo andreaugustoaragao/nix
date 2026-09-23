@@ -105,6 +105,7 @@ in
             black # Python code formatter
             isort # Python import sorter
             flake8 # Python style checker
+            pyyaml # YAML parsing for Python tools and skill validation
             python-pptx # PowerPoint file creation/manipulation
           ]
         ))
