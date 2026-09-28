@@ -2,11 +2,11 @@
 
 # AC power policy for mac-work.
 #
-# Goal: keep the Mac awake whenever it's plugged in, so the
-# development VM (Parallels) — which hosts an agent reachable
-# remotely over Telegram and Matrix — stays responsive while the lid
-# is closed or the office is empty. Display sleep is fine; only
-# system sleep on AC is disabled.
+# Goal: keep the Mac awake on AC so the development VM (Parallels)
+# — which hosts an agent reachable remotely over Telegram and
+# Matrix — stays responsive with the lid closed. Only idle system
+# sleep is disabled here. Displays and the session lock follow the
+# 08:00–18:00 schedule in darwin/caffeinate.nix.
 #
 # Battery behavior is intentionally left untouched. Stock macOS
 # defaults (sleep ~1 min, displaysleep ~2 min) keep the laptop from

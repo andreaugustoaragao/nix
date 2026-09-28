@@ -7,6 +7,7 @@
   # decoding). See the nixpkgs-llama input comment in flake.nix.
   llama-pkgs,
   isWorkstation,
+  isDarwinHost ? false,
   ...
 }:
 
@@ -39,11 +40,17 @@ let
         maxTokens = 8192;
       };
 
-  # Where the OpenAI-compat API lives from this host's POV.
-  # workstation runs llama-server itself; VM hosts reach the mac-work
-  # LaunchAgent (darwin/services/local-llm.nix) over the Parallels
-  # shared network via mDNS.
-  baseUrl = if isWorkstation then "http://127.0.0.1:8080/v1" else "http://mac-work.local:8080/v1";
+  # Where the OpenAI-compat API lives from this host's POV. mac-work's
+  # LaunchAgent intentionally binds only the Parallels bridge address:
+  # VMs reach it through mDNS, while mac-work itself reaches that same
+  # local interface directly.
+  baseUrl =
+    if isWorkstation then
+      "http://127.0.0.1:8080/v1"
+    else if isDarwinHost then
+      "http://10.211.55.2:8080/v1"
+    else
+      "http://mac-work.local:8080/v1";
 
   # ===== Workstation-only: locally-built llama.cpp + systemd service =====
 
@@ -67,9 +74,8 @@ let
 
   # Probe / start helper shared by `local-pi` and `local-qwen-code`.
   # On workstation this kicks the local systemd user service and polls
-  # 127.0.0.1; on VM hosts it just probes mac-work.local and bails
-  # loudly if the Mac-side LaunchAgent isn't healthy — no point in
-  # exec'ing `pi` against a black hole.
+  # 127.0.0.1. mac-work and VM hosts probe its LaunchAgent; VM failures
+  # include remote diagnostics because the server runs on mac-work.
   ensureLocalLlm =
     if isWorkstation then
       ''
@@ -103,10 +109,19 @@ let
         set -euo pipefail
 
         if ! ${pkgs.curl}/bin/curl -fsS --max-time 3 ${baseUrl}/models >/dev/null 2>&1; then
-          echo "Remote LLM at ${baseUrl} is unreachable." >&2
-          echo "Check mac-work's LaunchAgent:" >&2
-          echo "  ssh mac-work.local 'launchctl print gui/\$(id -u)/net.faragao.local-llm'" >&2
-          echo "  ssh mac-work.local 'tail -n 50 /tmp/local-llm.err'" >&2
+          echo "Local LLM at ${baseUrl} is unreachable." >&2
+          ${
+            if isDarwinHost then
+              ''
+                echo "Check: local-llm-logs" >&2
+              ''
+            else
+              ''
+                echo "Check mac-work's LaunchAgent:" >&2
+                echo "  ssh mac-work.local 'launchctl print gui/\$(id -u)/net.faragao.local-llm'" >&2
+                echo "  ssh mac-work.local 'tail -n 50 /tmp/local-llm.err'" >&2
+              ''
+          }
           exit 1
         fi
       '';
@@ -156,19 +171,16 @@ in
         '')
       ]
       # Client wrappers ship everywhere — same name, same UX, just a
-      # different baseUrl baked in. Keeps muscle memory portable
-      # between workstation and dev VMs.
+      # different baseUrl baked in. Keeps muscle memory portable between
+      # workstation, mac-work, and dev VMs.
       ++ [
-        # Health-check wrapper: probe the local llama.cpp server (or
-        # mac-work LaunchAgent on VM hosts) for readiness, then exec
-        # bare `pi`. Use Ctrl+P / Shift+Ctrl+P inside the session to
-        # cycle to the local model (its qualified ID is included in
-        # services.piModels.enabledModels via home/cli/pi.nix). Pass
-        # --model 'llama-cpp/*-local' if you want to start
-        # pinned to local instead of cycling there manually.
+        # Health-check the local llama.cpp server (or mac-work LaunchAgent),
+        # then explicitly select this host's local model. Launching bare pi
+        # can fall back to the last cloud model when its persisted scope is
+        # stale, which defeats the purpose of this wrapper.
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}
-          exec pi "$@"
+          exec pi --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
         '')
         (pkgs.writeShellScriptBin "local-qwen-code" ''
           ${ensureLocalLlm}

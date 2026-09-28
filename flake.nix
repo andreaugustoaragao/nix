@@ -281,6 +281,27 @@
                 {
                   nixpkgs.overlays = [
                     claude-code.overlays.default
+                    # edencommon runs its test executables during the build
+                    # to discover GoogleTest cases. The upstream nixpkgs
+                    # package already raises the 5-second timeout on Intel
+                    # Darwin; Apple Silicon needs the same patch.
+                    (_final: prev: {
+                      edencommon = prev.edencommon.overrideAttrs (oldAttrs: {
+                        patches = (oldAttrs.patches or [ ]) ++ [
+                          (inputs.nixpkgs + "/pkgs/by-name/ed/edencommon/increase-test-discovery-timeout.patch")
+                        ];
+                      });
+                      # Importing FastMCP can exceed this regression test's
+                      # 60-second subprocess timeout on a loaded Darwin host.
+                      # Keep the test enabled, but give it enough time to
+                      # verify the non-UTF-8 dotenv behavior.
+                      mcp-nixos = prev.mcp-nixos.overrideAttrs (oldAttrs: {
+                        postPatch = (oldAttrs.postPatch or "") + ''
+                          substituteInPlace tests/test_env_file_safety.py \
+                            --replace-fail 'timeout=60,' 'timeout=180,'
+                        '';
+                      });
+                    })
                   ];
                 }
                 ./darwin

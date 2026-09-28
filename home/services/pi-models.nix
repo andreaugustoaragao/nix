@@ -110,13 +110,35 @@ in
       else
         existing='{}'
       fi
+
+      # Replace the retired per-quant Qwen pattern in existing settings.
+      # Unlike initial seeding below, this is a targeted, idempotent
+      # migration and preserves all user-managed scope entries and thinking
+      # levels. It handles both pi's string and rich object representations.
+      existing="$(
+        printf '%s' "$existing" | ${pkgs.jq}/bin/jq \
+          --arg old 'llama-cpp/qwen3.6-35b-a3b-*' \
+          --arg new 'llama-cpp/*-local' \
+          'if .enabledModels? != null then
+             .enabledModels |= map(
+               if type == "string" and . == $old then $new
+               elif type == "object" and (.model? == $old) then .model = $new
+               else .
+               end
+             )
+           else .
+           end'
+      )"
+
       if ! printf '%s' "$existing" | ${pkgs.jq}/bin/jq -e '.enabledModels' >/dev/null 2>&1; then
-        printf '%s' "$existing" \
-          | ${pkgs.jq}/bin/jq --argjson em "$enabled_models" '. + {enabledModels: $em}' \
-          > "$target_settings.tmp"
-        mv "$target_settings.tmp" "$target_settings"
-        chmod 0600 "$target_settings"
+        existing="$(
+          printf '%s' "$existing" \
+            | ${pkgs.jq}/bin/jq --argjson em "$enabled_models" '. + {enabledModels: $em}'
+        )"
       fi
+      printf '%s' "$existing" > "$target_settings.tmp"
+      mv "$target_settings.tmp" "$target_settings"
+      chmod 0600 "$target_settings"
     '';
   };
 }
