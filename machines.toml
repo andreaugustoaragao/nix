@@ -89,6 +89,8 @@ homebrewCasks = [
     "raycast",
     "aerospace",
     "brave-browser",
+    # Homebrew disabled this cask on 2026-09-01 (Gatekeeper). It is
+    # already installed, so bundle skips it; a fresh install will fail.
     "chromium",
     # Editors mirroring the Linux home/desktop/{vscode,zed}.nix set.
     "visual-studio-code",
@@ -109,15 +111,12 @@ homebrewCasks = [
     # Extra browsers used on Linux; Brave + Chromium already covered above.
     "firefox",
     "google-chrome",
-    # Containers / Linux VMs. Replaces the podman-compose role from the Linux side
-    # without the weight of Docker Desktop.
-    "orbstack",
     # macOS-only quality-of-life — fill roles the Linux waybar/desktop config covers natively.
     "stats",     # menu-bar CPU/RAM/network/temperature widget; waybar analog
     "maccy",     # clipboard history manager (no equivalent in either OS config currently)
     "hiddenbar", # collapse-arrow for the menu bar; tames growing menu-bar icon collection
 ]
 homebrewBrews = [
-    "borders",                   # JankyBorders — focused-window outline daemon (FelixKratz/formulae tap)
+    "FelixKratz/formulae/borders", # JankyBorders — focused-window outline daemon
     "sadiksaifi/tap/mac-menu",   # Native Swift stdin/stdout fuzzy picker; choose-gui replacement with correct Esc behavior
 ]

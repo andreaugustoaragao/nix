@@ -13,29 +13,36 @@
     enable = true;
 
     onActivation = {
-      autoUpdate = false; # don't slow down rebuilds
+      # The cask catalog and the brew binary have to move together.
+      # Freezing updates left Homebrew 5.1.12 reading a catalog that
+      # uses `command_wrapper` and structured `run` steps, which aborted
+      # the bundle on chromium, firefox, and orbstack. Homebrew only
+      # auto-updates when the last fetch is older than a day.
+      autoUpdate = true;
       upgrade = true;
-      # nix-darwin-26.05 still emits `--force-cleanup` when cleanup is
-      # "uninstall" or "zap". Current Homebrew dropped that flag
-      # (`Error: invalid option: --force-cleanup`) and restored
-      # `--cleanup` / `--zap` on `brew bundle`. Keep nix-darwin's
-      # cleanup enum at "none" and pass the live flags ourselves until
-      # nix-darwin-26.05 catches up.
-      cleanup = "none";
-      extraFlags = [
-        "--cleanup"
-        "--zap"
-      ];
+      # Homebrew 7 disabled `brew bundle --cleanup` ("no replacement")
+      # and expects `--force-cleanup` again, which is what nix-darwin
+      # emits for cleanup = "zap" (along with `--zap`).
+      cleanup = "zap";
     };
 
-    # Third-party taps. AeroSpace is shipped from its author's tap
-    # rather than homebrew-cask. nix-darwin runs `brew tap` for each
-    # of these on activation, so the casks below can reference them
-    # without fully-qualified names.
+    # Third-party taps. nix-darwin runs `brew tap` for each of these on
+    # activation. Homebrew 7 will not load them until they are trusted,
+    # and `brew bundle --force-cleanup` resets the trust store to whatever
+    # the Brewfile declares, so the trust has to live here.
     taps = [
-      "nikitabobko/tap" # aerospace tiling window manager
-      "FelixKratz/formulae" # JankyBorders (focused-window outline daemon)
-      "sadiksaifi/tap" # mac-menu (native Swift fuzzy picker, dmenu/fuzzel shape)
+      {
+        name = "nikitabobko/tap"; # aerospace tiling window manager
+        trusted = true;
+      }
+      {
+        name = "FelixKratz/formulae"; # JankyBorders (focused-window outline daemon)
+        trusted = true;
+      }
+      {
+        name = "sadiksaifi/tap"; # mac-menu (native Swift fuzzy picker, dmenu/fuzzel shape)
+        trusted = true;
+      }
     ];
 
     # Formulae and casks come from machines.toml so the Linux side of
