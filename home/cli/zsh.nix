@@ -17,6 +17,12 @@ in
           xterm-kitty|xterm-ghostty|ghostty) export TERM=xterm-256color ;;
         esac
       fi
+
+      # Cursor's agent shell ends every `zsh -c` with `dump_zsh_state >&4`
+      # and does not define the function. .zshenv is the file those
+      # non-interactive shells still read. Without this, each command
+      # prints "command not found: dump_zsh_state".
+      source ${./dump-zsh-state.zsh}
     '';
 
     # On Darwin, Homebrew installs to /opt/homebrew (Apple Silicon) and
