@@ -352,6 +352,9 @@ in
         "errorLens.delay" = 500;
 
         # Todo Tree
+        # Desktop launchers do not inherit the shell PATH, so point Todo Tree
+        # at the declaratively installed ripgrep binary explicitly.
+        "todo-tree.ripgrep.ripgrep" = "${pkgs.ripgrep}/bin/rg";
         "todo-tree.general.tags" = [
           "TODO"
           "FIXME"

@@ -1,7 +1,9 @@
 {
+  config,
   pkgs,
   lib,
   unstable-pkgs,
+  isDarwinHost ? false,
   ...
 }:
 
@@ -38,8 +40,8 @@ let
   '';
 
   # Keep fast-moving npm CLIs out of activation. Rebuilds must be
-  # repeatable and offline once the tools have been bootstrapped; updates are
-  # an explicit user action instead.
+  # repeatable and offline once the tools have been bootstrapped; a daily
+  # user service updates them independently instead.
   update-npm-ai-tools = pkgs.writeShellScriptBin "update-npm-ai-tools" ''
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
     mkdir -p "$NPM_CONFIG_PREFIX/bin"
@@ -205,7 +207,8 @@ in
         install-qwen-code # Script to install Qwen Code CLI tool
         install-gemini-cli # Script to install Google Gemini CLI
         install-pi-coding-agent # Script to install Pi coding agent
-        update-npm-ai-tools # Explicit updater for Codex + Pi + Grok Build
+        update-npm-ai-tools # Daily/manual updater for Codex + Pi + Grok Build
+        (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
       ]
       ++ [
         unstable-pkgs.opencode # AI coding agent for the terminal (unstable for current release cadence)
@@ -289,8 +292,8 @@ in
         fi
 
         # Bootstrap missing CLIs, but never upgrade them during activation.
-        # `update-npm-ai-tools` performs intentional updates outside a
-        # rebuild, avoiding network failures and npm staging collisions.
+        # `update-npm-ai-tools` performs scheduled/manual updates outside
+        # rebuilds, avoiding activation-time network failures.
         # The Nix-managed Codex launcher can exist before npm bootstrap.
         # Check its real target so the launcher cannot mask a missing CLI.
         if [[ ! -x "$NPM_CONFIG_PREFIX/bin/codex" ]]; then
@@ -396,4 +399,47 @@ in
     };
   };
 
+}
+// lib.optionalAttrs (!isDarwinHost) {
+  systemd.user.services.update-npm-ai-tools = {
+    Unit = {
+      Description = "Update npm-based AI CLI tools";
+      After = [ "network-online.target" ];
+      Wants = [ "network-online.target" ];
+    };
+
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${update-npm-ai-tools}/bin/update-npm-ai-tools";
+    };
+  };
+
+  systemd.user.timers.update-npm-ai-tools = {
+    Unit.Description = "Update npm-based AI CLI tools daily";
+
+    Timer = {
+      OnCalendar = "*-*-* 06:00:00";
+      Persistent = true;
+    };
+
+    Install.WantedBy = [ "timers.target" ];
+  };
+}
+// lib.optionalAttrs isDarwinHost {
+  launchd.agents.update-npm-ai-tools = {
+    enable = true;
+    config = {
+      Label = "org.nix-home.update-npm-ai-tools";
+      ProgramArguments = [ "${update-npm-ai-tools}/bin/update-npm-ai-tools" ];
+      StartCalendarInterval = [
+        {
+          Hour = 6;
+          Minute = 0;
+        }
+      ];
+      RunAtLoad = false;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/update-npm-ai-tools.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/update-npm-ai-tools.log";
+    };
+  };
 }

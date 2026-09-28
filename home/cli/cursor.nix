@@ -9,6 +9,10 @@ let
   # pi-rs token-compression binary + materialized shim scripts.
   # preToolUse hook routes Bash commands through `pi-rs hook cursor`.
   piRs = pkgs.callPackage ./pi-rs { };
+  # Agent Hub is an optional user-local tool; absence is a harmless no-op.
+  agentHubHook = {
+    command = ''if [ -x "${config.home.homeDirectory}/.local/bin/agent-hub" ]; then "${config.home.homeDirectory}/.local/bin/agent-hub" cursor-hook; else printf '{}\n'; fi'';
+  };
 in
 {
   # Cursor / cursor-agent reads ~/.cursor/hooks.json for hook registration.
@@ -21,11 +25,18 @@ in
   home.file.".cursor/hooks.json".text = builtins.toJSON {
     version = 1;
     hooks = {
+      sessionStart = [ agentHubHook ];
+      sessionEnd = [ agentHubHook ];
+      beforeSubmitPrompt = [ agentHubHook ];
+      afterAgentResponse = [ agentHubHook ];
+      postToolUse = [ agentHubHook ];
+      stop = [ (agentHubHook // { loop_limit = 1; }) ];
       preToolUse = [
         {
           matcher = "Bash";
           command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
         }
+        agentHubHook
       ];
     };
   };

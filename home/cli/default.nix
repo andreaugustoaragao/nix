@@ -34,6 +34,7 @@ in
     ./development.nix
     ./claude.nix
     ./codex.nix
+    ./opencode.nix
     ./cursor.nix
     ./k9s.nix
     ./fzf.nix

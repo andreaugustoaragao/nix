@@ -298,6 +298,10 @@
         # (mac-work). Expose both names so either invocation works.
         base // { G7CH2W2XYR = base.mac-work; };
 
+      packages = forEachAppSystem (system: {
+        opencode2 = nixpkgs.legacyPackages.${system}.callPackage ./pkgs/opencode2.nix { };
+      });
+
       # Cross-host SSH bootstrap apps. Exposed on every system in appSystems
       # so the same `nix run .#peers-bootstrap` works from any host in
       # the set. The scripts are deliberately self-contained shell
