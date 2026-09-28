@@ -46,7 +46,7 @@ in
         # Rust
         rust-lang.rust-analyzer # Rust language server
         tamasfe.even-better-toml # TOML support (Cargo.toml)
-        serayuzgur.crates # Crate version management in Cargo.toml
+        fill-labs.dependi # Crate version management in Cargo.toml (successor to crates)
         vadimcn.vscode-lldb # Rust/C++ debugger
 
         # Go
