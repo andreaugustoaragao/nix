@@ -19,20 +19,19 @@ in
 {
   options.my.fulcrum.desktop.package = lib.mkOption {
     type = lib.types.nullOr lib.types.package;
-    default =
-      if hostName == "prl-dev-vm" then
-        pkgs.callPackage "${source}/desktop/package.nix" { localMode = true; }
-      else
-        null;
+    default = null;
     description = "Revision-pinned local Fulcrum desktop; null disables installation.";
   };
   config = {
+    my.fulcrum.desktop.package = lib.mkIf (hostName == "prl-dev-vm") (
+      lib.mkDefault (pkgs.callPackage "${source}/desktop/package.nix" { localMode = true; })
+    );
     assertions = [
       {
         assertion = cfg.package == null || hostName == "prl-dev-vm";
         message = "Local Fulcrum Desktop is currently verified only for prl-dev-vm.";
       }
     ];
-    home.packages = lib.optional (cfg.package != null) cfg.package;
+    home.packages = lib.mkIf (cfg.package != null) [ cfg.package ];
   };
 }
