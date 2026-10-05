@@ -1,17 +1,27 @@
-_:
-
+{ pkgs, ... }:
+let
+  inherit (pkgs.stdenv.hostPlatform) isLinux;
+in
 {
   # Kitty is a secondary terminal (ghostty is daily-driver). Static
   # Catppuccin Mocha palette only — kitty has no native live light/dark
   # switching, but is rarely used so the dark theme is fine on its own.
+  #
+  # Binary: nixpkgs on Linux, Homebrew cask on macOS (machines.toml).
+  # The cask is notarized and lands in /Applications; this module still
+  # owns ~/.config/kitty/kitty.conf on both platforms.
   programs.kitty = {
     enable = true;
+    package = if isLinux then pkgs.kitty else null;
     font = {
       name = "CaskaydiaMono Nerd Font";
       size = 11;
     };
     settings = {
-      shell = "fish";
+      # Dock and Spotlight launches on macOS do not see the nix profile,
+      # so a bare `fish` resolves to nothing. Same constraint as Ghostty's
+      # `command` in home/desktop/ghostty.nix.
+      shell = if isLinux then "fish" else "${pkgs.fish}/bin/fish";
       window_padding_width = 5;
       background_opacity = "0.98";
       confirm_os_window_close = 0;

@@ -68,6 +68,9 @@ in
     # module is platform-aware and skips the nixpkgs ghostty install on
     # Darwin (where the homebrew cask provides it).
     ../desktop/ghostty.nix
+    # Kitty config — same palette/font as Linux. The module skips the
+    # nixpkgs kitty package on Darwin; the homebrew cask provides the app.
+    ../desktop/kitty.nix
     # Wallpaper image derivation. Linux pulls this in via
     # home/desktop/default.nix; on macOS we need it for
     # ./macos-wallpaper.nix to reference.

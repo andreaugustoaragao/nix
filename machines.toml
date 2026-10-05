@@ -84,8 +84,9 @@ useDms = false
 # official .pkg installer from parallels.com instead — leaving it
 # unmanaged here so brew bundle's `cleanup = "zap"` does not touch it.
 homebrewCasks = [
-    # Already in service: terminal, launcher, WM, browsers, focused-window outliner.
+    # Already in service: terminals, launcher, WM, browsers, focused-window outliner.
     "ghostty",
+    "kitty",
     "raycast",
     "aerospace",
     "brave-browser",
