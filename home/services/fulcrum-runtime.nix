@@ -4,27 +4,128 @@
   unstable-pkgs,
 }:
 let
-  # Extend the existing shared package set. Python extensions compose with
-  # Azure's own packageOverrides instead of replacing its dependency policy.
-  runtimePkgs = unstable-pkgs.extend (
-    _final: prev: {
-      pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-        (_pyFinal: pyPrev: {
-          urllib3 = pyPrev.urllib3.overridePythonAttrs (old: {
-            version = "2.8.0";
-            src = prev.fetchurl {
-              url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz";
-              hash = "sha256-Y78urUyHlCbr8i7yp4HutKo7SueYoENVBvhof9W7m2M=";
-            };
-            # The original metadata reads src.tag, which fetchurl does not have.
-            meta = old.meta // {
-              changelog = "https://github.com/urllib3/urllib3/blob/2.8.0/CHANGES.rst";
-            };
-          });
-        })
-      ];
-    }
-  );
+  azureBase = unstable-pkgs.azure-cli;
+  azurePython = unstable-pkgs.python3;
+  originalHttp = lib.findFirst (
+    package: (package.pname or "") == "urllib3"
+  ) (throw "Azure CLI has no direct urllib3 dependency") azureBase.propagatedBuildInputs;
+  # Override one package without changing Azure's supported dependency set.
+  azureHttp = azurePython.pkgs.urllib3.overridePythonAttrs (old: {
+    version = "2.8.0";
+    src = unstable-pkgs.fetchurl {
+      url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz";
+      hash = "sha256-Y78urUyHlCbr8i7yp4HutKo7SueYoENVBvhof9W7m2M=";
+    };
+    # The original metadata reads src.tag, which fetchurl does not have.
+    meta = old.meta // {
+      changelog = "https://github.com/urllib3/urllib3/blob/2.8.0/CHANGES.rst";
+    };
+  });
+  azureCheck = pkgs.writeText "fulcrum-azure-check.py" ''
+    import json
+    import os
+    from pathlib import Path
+    import re
+    import shlex
+    import subprocess
+    import sys
+
+    output = Path(sys.argv[1])
+    original = Path("${azureBase}/bin/az")
+    fixed_site = "${azureHttp}/${azurePython.sitePackages}"
+    expected_python = Path("${azurePython.interpreter}").resolve()
+    pattern = re.compile(r"^export PYTHONPATH='([^'\n]+)'$", re.MULTILINE)
+
+    def python_path(text):
+        matches = pattern.findall(text)
+        assert len(matches) == text.count('export PYTHONPATH=') == 1, 'Unexpected Azure wrapper layout'
+        assert all(re.fullmatch(r"/nix/store/[a-z0-9]{32}-[^/:'\s]+/lib/python[0-9.]+/site-packages", part)
+                   for part in matches[0].split(':')), 'Expected literal store paths'
+        return matches[0]
+
+    source = original.read_text()
+    original_path = python_path(source)
+    target = output / 'bin/az'
+    target.parent.mkdir(parents=True)
+    target.write_text(pattern.sub(lambda _: "export PYTHONPATH='" + fixed_site + ':' + original_path + "'", source))
+    target.chmod(original.stat().st_mode & 0o777)
+    assert python_path(target.read_text()) == fixed_site + ':' + original_path
+    assert target.read_text().replace(fixed_site + ':', "", 1) == source, 'Changed other wrapper settings'
+
+    def interpreter(launcher):
+        script = launcher
+        for depth in range(4):
+            lines = script.read_text().splitlines()
+            executable = shlex.split(lines[0].removeprefix('#!'))[0]
+            if Path(executable).name.startswith('python'):
+                assert Path(executable).resolve() == expected_python, 'Python interpreter changed'
+                return executable
+            if depth:
+                assert not any('PYTHONPATH' in line for line in lines), 'Inner wrapper overrides import precedence'
+            targets = [shlex.split(line)[3] for line in lines if line.startswith('exec -a "$0" ')]
+            assert len(targets) == 1 and targets[0].startswith('/nix/store/'), 'Unexpected Azure entrypoint'
+            script = Path(targets[0])
+        raise AssertionError('Azure Python entrypoint not found')
+
+    probe = (
+        "import importlib.metadata, json, sys, urllib3, requests\n"
+        "assert requests.packages.urllib3 is urllib3\n"
+        "assert urllib3.__version__ == importlib.metadata.version('urllib3')\n"
+        "print(json.dumps({'python': sys.executable, 'version': urllib3.__version__, "
+        "'file': urllib3.__file__, 'requestsAlias': requests.packages.urllib3.__file__}))\n"
+    )
+    records = []
+    for label, launcher, version, package in [
+        ('original', original, '${originalHttp.version}', '${originalHttp}'),
+        ('fixed', target, '2.8.0', '${azureHttp}'),
+    ]:
+        scratch = Path(os.environ['TMPDIR']) / ('azure-' + label)
+        scratch.mkdir()
+        environment = {
+            'PATH': os.environ['PATH'], 'TMPDIR': str(scratch),
+            'AZURE_CONFIG_DIR': str(scratch / 'config'),
+            'AZURE_EXTENSION_DIR': str(scratch / 'extensions'),
+            'XDG_CACHE_HOME': str(scratch / 'cache'),
+            'AZURE_CORE_COLLECT_TELEMETRY': 'no', 'AZURE_CORE_CHECK_VERSION': 'no',
+            'AZURE_CORE_ONLY_SHOW_ERRORS': 'true', 'PYTHONNOUSERSITE': 'true',
+            'PYTHONDONTWRITEBYTECODE': '1',
+        }
+        python = interpreter(launcher)
+        imports = subprocess.run([python, '-c', probe], check=True, capture_output=True, text=True, timeout=60,
+                                 env=dict(environment, PYTHONPATH=python_path(launcher.read_text())))
+        observed = json.loads(imports.stdout)
+        assert observed['version'] == version, observed
+        assert Path(observed['file']).is_relative_to(package), observed
+        assert observed['requestsAlias'] == observed['file'], observed
+        assert Path(observed['python']).resolve() == expected_python, observed
+        # Trace real CLI execution as well as the wrapper's exact import context.
+        result = subprocess.run([str(launcher), 'version', '--output', 'json'], check=True,
+                                capture_output=True, text=True, timeout=120,
+                                env=dict(environment, PYTHONVERBOSE='1'))
+        assert json.loads(result.stdout)['azure-cli'] == '${azureBase.version}'
+        assert package + '/${azurePython.sitePackages}/urllib3/' in result.stderr, 'CLI did not load expected urllib3'
+        if label == 'fixed':
+            assert '${originalHttp}/${azurePython.sitePackages}/urllib3/' not in result.stderr, 'CLI loaded original urllib3'
+            subprocess.run([str(launcher), 'self-test'], check=True, env=environment, timeout=120)
+        records.append(dict(label=label, **observed))
+    print(json.dumps({'azure': '${azureBase.version}', 'imports': records, 'originalClosureRetained': True}))
+  '';
+  # Preserve the supported entrypoint and every setting except PYTHONPATH.
+  # The old urllib3 bytes remain in azureBase's closure but are not imported by
+  # this service launcher. Removing the prefix would restore the old runtime.
+  azure-cli =
+    pkgs.runCommand "fulcrum-azure-cli-${azureBase.version}"
+      {
+        inherit (azureBase) version meta;
+        passthru = {
+          basePackage = azureBase;
+          httpPackage = azureHttp;
+          python = azurePython;
+        };
+      }
+      ''
+        ${azurePython.interpreter} ${azureCheck} "$out"
+      '';
   # The full Node package is a symlink environment. Copy the real npm output
   # so its launchers cannot resolve back into the unrepaired store tree.
   npmNode = pkgs.nodejs-slim_22;
@@ -145,7 +246,6 @@ let
       '';
 in
 {
-  inherit (runtimePkgs) azure-cli;
   ffmpeg = unstable-pkgs.ffmpeg_9;
-  inherit npm;
+  inherit azure-cli npm;
 }

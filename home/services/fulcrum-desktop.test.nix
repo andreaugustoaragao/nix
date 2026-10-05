@@ -41,11 +41,11 @@ let
     pkgs.lib.findFirst (
       package: (package.pname or "") == name
     ) (throw "Missing runtime package ${name}") packages;
-  azureCore = named "azure-cli-core" runtime.azure-cli.propagatedBuildInputs;
+  azureCore = named "azure-cli-core" runtime.azure-cli.basePackage.propagatedBuildInputs;
   tokenPackage = named "pyjwt" azureCore.propagatedBuildInputs;
   cryptoPackage = named "cryptography" azureCore.propagatedBuildInputs;
   identityPackage = named "msal" azureCore.propagatedBuildInputs;
-  httpPackage = named "urllib3" runtime.azure-cli.propagatedBuildInputs;
+  httpPackage = runtime.azure-cli.httpPackage;
   pathEntries =
     configuration:
     builtins.filter (entry: pkgs.lib.hasPrefix "PATH=" entry) (environment configuration);
@@ -73,6 +73,9 @@ let
   '';
 in
 assert runtime.azure-cli.version == "2.89.1";
+assert runtime.azure-cli.basePackage == unstable-pkgs.azure-cli;
+assert runtime.azure-cli.python == unstable-pkgs.python3;
+assert (named "urllib3" runtime.azure-cli.basePackage.propagatedBuildInputs).version == "2.7.0";
 assert azureCore.version == runtime.azure-cli.version;
 assert pkgs.lib.versionAtLeast tokenPackage.version "2.14.0";
 assert pkgs.lib.versionAtLeast cryptoPackage.version "50.0.0";
@@ -110,8 +113,9 @@ assert !(builtins.elem pkgs.hello disabled.home.packages);
 assert !(builtins.tryEval (builtins.deepSeq wrongHost.home.packages true)).success;
 {
   hostScopedPrivateBootstrap = true;
-  scopedRuntimeClosure = true;
-  fixedAzureHttpDependency = true;
+  scopedRuntimeTools = true;
+  fixedAzureHttpRuntime = true;
+  supportedAzureBasePreserved = true;
   privateNpmReplacement = true;
   effectiveRuntimePath = true;
   browserListenerUnchanged = true;
