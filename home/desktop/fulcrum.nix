@@ -11,7 +11,7 @@ let
   # Keep the package pinned independently of the checkout's working changes.
   source = builtins.fetchGit {
     url = "file://${config.home.homeDirectory}/projects/work/fulcrum";
-    rev = "4bfcb6703d7e7e382f439cf6890884051e774b56";
+    rev = "d2119c05a5759290af8ed0ffd63cb02946b006bd";
     allRefs = true;
   };
   cfg = config.my.fulcrum.desktop;

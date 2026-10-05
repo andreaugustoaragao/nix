@@ -1,11 +1,15 @@
-{ pkgs, homeManager }:
+{
+  pkgs,
+  unstable-pkgs,
+  homeManager,
+}:
 let
   fixture =
     hostName: package:
     (homeManager.lib.homeManagerConfiguration {
       inherit pkgs;
       extraSpecialArgs = {
-        inherit hostName;
+        inherit hostName unstable-pkgs;
         isWorkstation = hostName == "workstation";
         osConfig.sops.secrets = {
           litellm_api_key.path = "/run/secrets/fixture-api-key";
@@ -31,7 +35,65 @@ let
   wrongHost = fixture "vmw-dev-vm" pkgs.hello;
   environment = c: c.systemd.user.services.fulcrum.Service.Environment;
   socket = "FULCRUM_DESKTOP_SOCKET=%t/fulcrum-desktop/session.sock";
+  runtime = pkgs.callPackage ./fulcrum-runtime.nix { inherit unstable-pkgs; };
+  named =
+    name: packages:
+    pkgs.lib.findFirst (
+      package: (package.pname or "") == name
+    ) (throw "Missing runtime package ${name}") packages;
+  azureCore = named "azure-cli-core" runtime.azure-cli.propagatedBuildInputs;
+  tokenPackage = named "pyjwt" azureCore.propagatedBuildInputs;
+  cryptoPackage = named "cryptography" azureCore.propagatedBuildInputs;
+  identityPackage = named "msal" azureCore.propagatedBuildInputs;
+  httpPackage = named "urllib3" runtime.azure-cli.propagatedBuildInputs;
+  pathEntries =
+    configuration:
+    builtins.filter (entry: pkgs.lib.hasPrefix "PATH=" entry) (environment configuration);
+  runtimeBinPath = pkgs.lib.makeBinPath [
+    runtime.npm
+    runtime.azure-cli
+    runtime.ffmpeg
+  ];
+  runtimePrefix = "PATH=${runtimeBinPath}:";
+  dropInName = "systemd/user/fulcrum.service.d/zz-fulcrum-runtime-tools.conf";
+  ordinaryServicePath = pkgs.lib.removeSuffix ":/run/current-system/sw/bin" (
+    pkgs.lib.removePrefix "PATH=" (builtins.head (pathEntries other))
+  );
+  expectedEffectivePath = pkgs.lib.concatStringsSep ":" [
+    runtimeBinPath
+    "/tmp/fulcrum-desktop-eval-fixture/.local/share/fulcrum/runtime/node-26.10.0/bin"
+    "/tmp/fulcrum-desktop-eval-fixture/.local/share/fulcrum/runtime/bun-1.4.2/bin"
+    ordinaryServicePath
+    "/etc/profiles/per-user/fixture/bin"
+    "/run/current-system/sw/bin"
+  ];
+  expectedDropIn = ''
+    [Service]
+    Environment="PATH=${expectedEffectivePath}"
+  '';
 in
+assert runtime.azure-cli.version == "2.89.1";
+assert azureCore.version == runtime.azure-cli.version;
+assert pkgs.lib.versionAtLeast tokenPackage.version "2.14.0";
+assert pkgs.lib.versionAtLeast cryptoPackage.version "50.0.0";
+assert identityPackage.version == "1.37.0";
+assert httpPackage.version == "2.8.0";
+assert httpPackage.meta.changelog == "https://github.com/urllib3/urllib3/blob/2.8.0/CHANGES.rst";
+assert runtime.ffmpeg.version == "9.0.1";
+assert runtime.npm.node.version == "22.23.3";
+assert runtime.npm.braceVersion == "2.1.7";
+assert runtime.npm.npmSource == pkgs.lib.getOutput "npm" pkgs.nodejs_22;
+assert builtins.length (pathEntries vm) == 1;
+assert pkgs.lib.hasPrefix runtimePrefix (builtins.head (pathEntries vm));
+assert !(pkgs.lib.hasPrefix runtimePrefix (builtins.head (pathEntries other)));
+assert !(pkgs.lib.hasPrefix runtimePrefix (builtins.head (pathEntries workstation)));
+assert vm.xdg.configFile.${dropInName}.text == expectedDropIn;
+assert disabled.xdg.configFile.${dropInName}.text == expectedDropIn;
+assert !(builtins.hasAttr dropInName other.xdg.configFile);
+assert !(builtins.hasAttr dropInName workstation.xdg.configFile);
+assert !(builtins.elem runtime.azure-cli vm.home.packages);
+assert !(builtins.elem runtime.ffmpeg vm.home.packages);
+assert !(builtins.elem runtime.npm vm.home.packages);
 assert builtins.elem socket (environment vm);
 assert builtins.elem "FULCRUM_DESKTOP_PORT=3102" (environment vm);
 assert builtins.elem "FULCRUM_HOST=0.0.0.0" (environment vm);
@@ -46,6 +108,10 @@ assert !(builtins.elem pkgs.hello disabled.home.packages);
 assert !(builtins.tryEval (builtins.deepSeq wrongHost.home.packages true)).success;
 {
   hostScopedPrivateBootstrap = true;
+  scopedRuntimeClosure = true;
+  fixedAzureHttpDependency = true;
+  privateNpmReplacement = true;
+  effectiveRuntimePath = true;
   browserListenerUnchanged = true;
   optionalPackage = true;
   unverifiedHostRejected = true;

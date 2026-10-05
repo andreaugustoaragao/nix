@@ -2,6 +2,7 @@
   config,
   osConfig,
   pkgs,
+  unstable-pkgs,
   lib,
   hostName,
   isWorkstation,
@@ -34,12 +35,27 @@ let
   # ExecStart wrapper to lazily provision a self-signed localhost cert
   # the first time the service starts, mirroring the
   # mkcert-generated cert workstation's docker-compose stack mounts in.
-  binPath = lib.makeBinPath [
+  runtimeTools = pkgs.callPackage ./fulcrum-runtime.nix { inherit unstable-pkgs; };
+  runtimeBinPath = lib.makeBinPath [
+    runtimeTools.npm
+    runtimeTools.azure-cli
+    runtimeTools.ffmpeg
+  ];
+  serviceBinPath = lib.makeBinPath [
     pkgs.bun
     pkgs.git
     pkgs.coreutils
     pkgs.which
     pkgs.openssl
+  ];
+  binPath = lib.optionalString (hostName == "prl-dev-vm") "${runtimeBinPath}:" + serviceBinPath;
+  effectiveRuntimePath = lib.concatStringsSep ":" [
+    runtimeBinPath
+    "${config.home.homeDirectory}/.local/share/fulcrum/runtime/node-26.10.0/bin"
+    "${config.home.homeDirectory}/.local/share/fulcrum/runtime/bun-1.4.2/bin"
+    serviceBinPath
+    "/etc/profiles/per-user/${config.home.username}/bin"
+    "/run/current-system/sw/bin"
   ];
 
   # Per-user cert/key for fulcrum's HTTPS listener — kept outside the
@@ -51,6 +67,17 @@ let
 in
 
 {
+  # The existing runtime.conf selects the managed Node/Bun launcher and PATH.
+  # Sort after it and override only PATH; preserve its ExecStart and other settings.
+  xdg.configFile."systemd/user/fulcrum.service.d/zz-fulcrum-runtime-tools.conf" =
+    lib.mkIf (hostName == "prl-dev-vm")
+      {
+        text = ''
+          [Service]
+          Environment="PATH=${effectiveRuntimePath}"
+        '';
+      };
+
   systemd.user.services.fulcrum = {
     Unit = {
       Description = "Fulcrum — executive operational intelligence (source)";
