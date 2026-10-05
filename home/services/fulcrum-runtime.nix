@@ -98,16 +98,16 @@ let
         assert Path(observed['file']).is_relative_to(package), observed
         assert observed['requestsAlias'] == observed['file'], observed
         assert Path(observed['python']).resolve() == expected_python, observed
-        # Trace real CLI execution as well as the wrapper's exact import context.
-        result = subprocess.run([str(launcher), 'version', '--output', 'json'], check=True,
-                                capture_output=True, text=True, timeout=120,
-                                env=dict(environment, PYTHONVERBOSE='1'))
-        assert json.loads(result.stdout)['azure-cli'] == '${azureBase.version}'
+        version_result = subprocess.run([str(launcher), 'version', '--output', 'json'], check=True,
+                                        capture_output=True, text=True, timeout=120, env=environment)
+        assert json.loads(version_result.stdout)['azure-cli'] == '${azureBase.version}'
+        # The self-test imports HTTP modules; the lightweight version command does not.
+        result = subprocess.run([str(launcher), 'self-test'], check=True, capture_output=True,
+                                text=True, timeout=120, env=dict(environment, PYTHONVERBOSE='1'))
         assert package + '/${azurePython.sitePackages}/urllib3/' in result.stderr, 'CLI did not load expected urllib3'
         if label == 'fixed':
             assert '${originalHttp}/${azurePython.sitePackages}/urllib3/' not in result.stderr, 'CLI loaded original urllib3'
-            subprocess.run([str(launcher), 'self-test'], check=True, env=environment, timeout=120)
-        records.append(dict(label=label, **observed))
+        records.append(dict(label=label, selfTest=result.stdout.strip(), **observed))
     print(json.dumps({'azure': '${azureBase.version}', 'imports': records, 'originalClosureRetained': True}))
   '';
   # Preserve the supported entrypoint and every setting except PYTHONPATH.
