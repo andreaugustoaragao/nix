@@ -1,5 +1,6 @@
 {
   owner,
+  hostName,
   ...
 }:
 
@@ -11,9 +12,10 @@
         "flakes"
       ];
 
-      # Use all CPU cores per build, pick parallel build count automatically.
-      cores = 0;
-      max-jobs = "auto";
+      # Leave room for the graphical session on the Parallels VM, where
+      # rebuilds run alongside Kubernetes and browser calls.
+      cores = if hostName == "prl-dev-vm" then 4 else 0;
+      max-jobs = if hostName == "prl-dev-vm" then 2 else "auto";
 
       # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
       auto-optimise-store = true;

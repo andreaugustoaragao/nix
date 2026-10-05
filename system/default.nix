@@ -24,6 +24,7 @@
   ]
   ++ lib.optionals (!isServer) [
     ./desktop.nix
+    ./desktop-responsiveness.nix
     ./virtualization.nix
     ./audio.nix
     ./display-manager.nix

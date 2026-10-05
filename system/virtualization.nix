@@ -148,11 +148,18 @@
       # produces. The short name is included for parity with how the
       # SSH client config refers to the host.
       hostSan = " --tls-san ${hostName}.local --tls-san ${hostName}";
+      # The VM also runs the desktop. Reserve RAM from pod scheduling and
+      # evict pods before they exhaust host memory and swap. K3s currently
+      # sets only the two 5% disk eviction thresholds, so keep them here.
+      desktopReserve = lib.optionalString (hostName == "prl-dev-vm") (
+        " --kubelet-arg=system-reserved=memory=8Gi"
+        + " --kubelet-arg='eviction-hard=memory.available<4Gi,imagefs.available<5%,nodefs.available<5%'"
+      );
     in
     {
       enable = true;
       role = "server";
-      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}${hostSan}";
+      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}${hostSan}${desktopReserve}";
     }
   );
 }
