@@ -82,7 +82,9 @@ assert httpPackage.meta.changelog == "https://github.com/urllib3/urllib3/blob/2.
 assert runtime.ffmpeg.version == "9.0.1";
 assert runtime.npm.node.version == "22.23.3";
 assert runtime.npm.braceVersion == "2.1.7";
-assert runtime.npm.npmSource == pkgs.lib.getOutput "npm" pkgs.nodejs_22;
+assert runtime.npm.node == pkgs.nodejs-slim_22;
+assert runtime.npm.npmSource == pkgs.lib.getOutput "npm" pkgs.nodejs-slim_22;
+assert runtime.npm.npmSource.outputName == "npm";
 assert builtins.length (pathEntries vm) == 1;
 assert pkgs.lib.hasPrefix runtimePrefix (builtins.head (pathEntries vm));
 assert !(pkgs.lib.hasPrefix runtimePrefix (builtins.head (pathEntries other)));

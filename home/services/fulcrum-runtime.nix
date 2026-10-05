@@ -25,7 +25,10 @@ let
       ];
     }
   );
-  npmSource = lib.getOutput "npm" pkgs.nodejs_22;
+  # The full Node package is a symlink environment. Copy the real npm output
+  # so its launchers cannot resolve back into the unrepaired store tree.
+  npmNode = pkgs.nodejs-slim_22;
+  npmSource = lib.getOutput "npm" npmNode;
   braceArchive = pkgs.fetchurl {
     url = "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.7.tgz";
     hash = "sha256-b01k/atM3FCW1IU381pruyuLkYq6pL2wgz6SSG9mvvw=";
@@ -40,6 +43,9 @@ let
     const packageRoot = path.join(root, 'lib/node_modules/npm');
     const fromNpm = createRequire(path.join(packageRoot, 'package.json'));
     const metadata = name => JSON.parse(fs.readFileSync(path.join(packageRoot, name, 'package.json')));
+    for (const name of ['npm', 'npx']) {
+      assert(!fs.lstatSync(path.join(packageRoot, 'bin', name + '-cli.js')).isSymbolicLink(), 'npm source must contain real launcher files');
+    }
     assert.equal(process.versions.node, '22.23.3');
     assert.equal(metadata('.').version, '10.9.9');
     assert.equal(metadata('node_modules/minimatch').version, '9.0.9');
@@ -117,7 +123,7 @@ let
         ];
         passthru = {
           inherit npmSource;
-          node = pkgs.nodejs_22;
+          node = npmNode;
           braceVersion = "2.1.7";
         };
       }
@@ -125,7 +131,7 @@ let
         set -euo pipefail
         ulimit -c 0
         # Refuse unexpected upstream identities before creating the replacement.
-        ${pkgs.nodejs_22}/bin/node --max-old-space-size=128 ${npmCheck} original ${npmSource}
+        ${npmNode}/bin/node --max-old-space-size=128 ${npmCheck} original ${npmSource}
         mkdir -p "$out/lib/node_modules" "$out/bin"
         cp -a ${npmSource}/lib/node_modules/npm "$out/lib/node_modules/npm"
         chmod -R u+w "$out/lib/node_modules/npm"
@@ -135,7 +141,7 @@ let
         tar -xzf ${braceArchive} --strip-components=1 -C "$out/lib/node_modules/npm/node_modules/brace-expansion"
         ln -s ../lib/node_modules/npm/bin/npm-cli.js "$out/bin/npm"
         ln -s ../lib/node_modules/npm/bin/npx-cli.js "$out/bin/npx"
-        ${pkgs.nodejs_22}/bin/node --max-old-space-size=128 ${npmCheck} repaired "$out" ${npmSource}
+        ${npmNode}/bin/node --max-old-space-size=128 ${npmCheck} repaired "$out" ${npmSource}
       '';
 in
 {
