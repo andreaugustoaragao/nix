@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  osConfig,
   pkgs,
   ...
 }:
@@ -53,6 +54,19 @@ let
     env_key = "LITELLM_API_KEY"
     wire_api = "responses"
 
+    ${lib.optionalString (osConfig.sops.secrets ? open_ai_key) ''
+      # Direct API access selected by the codex-openai launcher.
+      [model_providers.openai-sops]
+      name = "OpenAI (SOPS)"
+      base_url = "https://api.openai.com/v1"
+      wire_api = "responses"
+
+      # Accept a bare key or OPENAI_API_KEY=... without exporting it globally.
+      [model_providers.openai-sops.auth]
+      command = "${pkgs.gnused}/bin/sed"
+      args = ["s/^OPENAI_API_KEY=//", "${osConfig.sops.secrets.open_ai_key.path}"]
+    ''}
+
     [projects."${trustedProjectPath}"]
     trust_level = "trusted"
 
@@ -103,6 +117,16 @@ in
   # Keep the npm-managed installation intact so explicit upgrades continue
   # to replace the underlying CLI without removing this launcher.
   home.file.".local/bin/codex".source = codexLauncher;
+
+  home.file.".local/bin/codex-webai".source = pkgs.writeShellScript "codex-webai" ''
+    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="litellm"' "$@"
+  '';
+
+  home.file.".local/bin/codex-openai" = lib.mkIf (osConfig.sops.secrets ? open_ai_key) {
+    source = pkgs.writeShellScript "codex-openai" ''
+      exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="openai-sops"' "$@"
+    '';
+  };
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"

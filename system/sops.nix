@@ -170,6 +170,13 @@
         mode = "0400";
       };
 
+      # Direct OpenAI API access for the codex-openai launcher.
+      "open_ai_key" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      };
+
       # Corporate LiteLLM gateway base URL — split from the API key
       # so the hostname (which encodes the employer DNS) stays out of
       # the public Nix sources. Rendered into ~/.codex/config.toml at

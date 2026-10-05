@@ -95,6 +95,10 @@
         owner = owner.name;
         mode = "0400";
       };
+      open_ai_key = {
+        owner = owner.name;
+        mode = "0400";
+      };
       # See system/sops.nix for rationale — these two split-out values
       # keep the employer-DNS hostname and work email out of the
       # public Nix sources. Rendered into ~/.codex/config.toml and
