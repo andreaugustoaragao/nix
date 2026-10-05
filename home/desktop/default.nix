@@ -6,6 +6,7 @@
 }:
 {
   imports = [
+    ./fulcrum.nix
     # Typed my.displays.* options — single entry point for the
     # dp1/dp2 slot metadata resolved in flake.nix. Import first so
     # consumers below can read config.my.displays.
