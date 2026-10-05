@@ -63,6 +63,8 @@ in
 
     Service = {
       Type = "exec";
+      RuntimeDirectory = lib.mkIf (hostName == "prl-dev-vm") "fulcrum-desktop";
+      RuntimeDirectoryMode = lib.mkIf (hostName == "prl-dev-vm") "0700";
       WorkingDirectory = projectRoot;
       Environment = [
         "PATH=${binPath}:/run/current-system/sw/bin"
@@ -80,6 +82,12 @@ in
         # override Fulcrum falls back to `http://chroma:8000`, which only
         # resolves inside docker-compose's network.
         "CHROMA_BASE_URL=http://localhost:8000"
+      ]
+      # Only the local desktop uses this authenticated loopback listener and
+      # owner-only session bootstrap. Existing HTTPS and browser auth stay intact.
+      ++ lib.optionals (hostName == "prl-dev-vm") [
+        "FULCRUM_DESKTOP_PORT=3102"
+        "FULCRUM_DESKTOP_SOCKET=%t/fulcrum-desktop/session.sock"
       ]
       # Voice-message transcription. Non-workstation hosts have no
       # local whisper binary on PATH (the Dockerfile bakes one in,
