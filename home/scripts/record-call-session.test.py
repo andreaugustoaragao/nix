@@ -608,6 +608,26 @@ class RecorderTests(unittest.TestCase):
             recorder.stop({})
         command.assert_not_called()
 
+    def test_ready_cleanup_and_repeated_cleanup_preserve_public_revision_and_transcript(self):
+        session = self.session()
+        session.finalize()
+        session.state.update({"bootId": recorder.boot_id(), "invocationId": "owned-ready-cleanup",
+                              "unit": "record-call-synthetic.service"})
+        recorder.atomic_json(session.private / "state.json", session.state)
+        public_files = [session.directory / "recording.json", *session.directory.glob("transcript*.txt")]
+        before = {path.name: path.read_bytes() for path in public_files}
+        owner = {"ActiveState": "deactivating", "InvocationID": "owned-ready-cleanup"}
+        with patch.object(recorder, "owner_properties", return_value=owner), \
+             patch.object(recorder.Session, "cleanup_modules") as cleanup, \
+             patch.dict(os.environ, {"INVOCATION_ID": "owned-ready-cleanup"}):
+            for attempt in range(2):
+                with self.subTest(attempt=attempt):
+                    recorder.cleanup_after_owner(session.directory, session.config)
+                    self.assertEqual({path.name: path.read_bytes() for path in public_files}, before)
+                    state = recorder.read_json(session.private / "state.json")
+                    self.assertEqual(state["cleanupCompletedInvocationId"], "owned-ready-cleanup")
+        self.assertEqual(cleanup.call_count, 2)
+
     def isolated_cli(self, config, *arguments, invocation=""):
         config_path = self.root / "cli-config.json"
         config_path.write_text(json.dumps(config))

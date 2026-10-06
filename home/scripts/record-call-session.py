@@ -886,7 +886,11 @@ def cleanup_after_owner(directory, config):
             session.manifest["failure"] = {"stage": "recovery", "code": "recording_owner_lost",
                                            "retryable": session.manifest["endedAt"] is not None}
             session.manifest["finalizedAt"] = None
-        session.persist()
+            session.persist()
+        else:
+            # READY may already be reserved by Fulcrum. Ownership cleanup must
+            # not change that public descriptor or its revision after release.
+            atomic_json(session.private / "state.json", session.state)
 
 
 def start(directory, config, config_path):
