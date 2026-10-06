@@ -32,6 +32,7 @@ PluginComponent {
         if (root.phase === "finalizing") return "Finalizing transcript...";
         if (root.phase === "incomplete") {
             if (root.failureCode === "status_unavailable") return "Recorder status is unavailable";
+            if (root.failureCode === "legacy_recording_state") return "An older recording needs review before a new one can start";
             return root.failureText() +
                 (root.retryable ? " — click to retry transcription" : " — click to start another recording");
         }
@@ -121,7 +122,7 @@ PluginComponent {
     // The owner continues finalization after stop returns. Do not start a
     // competing command while capture startup or transcript finalization runs.
     function toggle() {
-        if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable") return;
+        if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
         if (root.phase === "incomplete" && root.retryable) {
             toggleProc.command = ["record-call", "retry", root.outputDir];
         } else {

@@ -198,6 +198,23 @@ def uncovered(captured, covered):
     return missing
 
 
+def bounded_missing(items, duration_ms):
+    """The public contract uses an ordered union inside the capture interval."""
+    result = []
+    for item in sorted(items, key=lambda value: value["startMs"]):
+        start, end = max(0, item["startMs"]), min(duration_ms, item["endMs"])
+        if start >= end:
+            continue
+        if result and start < result[-1]["endMs"]:
+            previous = result[-1]
+            previous["endMs"] = max(previous["endMs"], end)
+            if previous["reason"] == "not_transcribed":
+                previous["reason"] = item["reason"]
+        else:
+            result.append({"startMs": start, "endMs": end, "reason": item["reason"]})
+    return result
+
+
 def calculate_coverage(captured, transcribed, duration_ms, gaps):
     result = {"complete": True, "durationMs": duration_ms, "sides": {}}
     for side in SIDES:
@@ -206,10 +223,11 @@ def calculate_coverage(captured, transcribed, duration_ms, gaps):
         start = spans[0]["startMs"] if spans else None
         end = spans[-1]["endMs"] if spans else None
         missing = uncovered(spans, done)
-        missing.extend({key: gap[key] for key in ("startMs", "endMs", "reason")}
-                       for gap in gaps if gap["side"] == side)
+        side_gaps = [gap for gap in gaps if gap["side"] == side]
+        missing.extend({key: gap[key] for key in ("startMs", "endMs", "reason")} for gap in side_gaps)
         if not spans:
-            missing.append({"startMs": 0, "endMs": max(1, duration_ms), "reason": "no_audio"})
+            if duration_ms > 0:
+                missing.append({"startMs": 0, "endMs": duration_ms, "reason": "no_audio"})
         else:
             for previous, following in zip(spans, spans[1:]):
                 missing.append({"startMs": previous["endMs"], "endMs": following["startMs"], "reason": "capture_gap"})
@@ -219,11 +237,15 @@ def calculate_coverage(captured, transcribed, duration_ms, gaps):
                 missing.append({"startMs": end, "endMs": duration_ms, "reason": "capture_ended_early"})
             if end > duration_ms + EDGE_TOLERANCE_MS:
                 missing.append({"startMs": duration_ms, "endMs": end, "reason": "capture_clock_mismatch"})
+        has_missing = bool(missing)
+        missing = bounded_missing(missing, duration_ms)
         side_result = {"captureStartMs": start, "captureEndMs": end,
                        "capturedMs": interval_size(spans), "transcribedMs": interval_size(done),
                        "missing": missing}
         result["sides"][side] = side_result
-        result["complete"] &= bool(spans) and not missing and side_result["capturedMs"] == side_result["transcribedMs"]
+        # Clipping a stop failure outside the timestamp interval must not erase
+        # its effect on readiness, even when no positive public range remains.
+        result["complete"] &= bool(spans) and not has_missing and not side_gaps and side_result["capturedMs"] == side_result["transcribedMs"]
     return result
 
 
@@ -719,9 +741,13 @@ class Session:
                 self.cleanup_modules()
                 self.refresh_coverage()
                 failure = error if isinstance(error, Failure) else Failure("processing", "recorder_command_failed")
+                if self.manifest["endedAt"] is None:
+                    # A failed startup has no trustworthy capture end. It cannot
+                    # be resumed by retry, which only processes retained audio.
+                    failure.retryable = False
                 self.manifest["status"] = "incomplete"
                 self.manifest["failure"] = failure.public()
-                self.manifest["finalizedAt"] = utc_now()
+                self.manifest["finalizedAt"] = utc_now() if self.manifest["endedAt"] is not None else None
                 self.persist()
                 return 1
         return 0

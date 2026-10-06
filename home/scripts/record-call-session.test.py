@@ -66,6 +66,8 @@ class RecorderTests(unittest.TestCase):
         manifest = recorder.new_manifest("abc", "2026-10-06T15:00:00.000Z", "America/Denver")
         self.assertEqual(manifest["status"], "starting")
         self.assertIsNone(manifest["finalizedAt"])
+        self.assertFalse(manifest["coverage"]["complete"])
+        self.assertEqual(manifest["coverage"]["sides"]["call"]["missing"], [])
         recorder.atomic_json(self.root / "state.json", manifest)
         self.assertEqual(json.loads((self.root / "state.json").read_text()), manifest)
         spans = {"call": [{"startMs": 0, "endMs": 60000}],
@@ -93,6 +95,21 @@ class RecorderTests(unittest.TestCase):
         self.assertFalse(recorder.calculate_coverage(spans, processed, 60000, [])["complete"])
         self.assertFalse(recorder.calculate_coverage({"call": [], "mic": []},
                                                     {"call": [], "mic": []}, 0, [])["complete"])
+
+    def test_missing_ranges_are_ordered_disjoint_and_bounded(self):
+        spans = {side: [{"startMs": 0, "endMs": 1000}] for side in recorder.SIDES}
+        done = {side: [{"startMs": 0, "endMs": 400}] for side in recorder.SIDES}
+        coverage = recorder.calculate_coverage(spans, done, 1000, [
+            {"side": "call", "startMs": 1400, "endMs": 1500, "reason": "segmenter_failed"},
+            {"side": "call", "startMs": 600, "endMs": 800, "reason": "capture_restarted"},
+        ])
+        self.assertEqual(coverage["sides"]["call"]["missing"], [
+            {"startMs": 400, "endMs": 1000, "reason": "capture_restarted"}])
+        self.assertFalse(coverage["complete"])
+        outside = recorder.calculate_coverage(spans, spans, 1000, [
+            {"side": "call", "startMs": 1400, "endMs": 1500, "reason": "segmenter_failed"}])
+        self.assertEqual(outside["sides"]["call"]["missing"], [])
+        self.assertFalse(outside["complete"])
 
     def test_only_exact_owned_modules_are_selected(self):
         modules = [
@@ -376,6 +393,28 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(session.run(), 1)
         self.assertEqual(session.manifest["status"], "incomplete")
         self.assertIsNone(session.manifest["endedAt"])
+        self.assertIsNone(session.manifest["finalizedAt"])
+        self.assertFalse(session.manifest["failure"]["retryable"])
+        self.assertEqual([m["index"] for m in json.loads((self.root / "modules.json").read_text())], [11, 12])
+
+    def test_second_capture_launch_failure_does_not_claim_finalization_or_retry(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        original = session.launch_capture
+
+        def launch(side):
+            if side == "mic":
+                raise OSError("synthetic second capture launch failure")
+            original(side)
+
+        with patch.object(session, "launch_capture", side_effect=launch), \
+             patch.dict(os.environ, {"INVOCATION_ID": "synthetic-test"}):
+            self.assertEqual(session.run(), 1)
+        self.assertEqual(session.manifest["status"], "incomplete")
+        self.assertIsNone(session.manifest["endedAt"])
+        self.assertIsNone(session.manifest["finalizedAt"])
+        self.assertFalse(session.manifest["failure"]["retryable"])
+        self.assertFalse(session.captures)
         self.assertEqual([m["index"] for m in json.loads((self.root / "modules.json").read_text())], [11, 12])
 
     def test_capture_restart_retains_permanent_gap_after_successful_transcription(self):
@@ -451,6 +490,7 @@ class RecorderTests(unittest.TestCase):
             const body = text.match(/onExited: \(exitCode, exitStatus\) => \{([\s\S]*?)\n        \}\n    \}/)[1];
             const status = new Function('root', 'exitCode', 'exitStatus', body);
             const toggle = new Function('root', 'toggleProc', text.match(/function toggle\(\) \{([\s\S]*?)\n    \}/)[1]);
+            const tooltip = new Function('root', text.match(/function tooltipText\(\) \{([\s\S]*?)\n    \}/)[1]);
             let root = {_pollOut: JSON.stringify({status:'recording',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call'})};
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'recording');
@@ -475,6 +515,11 @@ class RecorderTests(unittest.TestCase):
             toggleProcess = {running:false};
             toggle(root, toggleProcess);
             assert.strictEqual(toggleProcess.running, false);
+            root._pollOut = JSON.stringify({status:'incomplete',failure:{code:'legacy_recording_state',retryable:false}});
+            status(root, 0, 0);
+            toggle(root, toggleProcess);
+            assert.strictEqual(toggleProcess.running, false);
+            assert.strictEqual(tooltip(root), 'An older recording needs review before a new one can start');
             root._pollOut = JSON.stringify({status:'ready'});
             status(root, 0, 0);
             root.recording = false;
