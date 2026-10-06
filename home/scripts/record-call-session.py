@@ -517,7 +517,7 @@ class Session:
                     "-f", "segment", "-segment_time", str(self.state["fragmentMs"] / 1000),
                     "-reset_timestamps", "1", "-segment_start_number", str(next_index),
                     "-segment_list", str(listing), "-segment_list_type", "csv", "-segment_list_size", "0",
-                    str(self.directory / "chunks" / (side + "_%06d.wav"))],
+                    str(self.directory / "chunks").replace("%", "%%") + "/" + side + "_%06d.wav"],
                     stdin=reader.stdout, stdout=subprocess.DEVNULL, stderr=log)
         except BaseException:
             reader.terminate()
@@ -644,7 +644,9 @@ class Session:
         self.setup_audio()
         self.manifest["startedAt"] = utc_now()
         self.started_monotonic = time.monotonic()
-        atomic_bytes(self.directory / ".started-at", str(timestamp(self.manifest["startedAt"])).encode())
+        # Existing diarize/retime commands consume whole epoch seconds. The
+        # public manifest retains the precise capture timestamp independently.
+        atomic_bytes(self.directory / ".started-at", str(int(timestamp(self.manifest["startedAt"]))).encode())
         for side in SIDES:
             self.launch_capture(side)
         self.manifest["status"] = "recording"

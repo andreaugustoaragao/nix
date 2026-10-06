@@ -34,7 +34,7 @@ PluginComponent {
             if (root.failureCode === "status_unavailable") return "Recorder status is unavailable";
             if (root.failureCode === "legacy_recording_state") return "An older recording needs review before a new one can start";
             return root.failureText() +
-                (root.retryable ? " — click to retry transcription" : " — click to start another recording");
+                (root.retryable ? " — click to retry transcription; right-click to start another recording" : " — click to start another recording");
         }
         if (root.phase === "ready") return "Transcript ready — click to start recording";
         return root.recording
@@ -131,6 +131,14 @@ PluginComponent {
         toggleProc.running = true;
     }
 
+    // A failed transcription must not prevent recording the next meeting.
+    // Starting a new session leaves the previous audio and retry receipts intact.
+    function startNew() {
+        if (root.toggleBusy || root.recording || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
+        toggleProc.command = ["record-call", "start"];
+        toggleProc.running = true;
+    }
+
     Timer {
         id: kickPoll
         interval: 400
@@ -140,6 +148,7 @@ PluginComponent {
     }
 
     pillClickAction: () => root.toggle()
+    pillRightClickAction: () => root.startNew()
 
     // Layer-shell tooltip window (renders above the bar). Activated lazily on
     // hover so the layer surface only exists while the pill is hovered.

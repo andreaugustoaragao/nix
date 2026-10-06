@@ -177,7 +177,7 @@ class RecorderTests(unittest.TestCase):
         executable.chmod(0o700)
         source = Path(__file__).with_name("record-call.nix").read_text()
         config = {"python": sys.executable, "curl": str(executable), "whisper": str(executable)}
-        for name in ("merge", "dedupe", "turns"):
+        for name in ("merge", "dedupe", "turns", "align", "retime"):
             begin = source.index(f'  {name}Py = pkgs.writeText "record-call-{name}.py" \'\'\n')
             body = source[begin:].split("\n", 1)[1].split("\n  '';", 1)[0]
             path = self.root / (name + ".py")
@@ -496,6 +496,35 @@ class RecorderTests(unittest.TestCase):
             unrelated.terminate()
             unrelated.wait()
 
+    def test_capture_marker_is_accepted_by_existing_diarize_and_retime_consumers(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        timer = recorder.threading.Timer(0.65, session.stop_event.set)
+        try:
+            timer.start()
+            with patch.object(recorder, "utc_now", side_effect=[
+                    "2026-10-06T15:00:00.123Z", "2026-10-06T15:00:00.773Z"]):
+                session.capture()
+        finally:
+            timer.cancel()
+        marker = (session.directory / ".started-at").read_text()
+        transcript = self.root / "legacy-transcript.txt"
+        transcript.write_text("[00:00:01] Synthetic call\n")
+        result = subprocess.run([sys.executable, session.config["retime"], str(transcript), marker],
+                                env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(transcript.read_text(), "[15:00:01] Synthetic call\n")
+        diarization = self.root / "diarization.json"
+        diarization.write_text('[{"start":0,"end":2,"speaker":"SPEAKER_00"}]')
+        aligned = self.root / "aligned.txt"
+        result = subprocess.run([sys.executable, session.config["align"], str(transcript), str(diarization),
+                                 marker, str(aligned)], env={**os.environ, "TZ": "UTC"},
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(aligned.read_text(), "[15:00:01] Speaker 1: Synthetic call\n")
+        self.assertEqual(marker, "1791298800")
+        self.assertEqual(session.manifest["startedAt"], "2026-10-06T15:00:00.123Z")
+
     def test_partial_startup_cleans_only_acquired_owned_module(self):
         session = self.session()
         self.synthetic_capture(session, fail_loopback=True)
@@ -579,6 +608,84 @@ class RecorderTests(unittest.TestCase):
             recorder.stop({})
         command.assert_not_called()
 
+    def isolated_cli(self, config, *arguments, invocation=""):
+        config_path = self.root / "cli-config.json"
+        config_path.write_text(json.dumps(config))
+        environment = {**os.environ, "XDG_STATE_HOME": str(self.root / "state"),
+                       "XDG_RUNTIME_DIR": str(self.root / "runtime"), "INVOCATION_ID": invocation}
+        return subprocess.run([sys.executable, str(Path(__file__).with_name("record-call-session.py")),
+                               "--config", str(config_path), *map(str, arguments)],
+                              env=environment, capture_output=True, text=True, timeout=10)
+
+    def test_legacy_status_and_start_leave_shell_text_unevaluated_and_unchanged(self):
+        legacy = self.root / "runtime/record-call/session.env"
+        legacy.parent.mkdir(parents=True)
+        sentinel = self.root / "must-not-execute"
+        original = f"SESSION_DIR='$(touch {sentinel})'\ntouch '{sentinel}'\n".encode()
+        legacy.write_bytes(original)
+        result = self.isolated_cli({}, "status", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"status": "incomplete", "failure": {
+            "stage": "recovery", "code": "legacy_recording_state", "retryable": False}})
+        output = self.root / "new-recording"
+        result = self.isolated_cli({}, "start", output)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(json.loads(result.stderr)["failure"]["code"], "recording_already_active")
+        self.assertEqual(legacy.read_bytes(), original)
+        self.assertFalse(sentinel.exists())
+        self.assertFalse(output.exists())
+
+    def test_stale_status_stop_and_cleanup_never_signal_unload_or_rewrite_evidence(self):
+        session = self.session()
+        session.manifest.update({"status": "recording", "endedAt": None, "finalizedAt": None})
+        systemctl = self.root / "fixture-systemctl"
+        command_log = self.root / "systemctl-calls.jsonl"
+        properties = self.root / "properties.json"
+        systemctl.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
+            import json, pathlib, sys
+            with pathlib.Path({str(command_log)!r}).open('a') as output:
+                output.write(json.dumps(sys.argv[1:]) + '\\n')
+            for key, value in json.loads(pathlib.Path({str(properties)!r}).read_text()).items():
+                print(key + '=' + value)
+        '''))
+        systemctl.chmod(0o700)
+        forbidden = self.root / "forbidden-pactl"
+        sentinel = self.root / "must-not-unload"
+        forbidden.write_text(f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(sentinel)!r}).touch()\n")
+        forbidden.chmod(0o700)
+        config = {**session.config, "systemctl": str(systemctl), "pactl": str(forbidden)}
+        recorder.atomic_json(self.root / "state/record-call/current.json", {"directory": str(session.directory)})
+        for stale_boot, current_invocation, cleanup_invocation in (
+                (True, "owner-a", "owner-a"), (False, "owner-b", "owner-a"),
+                (False, "owner-b", "owner-b"), (False, "owner-b", "")):
+            with self.subTest(stale_boot=stale_boot, current=current_invocation, cleanup=cleanup_invocation):
+                session.state.update({"bootId": "old-boot" if stale_boot else recorder.boot_id(),
+                                      "invocationId": "owner-a", "unit": "record-call-fixture.service"})
+                session.persist()
+                properties.write_text(json.dumps({"ActiveState": "active", "InvocationID": current_invocation}))
+                before = {str(path.relative_to(session.directory)): path.read_bytes()
+                          for path in session.directory.rglob("*") if path.is_file()}
+                result = self.isolated_cli(config, "status", "--json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                value = json.loads(result.stdout)
+                self.assertEqual(value["status"], "incomplete")
+                self.assertIsNone(value["endedAt"])
+                self.assertIsNone(value["finalizedAt"])
+                self.assertFalse(value["failure"]["retryable"])
+                self.assertEqual(value["failure"]["code"], "recording_owner_lost")
+                for arguments, code in ((("stop",), "recording_owner_lost"),
+                                        (("_cleanup", session.directory), "cleanup_owner_mismatch")):
+                    result = self.isolated_cli(config, *arguments, invocation=cleanup_invocation)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(json.loads(result.stderr)["failure"]["code"], code)
+                after = {str(path.relative_to(session.directory)): path.read_bytes()
+                         for path in session.directory.rglob("*") if path.is_file()}
+                self.assertEqual(after, before)
+                self.assertFalse(sentinel.exists())
+        commands = [json.loads(line) for line in command_log.read_text().splitlines()]
+        self.assertEqual(commands, [["--user", "show", "record-call-fixture.service",
+                                     "--property=ActiveState,InvocationID"]] * 12)
+
     def test_transient_unit_contains_descendants_and_never_interpolates_paths(self):
         session = self.session()
         session.config["systemdRun"] = "/synthetic/systemd-run"
@@ -600,6 +707,8 @@ class RecorderTests(unittest.TestCase):
             const body = text.match(/onExited: \(exitCode, exitStatus\) => \{([\s\S]*?)\n        \}\n    \}/)[1];
             const status = new Function('root', 'exitCode', 'exitStatus', body);
             const toggle = new Function('root', 'toggleProc', text.match(/function toggle\(\) \{([\s\S]*?)\n    \}/)[1]);
+            const startNew = new Function('root', 'toggleProc', text.match(/function startNew\(\) \{([\s\S]*?)\n    \}/)[1]);
+            const rightClick = new Function('root', 'return ' + text.match(/pillRightClickAction: (.*)/)[1]);
             const tooltip = new Function('root', text.match(/function tooltipText\(\) \{([\s\S]*?)\n    \}/)[1]);
             let root = {_pollOut: JSON.stringify({status:'recording',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call'})};
             status(root, 0, 0);
@@ -617,6 +726,11 @@ class RecorderTests(unittest.TestCase):
             root.finalizing = false;
             toggle(root, toggleProcess);
             assert.deepStrictEqual(toggleProcess.command, ['record-call','retry',"/a call '; $ignored"]);
+            root.startNew = () => startNew(root, toggleProcess);
+            root.failureText = () => 'Speech recognition failed';
+            assert.ok(tooltip(root).includes('right-click to start another recording'));
+            rightClick(root)();
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
             root._pollOut = '{';
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'incomplete');
@@ -625,9 +739,13 @@ class RecorderTests(unittest.TestCase):
             toggleProcess = {running:false};
             toggle(root, toggleProcess);
             assert.strictEqual(toggleProcess.running, false);
+            rightClick(root)();
+            assert.strictEqual(toggleProcess.running, false);
             root._pollOut = JSON.stringify({status:'incomplete',failure:{code:'legacy_recording_state',retryable:false}});
             status(root, 0, 0);
             toggle(root, toggleProcess);
+            assert.strictEqual(toggleProcess.running, false);
+            rightClick(root)();
             assert.strictEqual(toggleProcess.running, false);
             assert.strictEqual(tooltip(root), 'An older recording needs review before a new one can start');
             root._pollOut = JSON.stringify({status:'ready'});
@@ -638,6 +756,17 @@ class RecorderTests(unittest.TestCase):
             root.recording = true;
             toggle(root, toggleProcess);
             assert.deepStrictEqual(toggleProcess.command, ['record-call','stop']);
+            toggleProcess = {running:false};
+            rightClick(root)();
+            assert.strictEqual(toggleProcess.running, false);
+            root.recording = false;
+            root.finalizing = true;
+            rightClick(root)();
+            assert.strictEqual(toggleProcess.running, false);
+            root.finalizing = false;
+            root.toggleBusy = true;
+            rightClick(root)();
+            assert.strictEqual(toggleProcess.running, false);
         '''
         result = subprocess.run(["node", "-e", script, str(widget)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
