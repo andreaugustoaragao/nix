@@ -41,6 +41,7 @@ class SystemdTests(unittest.TestCase):
         self.session.persist()
         config = self.fixture.root / "config with % and $quote.json"
         config.write_text(json.dumps(self.session.config))
+        self.config_path = config
         with patch.object(recorder, "state_root", return_value=self.fixture.root / "controller"):
             recorder.launch_unit(self.session, config, False)
         self.await_status({"recording"})
@@ -106,6 +107,38 @@ class SystemdTests(unittest.TestCase):
         finally:
             unrelated.terminate()
             unrelated.wait()
+
+    def test_retry_unit_waits_for_launcher_handoff_and_reuses_successful_asr(self):
+        (self.fixture.root / "control.json").write_text('{"fail_mic":100}')
+        time.sleep(0.4)
+        state = recorder.read_json(self.session.private / "state.json")
+        recorder.atomic_json(self.session.private / "stop.json", {"invocationId": state["invocationId"]})
+        self.await_status({"incomplete"})
+        self.await_stopped()
+        success = self.session.private / "windows/000000/call.ok.json"
+        receipt = success.read_bytes()
+        (self.fixture.root / "control.json").write_text('{}')
+        launch = recorder.launch_unit
+
+        def delayed_handoff(session, config, retry):
+            launch(session, config, retry)
+            time.sleep(0.25)
+            properties = recorder.owner_properties(session.state, session.config)
+            self.assertIn(properties.get("ActiveState"), ("active", "activating"))
+
+        with patch.object(recorder, "state_root", return_value=self.fixture.root / "controller"), \
+             patch.object(recorder, "current_directory", return_value=self.session.directory), \
+             patch.object(recorder, "launch_unit", side_effect=delayed_handoff):
+            recorder.retry(self.session.directory, self.session.config, self.config_path)
+        self.session = recorder.Session(self.session.directory, self.session.config)
+        manifest = self.await_status({"ready", "incomplete"})
+        self.assertEqual(manifest["status"], "ready", manifest.get("failure"))
+        self.await_stopped()
+        self.assertEqual(success.read_bytes(), receipt)
+        self.assertEqual((self.fixture.root / "call-attempts").read_text(), "1")
+        self.assertEqual((self.fixture.root / "mic-attempts").read_text(), "2")
+        self.assertEqual(len(list((self.session.private / "windows").glob("*/done.json"))), 1)
+        self.assert_unrelated_modules()
 
 
 if __name__ == "__main__":

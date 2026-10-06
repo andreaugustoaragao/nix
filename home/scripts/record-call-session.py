@@ -608,6 +608,32 @@ class Session:
             index += 1
         return index
 
+    def committed_emission_frontier(self, audio_end):
+        frontier, count = 0, 0
+        receipts = sorted((self.private / "windows").glob("*/done.json"))
+        for index, path in enumerate(receipts):
+            try:
+                receipt = read_json(path)
+                parameters = receipt["parameters"]
+                start, end, emitted = (parameters[key] for key in ("startMs", "endMs", "emitEndMs"))
+                valid = (path.parent.name == f"{index:06d}"
+                         and all(number(value) for value in (start, end, emitted))
+                         and start == index * self.state["advanceMs"] and start == frontier
+                         and start < emitted <= end <= start + self.state["windowMs"]
+                         and emitted <= audio_end
+                         and file_hash(path.parent / "text.txt") == receipt["sha256"])
+                for side in SIDES:
+                    success = read_json(path.parent / (side + ".ok.json"))
+                    valid &= (success["parameters"] == parameters
+                              and success["outputHash"] == file_hash(path.parent / (side + ".json"))
+                              and receipt["coverage"][side] == intersect(self.state["fragments"][side], start, emitted))
+                if not valid:
+                    raise Failure("recovery", "window_receipt_invalid", False, window=index)
+            except (OSError, KeyError, TypeError, ValueError):
+                raise Failure("recovery", "window_receipt_invalid", False, window=index) from None
+            frontier, count = emitted, index + 1
+        return count, frontier
+
     def progress_transcript(self):
         parts = []
         for receipt in sorted((self.private / "windows").glob("*/done.json")):
@@ -699,15 +725,19 @@ class Session:
         self.manifest["finalizedAt"] = None
         self.persist()
         end = max((fragment["endMs"] for side in SIDES for fragment in self.state["fragments"][side]), default=0)
-        index = self.next_window()
-        while index * self.state["advanceMs"] < end:
+        index, frontier = self.committed_emission_frontier(end)
+        while frontier < end:
             start = index * self.state["advanceMs"]
+            if start != frontier:
+                # A final receipt may emit past the regular 30-second advance.
+                # Later audio cannot silently turn that receipt into a shorter
+                # one and cause already committed text to be emitted again.
+                raise Failure("recovery", "window_emission_conflict", False, window=index)
             window_end = min(start + self.state["windowMs"], end)
             emit_end = start + self.state["advanceMs"] if start + self.state["windowMs"] < end else end
             self.process_window(index, window_end, emit_end)
             index += 1
-            if emit_end == end:
-                break
+            frontier = emit_end
         self.assemble()
         self.refresh_coverage()
         if not self.manifest["coverage"]["complete"]:
@@ -718,11 +748,15 @@ class Session:
         self.persist()
 
     def run(self, retry=False):
-        with locked(self.private / "writer.lock"):
-            self.state["invocationId"] = os.environ.get("INVOCATION_ID")
+        invocation = os.environ.get("INVOCATION_ID")
+        if not invocation:
+            raise Failure("startup", "owned_unit_required", False)
+        # The controller checked the previous owner and holds this lock while
+        # systemd acknowledges execve. Wait for that explicit handoff; the new
+        # owner must not fail merely because its launcher has not returned yet.
+        with locked(self.private / "writer.lock", blocking=True):
+            self.state["invocationId"] = invocation
             self.state["bootId"] = boot_id()
-            if not self.state["invocationId"]:
-                raise Failure("startup", "owned_unit_required", False)
             self.persist()
             signal.signal(signal.SIGTERM, lambda *_: self.stop_event.set())
             signal.signal(signal.SIGINT, lambda *_: self.stop_event.set())
@@ -842,7 +876,7 @@ def cleanup_after_owner(directory, config):
         raise Failure("recovery", "cleanup_owner_mismatch", False)
     if session.state.get("invocationId") not in (None, invocation):
         raise Failure("recovery", "cleanup_owner_mismatch", False)
-    with locked(session.private / "writer.lock"):
+    with locked(session.private / "writer.lock", blocking=True):
         session.cleanup_modules()
         session.state["cleanupCompletedInvocationId"] = invocation
         if session.manifest["status"] in ACTIVE:

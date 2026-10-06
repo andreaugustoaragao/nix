@@ -267,6 +267,116 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual((self.root / "mic-attempts").read_text(), "1")
         self.assertEqual(restored.manifest["status"], "ready")
 
+    def assert_final_window_recovery(self, duration):
+        session = self.session(duration=duration)
+        persist = session.persist
+
+        def crash_before_ready_commit():
+            if session.manifest["status"] == "ready":
+                raise RuntimeError("synthetic crash before READY commit")
+            persist()
+
+        with patch.object(session, "persist", side_effect=crash_before_ready_commit):
+            with self.assertRaises(RuntimeError):
+                session.finalize()
+        before = {str(path.relative_to(session.directory)): path.read_bytes()
+                  for path in (session.private / "windows").rglob("*") if path.is_file()}
+        transcripts = {name: (session.directory / name).read_bytes()
+                       for name in ("transcript.raw.txt", "transcript.txt", "transcript.turns.txt")}
+        counts = {side: (self.root / (side + "-attempts")).read_text() for side in recorder.SIDES}
+        restored = recorder.Session(session.directory, session.config)
+        self.assertEqual(restored.manifest["status"], "finalizing")
+        restored.finalize()
+        self.assertEqual(restored.manifest["status"], "ready")
+        self.assertEqual({side: (self.root / (side + "-attempts")).read_text() for side in recorder.SIDES}, counts)
+        self.assertEqual({str(path.relative_to(session.directory)): path.read_bytes()
+                          for path in (session.private / "windows").rglob("*") if path.is_file()}, before)
+        self.assertEqual({name: (session.directory / name).read_bytes() for name in transcripts}, transcripts)
+
+    def test_crash_after_final_45_second_window_does_not_replay_tail(self):
+        self.assert_final_window_recovery(45000)
+
+    def test_crash_after_final_75_second_window_does_not_replay_tail(self):
+        self.assert_final_window_recovery(75000)
+
+    def test_crash_after_partial_31_second_window_does_not_replay_tail(self):
+        self.assert_final_window_recovery(31000)
+
+    def test_crash_after_partial_61_second_window_does_not_replay_tail(self):
+        self.assert_final_window_recovery(61000)
+
+    def test_resume_preserves_nonfinal_30_second_emission_receipt(self):
+        session = self.session(duration=75000)
+        session.process_window(0, 45000, 30000)
+        receipt = session.private / "windows/000000/done.json"
+        before = receipt.read_bytes()
+        restored = recorder.Session(session.directory, session.config)
+        restored.finalize()
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertEqual((self.root / "call-attempts").read_text(), "2")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+        self.assertEqual(restored.manifest["coverage"]["sides"]["call"]["transcribedMs"], 75000)
+        raw = (session.directory / "transcript.raw.txt").read_text()
+        self.assertEqual(raw.count("call window 000000"), 1)
+        self.assertEqual(raw.count("call window 000001"), 1)
+
+    def test_overlapping_committed_emission_receipts_are_not_certified(self):
+        session = self.session(duration=75000)
+        session.process_window(0, 45000, 30000)
+        session.process_window(1, 75000, 75000)
+        session.process_window(2, 75000, 75000)
+        with self.assertRaises(recorder.Failure) as error:
+            session.finalize()
+        self.assertEqual(error.exception.code, "window_receipt_invalid")
+        self.assertEqual((self.root / "call-attempts").read_text(), "3")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "3")
+
+    def test_new_retry_owner_waits_for_controller_writer_lock_handoff(self):
+        session = self.session()
+        session.process_window(0, 1250, 1250)
+        config = self.root / "retry-config.json"
+        config.write_text(json.dumps(session.config))
+        marker = self.root / "entered-writer-lock"
+        script = self.root / "retry-child.py"
+        script.write_text(textwrap.dedent(f'''
+            import importlib.util, os, pathlib, sys
+            from contextlib import contextmanager
+            spec = importlib.util.spec_from_file_location('recorder', {str(Path(__file__).with_name('record-call-session.py'))!r})
+            recorder = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(recorder)
+            original = recorder.locked
+            @contextmanager
+            def observed(path, blocking=False):
+                pathlib.Path({str(marker)!r}).touch()
+                with original(path, blocking=blocking):
+                    yield
+            recorder.locked = observed
+            os.environ['INVOCATION_ID'] = 'synthetic-retry-handoff'
+            session = recorder.Session({str(session.directory)!r}, recorder.read_json({str(config)!r}))
+            raise SystemExit(session.run(retry=True))
+        '''))
+        child = None
+        try:
+            with recorder.locked(session.private / "writer.lock"):
+                child = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                deadline = recorder.time.monotonic() + 5
+                while not marker.exists() and recorder.time.monotonic() < deadline:
+                    recorder.time.sleep(0.01)
+                self.assertTrue(marker.exists())
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    child.wait(timeout=0.15)
+            output, error = child.communicate(timeout=10)
+            self.assertEqual(child.returncode, 0, error.decode())
+            self.assertEqual(recorder.read_json(session.directory / "recording.json")["status"], "ready")
+            self.assertEqual((self.root / "call-attempts").read_text(), "1")
+            self.assertEqual((self.root / "mic-attempts").read_text(), "1")
+            self.assertEqual(len(list((session.private / "windows").glob("*/done.json"))), 1)
+        finally:
+            if child is not None:
+                if child.poll() is None:
+                    child.kill()
+                child.communicate(timeout=5)
+
     def test_changed_audio_after_window_commit_prevents_recovery(self):
         session = self.session()
         session.process_window(0, 1250, 1250)
