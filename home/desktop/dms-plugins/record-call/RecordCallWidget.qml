@@ -7,7 +7,11 @@ import qs.Modules.Plugins
 PluginComponent {
     id: root
 
-    property bool recording: false
+    property string phase: "idle"
+    readonly property bool recording: phase === "recording"
+    readonly property bool finalizing: phase === "finalizing" || phase === "starting"
+    property string failureCode: ""
+    property bool retryable: false
     property bool toggleBusy: false
     property int startedAt: 0
     property string outputDir: ""
@@ -23,12 +27,32 @@ PluginComponent {
         return h > 0 ? (h + ":" + pad(m) + ":" + pad(sec)) : (pad(m) + ":" + pad(sec));
     }
     function tooltipText() {
-        if (root.toggleBusy) {
-            return root.recording ? "Stopping recording..." : "Starting recording...";
+        if (root.toggleBusy) return "Updating recording...";
+        if (root.phase === "starting") return "Starting recording...";
+        if (root.phase === "finalizing") return "Finalizing transcript...";
+        if (root.phase === "incomplete") {
+            if (root.failureCode === "status_unavailable") return "Recorder status is unavailable";
+            return root.failureText() +
+                (root.retryable ? " — click to retry transcription" : " — click to start another recording");
         }
+        if (root.phase === "ready") return "Transcript ready — click to start recording";
         return root.recording
             ? "Recording " + root.elapsedText() + " — click to stop"
             : "Start recording";
+    }
+
+    function failureText() {
+        switch (root.failureCode) {
+        case "asr_exit": return "Speech recognition failed";
+        case "asr_timeout": return "Speech recognition timed out";
+        case "invalid_asr_output": return "Speech recognition returned an unusable result";
+        case "incomplete_audio_coverage": return "Recording has missing audio";
+        case "recording_owner_lost": return "Recorder stopped before completion";
+        case "capture_end_unknown": return "Recording ended unexpectedly";
+        case "turns_failed": return "Transcript formatting failed";
+        case "legacy_recording_state": return "An older recording needs attention";
+        default: return "Recording could not be completed";
+        }
     }
 
     Timer {
@@ -38,48 +62,43 @@ PluginComponent {
         onTriggered: root.now = Math.floor(Date.now() / 1000)
     }
 
-    // Poll the state file every 2s so CLI-driven start/stop is mirrored
-    // in the pill. record-call has no IPC of its own.
+    // The CLI verifies durable state and the owning unit. A stale file must
+    // never look like active capture, and finalization is a separate state.
     Timer {
         interval: 2000
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: pollProc.running = true
+        onTriggered: { if (!pollProc.running) pollProc.running = true; }
     }
 
     property string _pollOut: ""
 
     Process {
         id: pollProc
-        command: ["sh", "-c", "cat \"${XDG_RUNTIME_DIR:-/tmp}/record-call/session.env\" 2>/dev/null || true"]
+        command: ["record-call", "status", "--json"]
         running: false
         stdout: SplitParser {
             onRead: data => { root._pollOut += data + "\n"; }
         }
         onStarted: root._pollOut = ""
         onExited: (exitCode, exitStatus) => {
-            var txt = root._pollOut;
-            if (!txt || txt.indexOf("STARTED_AT=") < 0) {
-                root.recording = false;
+            try {
+                if (exitCode !== 0) throw new Error("status_unavailable");
+                var state = JSON.parse(root._pollOut);
+                if (["idle", "starting", "recording", "finalizing", "ready", "incomplete"].indexOf(state.status) < 0)
+                    throw new Error("invalid_status");
+                root.phase = state.status;
+                root.startedAt = state.startedAt ? Math.floor(Date.parse(state.startedAt) / 1000) : 0;
+                root.outputDir = state.outputDir || "";
+                root.failureCode = state.failure ? state.failure.code : "";
+                root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
+            } catch (error) {
+                root.phase = "incomplete";
+                root.failureCode = "status_unavailable";
+                root.retryable = false;
                 root.startedAt = 0;
-                root.outputDir = "";
-                return;
             }
-            var lines = txt.split("\n");
-            var started = 0;
-            var out = "";
-            for (var i = 0; i < lines.length; i++) {
-                var ln = lines[i];
-                if (ln.indexOf("STARTED_AT=") === 0) {
-                    started = parseInt(ln.substring("STARTED_AT=".length), 10) || 0;
-                } else if (ln.indexOf("OUTPUT_DIR=") === 0) {
-                    out = ln.substring("OUTPUT_DIR=".length);
-                }
-            }
-            root.recording = started > 0;
-            root.startedAt = started;
-            root.outputDir = out;
         }
     }
 
@@ -93,26 +112,21 @@ PluginComponent {
         onExited: (exitCode, exitStatus) => {
             root.toggleBusy = false;
             if (exitCode !== 0) {
-                console.warn("[record-call] toggle exited rc=" + exitCode + " — see /tmp/record-call-widget.log");
+                console.warn("[record-call] command failed rc=" + exitCode);
             }
             kickPoll.start();
         }
     }
 
-    // `record-call stop` can take 30+s when it flushes the final whisper
-    // window. Without this guard, a second click while the first is still
-    // in flight would set running=true on an already-running Process, which
-    // does nothing — the user sees an unresponsive button.
+    // The owner continues finalization after stop returns. Do not start a
+    // competing command while capture startup or transcript finalization runs.
     function toggle() {
-        if (root.toggleBusy) {
-            console.warn("[record-call] toggle ignored — previous invocation still running");
-            return;
+        if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable") return;
+        if (root.phase === "incomplete" && root.retryable) {
+            toggleProc.command = ["record-call", "retry", root.outputDir];
+        } else {
+            toggleProc.command = ["record-call", root.recording ? "stop" : "start"];
         }
-        var sub = root.recording ? "stop" : "start";
-        toggleProc.command = ["bash", "-c",
-            "exec >>/tmp/record-call-widget.log 2>&1; " +
-            "echo \"[$(date -Is)] widget invoked: record-call " + sub + "\"; " +
-            "exec record-call " + sub];
         toggleProc.running = true;
     }
 
@@ -121,7 +135,7 @@ PluginComponent {
         interval: 400
         running: false
         repeat: false
-        onTriggered: pollProc.running = true
+        onTriggered: { if (!pollProc.running) pollProc.running = true; }
     }
 
     pillClickAction: () => root.toggle()
@@ -179,9 +193,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : "mic"
+                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : Theme.surfaceText
+                color: root.recording ? "#e74c3c" : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
 
                 SequentialAnimation on opacity {
@@ -193,8 +207,8 @@ PluginComponent {
             }
 
             StyledText {
-                text: root.elapsedText()
-                visible: root.recording
+                text: root.phase === "starting" ? "Starting" : root.finalizing ? "Finalizing" : root.elapsedText()
+                visible: root.recording || root.finalizing
                 font.pixelSize: Theme.fontSizeMedium
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
@@ -213,9 +227,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : "mic"
+                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : Theme.surfaceText
+                color: root.recording ? "#e74c3c" : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 SequentialAnimation on opacity {
@@ -227,8 +241,8 @@ PluginComponent {
             }
 
             StyledText {
-                text: root.elapsedText()
-                visible: root.recording
+                text: root.phase === "starting" ? "Starting" : root.finalizing ? "Finalizing" : root.elapsedText()
+                visible: root.recording || root.finalizing
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter

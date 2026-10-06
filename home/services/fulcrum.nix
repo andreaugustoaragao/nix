@@ -51,6 +51,10 @@ let
 in
 
 {
+  # Fixed read-only Google source commands are provided by Fulcrum's adapter.
+  # Account OAuth setup is separate; no account or credential is inferred here.
+  home.packages = lib.optionals (hostName == "prl-dev-vm") [ pkgs.gogcli ];
+
   systemd.user.services.fulcrum = {
     Unit = {
       Description = "Fulcrum — executive operational intelligence (source)";
@@ -80,6 +84,10 @@ in
         # override Fulcrum falls back to `http://chroma:8000`, which only
         # resolves inside docker-compose's network.
         "CHROMA_BASE_URL=http://localhost:8000"
+      ]
+      ++ lib.optionals (hostName == "prl-dev-vm") [
+        "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
+        "FULCRUM_RECORDING_GOG_BIN=${pkgs.gogcli}/bin/gog"
       ]
       # Voice-message transcription. Non-workstation hosts have no
       # local whisper binary on PATH (the Dockerfile bakes one in,
