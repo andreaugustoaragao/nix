@@ -117,6 +117,8 @@ in
       ++ lib.optionals (hostName == "prl-dev-vm") [
         "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
         "FULCRUM_RECORDING_GOG_BIN=${pkgs.gogcli}/bin/gog"
+        "FULCRUM_RECORDING_GOOGLE_ACCOUNT=aragao@avaya.com"
+        "FULCRUM_RECORDING_BROWSER_BIN=${pkgs.callPackage ../../pkgs/dev-browser.nix { }}/bin/dev-browser"
       ]
       # Only the local desktop uses this authenticated loopback listener and
       # owner-only session bootstrap. Existing HTTPS and browser auth stay intact.
