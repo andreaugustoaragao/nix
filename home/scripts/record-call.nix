@@ -396,12 +396,37 @@ let
         f.writelines(kept)
     print(f"dedupe: dropped {len(drop)} duplicate line(s) of {len(lines)} total")
   '';
+  sessionConfig = pkgs.writeText "record-call-session-config.json" (
+    builtins.toJSON {
+      python = "${pkgs.python3}/bin/python3";
+      pwRecord = "${pkgs.pipewire}/bin/pw-record";
+      pactl = "${pkgs.pulseaudio}/bin/pactl";
+      ffmpeg = "${pkgs.ffmpeg}/bin/ffmpeg";
+      whisper = "${whisperPkg}/bin/whisper-cli";
+      curl = "${pkgs.curl}/bin/curl";
+      systemdRun = "${pkgs.systemd}/bin/systemd-run";
+      systemctl = "${pkgs.systemd}/bin/systemctl";
+      tail = "${pkgs.coreutils}/bin/tail";
+      merge = mergePy;
+      dedupe = dedupePy;
+      turns = turnsPy;
+      inherit defaultWhisperServerUrl;
+    }
+  );
 in
 {
   home.packages = [
     (pkgs.writeShellScriptBin "record-call" ''
             set -euo pipefail
             export PATH="${binPath}:$PATH"
+
+            # Capture and finalization share one owned user-unit lifecycle.
+            # Public status is structured; legacy session.env is never sourced.
+            case "''${1:-help}" in
+              start|stop|status|retry|route|tail)
+                exec python3 ${./record-call-session.py} --config ${sessionConfig} "$@"
+                ;;
+            esac
 
             # When set, transcription is delegated to a remote whisper.cpp
             # HTTP server (OpenAI Whisper API shape, response_format=verbose_json).
@@ -411,7 +436,6 @@ in
             # point at a different server.
             WHISPER_SERVER_URL="''${WHISPER_SERVER_URL:-${defaultWhisperServerUrl}}"
 
-            SINK_NAME="record-call-sink"
             # ffmpeg writes fine-grained fragments; the watcher assembles
             # overlapping windows from them so Whisper sees ~7s of audio
             # either side of every emit boundary. 5s of overlap wasn't
@@ -434,76 +458,6 @@ in
             VAD_MODEL_NAME="ggml-silero-v5.1.2.bin"
             VAD_MODEL_PATH="$MODEL_DIR/$VAD_MODEL_NAME"
             VAD_MODEL_URL="https://huggingface.co/ggml-org/whisper-vad/resolve/main/$VAD_MODEL_NAME"
-            STATE_DIR="''${XDG_RUNTIME_DIR:-/tmp}/record-call"
-            STATE_FILE="$STATE_DIR/session.env"
-            mkdir -p "$STATE_DIR"
-
-            kill_tree() {
-              local pid="''${1:-}"
-              [ -n "$pid" ] || return 0
-              pkill -TERM -P "$pid" 2>/dev/null || true
-              kill -TERM "$pid" 2>/dev/null || true
-            }
-
-            cleanup_capture_processes() {
-              local out="''${1:-}"
-              local calls_root="$HOME/recordings/calls"
-              local ffmpeg_pattern
-
-              # record-call's pw-record commands are intentionally distinctive.
-              # Reap any stale capture readers first so ffmpeg segmenters get EOF
-              # and can flush their final partial file before we escalate.
-              # The `|| true` is mandatory: the script runs under `set -euo
-              # pipefail`, and `pgrep | while` returns the rightmost non-zero
-              # exit when pgrep finds nothing — which aborts the whole script
-              # mid-stop. Until 2026-05-18 this silently broke every stop
-              # invocation where the captures had already died.
-              pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
-                | while read -r pid; do
-                    kill -TERM "$pid" 2>/dev/null || true
-                  done || true
-
-              if [ -n "$out" ]; then
-                ffmpeg_pattern="ffmpeg .*$(printf '%s' "$out" | sed 's/[][\.^$*+?{}|()]/\\&/g')/chunks/.*_%06d\\.wav"
-              else
-                ffmpeg_pattern="ffmpeg .*$calls_root/.*/chunks/.*_%06d\\.wav"
-              fi
-
-              pgrep -f "$ffmpeg_pattern" \
-                | while read -r pid; do
-                    kill -TERM "$pid" 2>/dev/null || true
-                  done || true
-
-              for _ in $(seq 1 20); do
-                pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' >/dev/null 2>&1 || \
-                  ! pgrep -f "$ffmpeg_pattern" >/dev/null 2>&1 || true
-                if ! pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' >/dev/null 2>&1 \
-                   && ! pgrep -f "$ffmpeg_pattern" >/dev/null 2>&1; then
-                  return 0
-                fi
-                sleep 0.25
-              done
-
-              pgrep -f '^pw-record --target=.* --format=s16 --rate=16000 --channels=1 -$' \
-                | while read -r pid; do
-                    kill -KILL "$pid" 2>/dev/null || true
-                  done || true
-              pgrep -f "$ffmpeg_pattern" \
-                | while read -r pid; do
-                    kill -KILL "$pid" 2>/dev/null || true
-                  done || true
-            }
-
-            unload_record_call_modules() {
-              if [ -n "''${LOOPBACK_ID:-}" ]; then
-                pactl unload-module "$LOOPBACK_ID" 2>/dev/null || true
-              fi
-              if [ -n "''${SINK_ID:-}" ]; then
-                pactl unload-module "$SINK_ID" 2>/dev/null || true
-              fi
-              pactl list short modules 2>/dev/null | awk '/null-sink|loopback/{print $1}' \
-                | while read -r id; do pactl unload-module "$id" 2>/dev/null || true; done
-            }
 
             ensure_model() {
               # In remote mode the mac-work LaunchAgent owns the model
@@ -553,362 +507,6 @@ in
               fi
             }
 
-            sink_index() {
-              pactl -f json list sinks | jq -r --arg n "$SINK_NAME" '.[] | select(.name == $n) | .index' | head -1
-            }
-
-            # Build one overlapping window from call_*.wav + mic_*.wav
-            # fragments, transcribe each, and append emit-filtered lines to
-            # transcript.txt. Mic transcription uses Silero VAD to skip the
-            # silent stretches that Whisper would otherwise hallucinate on.
-            # Args: OUT FRAG WIN ADV MODEL VAD_MODEL WINDOW_IDX EMIT_HI_SEC STARTED_AT
-            process_window() {
-              local OUT="$1" FRAG="$2" WIN="$3" ADV="$4" MODEL="$5" VAD_MODEL="$6" N="$7" EHI="$8" STARTED="$9"
-              local CHUNKS_DIR="$OUT/chunks"
-              local TRANSCRIPT="$OUT/transcript.txt"
-              local FPW=$(( WIN / FRAG ))
-              local AF=$(( ADV / FRAG ))
-              local start_frag=$(( N * AF ))
-              local end_frag
-
-              if [ "$EHI" = "-1" ]; then
-                end_frag=$(find "$CHUNKS_DIR" -maxdepth 1 \
-                    \( -name 'call_*.wav' -o -name 'mic_*.wav' \) -type f 2>/dev/null \
-                  | sed -n 's|.*/\(call\|mic\)_0*\([0-9][0-9]*\)\.wav$|\2|p' \
-                  | sort -n | tail -1)
-                [ -n "$end_frag" ] || return 0
-                [ "$end_frag" -ge "$start_frag" ] || return 0
-              else
-                end_frag=$(( start_frag + FPW - 1 ))
-              fi
-
-              local work
-              work=$(mktemp -d)
-              local call_list="$work/call.txt" mic_list="$work/mic.txt"
-              : > "$call_list"
-              : > "$mic_list"
-              local f="$start_frag"
-              while [ "$f" -le "$end_frag" ]; do
-                local cpath mpath
-                cpath=$(printf "%s/call_%06d.wav" "$CHUNKS_DIR" "$f")
-                mpath=$(printf "%s/mic_%06d.wav" "$CHUNKS_DIR" "$f")
-                [ -f "$cpath" ] && printf "file '%s'\n" "$cpath" >> "$call_list"
-                [ -f "$mpath" ] && printf "file '%s'\n" "$mpath" >> "$mic_list"
-                f=$(( f + 1 ))
-              done
-
-              if [ ! -s "$call_list" ] && [ ! -s "$mic_list" ]; then
-                rm -rf "$work"
-                return 0
-              fi
-
-              if [ -s "$call_list" ]; then
-                ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$call_list" \
-                  -c copy "$work/call.wav" </dev/null 2>/dev/null || true
-              fi
-              if [ -s "$mic_list" ]; then
-                ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$mic_list" \
-                  -c copy "$work/mic.wav" </dev/null 2>/dev/null || true
-              fi
-
-              # Transcribe both sides in parallel, both with Silero VAD.
-              # The mic is mostly silence while the user listens, and the
-              # call side can be silent too (hold music, the other end on
-              # mute, or — historically — unrouted audio). Without VAD,
-              # Whisper hallucinates "you" / "Thanks for watching" lines
-              # on silence.
-              local call_json="-" mic_json="-"
-              if [ -s "$work/call.wav" ]; then
-                ( transcribe_audio "$work/call.wav" "$work/call" "$MODEL" "$VAD_MODEL" ) \
-                  >"$work/call.log" 2>&1 &
-                call_json="$work/call.json"
-              fi
-              if [ -s "$work/mic.wav" ]; then
-                ( transcribe_audio "$work/mic.wav" "$work/mic" "$MODEL" "$VAD_MODEL" ) \
-                  >"$work/mic.log" 2>&1 &
-                mic_json="$work/mic.json"
-              fi
-              wait
-
-              local win_off=$(( start_frag * FRAG ))
-              python3 ${mergePy} "$call_json" "$mic_json" \
-                "$win_off" "$win_off" "$EHI" "$STARTED" >> "$TRANSCRIPT"
-
-              rm -rf "$work"
-            }
-
-            cmd_start() {
-              if [ -f "$STATE_FILE" ]; then
-                # Validate — empty or stale (no live ffmpeg) state is a leftover
-                # from a prior crash; clean it up instead of refusing to start.
-                # shellcheck disable=SC1090
-                . "$STATE_FILE" 2>/dev/null || true
-                if { [ -n "''${FFMPEG_CALL_PID:-}" ] && kill -0 "$FFMPEG_CALL_PID" 2>/dev/null; } \
-                   || { [ -n "''${FFMPEG_MIC_PID:-}" ] && kill -0 "$FFMPEG_MIC_PID" 2>/dev/null; }; then
-                  echo "A recording is already active. Run 'record-call stop' first." >&2
-                  exit 1
-                fi
-                echo "Removing stale session state..." >&2
-                if [ -n "''${AUTOROUTE_PID:-}" ]; then
-                  kill_tree "$AUTOROUTE_PID"
-                fi
-                [ -n "''${WATCHER_PID:-}" ] && kill_tree "$WATCHER_PID"
-                cleanup_capture_processes "''${OUTPUT_DIR:-}"
-                unload_record_call_modules
-                rm -f "$STATE_FILE"
-                unset SINK_ID LOOPBACK_ID FFMPEG_CALL_PID FFMPEG_MIC_PID WATCHER_PID AUTOROUTE_PID OUTPUT_DIR FRAGMENT_SEC WINDOW_SEC ADVANCE_SEC STARTED_AT
-              fi
-
-              ensure_model
-
-              OUTPUT_DIR="''${1:-$HOME/recordings/calls/$(date +%Y%m%d-%H%M%S)}"
-              mkdir -p "$OUTPUT_DIR/chunks"
-              touch "$OUTPUT_DIR/transcript.txt"
-              # Defensive: previous session may have crashed without
-              # clearing this sentinel, which would make the new capture
-              # supervisor exit immediately.
-              rm -f "$OUTPUT_DIR/.shutdown"
-
-              # Null-sink captures browser audio; loopback plays it back to
-              # the user's default output so they still hear the call.
-              SINK_ID=$(pactl load-module module-null-sink \
-                sink_name="$SINK_NAME" \
-                sink_properties='device.description="Record-Call-Sink"')
-              LOOPBACK_ID=$(pactl load-module module-loopback \
-                source="$SINK_NAME.monitor" \
-                sink="@DEFAULT_SINK@" \
-                latency_msec=50)
-
-              # Resolve numeric ids for both sources. pw-record's
-              # name-based --target is unreliable — it silently auto-links
-              # to the default source if the name doesn't match a node
-              # exactly. The numeric index always binds correctly.
-              MON_ID=""
-              MIC_ID=""
-              for _ in $(seq 1 30); do
-                MON_ID=$(pactl list short sources 2>/dev/null | awk -v n="$SINK_NAME.monitor" '$2==n{print $1; exit}')
-                DEFAULT_SRC=$(pactl get-default-source 2>/dev/null)
-                MIC_ID=$(pactl list short sources 2>/dev/null | awk -v n="$DEFAULT_SRC" '$2==n{print $1; exit}')
-                [ -n "$MON_ID" ] && [ -n "$MIC_ID" ] && break
-                sleep 0.1
-              done
-              if [ -z "$MON_ID" ] || [ -z "$MIC_ID" ]; then
-                echo "failed to resolve source IDs (mon=$MON_ID mic=$MIC_ID)" >&2
-                exit 1
-              fi
-              sleep 0.3
-
-              # Capture call audio and mic as separate fragment streams.
-              # pw-record piped to ffmpeg segment muxer avoids the pulse-
-              # compat "Generic error" bug `ffmpeg -f pulse` hits against
-              # null-sink monitors with a loopback attached.
-              #
-              # Wrapped in a supervisor loop so a transient pw-record death
-              # (observed mid-session on 2026-05-18 with no error left in
-              # any log) auto-restarts capture from the next available
-              # chunk index instead of leaving the watcher waiting forever
-              # on inotify for chunks that never come.
-              ( while [ ! -f "$OUTPUT_DIR/.shutdown" ]; do
-                  start_idx=$(find "$OUTPUT_DIR/chunks" -maxdepth 1 -name 'call_*.wav' -type f 2>/dev/null \
-                    | sed -n 's|.*/call_0*\([0-9][0-9]*\)\.wav$|\1|p' \
-                    | sort -n | tail -1)
-                  start_idx=$(( ''${start_idx:--1} + 1 ))
-                  echo "$(date -Is) call capture starting at segment $start_idx" >> "$OUTPUT_DIR/capture-call.log"
-                  set -o pipefail
-                  pw-record --target="$MON_ID" --format=s16 --rate=16000 --channels=1 - \
-                    2>> "$OUTPUT_DIR/pw-call.log" \
-                  | ffmpeg -hide_banner -loglevel warning -y \
-                      -f s16le -ar 16000 -ac 1 -i - \
-                      -c:a pcm_s16le \
-                      -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
-                      -segment_start_number "$start_idx" \
-                      "$OUTPUT_DIR/chunks/call_%06d.wav" \
-                      >> "$OUTPUT_DIR/ffmpeg-call.log" 2>&1
-                  rc=$?
-                  set +o pipefail
-                  [ -f "$OUTPUT_DIR/.shutdown" ] && break
-                  echo "$(date -Is) call capture exited rc=$rc, restarting in 1s" >> "$OUTPUT_DIR/capture-call.log"
-                  sleep 1
-                done
-              ) &
-              FFMPEG_CALL_PID=$!
-
-              ( while [ ! -f "$OUTPUT_DIR/.shutdown" ]; do
-                  start_idx=$(find "$OUTPUT_DIR/chunks" -maxdepth 1 -name 'mic_*.wav' -type f 2>/dev/null \
-                    | sed -n 's|.*/mic_0*\([0-9][0-9]*\)\.wav$|\1|p' \
-                    | sort -n | tail -1)
-                  start_idx=$(( ''${start_idx:--1} + 1 ))
-                  echo "$(date -Is) mic capture starting at segment $start_idx" >> "$OUTPUT_DIR/capture-mic.log"
-                  set -o pipefail
-                  pw-record --target="$MIC_ID" --format=s16 --rate=16000 --channels=1 - \
-                    2>> "$OUTPUT_DIR/pw-mic.log" \
-                  | ffmpeg -hide_banner -loglevel warning -y \
-                      -f s16le -ar 16000 -ac 1 -i - \
-                      -c:a pcm_s16le \
-                      -f segment -segment_time "$FRAGMENT_SEC" -reset_timestamps 1 \
-                      -segment_start_number "$start_idx" \
-                      "$OUTPUT_DIR/chunks/mic_%06d.wav" \
-                      >> "$OUTPUT_DIR/ffmpeg-mic.log" 2>&1
-                  rc=$?
-                  set +o pipefail
-                  [ -f "$OUTPUT_DIR/.shutdown" ] && break
-                  echo "$(date -Is) mic capture exited rc=$rc, restarting in 1s" >> "$OUTPUT_DIR/capture-mic.log"
-                  sleep 1
-                done
-              ) &
-              FFMPEG_MIC_PID=$!
-
-              STARTED_AT=$(date +%s)
-              ( exec "$0" _watch "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$STARTED_AT" \
-                  > "$OUTPUT_DIR/watcher.log" 2>&1 ) &
-              WATCHER_PID=$!
-
-              # Auto-route browser streams to Record-Call-Sink for the
-              # lifetime of the session, so call audio gets captured even
-              # if the tab is opened/refreshed after 'record-call start'.
-              ( exec "$0" _autoroute > "$OUTPUT_DIR/autoroute.log" 2>&1 ) &
-              AUTOROUTE_PID=$!
-
-              cat > "$STATE_FILE" <<EOF
-      SINK_ID=$SINK_ID
-      LOOPBACK_ID=$LOOPBACK_ID
-      FFMPEG_CALL_PID=$FFMPEG_CALL_PID
-      FFMPEG_MIC_PID=$FFMPEG_MIC_PID
-      WATCHER_PID=$WATCHER_PID
-      AUTOROUTE_PID=$AUTOROUTE_PID
-      OUTPUT_DIR=$OUTPUT_DIR
-      FRAGMENT_SEC=$FRAGMENT_SEC
-      WINDOW_SEC=$WINDOW_SEC
-      ADVANCE_SEC=$ADVANCE_SEC
-      STARTED_AT=$STARTED_AT
-      EOF
-
-              cat <<EOF
-      Recording started.
-        Output:     $OUTPUT_DIR
-        Transcript: $OUTPUT_DIR/transcript.txt
-
-      Browser audio is auto-routed to **Record-Call-Sink** for the
-      lifetime of the session. If a stream doesn't get captured, run
-      'record-call route' (or reroute via pavucontrol). A loopback plays
-      it to your default output so you still hear the call.
-
-      Monitor the live transcript:
-          record-call tail
-
-      Stop when done:
-          record-call stop
-      EOF
-            }
-
-            cmd_stop() {
-              if [ ! -f "$STATE_FILE" ]; then
-                echo "No active recording state; cleaning stale record-call captures if any..." >&2
-                cleanup_capture_processes
-                unload_record_call_modules
-                exit 0
-              fi
-              # shellcheck disable=SC1090
-              . "$STATE_FILE"
-
-              echo "Stopping auto-router..."
-              if [ -n "''${AUTOROUTE_PID:-}" ]; then
-                kill_tree "$AUTOROUTE_PID"
-              fi
-
-              echo "Stopping ffmpeg captures (flushing last fragment)..."
-              # Tell the capture supervisors to exit cleanly instead of
-              # auto-restarting when we kill pw-record/ffmpeg below.
-              touch "$OUTPUT_DIR/.shutdown" 2>/dev/null || true
-              cleanup_capture_processes "$OUTPUT_DIR"
-              kill_tree "''${FFMPEG_CALL_PID:-}"
-              kill_tree "''${FFMPEG_MIC_PID:-}"
-              for _ in $(seq 1 20); do
-                kill -0 "''${FFMPEG_CALL_PID:-}" 2>/dev/null \
-                  || kill -0 "''${FFMPEG_MIC_PID:-}" 2>/dev/null \
-                  || break
-                sleep 0.25
-              done
-
-              echo "Waiting for watcher to drain..."
-              # Grace period for inotify close_write to fire on the final segment
-              # and the watcher to spawn whisper-cli on it.
-              sleep 3
-              # Wait until no transcription is in flight (all chunks
-              # processed). Two shapes to cover:
-              #   - local: `whisper-cli` subprocess of the watcher.
-              #   - remote: `curl ... /v1/audio/transcriptions` subprocess.
-              # Cap at 20 minutes to avoid hanging forever if something wedges.
-              for _ in $(seq 1 1200); do
-                if ! pgrep -f 'whisper-cli' >/dev/null 2>&1 \
-                   && ! pgrep -f 'audio/transcriptions' >/dev/null 2>&1; then
-                  break
-                fi
-                sleep 1
-              done
-              # Terminate the watcher and its children (inotifywait, pipe subshell).
-              kill_tree "''${WATCHER_PID:-}"
-
-              # Flush the final (partial) window so no audio after the last
-              # processed window is lost.
-              if [ -f "$OUTPUT_DIR/.next-window" ]; then
-                NEXT_WIN=$(cat "$OUTPUT_DIR/.next-window")
-                echo "Flushing final window (idx $NEXT_WIN)..."
-                process_window "$OUTPUT_DIR" "$FRAGMENT_SEC" "$WINDOW_SEC" "$ADVANCE_SEC" "$MODEL_PATH" "$VAD_MODEL_PATH" "$NEXT_WIN" "-1" "$STARTED_AT"
-                rm -f "$OUTPUT_DIR/.next-window"
-              fi
-
-              echo "Unloading PipeWire modules..."
-              unload_record_call_modules
-
-              # Preserve the raw transcript, then dedupe Me:/Them: bleed-through.
-              if [ -s "$OUTPUT_DIR/transcript.txt" ]; then
-                cp -f "$OUTPUT_DIR/transcript.txt" "$OUTPUT_DIR/transcript.raw.txt"
-                python3 ${dedupePy} "$OUTPUT_DIR/transcript.txt" || true
-              fi
-
-              TURN_GAP="''${RECORD_CALL_TURN_GAP_SEC:-8}"
-              TURNS=""
-              if [ -s "$OUTPUT_DIR/transcript.txt" ]; then
-                echo "Grouping into speaker turns (gap=''${TURN_GAP}s)..."
-                python3 ${turnsPy} "$OUTPUT_DIR/transcript.txt" \
-                  "$OUTPUT_DIR/transcript.turns.txt" "$TURN_GAP" || true
-                [ -s "$OUTPUT_DIR/transcript.turns.txt" ] && TURNS="$OUTPUT_DIR/transcript.turns.txt"
-              fi
-
-              DIARIZED=""
-              DIARIZED_TURNS=""
-              if [ -n "''${HF_TOKEN:-}" ] || [ -n "''${HUGGINGFACE_HUB_TOKEN:-}" ]; then
-                echo "Running speaker diarization..."
-                if cmd_diarize "$OUTPUT_DIR"; then
-                  DIARIZED="$OUTPUT_DIR/transcript.diarized.txt"
-                  echo "Grouping diarized transcript into turns..."
-                  python3 ${turnsPy} "$DIARIZED" \
-                    "$OUTPUT_DIR/transcript.diarized.turns.txt" "$TURN_GAP" || true
-                  [ -s "$OUTPUT_DIR/transcript.diarized.turns.txt" ] \
-                    && DIARIZED_TURNS="$OUTPUT_DIR/transcript.diarized.turns.txt"
-                else
-                  echo "Diarization failed; transcript.txt is still finalized." >&2
-                fi
-              else
-                echo "Skipping diarization: HF_TOKEN/HUGGINGFACE_HUB_TOKEN is not set." >&2
-                echo "Run later with: record-call diarize '$OUTPUT_DIR'" >&2
-              fi
-
-              ELAPSED=$(( $(date +%s) - STARTED_AT ))
-              rm -f "$STATE_FILE"
-
-              cat <<EOF
-      Stopped.
-        Duration:   ''${ELAPSED}s
-        Transcript: $OUTPUT_DIR/transcript.txt (raw: transcript.raw.txt)
-        Turns:      ''${TURNS:-not generated}
-        Diarized:   ''${DIARIZED:-not generated}
-        Diar.turns: ''${DIARIZED_TURNS:-not generated}
-        Chunks:     $OUTPUT_DIR/chunks/
-      EOF
-            }
-
             cmd_turns() {
               # Group a transcript into speaker turns. Works on both
               # the line-per-segment transcript.txt and the
@@ -950,113 +548,6 @@ in
               cp -f "$SRC" "$SRC.raw"
               python3 ${dedupePy} "$SRC"
               echo "Raw backup: $SRC.raw"
-            }
-
-            cmd_status() {
-              if [ ! -f "$STATE_FILE" ]; then
-                echo "No active recording."
-                exit 0
-              fi
-              # shellcheck disable=SC1090
-              . "$STATE_FILE"
-              FRAGMENTS=$(find "$OUTPUT_DIR/chunks" -name 'call_*.wav' -type f 2>/dev/null | wc -l)
-              WINDOWS_DONE=0
-              [ -f "$OUTPUT_DIR/.next-window" ] && WINDOWS_DONE=$(cat "$OUTPUT_DIR/.next-window")
-              ELAPSED=$(( $(date +%s) - STARTED_AT ))
-              TRANSCRIBED=$(wc -l < "$OUTPUT_DIR/transcript.txt" 2>/dev/null || echo 0)
-              cat <<EOF
-      Recording active.
-        Started:      $(date -d "@$STARTED_AT" '+%Y-%m-%d %H:%M:%S')
-        Elapsed:      ''${ELAPSED}s
-        Fragments:    $FRAGMENTS (x ''${FRAGMENT_SEC}s)
-        Windows done: $WINDOWS_DONE (window=''${WINDOW_SEC}s, advance=''${ADVANCE_SEC}s)
-        Transcript:   $TRANSCRIBED lines
-        Output:       $OUTPUT_DIR
-      EOF
-            }
-
-            cmd_tail() {
-              [ -f "$STATE_FILE" ] || { echo "No active recording." >&2; exit 1; }
-              # shellcheck disable=SC1090
-              . "$STATE_FILE"
-              tail -F "$OUTPUT_DIR/transcript.txt"
-            }
-
-            # Move matching browser streams to Record-Call-Sink. Echoes the
-            # number moved. Used by both the one-shot `record-call route`
-            # command and the background auto-router.
-            do_route() {
-              local target="$1"
-              local moved=0 id
-              while read -r id; do
-                [ -n "$id" ] || continue
-                pactl move-sink-input "$id" "$target" 2>/dev/null && moved=$((moved + 1)) || true
-              done < <(
-                pactl -f json list sink-inputs 2>/dev/null | jq -r --argjson t "$target" '
-                  .[]
-                  | select(.sink != $t)
-                  | select(
-                      ((.properties."application.process.binary" // "") | ascii_downcase | test("chrome|chromium|brave|firefox"))
-                      or
-                      ((.properties."application.name" // "") | ascii_downcase | test("chrome|chromium|brave|google|firefox"))
-                    )
-                  | .index
-                '
-              )
-              echo "$moved"
-            }
-
-            cmd_route() {
-              TARGET=$(sink_index)
-              if [ -z "$TARGET" ]; then
-                echo "Record-Call-Sink is not loaded. Run 'record-call start' first." >&2
-                exit 1
-              fi
-              MOVED=$(do_route "$TARGET")
-              echo "Routed $MOVED stream(s) to Record-Call-Sink."
-            }
-
-            # Background auto-router: re-runs do_route every time pactl
-            # reports a sink-input event. Handles the common failure mode
-            # where the user starts recording before the call tab is open
-            # (or refreshes the tab mid-call) — any new browser stream gets
-            # captured automatically, no need to remember 'record-call route'.
-            cmd__autoroute() {
-              local TARGET
-              for _ in $(seq 1 30); do
-                TARGET=$(sink_index)
-                [ -n "$TARGET" ] && break
-                sleep 0.1
-              done
-              [ -n "$TARGET" ] || { echo "$(date -Is) record-call sink never appeared" >&2; exit 1; }
-
-              echo "$(date -Is) autoroute started, target=$TARGET" >&2
-              do_route "$TARGET" >&2
-
-              # pactl subscribe can exit on its own (PA daemon hiccup,
-              # transient pipe break) — observed on 2026-05-18 with no
-              # error left in autoroute.log. Without this retry loop the
-              # auto-router stays dead, browser streams revert to the
-              # default sink, and all captured "call" audio is silence.
-              while true; do
-                if [ -z "$(sink_index)" ]; then
-                  echo "$(date -Is) record-call sink gone, exiting autoroute" >&2
-                  return 0
-                fi
-                pactl subscribe 2>&1 | while read -r line; do
-                  case "$line" in
-                    *"on sink-input"*)
-                      # Brief settle delay — a freshly-created stream often
-                      # reports its application properties a beat after the
-                      # event fires, and we need those to match the filter.
-                      sleep 0.1
-                      do_route "$TARGET" >/dev/null
-                      ;;
-                  esac
-                done || true
-                echo "$(date -Is) pactl subscribe exited, restarting in 0.5s" >&2
-                sleep 0.5
-              done
             }
 
             cmd_transcribe() {
@@ -1163,41 +654,6 @@ in
               echo "Retimed from epoch $EPOCH. Backup: $TXT.bak"
             }
 
-            cmd__watch() {
-              OUT="$1"; FRAG="$2"; WIN="$3"; ADV="$4"; MODEL="$5"; VAD_MODEL="$6"; STARTED="$7"
-              CHUNKS_DIR="$OUT/chunks"
-              STATE="$OUT/.next-window"
-              FPW=$(( WIN / FRAG ))
-              AF=$(( ADV / FRAG ))
-
-              next_window=0
-              printf '%s\n' "$next_window" > "$STATE"
-
-              # Window N is ready when both call_K and mic_K exist for K at
-              # the window's final position. Track the min of the two sides'
-              # top-finalized indices — that's the frontier safe for windowing.
-              inotifywait -m -q -e close_write --format '%f' "$CHUNKS_DIR" | \
-              while read -r fname; do
-                case "$fname" in
-                  call_*.wav|mic_*.wav) ;;
-                  *) continue ;;
-                esac
-                call_top=$(find "$CHUNKS_DIR" -maxdepth 1 -name 'call_*.wav' -type f 2>/dev/null \
-                  | sed -n 's|.*/call_0*\([0-9][0-9]*\)\.wav$|\1|p' | sort -n | tail -1)
-                mic_top=$(find "$CHUNKS_DIR" -maxdepth 1 -name 'mic_*.wav' -type f 2>/dev/null \
-                  | sed -n 's|.*/mic_0*\([0-9][0-9]*\)\.wav$|\1|p' | sort -n | tail -1)
-                [ -n "$call_top" ] && [ -n "$mic_top" ] || continue
-                top=$(( call_top < mic_top ? call_top : mic_top ))
-
-                while [ $(( next_window * AF + FPW - 1 )) -le "$top" ]; do
-                  emit_hi=$(( (next_window + 1) * ADV ))
-                  process_window "$OUT" "$FRAG" "$WIN" "$ADV" "$MODEL" "$VAD_MODEL" "$next_window" "$emit_hi" "$STARTED"
-                  next_window=$(( next_window + 1 ))
-                  printf '%s\n' "$next_window" > "$STATE"
-                done
-              done
-            }
-
             usage() {
               cat <<EOF
       record-call — capture browser conference calls locally and transcribe with Whisper.
@@ -1205,9 +661,10 @@ in
       Usage:
         record-call start [output-dir]   Begin recording (default: ~/recordings/calls/<ts>)
         record-call route                Move browser streams to Record-Call-Sink
-        record-call status               Show the active session
+        record-call status [--json]      Show recording/finalization/readiness
         record-call tail                 Follow the live transcript
-        record-call stop                 Stop recording, finalize transcript
+        record-call stop                 Stop capture; finalize in its owned user unit
+        record-call retry <dir>          Resume failed retained transcription
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
         record-call turns <dir|txt> [gap]   Group lines into speaker turns (default gap=8s)
@@ -1215,11 +672,10 @@ in
         record-call diarize <dir>        Speaker-label the transcript (needs HF_TOKEN)
 
       How it works:
-        * Creates a PipeWire null-sink "Record-Call-Sink" with a loopback to your
+        * Creates a uniquely owned PipeWire null-sink with a loopback to your
           default output so you still hear the call.
-        * A background auto-router watches PipeWire events and moves any
-          matching browser sink-input (chrome/chromium/brave/firefox) onto
-          Record-Call-Sink, even if the tab is opened/refreshed mid-session.
+        * The recording owner routes matching browser streams every second,
+          including tabs opened/refreshed mid-session.
         * pw-record captures both the sink's monitor (the call) and the
           default source (your mic), piping each into ffmpeg's segment muxer
           as ''${FRAGMENT_SEC}s call_*.wav and mic_*.wav fragments under chunks/.
@@ -1230,7 +686,9 @@ in
         * Both sides use Silero VAD so silent stretches aren't hallucinated
           into "you" / "Thanks for watching." lines. The user's mic is
           prefixed "Me:"; the call side is unlabeled.
-        * At stop, a final partial window is flushed so no audio is lost.
+        * At stop, capture ends immediately and final partial audio is retained.
+          Only verified complete transcripts publish a ready recording.json.
+          Failed work remains incomplete and can be retried without duplicate text.
 
       If a stream isn't auto-routed, move it to Record-Call-Sink via
       pavucontrol (Playback tab) or by running 'record-call route'.
@@ -1240,18 +698,11 @@ in
             CMD="''${1:-help}"
             shift || true
             case "$CMD" in
-              start)       cmd_start "$@" ;;
-              stop)        cmd_stop ;;
-              status)      cmd_status ;;
-              tail)        cmd_tail ;;
-              route)       cmd_route ;;
               transcribe)  cmd_transcribe "$@" ;;
               dedupe)      cmd_dedupe "$@" ;;
               turns)       cmd_turns "$@" ;;
               retime)      cmd_retime "$@" ;;
               diarize)     cmd_diarize "$@" ;;
-              _watch)      cmd__watch "$@" ;;
-              _autoroute)  cmd__autoroute ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
             esac
@@ -1266,6 +717,7 @@ in
           pkgs.ffmpeg
           pkgs.coreutils
           pkgs.gnugrep
+          pkgs.jq
         ]
       }:$PATH"
 
@@ -1291,7 +743,7 @@ in
 
       # ----- Test 2: live capture -----
       step "Live capture (PipeWire sink + pw-record + segmenter + watcher)"
-      if [ -f "''${XDG_RUNTIME_DIR:-/tmp}/record-call/session.env" ]; then
+      if record-call status --json | jq -e '.status == "recording" or .status == "starting" or .status == "finalizing"' >/dev/null; then
         ng "another record-call session already active — run 'record-call stop' first"
       else
         TDIR=$(mktemp -d)
@@ -1300,17 +752,26 @@ in
         export RECORD_CALL_WINDOW_SEC=4
         export RECORD_CALL_ADVANCE_SEC=2
         record-call start "$TDIR" >/dev/null
+        for _ in $(seq 1 50); do
+          record-call status --json | jq -e '.status == "recording"' >/dev/null && break
+          sleep 0.2
+        done
+        TEST_SINK=$(record-call status --json | jq -r '.sinkName')
         W=$(mktemp -d)
         espeak-ng -v en+f3 -s 150 -w "$W/clip.wav" \
           "This is an automated live capture test of the record call pipeline." 2>/dev/null
         # Play twice so we straddle at least one finalized chunk.
         # paplay hangs on final drain against null-sinks in PipeWire — wrap
         # in `timeout` so it exits once the clip has been written.
-        timeout 6 paplay --device=record-call-sink "$W/clip.wav" 2>/dev/null || true
+        timeout 6 paplay --device="$TEST_SINK" "$W/clip.wav" 2>/dev/null || true
         sleep 1
-        timeout 6 paplay --device=record-call-sink "$W/clip.wav" 2>/dev/null || true
+        timeout 6 paplay --device="$TEST_SINK" "$W/clip.wav" 2>/dev/null || true
         sleep 10
         record-call stop >/dev/null
+        for _ in $(seq 1 120); do
+          record-call status --json | jq -e '.status == "ready" or .status == "incomplete"' >/dev/null && break
+          sleep 1
+        done
         echo "    transcript:"
         sed 's/^/      /' "$TDIR/transcript.txt" 2>/dev/null || true
         if [ -s "$TDIR/transcript.txt" ] && grep -qiE 'test|record|pipeline' "$TDIR/transcript.txt"; then

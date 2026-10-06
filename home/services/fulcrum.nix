@@ -67,6 +67,10 @@ let
 in
 
 {
+  # Fixed read-only Google source commands are provided by Fulcrum's adapter.
+  # Account OAuth setup is separate; no account or credential is inferred here.
+  home.packages = lib.optionals (hostName == "prl-dev-vm") [ pkgs.gogcli ];
+
   # The existing runtime.conf selects the managed Node/Bun launcher and PATH.
   # Sort after it and override only PATH; preserve its ExecStart and other settings.
   xdg.configFile."systemd/user/fulcrum.service.d/zz-fulcrum-runtime-tools.conf" =
@@ -109,6 +113,10 @@ in
         # override Fulcrum falls back to `http://chroma:8000`, which only
         # resolves inside docker-compose's network.
         "CHROMA_BASE_URL=http://localhost:8000"
+      ]
+      ++ lib.optionals (hostName == "prl-dev-vm") [
+        "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
+        "FULCRUM_RECORDING_GOG_BIN=${pkgs.gogcli}/bin/gog"
       ]
       # Only the local desktop uses this authenticated loopback listener and
       # owner-only session bootstrap. Existing HTTPS and browser auth stay intact.
