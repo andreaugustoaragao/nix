@@ -130,6 +130,13 @@ class SystemdTests(unittest.TestCase):
         self.assert_unrelated_modules()
         cleaned = recorder.read_json(self.session.private / "state.json")
         self.assertEqual(cleaned["cleanupCompletedInvocationId"], state["invocationId"])
+        journal = subprocess.run([shutil.which("journalctl"), "--user", "--unit=" + state["unit"],
+                                  "--output=cat", "--no-pager"], capture_output=True, text=True, check=True)
+        events = [json.loads(line) for line in journal.stdout.splitlines() if line.startswith('{"event":')]
+        self.assertEqual([(event["provider"], event["side"], event["code"]) for event in events], [
+            ("remote", "call", "ok"), ("remote", "mic", "ok")])
+        self.assertTrue(all(event["durationMs"] >= 0 for event in events))
+        self.assertNotIn(str(self.fixture.root), json.dumps(events))
         status = json.loads(self.command("status", "--json").stdout)
         self.assertEqual(status["status"], "ready")
         transcript = (self.session.directory / "transcript.raw.txt").read_text()

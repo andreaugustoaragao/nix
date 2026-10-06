@@ -1,5 +1,6 @@
 """Recorder regressions: synthetic files/processes only, never system audio."""
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import textwrap
 import unittest
 import wave
 from unittest.mock import patch
+from contextlib import redirect_stdout
 
 SPEC = importlib.util.spec_from_file_location(
     "record_call_session", Path(__file__).with_name("record-call-session.py")
@@ -154,7 +156,7 @@ class RecorderTests(unittest.TestCase):
         (self.root / "control.json").write_text("{}")
         executable = self.root / "fake-asr"
         executable.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import json, pathlib, sys
+            import json, pathlib, sys, time
             root = pathlib.Path({str(self.root)!r})
             remote = '-F' in sys.argv
             audio = pathlib.Path(next(a[6:] for a in sys.argv if a.startswith('file=@'))) if remote else pathlib.Path(sys.argv[sys.argv.index('-f')+1])
@@ -164,6 +166,7 @@ class RecorderTests(unittest.TestCase):
             count = int(counter.read_text()) + 1 if counter.exists() else 1
             counter.write_text(str(count))
             mode = json.loads((root / 'control.json').read_text())
+            time.sleep(mode.get('sleep_' + side, 0))
             if mode.get('fail_' + side, 0) >= count:
                 print('synthetic ASR failure', file=sys.stderr)
                 sys.exit(17)
@@ -219,6 +222,122 @@ class RecorderTests(unittest.TestCase):
         session.finalize()
         self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), snapshot)
         self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+
+    def asr_events(self, output):
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        for event in events:
+            self.assertEqual(set(event), {"event", "level", "provider", "side", "windowIndex",
+                                          "outcome", "code", "durationMs"})
+            self.assertEqual(event["event"], "record_call_asr_attempt")
+            self.assertIn(event["provider"], ("remote", "local"))
+            self.assertIn(event["side"], recorder.SIDES)
+            self.assertEqual(event["windowIndex"], 0)
+            self.assertIsInstance(event["durationMs"], int)
+            self.assertGreaterEqual(event["durationMs"], 0)
+            self.assertLess(len(json.dumps(event)), 300)
+            self.assertNotIn(str(self.root), json.dumps(event))
+            self.assertNotIn("synthetic.invalid", json.dumps(event))
+        return events
+
+    def test_asr_observes_actual_success_and_nonzero_attempts_without_relogging_receipts(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"fail_mic":1}')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            with self.assertRaises(recorder.Failure) as error:
+                session.process_window(0, 1250, 1250)
+            self.assertEqual(error.exception.code, "asr_exit")
+            session.finalize()
+            session.finalize()
+        events = self.asr_events(output)
+        self.assertEqual([(event["side"], event["outcome"], event["code"]) for event in events], [
+            ("call", "success", "ok"), ("mic", "failure", "asr_exit"), ("mic", "success", "ok")])
+        self.assertTrue(all(event["provider"] == "remote" for event in events))
+        self.assertEqual([event["level"] for event in events], ["info", "warning", "info"])
+
+    def test_timeout_observation_retains_successful_side_and_retries_only_timed_out_side(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"sleep_mic":5}')
+        original_wait = subprocess.Popen.wait
+
+        def short_fixture_timeout(child, timeout=None):
+            if child.args[0] == session.config["curl"] and timeout is not None:
+                timeout = min(timeout, 0.15)
+            return original_wait(child, timeout=timeout)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            with patch.object(subprocess.Popen, "wait", short_fixture_timeout), self.assertRaises(recorder.Failure) as error:
+                session.process_window(0, 1250, 1250)
+            self.assertEqual(error.exception.code, "asr_timeout")
+            self.assertEqual(error.exception.side, "mic")
+            window = session.private / "windows/000000"
+            self.assertEqual(recorder.read_json(window / "failure.json"), error.exception.public())
+            self.assertFalse((window / "mic.ok.json").exists())
+            self.assertFalse((window / "done.json").exists())
+            receipt = (window / "call.ok.json").read_bytes()
+            (self.root / "control.json").write_text('{}')
+            session.finalize()
+        self.assertEqual((window / "call.ok.json").read_bytes(), receipt)
+        self.assertEqual((self.root / "call-attempts").read_text(), "1")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+        self.assertEqual(session.manifest["status"], "ready")
+        events = self.asr_events(output)
+        self.assertEqual([(event["side"], event["code"]) for event in events], [
+            ("call", "ok"), ("mic", "asr_timeout"), ("mic", "ok")])
+        self.assertGreaterEqual(events[1]["durationMs"], 100)
+
+    def test_local_silence_is_observed_as_success_without_transcript_content(self):
+        session = self.session(remote=False)
+        (self.root / "control.json").write_text('{"silence":true}')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            session.finalize()
+        events = self.asr_events(output)
+        self.assertEqual(len(events), 2)
+        self.assertTrue(all(event["provider"] == "local" and event["code"] == "ok" for event in events))
+        self.assertEqual(session.manifest["source"]["transcript"]["speechTurns"], 0)
+
+    def test_logging_failure_never_turns_failed_asr_into_success(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"fail_mic":1}')
+        with patch("builtins.print", side_effect=BrokenPipeError("synthetic closed journal")):
+            with self.assertRaises(recorder.Failure) as error:
+                session.process_window(0, 1250, 1250)
+        self.assertEqual(error.exception.code, "asr_exit")
+        window = session.private / "windows/000000"
+        self.assertTrue((window / "call.ok.json").exists())
+        self.assertFalse((window / "mic.ok.json").exists())
+        self.assertFalse((window / "done.json").exists())
+        self.assertEqual(recorder.read_json(window / "failure.json")["code"], "asr_exit")
+        self.assertNotEqual(session.manifest["status"], "ready")
+
+    def test_cleanup_warning_is_visible_without_changing_ready_artifacts(self):
+        session = self.session()
+        with redirect_stdout(io.StringIO()):
+            session.finalize()
+        session.state.update({"bootId": recorder.boot_id(), "invocationId": "cleanup-warning",
+                              "unit": "record-call-synthetic.service"})
+        recorder.atomic_json(session.private / "state.json", session.state)
+        paths = [session.directory / "recording.json", *session.directory.glob("transcript*.txt")]
+        before = {path.name: path.read_bytes() for path in paths}
+        output = io.StringIO()
+        with patch.object(recorder, "owner_properties", return_value={"InvocationID": "cleanup-warning"}), \
+             patch.object(recorder.Session, "command", side_effect=OSError("private account path must not be logged")), \
+             patch.dict(os.environ, {"INVOCATION_ID": "cleanup-warning"}), redirect_stdout(output):
+            recorder.cleanup_after_owner(session.directory, session.config)
+        event = json.loads(output.getvalue())
+        self.assertEqual(set(event), {"event", "level", "outcome", "code", "durationMs"})
+        self.assertEqual({key: event[key] for key in ("event", "level", "outcome", "code")}, {
+            "event": "record_call_module_cleanup", "level": "warning", "outcome": "failure",
+            "code": "owned_module_cleanup_unavailable"})
+        self.assertIsInstance(event["durationMs"], int)
+        self.assertGreaterEqual(event["durationMs"], 0)
+        self.assertNotIn("private account", output.getvalue())
+        self.assertEqual({path.name: path.read_bytes() for path in paths}, before)
+        state = recorder.read_json(session.private / "state.json")
+        self.assertEqual(state["cleanupWarning"], "owned_module_cleanup_unavailable")
+        self.assertEqual(state["cleanupCompletedInvocationId"], "cleanup-warning")
 
     def test_final_window_is_committed_once_and_full_tail_transcribed(self):
         session = self.session(duration=45000)

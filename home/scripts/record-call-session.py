@@ -312,6 +312,30 @@ def owned_children():
                     child.wait()
 
 
+def journal_event(event):
+    """Only fixed operation labels and numbers reach the owner's journal."""
+    try:
+        print(json.dumps(event, separators=(",", ":"), allow_nan=False), flush=True)
+    except (OSError, ValueError):
+        # A closed log stream cannot change ASR results or durable receipts.
+        pass
+
+
+@contextmanager
+def observed_asr_attempts(provider, window):
+    attempts = {}
+    try:
+        yield attempts
+    finally:
+        for side, attempt in attempts.items():
+            success = attempt["code"] == "ok"
+            duration = round(max(0, attempt.get("finished", time.monotonic()) - attempt["started"]) * 1000)
+            journal_event({"event": "record_call_asr_attempt", "level": "info" if success else "warning",
+                           "provider": provider, "side": side, "windowIndex": window,
+                           "outcome": "success" if success else "failure", "code": attempt["code"],
+                           "durationMs": duration})
+
+
 class Session:
     def __init__(self, directory, config):
         self.directory = Path(directory).resolve()
@@ -365,7 +389,9 @@ class Session:
                 raise Failure("recovery", "window_changed", False, window=index)
             return
         running, errors = {}, []
-        with tempfile.TemporaryDirectory(prefix="attempt-", dir=destination) as temporary, owned_children() as children:
+        provider = "remote" if self.state["whisperServerUrl"] else "local"
+        with tempfile.TemporaryDirectory(prefix="attempt-", dir=destination) as temporary, \
+             observed_asr_attempts(provider, index) as attempts, owned_children() as children:
             temporary = Path(temporary)
             for side in SIDES:
                 audio = temporary / (side + ".wav")
@@ -381,15 +407,19 @@ class Session:
                 prefix = temporary / side
                 log = (destination / (side + ".log")).open("wb")
                 output = prefix.with_suffix(".json").open("wb") if self.state["whisperServerUrl"] else subprocess.DEVNULL
+                attempts[side] = {"started": time.monotonic(), "code": "asr_interrupted"}
                 try:
                     child = subprocess.Popen(self.transcribe_command(audio, prefix), stdin=subprocess.DEVNULL,
                                              stdout=output, stderr=log)
                     children.append(child)
+                except OSError:
+                    attempts[side].update(code="asr_launch_failed", finished=time.monotonic())
+                    raise
                 finally:
                     if output != subprocess.DEVNULL:
                         output.close()
                     log.close()
-                running[side] = (child, prefix, input_hash, time.monotonic())
+                running[side] = (child, prefix, input_hash, attempts[side]["started"])
             for side, (child, prefix, input_hash, started) in running.items():
                 limit = 125 if self.state["whisperServerUrl"] else 1200
                 try:
@@ -401,14 +431,18 @@ class Session:
                     atomic_bytes(target, prefix.with_suffix(".json").read_bytes())
                     atomic_json(destination / (side + ".ok.json"), {
                         "inputHash": input_hash, "outputHash": file_hash(target), "parameters": parameters})
+                    attempts[side]["code"] = "ok"
                 except subprocess.TimeoutExpired:
+                    attempts[side]["code"] = "asr_timeout"
                     child.kill()
                     child.wait()
                     errors.append(Failure("transcription", "asr_timeout", True, side, index))
                 except Failure as error:
+                    attempts[side]["code"] = error.code
                     error.side, error.window = side, index
                     errors.append(error)
                 finally:
+                    attempts[side]["finished"] = time.monotonic()
                     self.bound_log(destination / (side + ".log"))
             if errors:
                 atomic_json(destination / "failure.json", errors[0].public())
@@ -479,6 +513,7 @@ class Session:
         raise Failure("startup", "audio_source_unavailable")
 
     def cleanup_modules(self):
+        started = time.monotonic()
         try:
             modules = json.loads(self.command("pactl", "-f", "json", "list", "modules", stdout=subprocess.PIPE,
                                                stderr=subprocess.PIPE, timeout=5).stdout)
@@ -494,6 +529,9 @@ class Session:
         except (subprocess.SubprocessError, OSError, ValueError):
             # Identity uncertainty never authorizes broader module cleanup.
             self.state["cleanupWarning"] = "owned_module_cleanup_unavailable"
+            journal_event({"event": "record_call_module_cleanup", "level": "warning", "outcome": "failure",
+                           "code": "owned_module_cleanup_unavailable",
+                           "durationMs": round(max(0, time.monotonic() - started) * 1000)})
 
     def launch_capture(self, side):
         runs = self.state["runs"][side]
