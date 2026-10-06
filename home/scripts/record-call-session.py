@@ -142,7 +142,10 @@ def validate_asr(path, duration_ms=None):
                 raise ValueError()
             if duration_ms is not None:
                 multiplier = 1 if key == "transcription" else 1000
-                if start * multiplier > duration_ms or end * multiplier > duration_ms + 1000:
+                # Whisper may place a trailing padding segment just after the
+                # audio ends. Apply the existing timing tolerance to both
+                # bounds; the merger still excludes text outside emitted audio.
+                if end * multiplier > duration_ms + 1000:
                     raise ValueError()
             text = segment["text"]
             if not isinstance(text, str):

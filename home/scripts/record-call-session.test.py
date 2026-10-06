@@ -64,6 +64,27 @@ class RecorderTests(unittest.TestCase):
         with self.assertRaises(recorder.Failure):
             recorder.validate_asr(self.root / "absent.json")
 
+    def test_asr_accepts_bounded_padding_timestamps_in_both_formats(self):
+        # Actual remote Whisper output for a 45-second recording window put
+        # its final ellipsis at 45.02–45.12. Padding is outside the emitted
+        # audio range, but must not reject all the valid speech in the window.
+        for key, segment in (
+            ("segments", {"start": 45.02, "end": 45.12, "text": "..."}),
+            ("transcription", {"offsets": {"from": 45020, "to": 45120}, "text": "..."}),
+        ):
+            with self.subTest(format=key):
+                self.assertEqual(recorder.validate_asr(self.asr({key: [segment]}), 45000), 1)
+
+    def test_asr_padding_tolerance_does_not_accept_invalid_timestamps(self):
+        for start, end in ((46.001, 46.1), (45.02, 46.001), (45.12, 45.02),
+                           (-0.01, 0), (float("nan"), 1), (0, float("inf"))):
+            for key, segment in (
+                ("segments", {"start": start, "end": end, "text": "invalid"}),
+                ("transcription", {"offsets": {"from": start * 1000, "to": end * 1000}, "text": "invalid"}),
+            ):
+                with self.subTest(format=key, start=start, end=end), self.assertRaises(recorder.Failure):
+                    recorder.validate_asr(self.asr({key: [segment]}), 45000)
+
     def test_atomic_commit_and_coverage_do_not_hide_dead_microphone(self):
         manifest = recorder.new_manifest("abc", "2026-10-06T15:00:00.000Z", "America/Denver")
         self.assertEqual(manifest["status"], "starting")
@@ -156,7 +177,7 @@ class RecorderTests(unittest.TestCase):
         (self.root / "control.json").write_text("{}")
         executable = self.root / "fake-asr"
         executable.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import json, pathlib, sys, time
+            import json, pathlib, sys, time, wave
             root = pathlib.Path({str(self.root)!r})
             remote = '-F' in sys.argv
             audio = pathlib.Path(next(a[6:] for a in sys.argv if a.startswith('file=@'))) if remote else pathlib.Path(sys.argv[sys.argv.index('-f')+1])
@@ -171,6 +192,11 @@ class RecorderTests(unittest.TestCase):
                 print('synthetic ASR failure', file=sys.stderr)
                 sys.exit(17)
             value = {{'segments': [] if mode.get('silence') else [{{'start': 0.1, 'end': 0.2, 'text': side + ' window ' + index}}]}}
+            if mode.get('trailing_padding_' + side):
+                with wave.open(str(audio), 'rb') as source:
+                    duration = source.getnframes() / source.getframerate()
+                value['segments'].append({{'start': duration - 0.2, 'end': duration + 0.02, 'text': side + ' final tail ' + index}})
+                value['segments'].append({{'start': duration + 0.02, 'end': duration + 0.12, 'text': '...'}})
             text = '{{' if mode.get('malformed_' + side) else json.dumps(value)
             if remote:
                 print(text)
@@ -222,6 +248,39 @@ class RecorderTests(unittest.TestCase):
         session.finalize()
         self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), snapshot)
         self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+
+    def test_recovery_passes_padded_asr_and_finishes_remaining_audio_once(self):
+        session = self.session(duration=90000)
+        session.process_window(0, 45000, 30000)
+        first = session.private / "windows/000000/done.json"
+        first_receipt = first.read_bytes()
+        (self.root / "control.json").write_text('{"fail_mic":2}')
+        with self.assertRaises(recorder.Failure):
+            session.process_window(1, 75000, 60000)
+        second_call = session.private / "windows/000001/call.ok.json"
+        second_call_receipt = second_call.read_bytes()
+        (self.root / "control.json").write_text('{"trailing_padding_mic":true}')
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertTrue(session.manifest["coverage"]["complete"])
+        for side in recorder.SIDES:
+            self.assertEqual(session.manifest["coverage"]["sides"][side]["transcribedMs"], 90000)
+        self.assertEqual(first.read_bytes(), first_receipt)
+        self.assertEqual(second_call.read_bytes(), second_call_receipt)
+        text = (session.directory / "transcript.raw.txt").read_text()
+        for index in range(3):
+            for side in recorder.SIDES:
+                self.assertEqual(text.count(f"{side} window {index:06d}"), 1)
+        self.assertEqual(text.count("mic final tail 000002"), 1)
+        self.assertNotIn("...", text)
+        self.assertNotIn("mic final tail 000001", text)
+        self.assertEqual((self.root / "call-attempts").read_text(), "3")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "4")
+        finalized = (session.directory / "transcript.turns.txt").read_bytes()
+        session.finalize()
+        self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), finalized)
+        self.assertEqual((self.root / "call-attempts").read_text(), "3")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "4")
 
     def asr_events(self, output):
         events = [json.loads(line) for line in output.getvalue().splitlines()]
