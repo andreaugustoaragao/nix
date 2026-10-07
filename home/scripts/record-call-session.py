@@ -667,6 +667,12 @@ class Session:
             index += 1
         return index
 
+    def finalization_progress(self):
+        end = max((fragment["endMs"] for side in SIDES for fragment in self.state["fragments"][side]),
+                  default=0)
+        total = math.ceil(end / self.state["advanceMs"]) if end > 0 else 0
+        return {"completedWindows": min(self.next_window(), total), "totalWindows": total}
+
     def committed_emission_frontier(self, audio_end):
         frontier, count = 0, 0
         receipts = sorted((self.private / "windows").glob("*/done.json"))
@@ -881,6 +887,8 @@ def status(directory, config):
             # fabricates endedAt or silently changes a stale session to READY.
             result["status"] = "incomplete"
             result["failure"] = {"stage": "recovery", "code": "recording_owner_lost", "retryable": result["endedAt"] is not None}
+    if result["status"] == "finalizing":
+        result["finalization"] = session.finalization_progress()
     return result
 
 

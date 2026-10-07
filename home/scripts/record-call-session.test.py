@@ -894,6 +894,27 @@ class RecorderTests(unittest.TestCase):
                     self.assertEqual(state["cleanupCompletedInvocationId"], "owned-ready-cleanup")
         self.assertEqual(cleanup.call_count, 2)
 
+    def test_status_reports_finalization_progress_from_durable_receipts(self):
+        session = self.session(duration=90000)
+        session.process_window(0, 45000, 30000)
+        session.manifest["status"] = "finalizing"
+        session.state.update({
+            "bootId": recorder.boot_id(),
+            "invocationId": "progress-owner",
+            "unit": "record-call-progress.service",
+        })
+        session.persist()
+        public_before = (session.directory / "recording.json").read_bytes()
+        with patch.object(recorder, "owner_properties", return_value={
+                "ActiveState": "active", "InvocationID": "progress-owner"}):
+            value = recorder.status(session.directory, session.config)
+        self.assertEqual(value["status"], "finalizing")
+        self.assertEqual(value["finalization"], {
+            "completedWindows": 1,
+            "totalWindows": 3,
+        })
+        self.assertEqual((session.directory / "recording.json").read_bytes(), public_before)
+
     def isolated_cli(self, config, *arguments, invocation=""):
         config_path = self.root / "cli-config.json"
         config_path.write_text(json.dumps(config))
@@ -996,13 +1017,20 @@ class RecorderTests(unittest.TestCase):
             const startNew = new Function('root', 'toggleProc', text.match(/function startNew\(\) \{([\s\S]*?)\n    \}/)[1]);
             const rightClick = new Function('root', 'return ' + text.match(/pillRightClickAction: (.*)/)[1]);
             const tooltip = new Function('root', text.match(/function tooltipText\(\) \{([\s\S]*?)\n    \}/)[1]);
+            const statusText = new Function('root', text.match(/function statusText\(\) \{([\s\S]*?)\n    \}/)[1]);
             let root = {_pollOut: JSON.stringify({status:'recording',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call'})};
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'recording');
             assert.strictEqual(root.startedAt, 1791298800);
-            root._pollOut = JSON.stringify({status:'finalizing',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call'});
+            root._pollOut = JSON.stringify({status:'finalizing',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call',
+                finalization:{completedWindows:80,totalWindows:686}});
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'finalizing');
+            assert.strictEqual(root.completedWindows, 80);
+            assert.strictEqual(root.totalWindows, 686);
+            assert.strictEqual(root.finalizationPercent, 11);
+            assert.strictEqual(statusText(root), 'Finalizing 11%');
+            assert.strictEqual(tooltip(root), 'Finalizing transcript — 80 of 686 windows (11%)');
             let toggleProcess = {running:false};
             root.finalizing = true;
             toggle(root, toggleProcess);
@@ -1022,6 +1050,9 @@ class RecorderTests(unittest.TestCase):
             assert.strictEqual(root.phase, 'incomplete');
             assert.strictEqual(root.failureCode, 'status_unavailable');
             assert.strictEqual(root.retryable, false);
+            assert.strictEqual(root.completedWindows, 0);
+            assert.strictEqual(root.totalWindows, 0);
+            assert.strictEqual(root.finalizationPercent, 0);
             toggleProcess = {running:false};
             toggle(root, toggleProcess);
             assert.strictEqual(toggleProcess.running, false);

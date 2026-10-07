@@ -15,6 +15,9 @@ PluginComponent {
     property bool toggleBusy: false
     property int startedAt: 0
     property string outputDir: ""
+    property int completedWindows: 0
+    property int totalWindows: 0
+    property int finalizationPercent: 0
     property int now: Math.floor(Date.now() / 1000)
 
     function pad(n) { return n < 10 ? "0" + n : "" + n; }
@@ -26,10 +29,21 @@ PluginComponent {
         var sec = s % 60;
         return h > 0 ? (h + ":" + pad(m) + ":" + pad(sec)) : (pad(m) + ":" + pad(sec));
     }
+    function statusText() {
+        if (root.phase === "starting") return "Starting";
+        if (root.phase === "finalizing")
+            return root.totalWindows > 0 ? "Finalizing " + root.finalizationPercent + "%" : "Finalizing";
+        return root.elapsedText();
+    }
     function tooltipText() {
         if (root.toggleBusy) return "Updating recording...";
         if (root.phase === "starting") return "Starting recording...";
-        if (root.phase === "finalizing") return "Finalizing transcript...";
+        if (root.phase === "finalizing") {
+            return root.totalWindows > 0
+                ? "Finalizing transcript — " + root.completedWindows + " of " + root.totalWindows +
+                    " windows (" + root.finalizationPercent + "%)"
+                : "Finalizing transcript...";
+        }
         if (root.phase === "incomplete") {
             if (root.failureCode === "status_unavailable") return "Recorder status is unavailable";
             if (root.failureCode === "legacy_recording_state") return "An older recording needs review before a new one can start";
@@ -94,11 +108,20 @@ PluginComponent {
                 root.outputDir = state.outputDir || "";
                 root.failureCode = state.failure ? state.failure.code : "";
                 root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
+                var progress = state.finalization || {};
+                root.completedWindows = Math.max(0, Number(progress.completedWindows) || 0);
+                root.totalWindows = Math.max(0, Number(progress.totalWindows) || 0);
+                root.finalizationPercent = root.totalWindows > 0
+                    ? Math.min(100, Math.floor(root.completedWindows * 100 / root.totalWindows))
+                    : 0;
             } catch (error) {
                 root.phase = "incomplete";
                 root.failureCode = "status_unavailable";
                 root.retryable = false;
                 root.startedAt = 0;
+                root.completedWindows = 0;
+                root.totalWindows = 0;
+                root.finalizationPercent = 0;
             }
         }
     }
@@ -217,7 +240,7 @@ PluginComponent {
             }
 
             StyledText {
-                text: root.phase === "starting" ? "Starting" : root.finalizing ? "Finalizing" : root.elapsedText()
+                text: root.statusText()
                 visible: root.recording || root.finalizing
                 font.pixelSize: Theme.fontSizeMedium
                 color: Theme.surfaceText
@@ -251,7 +274,7 @@ PluginComponent {
             }
 
             StyledText {
-                text: root.phase === "starting" ? "Starting" : root.finalizing ? "Finalizing" : root.elapsedText()
+                text: root.statusText()
                 visible: root.recording || root.finalizing
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceText
