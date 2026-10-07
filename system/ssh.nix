@@ -12,7 +12,7 @@ let
     let
       files = builtins.filter (lib.hasSuffix ".pub") (lib.attrNames (builtins.readDir peersPubkeysDir));
     in
-    map (f: lib.fileContents "${peersPubkeysDir}/${f}") files;
+    map (f: lib.fileContents (peersPubkeysDir + "/${f}")) files;
 in
 {
   services.openssh = {
