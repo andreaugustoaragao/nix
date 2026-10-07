@@ -9,9 +9,12 @@ PluginComponent {
 
     property string phase: "idle"
     readonly property bool recording: phase === "recording"
-    readonly property bool finalizing: phase === "finalizing" || phase === "starting"
+    readonly property bool finalizing: phase === "finalizing" || phase === "starting" || phase === "diarizing"
     property string failureCode: ""
     property bool retryable: false
+    property string diarizationStatus: "pending"
+    property string diarizationFailureCode: ""
+    property int diarizedSpeakers: 0
     property bool toggleBusy: false
     property int startedAt: 0
     property string outputDir: ""
@@ -31,6 +34,7 @@ PluginComponent {
     }
     function statusText() {
         if (root.phase === "starting") return "Starting";
+        if (root.phase === "diarizing") return "Diarizing";
         if (root.phase === "finalizing")
             return root.totalWindows > 0 ? "Finalizing " + root.finalizationPercent + "%" : "Finalizing";
         return root.elapsedText();
@@ -38,6 +42,7 @@ PluginComponent {
     function tooltipText() {
         if (root.toggleBusy) return "Updating recording...";
         if (root.phase === "starting") return "Starting recording...";
+        if (root.phase === "diarizing") return "Identifying call participants...";
         if (root.phase === "finalizing") {
             return root.totalWindows > 0
                 ? "Finalizing transcript — " + root.completedWindows + " of " + root.totalWindows +
@@ -50,7 +55,13 @@ PluginComponent {
             return root.failureText() +
                 (root.retryable ? " — click to retry transcription; right-click to start another recording" : " — click to start another recording");
         }
-        if (root.phase === "ready") return "Transcript ready — click to start recording";
+        if (root.phase === "ready") {
+            if (root.diarizationStatus === "failed")
+                return "Transcript ready; participant labeling failed — click to retry diarization; right-click to start another recording";
+            if (root.diarizationStatus === "ready")
+                return "Speaker-labeled transcript ready — click to start recording";
+            return "Transcript ready — click to start recording";
+        }
         return root.recording
             ? "Recording " + root.elapsedText() + " — click to stop"
             : "Start recording";
@@ -101,14 +112,20 @@ PluginComponent {
             try {
                 if (exitCode !== 0) throw new Error("status_unavailable");
                 var state = JSON.parse(root._pollOut);
-                if (["idle", "starting", "recording", "finalizing", "ready", "incomplete"].indexOf(state.status) < 0)
+                if (["idle", "starting", "recording", "finalizing", "diarizing", "ready", "incomplete"].indexOf(state.status) < 0)
                     throw new Error("invalid_status");
-                root.phase = state.status;
+                var progress = state.finalization || {};
+                root.phase = state.status === "finalizing" && progress.stage === "diarizing"
+                    ? "diarizing"
+                    : state.status;
                 root.startedAt = state.startedAt ? Math.floor(Date.parse(state.startedAt) / 1000) : 0;
                 root.outputDir = state.outputDir || "";
                 root.failureCode = state.failure ? state.failure.code : "";
                 root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
-                var progress = state.finalization || {};
+                var diarization = state.diarization || {};
+                root.diarizationStatus = diarization.status || "pending";
+                root.diarizationFailureCode = diarization.failure ? diarization.failure.code : "";
+                root.diarizedSpeakers = Math.max(0, Number(diarization.speakers) || 0);
                 root.completedWindows = Math.max(0, Number(progress.completedWindows) || 0);
                 root.totalWindows = Math.max(0, Number(progress.totalWindows) || 0);
                 root.finalizationPercent = root.totalWindows > 0
@@ -118,6 +135,9 @@ PluginComponent {
                 root.phase = "incomplete";
                 root.failureCode = "status_unavailable";
                 root.retryable = false;
+                root.diarizationStatus = "pending";
+                root.diarizationFailureCode = "";
+                root.diarizedSpeakers = 0;
                 root.startedAt = 0;
                 root.completedWindows = 0;
                 root.totalWindows = 0;
@@ -146,7 +166,9 @@ PluginComponent {
     // competing command while capture startup or transcript finalization runs.
     function toggle() {
         if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
-        if (root.phase === "incomplete" && root.retryable) {
+        if (root.phase === "ready" && root.diarizationStatus === "failed" && root.outputDir) {
+            toggleProc.command = ["record-call", "retry-diarization", root.outputDir];
+        } else if (root.phase === "incomplete" && root.retryable) {
             toggleProc.command = ["record-call", "retry", root.outputDir];
         } else {
             toggleProc.command = ["record-call", root.recording ? "stop" : "start"];
@@ -226,9 +248,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
+                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? "#e74c3c" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
 
                 SequentialAnimation on opacity {
@@ -260,9 +282,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
+                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? "#e74c3c" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 SequentialAnimation on opacity {

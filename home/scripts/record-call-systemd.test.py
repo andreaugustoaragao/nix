@@ -117,8 +117,12 @@ class SystemdTests(unittest.TestCase):
         self.assertFalse(blocked_directory.exists())
         result = self.command("retry", self.session.directory, expected=1)
         self.assertEqual(json.loads(result.stderr)["failure"]["code"], "recording_busy")
+        result = self.command("retry-diarization", self.session.directory, expected=1)
+        self.assertEqual(json.loads(result.stderr)["failure"]["code"], "recording_busy")
         with recorder.locked(self.fixture.root / "state/record-call/command.lock"):
-            for arguments in (("start", blocked_directory), ("stop",), ("retry", self.session.directory)):
+            for arguments in (
+                    ("start", blocked_directory), ("stop",), ("retry", self.session.directory),
+                    ("retry-diarization", self.session.directory)):
                 result = self.command(*arguments, expected=1)
                 self.assertEqual(json.loads(result.stderr)["failure"]["code"], "recording_busy")
         self.assertFalse((self.session.private / "stop.json").exists())
@@ -203,6 +207,58 @@ class SystemdTests(unittest.TestCase):
         self.assertEqual(len(list((self.session.private / "windows").glob("*/done.json"))), 1)
         self.assert_unrelated_modules()
 
+    def test_diarization_retry_uses_owned_unit_without_replaying_asr(self):
+        time.sleep(0.5)
+        self.stop_public()
+        manifest = self.await_status({"ready", "incomplete"})
+        self.assertEqual(manifest["status"], "ready", manifest.get("failure"))
+        self.await_stopped()
+        state = recorder.read_json(self.session.private / "state.json")
+        self.assertEqual(state["diarization"]["status"], "failed")
+        asr_attempts = {
+            side: (self.fixture.root / (side + "-attempts")).read_text()
+            for side in recorder.SIDES
+        }
+        windows_before = {
+            str(path.relative_to(self.session.private)): path.read_bytes()
+            for path in (self.session.private / "windows").rglob("*")
+            if path.is_file()
+        }
+        base_transcript = (self.session.directory / "transcript.turns.txt").read_bytes()
+
+        (self.fixture.root / "control.json").write_text('{"diarization_success":true}')
+        self.command("retry-diarization", self.session.directory)
+        self.session = recorder.Session(self.session.directory, self.config)
+        observed = json.loads(self.command("status", "--json").stdout)
+        self.assertIn(observed["status"], ("diarizing", "ready"))
+        self.await_stopped()
+
+        manifest = recorder.read_json(self.session.directory / "recording.json")
+        state = recorder.read_json(self.session.private / "state.json")
+        self.assertEqual(manifest["status"], "ready")
+        self.assertEqual(manifest["source"]["transcript"]["path"], "transcript.diarized.turns.txt")
+        self.assertEqual(state["diarization"]["status"], "ready")
+        self.assertEqual(state["diarization"]["attempts"], 2)
+        self.assertEqual(
+            {
+                str(path.relative_to(self.session.private)): path.read_bytes()
+                for path in (self.session.private / "windows").rglob("*")
+                if path.is_file()
+            },
+            windows_before,
+        )
+        self.assertEqual(
+            (self.session.directory / "transcript.turns.txt").read_bytes(),
+            base_transcript,
+        )
+        self.assertEqual(
+            {
+                side: (self.fixture.root / (side + "-attempts")).read_text()
+                for side in recorder.SIDES
+            },
+            asr_attempts,
+        )
+
     @staticmethod
     def snapshot(directory):
         return {str(path.relative_to(directory)): path.read_bytes()
@@ -219,7 +275,7 @@ class SystemdTests(unittest.TestCase):
             const status = new Function('root', 'exitCode', 'exitStatus', text.match(/onExited: \(exitCode, exitStatus\) => \{([\s\S]*?)\n        \}\n    \}/)[1]);
             status(root, 0, 0);
             root.recording = root.phase === 'recording';
-            root.finalizing = ['starting','finalizing'].includes(root.phase);
+            root.finalizing = ['starting','finalizing','diarizing'].includes(root.phase);
             for (const name of ['toggle','startNew']) {
                 const body = text.match(new RegExp('function ' + name + '\\(\\) \\{([\\s\\S]*?)\\n    \\}'))[1];
                 root[name] = () => new Function('root','toggleProc',body)(root,toggleProc);

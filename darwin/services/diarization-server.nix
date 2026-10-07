@@ -48,7 +48,7 @@ let
     set -euo pipefail
     exec ${pkgs.socat}/bin/socat \
       TCP-LISTEN:${toString bridgePort},bind=${bridgeHost},reuseaddr,fork \
-      TCP:127.0.0.1:${toString appPort}
+      TCP6:[::1]:${toString appPort}
   '';
 in
 {
@@ -57,7 +57,7 @@ in
     pkgs.socat
     (pkgs.writeShellScriptBin "diarization-server-health" ''
       exec ${pkgs.curl}/bin/curl --fail --silent --show-error \
-        http://127.0.0.1:${toString appPort}/v1/models
+        http://localhost:${toString appPort}/v1/models
     '')
     (pkgs.writeShellScriptBin "diarization-server-logs" ''
       exec ${pkgs.coreutils}/bin/tail -F \

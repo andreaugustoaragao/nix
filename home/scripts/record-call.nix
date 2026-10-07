@@ -30,7 +30,7 @@ let
   # bridge-only proxy from darwin/services/diarization-server.nix.
   defaultDiarizationServerUrl =
     if isDarwinHost then
-      "http://127.0.0.1:12017/v1/audio/transcriptions"
+      "http://localhost:12017/v1/audio/transcriptions"
     else
       "http://mac-work.local:8082/v1/audio/transcriptions";
 
@@ -146,7 +146,7 @@ let
                 or isinstance(end, bool)
                 or not math.isfinite(end)
                 or start < 0
-                or end < start
+                or end <= start
                 or not isinstance(speaker, str)
                 or not speaker.strip()
             ):
@@ -157,6 +157,34 @@ let
         raise SystemExit(1)
 
     json.dump(normalized, sys.stdout)
+  '';
+
+  concatCallPy = pkgs.writeText "record-call-concat.py" ''
+    import pathlib, sys, wave
+
+    source_dir = pathlib.Path(sys.argv[1]).resolve()
+    destination = pathlib.Path(sys.argv[2])
+    sources = sorted(source_dir.glob("call_*.wav"))
+    if not sources:
+        sys.stderr.write("No call fragments found\n")
+        raise SystemExit(1)
+
+    expected = (1, 2, 16000, "NONE")
+    with wave.open(str(destination), "wb") as output:
+        output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        for path in sources:
+            if path.is_symlink() or path.parent.resolve() != source_dir:
+                raise SystemExit(f"Invalid call fragment: {path}")
+            with wave.open(str(path), "rb") as source:
+                actual = (
+                    source.getnchannels(),
+                    source.getsampwidth(),
+                    source.getframerate(),
+                    source.getcomptype(),
+                )
+                if actual != expected:
+                    raise SystemExit(f"Invalid call fragment format: {path}")
+                output.writeframes(source.readframes(source.getnframes()))
   '';
 
   # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
@@ -419,6 +447,64 @@ let
         f.writelines(kept)
     print(f"dedupe: dropped {len(drop)} duplicate line(s) of {len(lines)} total")
   '';
+
+  diarizeScript = pkgs.writeShellScript "record-call-diarize" ''
+    set -euo pipefail
+    export PATH="${binPath}:$PATH"
+
+    SRC="''${1:-}"
+    SERVER_URL="''${2:-}"
+    MODEL="''${3:-nemotron-speech-streaming-en-0.6b}"
+    [ -d "$SRC" ] || { echo "Not a recording directory: $SRC" >&2; exit 1; }
+    [ -n "$SERVER_URL" ] || { echo "Diarization server URL is empty" >&2; exit 1; }
+    [ -f "$SRC/transcript.txt" ] || { echo "No transcript.txt in $SRC" >&2; exit 1; }
+
+    EPOCH=""
+    if [ -f "$SRC/.started-at" ]; then
+      EPOCH=$(cat "$SRC/.started-at")
+    else
+      BASE=$(basename "$SRC")
+      case "$BASE" in
+        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
+          D="''${BASE%%-*}"; T="''${BASE##*-}"
+          EPOCH=$(date -d "''${D:0:4}-''${D:4:2}-''${D:6:2} ''${T:0:2}:''${T:2:2}:''${T:4:2}" +%s 2>/dev/null)
+          ;;
+      esac
+    fi
+    [ -n "$EPOCH" ] || { echo "Cannot determine session start epoch" >&2; exit 1; }
+
+    WORK=$(mktemp -d "$SRC/.record-call/diarization.XXXXXX")
+    trap 'rm -rf "$WORK"' EXIT
+
+    python3 ${concatCallPy} "$SRC/chunks" "$WORK/session.wav"
+
+    echo "Running global speaker diarization on mac-work..."
+    curl -fsS --max-time 7200 \
+      -F "file=@$WORK/session.wav" \
+      -F "model=$MODEL" \
+      -F "language=en" \
+      -F "response_format=verbose_json" \
+      -F "diarize=true" \
+      "$SERVER_URL" > "$WORK/diarization.response.json"
+
+    python3 ${diarizationResponsePy} \
+      "$WORK/diarization.response.json" > "$WORK/diarization.json"
+    python3 ${alignPy} \
+      "$SRC/transcript.txt" \
+      "$WORK/diarization.json" \
+      "$EPOCH" \
+      "$WORK/transcript.diarized.txt"
+    python3 ${turnsPy} \
+      "$WORK/transcript.diarized.txt" \
+      "$WORK/transcript.diarized.turns.txt" \
+      "''${RECORD_CALL_TURN_GAP_SEC:-8}" >/dev/null
+
+    mv "$WORK/diarization.response.json" "$SRC/diarization.response.json"
+    mv "$WORK/diarization.json" "$SRC/diarization.json"
+    mv "$WORK/transcript.diarized.txt" "$SRC/transcript.diarized.txt"
+    mv "$WORK/transcript.diarized.turns.txt" "$SRC/transcript.diarized.turns.txt"
+  '';
+
   sessionConfig = pkgs.writeText "record-call-session-config.json" (
     builtins.toJSON {
       python = "${pkgs.python3}/bin/python3";
@@ -433,7 +519,9 @@ let
       merge = mergePy;
       dedupe = dedupePy;
       turns = turnsPy;
-      inherit defaultWhisperServerUrl;
+      diarize = diarizeScript;
+      diarizationModel = "nemotron-speech-streaming-en-0.6b";
+      inherit defaultWhisperServerUrl defaultDiarizationServerUrl;
     }
   );
 in
@@ -446,7 +534,7 @@ in
             # Capture and finalization share one owned user-unit lifecycle.
             # Public status is structured; legacy session.env is never sourced.
             case "''${1:-help}" in
-              start|stop|status|retry|route|tail)
+              start|stop|status|retry|retry-diarization|diarize|route|tail)
                 exec python3 ${./record-call-session.py} --config ${sessionConfig} "$@"
                 ;;
             esac
@@ -586,84 +674,6 @@ in
               python3 ${mergePy} "$WORK/out.json" - 0 0 -1 -1 0
             }
 
-            cmd_diarize() {
-              # Post-process: speaker-label the mixed call channel globally
-              # through mac-work's FluidAudio sidecar.
-              # Args: <dir>   (the recordings/calls/<ts>/ directory)
-              SRC="''${1:-}"
-              [ -d "$SRC" ] || { echo "Usage: record-call diarize <output-dir>" >&2; exit 1; }
-              [ -f "$SRC/transcript.txt" ] || { echo "No transcript.txt in $SRC" >&2; exit 1; }
-              SERVER_URL="''${DIARIZATION_SERVER_URL:-${defaultDiarizationServerUrl}}"
-              MODEL="''${DIARIZATION_MODEL:-parakeet-tdt-0.6b-v3}"
-
-              # Resolve session start epoch (for aligning wall-clock
-              # transcript timestamps with diarization's audio-relative ones).
-              EPOCH=""
-              if [ -f "$SRC/.started-at" ]; then
-                EPOCH=$(cat "$SRC/.started-at")
-              else
-                BASE=$(basename "$SRC")
-                case "$BASE" in
-                  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9])
-                    D="''${BASE%%-*}"; T="''${BASE##*-}"
-                    EPOCH=$(date -d "''${D:0:4}-''${D:4:2}-''${D:6:2} ''${T:0:2}:''${T:2:2}:''${T:4:2}" +%s 2>/dev/null)
-                    ;;
-                esac
-              fi
-              [ -n "$EPOCH" ] || { echo "can't determine session start epoch" >&2; exit 1; }
-
-              # Concatenate call_*.wav fragments into one continuous session.wav
-              echo "Concatenating call fragments..."
-              WORK=$(mktemp -d)
-              trap 'rm -rf "$WORK"' EXIT
-              find "$SRC/chunks" -name 'call_*.wav' -type f 2>/dev/null \
-                | sort | sed "s|^|file '|; s|\$|'|" > "$WORK/list.txt"
-              [ -s "$WORK/list.txt" ] || { echo "no call fragments found" >&2; exit 1; }
-              ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$WORK/list.txt" \
-                -c copy "$SRC/session.wav" </dev/null
-
-              echo "Running global speaker diarization on mac-work..."
-              RAW_TMP="$SRC/diarization.response.json.tmp"
-              DIAR_TMP="$SRC/diarization.json.tmp"
-              rm -f "$RAW_TMP" "$DIAR_TMP"
-
-              if ! curl -fsS --max-time 7200 \
-                -F "file=@$SRC/session.wav" \
-                -F "model=$MODEL" \
-                -F "language=en" \
-                -F "response_format=verbose_json" \
-                -F "diarize=true" \
-                "$SERVER_URL" > "$RAW_TMP"; then
-                rm -f "$RAW_TMP" "$DIAR_TMP"
-                echo "FluidAudio diarization request failed: $SERVER_URL" >&2
-                exit 1
-              fi
-
-              if ! python3 ${diarizationResponsePy} "$RAW_TMP" > "$DIAR_TMP"; then
-                rm -f "$RAW_TMP" "$DIAR_TMP"
-                echo "FluidAudio returned no usable speaker segments" >&2
-                exit 1
-              fi
-
-              mv "$RAW_TMP" "$SRC/diarization.response.json"
-              mv "$DIAR_TMP" "$SRC/diarization.json"
-
-              echo "Aligning with transcript..."
-              python3 ${alignPy} "$SRC/transcript.txt" "$SRC/diarization.json" \
-                "$EPOCH" "$SRC/transcript.diarized.txt"
-
-              SPKS=$(jq -r '[.[].speaker] | unique | length' "$SRC/diarization.json")
-              LINES=$(wc -l < "$SRC/transcript.diarized.txt")
-              cat <<EOF
-      Diarized.
-        Speakers:   $SPKS
-        Lines:      $LINES
-        Transcript: $SRC/transcript.diarized.txt
-        Raw diar:   $SRC/diarization.json
-        Server raw: $SRC/diarization.response.json
-      EOF
-            }
-
             cmd_retime() {
               # Rewrite a transcript's timestamps as wall-clock times.
               # Usage: record-call retime <dir-or-txt> [--start EPOCH]
@@ -704,11 +714,12 @@ in
         record-call tail                 Follow the live transcript
         record-call stop                 Stop capture; finalize in its owned user unit
         record-call retry <dir>          Resume failed retained transcription
+        record-call retry-diarization <dir> Retry participant labeling only
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
         record-call turns <dir|txt> [gap]   Group lines into speaker turns (default gap=8s)
         record-call retime <dir|txt>     Rewrite timestamps as wall-clock (HH:MM:SS local)
-        record-call diarize <dir>        Speaker-label the transcript via mac-work
+        record-call diarize <dir>        Re-run participant labeling
 
       How it works:
         * Creates a uniquely owned PipeWire null-sink with a loopback to your
@@ -741,7 +752,6 @@ in
               dedupe)      cmd_dedupe "$@" ;;
               turns)       cmd_turns "$@" ;;
               retime)      cmd_retime "$@" ;;
-              diarize)     cmd_diarize "$@" ;;
               help|-h|--help) usage ;;
               *) usage; exit 1 ;;
             esac

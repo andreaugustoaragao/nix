@@ -254,6 +254,7 @@ class RecorderTests(unittest.TestCase):
             {"speaker_segments": []},
             {"speaker_segments": [{"start": -1, "end": 2, "speaker": "Speaker_1"}]},
             {"speaker_segments": [{"start": 2, "end": 1, "speaker": "Speaker_1"}]},
+            {"speaker_segments": [{"start": 0, "end": 0, "speaker": "Speaker_1"}]},
             {"speaker_segments": [{"start": 0, "end": 1, "speaker": ""}]},
         ):
             with self.subTest(value=value):
@@ -265,6 +266,23 @@ class RecorderTests(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Invalid FluidAudio diarization response", result.stderr)
+
+    def test_call_fragment_concatenation_handles_quoted_paths(self):
+        session = self.session()
+        wav(session.directory / "chunks/call_000001.wav", 750)
+        output = self.root / "joined ' call.wav"
+        result = subprocess.run(
+            [
+                sys.executable,
+                session.config["concatCall"],
+                str(session.directory / "chunks"),
+                str(output),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(recorder.wav_duration(output), 2000)
 
     def test_stale_unit_identity_is_not_live(self):
         state = {"bootId": "old", "invocationId": "aaa", "unit": "record-call-test.service"}
@@ -307,11 +325,46 @@ class RecorderTests(unittest.TestCase):
                 pathlib.Path(sys.argv[sys.argv.index('-of')+1] + '.json').write_text(text)
         '''))
         executable.chmod(0o700)
+        diarizer = self.root / "fake-diarizer"
+        diarizer.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
+            import json, pathlib, sys
+            root = pathlib.Path({str(self.root)!r})
+            directory = pathlib.Path(sys.argv[1])
+            counter = root / 'diarization-attempts'
+            count = int(counter.read_text()) + 1 if counter.exists() else 1
+            counter.write_text(str(count))
+            mode = json.loads((root / 'control.json').read_text())
+            if not mode.get('diarization_success'):
+                print('synthetic diarization failure', file=sys.stderr)
+                sys.exit(17)
+            lines = (directory / 'transcript.txt').read_text().splitlines()
+            labeled = [
+                line if '] Me: ' in line else line.replace('] ', '] Speaker 1: ', 1)
+                for line in lines
+            ]
+            text = '\\n'.join(labeled) + ('\\n' if labeled else '')
+            segments = [{{'start': 0.0, 'end': 1.0, 'speaker': 'Speaker_1'}}]
+            (directory / 'diarization.response.json').write_text(json.dumps({{
+                'text': text, 'speaker_segments': segments
+            }}))
+            (directory / 'diarization.json').write_text(json.dumps(segments))
+            (directory / 'transcript.diarized.txt').write_text(text)
+            (directory / 'transcript.diarized.turns.txt').write_text(text)
+        '''))
+        diarizer.chmod(0o700)
         source = Path(__file__).with_name("record-call.nix").read_text()
-        config = {"python": sys.executable, "curl": str(executable), "whisper": str(executable)}
+        config = {
+            "python": sys.executable,
+            "curl": str(executable),
+            "whisper": str(executable),
+            "diarize": str(diarizer),
+            "defaultDiarizationServerUrl": "http://synthetic.invalid",
+            "diarizationModel": "synthetic-diarization",
+        }
         helpers = {
             "merge": "record-call-merge.py",
             "diarizationResponse": "record-call-diarization-response.py",
+            "concatCall": "record-call-concat.py",
             "dedupe": "record-call-dedupe.py",
             "turns": "record-call-turns.py",
             "align": "record-call-align.py",
@@ -335,6 +388,9 @@ class RecorderTests(unittest.TestCase):
                                     "sha256": recorder.file_hash(path)})
         state = {"fragments": fragments, "gaps": [], "advanceMs": 30000, "windowMs": 45000,
                  "fragmentMs": 5000, "turnGap": 8, "whisperServerUrl": "http://synthetic.invalid" if remote else "",
+                 "diarizationServerUrl": "http://synthetic.invalid",
+                 "diarizationModel": "synthetic-diarization", "finalizationStage": "capturing",
+                 "diarization": {"status": "pending", "attempts": 0, "failure": None},
                  "model": "unused", "vadModel": "unused", "runs": {side: [] for side in recorder.SIDES},
                  "sink": "record-call-test-id", "modules": {}}
         recorder.atomic_json(directory / "recording.json", manifest)
@@ -359,6 +415,62 @@ class RecorderTests(unittest.TestCase):
         session.finalize()
         self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), snapshot)
         self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+
+    def test_diarization_failure_is_best_effort_and_base_transcript_stays_ready(self):
+        session = self.session()
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertEqual(session.manifest["source"]["transcript"]["path"], "transcript.turns.txt")
+        self.assertEqual(session.state["diarization"]["status"], "failed")
+        self.assertEqual(session.state["diarization"]["attempts"], 1)
+        self.assertTrue(session.state["diarization"]["failure"]["retryable"])
+        session.finalize()
+        self.assertEqual((self.root / "diarization-attempts").read_text(), "1")
+
+    def test_diarization_is_skipped_when_server_is_disabled(self):
+        session = self.session()
+        session.state["diarizationServerUrl"] = ""
+        session.persist()
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertEqual(session.state["diarization"]["status"], "skipped")
+        self.assertEqual(session.state["diarization"]["reason"], "disabled")
+        self.assertFalse((self.root / "diarization-attempts").exists())
+
+    def test_automatic_diarization_publishes_speaker_transcript_and_preserves_me(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertEqual(
+            session.manifest["source"]["transcript"]["path"],
+            "transcript.diarized.turns.txt",
+        )
+        self.assertEqual(session.state["diarization"]["status"], "ready")
+        self.assertEqual(session.state["diarization"]["speakers"], 1)
+        text = (session.directory / "transcript.diarized.turns.txt").read_text()
+        self.assertIn("Speaker 1: call window", text)
+
+    def test_diarization_only_retry_never_replays_asr(self):
+        session = self.session()
+        session.finalize()
+        asr_attempts = {
+            side: (self.root / (side + "-attempts")).read_text()
+            for side in recorder.SIDES
+        }
+        base_revision = session.manifest["revision"]
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        self.assertTrue(session.attempt_diarization())
+        self.assertEqual(session.state["diarization"]["status"], "ready")
+        self.assertEqual(session.state["diarization"]["attempts"], 2)
+        self.assertGreater(session.manifest["revision"], base_revision)
+        self.assertEqual(
+            {
+                side: (self.root / (side + "-attempts")).read_text()
+                for side in recorder.SIDES
+            },
+            asr_attempts,
+        )
 
     def test_recovery_passes_padded_asr_and_finishes_remaining_audio_once(self):
         session = self.session(duration=90000)
@@ -545,6 +657,9 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(transcript["speechTurns"], 0)
         self.assertEqual(transcript["bytes"], 0)
         self.assertEqual(transcript["sha256"], recorder.hashlib.sha256(b"").hexdigest())
+        self.assertEqual(session.state["diarization"]["status"], "skipped")
+        self.assertEqual(session.state["diarization"]["reason"], "no_speech")
+        self.assertFalse((self.root / "diarization-attempts").exists())
 
     def test_local_exit_zero_missing_output_cannot_commit(self):
         session = self.session(remote=False)
@@ -662,7 +777,7 @@ class RecorderTests(unittest.TestCase):
             recorder.locked = observed
             os.environ['INVOCATION_ID'] = 'synthetic-retry-handoff'
             session = recorder.Session({str(session.directory)!r}, recorder.read_json({str(config)!r}))
-            raise SystemExit(session.run(retry=True))
+            raise SystemExit(session.run(mode="retry"))
         '''))
         child = None
         try:
@@ -925,7 +1040,9 @@ class RecorderTests(unittest.TestCase):
 
     def test_ready_cleanup_and_repeated_cleanup_preserve_public_revision_and_transcript(self):
         session = self.session()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
         session.finalize()
+        self.assertEqual(session.state["diarization"]["status"], "ready")
         session.state.update({"bootId": recorder.boot_id(), "invocationId": "owned-ready-cleanup",
                               "unit": "record-call-synthetic.service"})
         recorder.atomic_json(session.private / "state.json", session.state)
@@ -961,7 +1078,39 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(value["finalization"], {
             "completedWindows": 1,
             "totalWindows": 3,
+            "stage": "capturing",
         })
+        self.assertEqual((session.directory / "recording.json").read_bytes(), public_before)
+
+    def test_status_tracks_diarization_owner_without_revoking_ready_transcript(self):
+        session = self.session()
+        session.finalize()
+        session.state.update({
+            "bootId": recorder.boot_id(),
+            "invocationId": "diarization-owner",
+            "unit": "record-call-diarization.service",
+            "diarization": {
+                "status": "running",
+                "attempts": 2,
+                "startedAt": recorder.utc_now(),
+                "finishedAt": None,
+                "failure": None,
+            },
+        })
+        session.persist_state()
+        public_before = (session.directory / "recording.json").read_bytes()
+        with patch.object(recorder, "owner_properties", return_value={
+                "ActiveState": "active", "InvocationID": "diarization-owner"}):
+            value = recorder.status(session.directory, session.config)
+        self.assertEqual(value["status"], "diarizing")
+        self.assertEqual(value["diarization"]["status"], "running")
+
+        with patch.object(recorder, "owner_properties", return_value={
+                "ActiveState": "inactive", "InvocationID": ""}):
+            value = recorder.status(session.directory, session.config)
+        self.assertEqual(value["status"], "ready")
+        self.assertEqual(value["diarization"]["status"], "failed")
+        self.assertEqual(value["diarization"]["failure"]["code"], "diarization_owner_lost")
         self.assertEqual((session.directory / "recording.json").read_bytes(), public_before)
 
     def isolated_cli(self, config, *arguments, invocation=""):
@@ -1047,7 +1196,7 @@ class RecorderTests(unittest.TestCase):
         session.config["systemdRun"] = "/synthetic/systemd-run"
         with patch.object(recorder, "state_root", return_value=self.root), \
              patch.object(recorder.subprocess, "run") as command:
-            recorder.launch_unit(session, self.root / "config ' file.json", False)
+            recorder.launch_unit(session, self.root / "config ' file.json", "capture")
         arguments = command.call_args.args[0]
         self.assertIn("--property=KillMode=control-group", arguments)
         self.assertIn("--property=UMask=0077", arguments)
@@ -1084,6 +1233,14 @@ class RecorderTests(unittest.TestCase):
             root.finalizing = true;
             toggle(root, toggleProcess);
             assert.strictEqual(toggleProcess.running, false);
+            root._pollOut = JSON.stringify({status:'finalizing',outputDir:'/a call',
+                finalization:{completedWindows:686,totalWindows:686,stage:'diarizing'},
+                diarization:{status:'running',attempts:1}});
+            status(root, 0, 0);
+            assert.strictEqual(root.phase, 'diarizing');
+            assert.strictEqual(root.diarizationStatus, 'running');
+            assert.strictEqual(statusText(root), 'Diarizing');
+            assert.strictEqual(tooltip(root), 'Identifying call participants...');
             root._pollOut = JSON.stringify({status:'incomplete',outputDir:"/a call '; $ignored",failure:{code:'asr_exit',retryable:true}});
             status(root, 0, 0);
             root.finalizing = false;
@@ -1114,6 +1271,18 @@ class RecorderTests(unittest.TestCase):
             rightClick(root)();
             assert.strictEqual(toggleProcess.running, false);
             assert.strictEqual(tooltip(root), 'An older recording needs review before a new one can start');
+            root._pollOut = JSON.stringify({status:'ready',outputDir:"/a call '; $ignored",
+                diarization:{status:'failed',attempts:1,failure:{code:'diarization_failed',retryable:true}}});
+            status(root, 0, 0);
+            root.recording = false;
+            root.finalizing = false;
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','retry-diarization',"/a call '; $ignored"]);
+            assert.ok(tooltip(root).includes('participant labeling failed'));
+            root.startNew = () => startNew(root, toggleProcess);
+            rightClick(root)();
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
             root._pollOut = JSON.stringify({status:'ready'});
             status(root, 0, 0);
             root.recording = false;

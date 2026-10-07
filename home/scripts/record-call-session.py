@@ -28,7 +28,7 @@ import wave
 from zoneinfo import ZoneInfo
 
 SIDES = ("call", "mic")
-ACTIVE = ("starting", "recording", "finalizing")
+ACTIVE = ("starting", "recording", "finalizing", "diarizing")
 EDGE_TOLERANCE_MS = 1000
 MAX_CAPTURE_CLOCK_DRIFT_PPM = 1500
 MAX_CAPTURE_END_TOLERANCE_MS = 30000
@@ -370,6 +370,9 @@ class Session:
         atomic_json(self.private / "state.json", self.state)
         atomic_json(self.directory / "recording.json", self.manifest)
 
+    def persist_state(self):
+        atomic_json(self.private / "state.json", self.state)
+
     def elapsed(self):
         return round((time.monotonic() - self.started_monotonic) * 1000)
 
@@ -484,6 +487,19 @@ class Session:
                 data = source.read()
             atomic_bytes(path, data)
 
+    @staticmethod
+    def transcript_descriptor(path):
+        data = path.read_bytes()
+        return {
+            "path": path.name,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "bytes": len(data),
+            "speechTurns": sum(
+                bool(re.match(rb"^\[\d\d:\d\d:\d\d\] ", line))
+                for line in data.splitlines()
+            ),
+        }
+
     def assemble(self):
         receipts = sorted((self.private / "windows").glob("*/done.json"))
         chunks = []
@@ -510,8 +526,110 @@ class Session:
             atomic_bytes(self.directory / "transcript.raw.txt", raw)
             atomic_bytes(self.directory / "transcript.txt", transcript.read_bytes())
             atomic_bytes(self.directory / "transcript.turns.txt", turns)
-        self.manifest["source"]["transcript"] = {"path": "transcript.turns.txt", "sha256": hashlib.sha256(turns).hexdigest(),
-                                                  "bytes": len(turns), "speechTurns": sum(bool(re.match(rb"^\[\d\d:\d\d:\d\d\] ", line)) for line in turns.splitlines())}
+        self.manifest["source"]["transcript"] = self.transcript_descriptor(
+            self.directory / "transcript.turns.txt"
+        )
+
+    def attempt_diarization(self):
+        prior = self.state.get("diarization") or {}
+        server_url = self.state.get(
+            "diarizationServerUrl",
+            self.config["defaultDiarizationServerUrl"],
+        )
+        transcript = self.manifest["source"].get("transcript") or {}
+        skip_reason = (
+            "disabled"
+            if not server_url
+            else "no_speech"
+            if transcript.get("speechTurns") == 0
+            else None
+        )
+        if skip_reason:
+            self.state["diarization"] = {
+                "status": "skipped",
+                "attempts": int(prior.get("attempts", 0)),
+                "startedAt": None,
+                "finishedAt": utc_now(),
+                "failure": None,
+                "reason": skip_reason,
+            }
+            if self.manifest["status"] == "ready":
+                self.persist_state()
+            else:
+                self.persist()
+            return True
+
+        attempts = int(prior.get("attempts", 0)) + 1
+        started = utc_now()
+        self.state["finalizationStage"] = "diarizing"
+        self.state["diarization"] = {
+            "status": "running",
+            "attempts": attempts,
+            "startedAt": started,
+            "finishedAt": None,
+            "failure": None,
+        }
+        if self.manifest["status"] == "ready":
+            self.persist_state()
+        else:
+            self.persist()
+
+        log_path = self.private / "diarization.log"
+        try:
+            with log_path.open("ab") as log:
+                self.command(
+                    "diarize",
+                    self.directory,
+                    server_url,
+                    self.state.get("diarizationModel", self.config["diarizationModel"]),
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=7200,
+                )
+            transcript = self.directory / "transcript.diarized.turns.txt"
+            diarization = read_json(self.directory / "diarization.json")
+            if not transcript.is_file() or transcript.is_symlink() or not isinstance(diarization, list):
+                raise ValueError("invalid diarization artifacts")
+            descriptor = self.transcript_descriptor(transcript)
+            speakers = len({
+                segment["speaker"]
+                for segment in diarization
+                if isinstance(segment, dict) and isinstance(segment.get("speaker"), str)
+            })
+            if not speakers:
+                raise ValueError("no diarized speakers")
+            self.manifest["source"]["transcript"] = descriptor
+            self.state["diarization"] = {
+                "status": "ready",
+                "attempts": attempts,
+                "startedAt": started,
+                "finishedAt": utc_now(),
+                "failure": None,
+                "speakers": speakers,
+                "transcript": descriptor,
+            }
+            self.bound_log(log_path)
+            self.persist()
+            return True
+        except subprocess.TimeoutExpired:
+            failure = {"code": "diarization_timeout", "retryable": True}
+        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError):
+            failure = {"code": "diarization_failed", "retryable": True}
+
+        self.state["diarization"] = {
+            "status": "failed",
+            "attempts": attempts,
+            "startedAt": started,
+            "finishedAt": utc_now(),
+            "failure": failure,
+        }
+        if log_path.exists():
+            self.bound_log(log_path)
+        if self.manifest["status"] == "ready":
+            self.persist_state()
+        else:
+            self.persist()
+        return False
 
     def setup_audio(self):
         sink = self.state["sink"]
@@ -773,6 +891,7 @@ class Session:
                     self.manifest["failure"] = error.public()
 
     def finalize(self):
+        initial_status = self.manifest["status"]
         if self.manifest["endedAt"] is None:
             raise Failure("recovery", "capture_end_unknown", False)
         known = {Path(fragment["path"]).resolve() for side in SIDES for fragment in self.state["fragments"][side]}
@@ -790,6 +909,7 @@ class Session:
                     raise Failure("recovery", "audio_changed", False, side)
         self.manifest["status"] = "finalizing"
         self.manifest["finalizedAt"] = None
+        self.state["finalizationStage"] = "transcribing"
         self.persist()
         end = max((fragment["endMs"] for side in SIDES for fragment in self.state["fragments"][side]), default=0)
         index, frontier = self.committed_emission_frontier(end)
@@ -809,12 +929,15 @@ class Session:
         self.refresh_coverage()
         if not self.manifest["coverage"]["complete"]:
             raise Failure("capture", "incomplete_audio_coverage", False)
+        if initial_status != "ready":
+            self.attempt_diarization()
+        self.state["finalizationStage"] = "complete"
         self.manifest["status"] = "ready"
         self.manifest["failure"] = None
         self.manifest["finalizedAt"] = utc_now()
         self.persist()
 
-    def run(self, retry=False):
+    def run(self, mode="capture"):
         invocation = os.environ.get("INVOCATION_ID")
         if not invocation:
             raise Failure("startup", "owned_unit_required", False)
@@ -824,11 +947,16 @@ class Session:
         with locked(self.private / "writer.lock", blocking=True):
             self.state["invocationId"] = invocation
             self.state["bootId"] = boot_id()
-            self.persist()
+            if mode == "diarize":
+                self.persist_state()
+            else:
+                self.persist()
             signal.signal(signal.SIGTERM, lambda *_: self.stop_event.set())
             signal.signal(signal.SIGINT, lambda *_: self.stop_event.set())
+            if mode == "diarize":
+                return 0 if self.attempt_diarization() else 1
             try:
-                if not retry:
+                if mode == "capture":
                     self.capture()
                 else:
                     # The old unit is stopped and this writer owns the lock.
@@ -879,16 +1007,35 @@ def status(directory, config):
     result = dict(session.manifest)
     result["outputDir"] = str(session.directory)
     result["sinkName"] = session.state["sink"]
+    result["diarization"] = session.state.get("diarization") or {
+        "status": "pending",
+        "attempts": 0,
+        "failure": None,
+    }
+    if result["status"] == "ready" and result["diarization"]["status"] == "running":
+        result["status"] = "diarizing"
     if result["status"] in ACTIVE:
         properties = owner_properties(session.state, config)
         launching = session.state.get("invocationId") is None and session.state["bootId"] == boot_id() and properties.get("ActiveState") in ("active", "activating")
         if not launching and not owner_matches(session.state, boot_id(), properties):
-            # The manifest remains historical evidence. Reconciliation never
-            # fabricates endedAt or silently changes a stale session to READY.
-            result["status"] = "incomplete"
-            result["failure"] = {"stage": "recovery", "code": "recording_owner_lost", "retryable": result["endedAt"] is not None}
+            if result["status"] == "diarizing":
+                # Losing an enhancement worker cannot revoke an already
+                # published base transcript.
+                result["status"] = "ready"
+                result["diarization"] = {
+                    **result["diarization"],
+                    "status": "failed",
+                    "failure": {"code": "diarization_owner_lost", "retryable": True},
+                }
+            else:
+                # The manifest remains historical evidence. Reconciliation
+                # never fabricates endedAt or silently changes stale capture
+                # work to READY.
+                result["status"] = "incomplete"
+                result["failure"] = {"stage": "recovery", "code": "recording_owner_lost", "retryable": result["endedAt"] is not None}
     if result["status"] == "finalizing":
         result["finalization"] = session.finalization_progress()
+        result["finalization"]["stage"] = session.state.get("finalizationStage", "transcribing")
     return result
 
 
@@ -911,12 +1058,23 @@ def ensure_models(config, state):
                 os.unlink(temporary)
 
 
-def launch_unit(session, config_path, retry):
+def launch_unit(session, config_path, mode):
     invocation = "record-call-" + session.manifest["recordingId"] + "-" + uuid.uuid4().hex[:8]
     session.state["unit"] = invocation + ".service"
     session.state["invocationId"] = None
-    session.manifest["status"] = "finalizing" if retry else "starting"
-    session.persist()
+    if mode == "diarize":
+        prior = session.state.get("diarization") or {}
+        session.state["diarization"] = {
+            "status": "running",
+            "attempts": int(prior.get("attempts", 0)),
+            "startedAt": utc_now(),
+            "finishedAt": None,
+            "failure": None,
+        }
+        session.persist_state()
+    else:
+        session.manifest["status"] = "finalizing" if mode == "retry" else "starting"
+        session.persist()
     cleanup = [session.config["python"], str(Path(__file__).resolve()), "--config", str(config_path),
                "_cleanup", str(session.directory)]
     # systemd-run parses the transient ExecStopPost arguments (no shell).
@@ -928,7 +1086,9 @@ def launch_unit(session, config_path, retry):
                "--property=Type=exec", "--property=KillMode=control-group", "--property=TimeoutStopSec=15s",
                "--property=UMask=0077", "--property=Restart=no", cleanup_property,
                session.config["python"], str(Path(__file__).resolve()),
-               "--config", str(config_path), "_retry" if retry else "_run", str(session.directory)]
+               "--config", str(config_path),
+               {"capture": "_run", "retry": "_retry", "diarize": "_diarize"}[mode],
+               str(session.directory)]
     atomic_json(state_root() / "current.json", {"recordingId": session.manifest["recordingId"], "directory": str(session.directory)})
     subprocess.run(command, check=True)
 
@@ -954,6 +1114,15 @@ def cleanup_after_owner(directory, config):
                                            "retryable": session.manifest["endedAt"] is not None}
             session.manifest["finalizedAt"] = None
             session.persist()
+        elif (session.state.get("diarization") or {}).get("status") == "running":
+            prior = session.state["diarization"]
+            session.state["diarization"] = {
+                **prior,
+                "status": "failed",
+                "finishedAt": utc_now(),
+                "failure": {"code": "diarization_owner_lost", "retryable": True},
+            }
+            session.persist_state()
         else:
             # READY may already be reserved by Fulcrum. Ownership cleanup must
             # not change that public descriptor or its revision after release.
@@ -985,13 +1154,17 @@ def start(directory, config, config_path):
                  "fragments": {side: [] for side in SIDES}, "gaps": [], "fragmentMs": fragment,
                  "windowMs": window, "advanceMs": advance, "turnGap": int(os.environ.get("RECORD_CALL_TURN_GAP_SEC", "8")),
                  "whisperServerUrl": os.environ.get("WHISPER_SERVER_URL", config["defaultWhisperServerUrl"]),
+                 "diarizationServerUrl": os.environ.get("DIARIZATION_SERVER_URL", config["defaultDiarizationServerUrl"]),
+                 "diarizationModel": os.environ.get("DIARIZATION_MODEL", config["diarizationModel"]),
+                 "finalizationStage": "capturing",
+                 "diarization": {"status": "pending", "attempts": 0, "failure": None},
                  "model": str(model_root / "ggml-large-v3-turbo.bin"), "vadModel": str(model_root / "ggml-silero-v5.1.2.bin")}
         ensure_models(config, state)
         atomic_json(private / "state.json", state)
         atomic_json(directory / "recording.json", new_manifest(recording_id, utc_now(), capture_zone()))
         atomic_bytes(directory / "transcript.txt", b"")
         session = Session(directory, config)
-        launch_unit(session, config_path, False)
+        launch_unit(session, config_path, "capture")
         print("Starting recording: " + str(directory))
 
 
@@ -1023,15 +1196,54 @@ def retry(directory, config, config_path):
         if properties.get("ActiveState") in ("active", "activating", "deactivating"):
             raise Failure("recovery", "recording_busy")
         with locked(session.private / "writer.lock"):
-            launch_unit(session, config_path, True)
+            launch_unit(session, config_path, "retry")
         print("Retrying retained transcription: " + str(session.directory))
+
+
+def retry_diarization(directory, config, config_path, force=False):
+    with locked(state_root() / "command.lock"):
+        session = Session(directory, config)
+        if status(current_directory(), config)["status"] in ACTIVE:
+            raise Failure("diarization", "recording_busy")
+        if session.manifest["status"] != "ready":
+            raise Failure("diarization", "base_transcript_not_ready", False)
+        if not force and (session.state.get("diarization") or {}).get("status") == "ready":
+            print("Recording is already diarized.")
+            return
+        properties = owner_properties(session.state, config)
+        if properties.get("ActiveState") in ("active", "activating", "deactivating"):
+            raise Failure("diarization", "recording_busy")
+        session.state["diarizationServerUrl"] = os.environ.get(
+            "DIARIZATION_SERVER_URL",
+            config["defaultDiarizationServerUrl"],
+        )
+        session.state["diarizationModel"] = os.environ.get(
+            "DIARIZATION_MODEL",
+            config["diarizationModel"],
+        )
+        with locked(session.private / "writer.lock"):
+            try:
+                launch_unit(session, config_path, "diarize")
+            except (OSError, subprocess.SubprocessError):
+                prior = session.state.get("diarization") or {}
+                session.state["diarization"] = {
+                    **prior,
+                    "status": "failed",
+                    "finishedAt": utc_now(),
+                    "failure": {"code": "diarization_launch_failed", "retryable": True},
+                }
+                session.persist_state()
+                raise Failure("diarization", "diarization_launch_failed") from None
+        print("Retrying participant diarization: " + str(session.directory))
 
 
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("command", choices=("start", "stop", "status", "retry", "route", "tail", "_run", "_retry", "_cleanup"))
+    parser.add_argument("command", choices=(
+        "start", "stop", "status", "retry", "retry-diarization", "diarize",
+        "route", "tail", "_run", "_retry", "_diarize", "_cleanup"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
@@ -1045,8 +1257,18 @@ def main():
             if not arguments.directory:
                 raise Failure("recovery", "recording_directory_required", False)
             retry(arguments.directory, config, arguments.config)
-        elif arguments.command in ("_run", "_retry"):
-            return Session(arguments.directory, config).run(arguments.command == "_retry")
+        elif arguments.command in ("retry-diarization", "diarize"):
+            if not arguments.directory:
+                raise Failure("diarization", "recording_directory_required", False)
+            retry_diarization(
+                arguments.directory,
+                config,
+                arguments.config,
+                force=arguments.command == "diarize",
+            )
+        elif arguments.command in ("_run", "_retry", "_diarize"):
+            mode = {"_run": "capture", "_retry": "retry", "_diarize": "diarize"}[arguments.command]
+            return Session(arguments.directory, config).run(mode)
         elif arguments.command == "_cleanup":
             cleanup_after_owner(arguments.directory, config)
         elif arguments.command == "status":

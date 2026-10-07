@@ -120,6 +120,30 @@ def ready_cleanup_fixture(backend, evidence):
         fixture.tearDown()
 
 
+def diarized_ready_fixture(evidence):
+    fixture = fixtures.RecorderTests()
+    fixture.setUp()
+    timer = None
+    try:
+        session = fixture.session()
+        fixture.synthetic_capture(session)
+        session.manifest["recordingId"] = str(uuid.uuid4())
+        session.persist()
+        (fixture.root / "control.json").write_text('{"diarization_success":true}')
+        timer = recorder.threading.Timer(0.65, session.stop_event.set)
+        timer.start()
+        with patch.dict(recorder.os.environ, {"INVOCATION_ID": "synthetic-diarized-ready"}):
+            assert session.run() == 0
+        assert session.manifest["status"] == "ready"
+        assert session.manifest["source"]["transcript"]["path"] == "transcript.diarized.turns.txt"
+        assert session.state["diarization"]["status"] == "ready"
+        shutil.copytree(session.directory, evidence / "diarized_ready")
+    finally:
+        if timer:
+            timer.cancel()
+        fixture.tearDown()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", required=True, type=Path)
@@ -131,6 +155,7 @@ def main():
     for name in ("setup_failure", "second_launch_failure", "capture_gap", "asr_failure"):
         producer_fixture(name, evidence)
     ready_cleanup_fixture(backend, evidence)
+    diarized_ready_fixture(evidence)
     script = evidence / "verify-consumer.ts"
     script.write_text("\n".join([
         "import assert from 'node:assert/strict';",
@@ -150,7 +175,7 @@ def main():
         "assert.equal(result.available,true);",
         "if (!result.available) throw Error(result.reason);",
         "assert.deepEqual(result.issues,[]);",
-        "assert.equal(result.recordings.length,6);",
+        "assert.equal(result.recordings.length,7);",
         "for (const recording of result.recordings) {",
         "  const snapshot = await catalog.snapshot(recording);",
         "  if (recording.status==='ready') assert.equal(snapshot.ok,true);",
