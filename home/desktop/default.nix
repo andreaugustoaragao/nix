@@ -2,11 +2,11 @@
   pkgs,
   lib,
   unstable-pkgs,
+  hostName,
   ...
 }:
 {
   imports = [
-    ./fulcrum.nix
     # Typed my.displays.* options — single entry point for the
     # dp1/dp2 slot metadata resolved in flake.nix. Import first so
     # consumers below can read config.my.displays.
@@ -42,11 +42,14 @@
     ./vscode.nix
     ./zed.nix
     ./grok-bot.nix
+    ./chatgpt.nix
+    ./fulcrum.nix
     ./waybar.nix
     ./eww.nix
     ./wallpapers.nix
     ./fcitx.nix
     ./thunar.nix
+    ./strata.nix
     ./xresources.nix
     ./cursors.nix
     ./mimeapps.nix
@@ -98,5 +101,8 @@
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
       aptakube
+    ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [
+      (pkgs.callPackage ../../pkgs/opencode2-desktop.nix { })
     ];
 }

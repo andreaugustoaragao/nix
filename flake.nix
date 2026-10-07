@@ -1,8 +1,15 @@
 {
-  description = "NixOS + nix-darwin configuration for a handful of personal hosts";
+  description = "NixOS + nix-darwin configuration for a handful of personal hosts ";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # Local-first desktop release candidate. The exact revision is pinned;
+    # activation still requires its release gates. Other machines need this
+    # source checkout available until a published input is separately approved.
+    fulcrumDesktop = {
+      url = "git+file:///home/aragao/projects/work/fulcrum?rev=aea9a5e8b86ef12ff49ff16c1a1a630245091c19&dir=desktop&allRefs=1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # Tracks nixpkgs-unstable for packages we want fresher than 26.05
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
@@ -18,6 +25,17 @@
     # load this model format.
     prism-llama = {
       url = "github:PrismML-Eng/llama.cpp/prism-b10709-9a9394a";
+      flake = false;
+    };
+    # Strata is not in nixpkgs yet. Pin both its source and the package
+    # recipe from nixpkgs PR #570118; replace these with
+    # `unstable-pkgs.strata` after that PR reaches nixpkgs-unstable.
+    strata-src = {
+      url = "github:lgse/strata/v0.21.0";
+      flake = false;
+    };
+    strata-package-src = {
+      url = "github:Shangshui0302/nixpkgs/e7095c7d23897f76fbdae73a819d8c79fd9e68d4";
       flake = false;
     };
     # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
@@ -319,9 +337,22 @@
         # (mac-work). Expose both names so either invocation works.
         base // { G7CH2W2XYR = base.mac-work; };
 
-      packages = forEachAppSystem (system: {
-        opencode2 = nixpkgs.legacyPackages.${system}.callPackage ./pkgs/opencode2.nix { };
-      });
+      packages = forEachAppSystem (
+        system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ ];
+          };
+        in
+        {
+          opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
+        }
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
+        }
+      );
 
       # Cross-host SSH bootstrap apps. Exposed on every system in appSystems
       # so the same `nix run .#peers-bootstrap` works from any host in

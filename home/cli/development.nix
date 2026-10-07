@@ -239,6 +239,7 @@ in
           # Linux-only containerd CLI; Darwin uses Docker Desktop /
           # podman-machine instead.
           nerdctl
+          (pkgs.callPackage ../../pkgs/dev-browser.nix { })
         ]
       );
 
@@ -285,11 +286,13 @@ in
           ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
         fi
 
-        # Install dev-browser if not present
-        if ! command -v dev-browser &> /dev/null; then
-          echo "Installing dev-browser..."
-          ${pkgs.nodejs_22}/bin/npm install -g dev-browser
-        fi
+        ${lib.optionalString (!pkgs.stdenv.hostPlatform.isLinux) ''
+          # Linux uses the pinned Nix package, including its daemon runtime.
+          if ! command -v dev-browser &> /dev/null; then
+            echo "Installing dev-browser..."
+            ${pkgs.nodejs_22}/bin/npm install -g dev-browser
+          fi
+        ''}
 
         # Bootstrap missing CLIs, but never upgrade them during activation.
         # `update-npm-ai-tools` performs scheduled/manual updates outside

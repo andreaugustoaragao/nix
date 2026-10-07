@@ -1,6 +1,7 @@
 {
   lib,
   unstable-pkgs,
+  hostName,
   isVm ? false,
   ...
 }:
@@ -83,6 +84,14 @@ let
     # against real AMD/Intel driver bugs that --ignore-gpu-blocklist
     # would re-expose.
     "--ignore-gpu-blocklist"
+  ]
+  ++ lib.optionals (hostName == "prl-dev-vm") [
+    # Allow dev-browser to attach to existing profiles on this machine.
+    # Chromium's DevTools server binds loopback only; this is still full,
+    # unauthenticated browser access for local processes, not read-only.
+    # Keep 9222 distinct from Chromium's existing 9223. Do not change the
+    # user-data directory or add remote-allow-origins / sandbox bypasses.
+    "--remote-debugging-port=9222"
   ];
 
   # nixpkgs restructured the brave recipe: make-brave.nix is now a

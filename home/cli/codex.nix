@@ -18,13 +18,12 @@ let
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
   # adapter identity only in this launcher, never in home.sessionVariables
   # or shell initialization shared with Cursor, Claude, and Pi.
-  # Command-line overrides take precedence over project-local configuration,
-  # so repositories cannot re-enable approval, sandbox, or hook-trust prompts.
+  # Let project and user configuration select the sandbox and approval reviewer.
+  # Keep hook-trust prompts disabled for the shared repository hooks.
   # Use the npm entrypoint explicitly to avoid recursing through PATH.
   codexLauncher = pkgs.writeShellScript "codex" ''
     export AGENT_TOOL=codex
     exec "${config.home.homeDirectory}/.npm-global/bin/codex" \
-      --dangerously-bypass-approvals-and-sandbox \
       --dangerously-bypass-hook-trust \
       "$@"
   '';
@@ -39,20 +38,30 @@ let
   # deliberately distinctive so the activation sed below can't match
   # legitimate config text by accident.
   configTomlTemplate = ''
-    model = "gpt-5.6-terra"
+    model = "gpt-6-sol"
     model_provider = "litellm"
     model_reasoning_effort = "high"
-    # Codex always starts without sandboxing or approval prompts. This is the
-    # persistent config equivalent of
-    # `--dangerously-bypass-approvals-and-sandbox` (`--yolo`).
-    sandbox_mode = "danger-full-access"
-    approval_policy = "never"
+    # Route approval requests to Auto-review instead of prompting for routine work.
+    sandbox_mode = "workspace-write"
+    approval_policy = "on-request"
+    approvals_reviewer = "auto_review"
+
+    # Reuse the user's saved MCP OAuth credentials across Codex instances.
+    # Keep tokens in Codex's credential store, outside this generated config.
+    mcp_oauth_credentials_store = "auto"
+
+    [mcp_servers.atlassian]
+    url = "https://mcp.atlassian.com/v2/mcp"
 
     [model_providers.litellm]
     name = "LiteLLM"
     base_url = "@@LITELLM_BASE_URL@@"
-    env_key = "LITELLM_API_KEY"
     wire_api = "responses"
+
+    # Desktop launchers do not inherit secrets exported by interactive Fish.
+    [model_providers.litellm.auth]
+    command = "${pkgs.coreutils}/bin/cat"
+    args = ["/run/secrets/litellm_api_key"]
 
     ${lib.optionalString (osConfig.sops.secrets ? open_ai_key) ''
       # Direct API access selected by the codex-openai launcher.
@@ -99,10 +108,8 @@ in
 
   # Schema: https://developers.openai.com/codex/config-reference
   #
-  # We use `env_key` (LITELLM_API_KEY) rather than the discouraged
-  # `experimental_bearer_token`, so the API key stays out of the Nix
-  # store. The env var is exported from /run/secrets/litellm_api_key
-  # by home/cli/fish.nix once the sops secret is deployed.
+  # Command-backed authentication reads the sops key at runtime, keeping it
+  # out of the Nix store and available to both CLI and desktop app launches.
   #
   # base_url comes from /run/secrets/litellm_base_url and is
   # substituted into the template by the activation below.

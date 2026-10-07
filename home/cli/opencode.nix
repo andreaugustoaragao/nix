@@ -42,6 +42,10 @@ in
       "$schema" = "https://opencode.ai/config.json";
       model = "litellm/gpt-6-astra";
       update = "disable"; # The executable is managed by Nix.
+      mcp.servers.atlassian = {
+        type = "remote";
+        url = "https://mcp.atlassian.com/v2/mcp";
+      };
       providers = {
         litellm = {
           name = "LiteLLM";

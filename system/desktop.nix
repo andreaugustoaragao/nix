@@ -2,6 +2,7 @@
   pkgs,
   lib,
   unstable-pkgs,
+  hostName,
   ...
 }:
 
@@ -89,6 +90,7 @@
     upower.enable = true;
     power-profiles-daemon.enable = true;
     fwupd.enable = true;
+    gvfs.enable = lib.mkIf (hostName == "prl-dev-vm") true;
 
     flatpak.enable = lib.mkForce false;
 

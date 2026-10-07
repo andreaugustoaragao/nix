@@ -33,6 +33,14 @@
   };
   services.pulseaudio.enable = false;
 
+  # A configuration switch restarts these user services when their store
+  # paths change. Brave keeps its audio process alive across the restart,
+  # but both call playback and capture then stop until Brave is relaunched.
+  # Apply audio stack updates at the next login on the Parallels VM instead.
+  systemd.user.services.pipewire.restartIfChanged = lib.mkIf (hostName == "prl-dev-vm") false;
+  systemd.user.services.pipewire-pulse.restartIfChanged = lib.mkIf (hostName == "prl-dev-vm") false;
+  systemd.user.services.wireplumber.restartIfChanged = lib.mkIf (hostName == "prl-dev-vm") false;
+
   # Pin card profiles on the workstation so audio survives a wireplumber
   # state wipe. The Jabra SPEAK 510's IEC958 profile is unusable on this
   # hardware (endless snd_pcm_avail: Broken pipe), and the onboard ALC4082

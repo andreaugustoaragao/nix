@@ -47,6 +47,7 @@ let
     pkgs.coreutils
     pkgs.which
     pkgs.openssl
+    (pkgs.callPackage ../../pkgs/dev-browser.nix { })
   ];
   binPath = lib.optionalString (hostName == "prl-dev-vm") "${runtimeBinPath}:" + serviceBinPath;
   effectiveRuntimePath = lib.concatStringsSep ":" [
@@ -64,12 +65,76 @@ let
   tlsDir = "${config.xdg.dataHome}/fulcrum/certs";
   tlsCert = "${tlsDir}/localhost.pem";
   tlsKey = "${tlsDir}/localhost-key.pem";
+  localTls = config.my.fulcrum.localTls;
+  runtimeTlsCert = if localTls.enable then localTls.serverCertificate else tlsCert;
+  runtimeTlsKey = if localTls.enable then localTls.serverKey else tlsKey;
+  browserNickname =
+    if localTls.enable then
+      "fulcrum-local-https-prl-dev-vm-ca-v1"
+    else
+      "fulcrum-local-https-prl-dev-vm";
+  browserFingerprint =
+    if localTls.enable then
+      localTls.serverSha256
+    else
+      "8FD6E07212A5002ECF9973027FBB5678181F81216343EA6D9727E8E6C82BE399";
+  localTlsDesktop = pkgs.callPackage ../../pkgs/fulcrum-desktop-local-tls.nix {
+    inherit (localTls) caCertificate caSha256 desktopPackage;
+    systemCaBundle = osConfig.environment.etc."ssl/certs/ca-certificates.crt".source;
+  };
+
+  # This host's existing certificate is CA-capable. NSS P,, trusts only its
+  # exact DER identity for TLS; C,, or the system CA bundle would also trust
+  # certificates signed by its key. Pin the public certificate, never the key.
+  browserTrust = pkgs.writeShellApplication {
+    name = "fulcrum-browser-trust";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
+      pkgs.nssTools
+      pkgs.openssl
+    ];
+    text = builtins.readFile ./fulcrum-browser-trust.sh;
+  };
 in
 
 {
+  imports = [ ./fulcrum-local-tls-options.nix ];
+  assertions = [
+    {
+      assertion =
+        !localTls.enable
+        || (
+          hostName == "prl-dev-vm"
+          && localTls.caCertificate != null
+          && localTls.caSha256 != null
+          && localTls.serverSha256 != null
+          && localTls.desktopPackage != null
+        );
+      message = "Fulcrum local TLS migration requires prl-dev-vm, an approved public CA, both reviewed fingerprints and a pinned desktop package. Stage and verify before enabling.";
+    }
+  ];
   # Fixed read-only Google source commands are provided by Fulcrum's adapter.
   # Account OAuth setup is separate; no account or credential is inferred here.
-  home.packages = lib.optionals (hostName == "prl-dev-vm") [ pkgs.gogcli ];
+  home.packages =
+    lib.optionals localTls.enable [ localTlsDesktop ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [ pkgs.gogcli ];
+
+  home.activation.fulcrumBrowserTrust = lib.mkIf (hostName == "prl-dev-vm") (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      # Chromium 154 uses the legacy NSS directory when present, otherwise XDG.
+      fulcrum_nss_database=${lib.escapeShellArg "${config.xdg.dataHome}/pki/nssdb"}
+      if [ -d ${lib.escapeShellArg "${config.home.homeDirectory}/.pki/nssdb"} ]; then
+        fulcrum_nss_database=${lib.escapeShellArg "${config.home.homeDirectory}/.pki/nssdb"}
+      fi
+      if [ -r ${lib.escapeShellArg runtimeTlsCert} ]; then
+        run ${browserTrust}/bin/fulcrum-browser-trust \
+          ${lib.escapeShellArg runtimeTlsCert} "$fulcrum_nss_database" \
+          ${lib.escapeShellArg browserNickname} \
+          ${lib.escapeShellArg browserFingerprint}
+      fi
+    ''
+  );
 
   # The existing runtime.conf selects the managed Node/Bun launcher and PATH.
   # Sort after it and override only PATH; preserve its ExecStart and other settings.
@@ -120,7 +185,7 @@ in
         "FULCRUM_RECORDING_GOOGLE_ACCOUNT=aragao@avaya.com"
         "FULCRUM_RECORDING_BROWSER_BIN=${pkgs.callPackage ../../pkgs/dev-browser.nix { }}/bin/dev-browser"
       ]
-      # Only the local desktop uses this authenticated loopback listener and
+      # The local desktop uses the authenticated loopback listener and
       # owner-only session bootstrap. Existing HTTPS and browser auth stay intact.
       ++ lib.optionals (hostName == "prl-dev-vm") [
         "FULCRUM_DESKTOP_PORT=3102"
@@ -197,35 +262,52 @@ in
         export OPENAI_BASE_URL="$base_url"
         unset api_key base_url
 
-        # Lazily provision a self-signed cert for the HTTPS listener.
-        # Fulcrum's startup picks up the cert/key via
-        # FULCRUM_TLS_CERT/_KEY (see startup.ts:244), so the web-app
-        # PWA's https://localhost:3100 works the same way it does on
-        # workstation (which gets its cert from mkcert via the
-        # upstream docker-compose stack). Self-healing: regenerate
-        # whenever the cert is missing OR its SAN list doesn't yet
-        # include ${hostName}.local, so cert content stays in sync
-        # with nix-side SAN changes across rebuilds.
-        regen_cert=0
-        if [ ! -f ${tlsCert} ] || [ ! -f ${tlsKey} ]; then
-          regen_cert=1
-        elif ! openssl x509 -in ${tlsCert} -noout -ext subjectAltName 2>/dev/null \
-             | grep -q "DNS:${hostName}.local"; then
-          regen_cert=1
-        fi
-        if [ "$regen_cert" = "1" ]; then
-          mkdir -p ${tlsDir}
-          openssl req -x509 -newkey rsa:2048 -nodes \
-            -keyout ${tlsKey} \
-            -out ${tlsCert} \
-            -days 3650 \
-            -subj "/CN=localhost" \
-            -addext "subjectAltName=DNS:localhost,DNS:fulcrum.local,DNS:${hostName}.local,IP:127.0.0.1" \
-            >/dev/null 2>&1
-          chmod 0600 ${tlsKey}
-        fi
-        export FULCRUM_TLS_CERT=${tlsCert}
-        export FULCRUM_TLS_KEY=${tlsKey}
+        ${
+          if localTls.enable then
+            ''
+              # Explicitly staged CA:false leaf. Never generate a replacement or
+              # fall back to the former self-signed certificate in migration mode.
+              ${localTlsDesktop.preflight}/bin/fulcrum-local-tls-preflight server \
+                ${lib.escapeShellArg "${localTlsDesktop.publicCa}"} \
+                ${lib.escapeShellArg localTls.caSha256} \
+                ${lib.escapeShellArg localTls.serverCertificate} \
+                ${lib.escapeShellArg localTls.serverSha256} \
+                ${lib.escapeShellArg localTls.serverKey} \
+                ${lib.escapeShellArg hostName}
+            ''
+          else
+            ''
+              # Lazily provision a self-signed cert for the HTTPS listener.
+              # Fulcrum's startup picks up the cert/key via
+              # FULCRUM_TLS_CERT/_KEY (see startup.ts:244), so the web-app
+              # PWA's https://localhost:3100 works the same way it does on
+              # workstation (which gets its cert from mkcert via the
+              # upstream docker-compose stack). Self-healing: regenerate
+              # whenever the cert is missing OR its SAN list doesn't yet
+              # include ${hostName}.local, so cert content stays in sync
+              # with nix-side SAN changes across rebuilds.
+              regen_cert=0
+              if [ ! -f ${tlsCert} ] || [ ! -f ${tlsKey} ]; then
+                regen_cert=1
+              elif ! openssl x509 -in ${tlsCert} -noout -ext subjectAltName 2>/dev/null \
+                   | grep -q "DNS:${hostName}.local"; then
+                regen_cert=1
+              fi
+              if [ "$regen_cert" = "1" ]; then
+                mkdir -p ${tlsDir}
+                openssl req -x509 -newkey rsa:2048 -nodes \
+                  -keyout ${tlsKey} \
+                  -out ${tlsCert} \
+                  -days 3650 \
+                  -subj "/CN=localhost" \
+                  -addext "subjectAltName=DNS:localhost,DNS:fulcrum.local,DNS:${hostName}.local,IP:127.0.0.1" \
+                  >/dev/null 2>&1
+                chmod 0600 ${tlsKey}
+              fi
+            ''
+        }
+        export FULCRUM_TLS_CERT=${lib.escapeShellArg runtimeTlsCert}
+        export FULCRUM_TLS_KEY=${lib.escapeShellArg runtimeTlsKey}
 
         exec ${pkgs.bun}/bin/bun run start
       '';
