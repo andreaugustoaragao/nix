@@ -30,6 +30,8 @@ from zoneinfo import ZoneInfo
 SIDES = ("call", "mic")
 ACTIVE = ("starting", "recording", "finalizing")
 EDGE_TOLERANCE_MS = 1000
+MAX_CAPTURE_CLOCK_DRIFT_PPM = 1500
+MAX_CAPTURE_END_TOLERANCE_MS = 30000
 
 
 class Failure(Exception):
@@ -123,6 +125,11 @@ def number(value):
     return isinstance(value, (float, int)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def capture_end_tolerance(duration_ms):
+    accumulated_drift = math.ceil(max(0, duration_ms) * MAX_CAPTURE_CLOCK_DRIFT_PPM / 1_000_000)
+    return min(MAX_CAPTURE_END_TOLERANCE_MS, max(EDGE_TOLERANCE_MS, accumulated_drift))
+
+
 def validate_asr(path, duration_ms=None):
     try:
         data = read_json(path)
@@ -142,7 +149,10 @@ def validate_asr(path, duration_ms=None):
                 raise ValueError()
             if duration_ms is not None:
                 multiplier = 1 if key == "transcription" else 1000
-                if start * multiplier > duration_ms or end * multiplier > duration_ms + 1000:
+                # Whisper may place a trailing padding segment just after the
+                # audio ends. Apply the existing timing tolerance to both
+                # bounds; the merger still excludes text outside emitted audio.
+                if end * multiplier > duration_ms + 1000:
                     raise ValueError()
             text = segment["text"]
             if not isinstance(text, str):
@@ -217,6 +227,7 @@ def bounded_missing(items, duration_ms):
 
 def calculate_coverage(captured, transcribed, duration_ms, gaps):
     result = {"complete": True, "durationMs": duration_ms, "sides": {}}
+    end_tolerance = capture_end_tolerance(duration_ms)
     for side in SIDES:
         spans = intervals(captured[side])
         done = intervals(transcribed[side])
@@ -233,9 +244,13 @@ def calculate_coverage(captured, transcribed, duration_ms, gaps):
                 missing.append({"startMs": previous["endMs"], "endMs": following["startMs"], "reason": "capture_gap"})
             if start > EDGE_TOLERANCE_MS:
                 missing.append({"startMs": 0, "endMs": start, "reason": "capture_started_late"})
-            if end < duration_ms - EDGE_TOLERANCE_MS:
+            # A sample clock can drift from wall time throughout a long capture,
+            # especially through virtualized PipeWire devices. Scale only the
+            # final-edge tolerance: startup delays, internal gaps, explicit
+            # process failures, and untranscribed audio remain exact failures.
+            if end < duration_ms - end_tolerance:
                 missing.append({"startMs": end, "endMs": duration_ms, "reason": "capture_ended_early"})
-            if end > duration_ms + EDGE_TOLERANCE_MS:
+            if end > duration_ms + end_tolerance:
                 missing.append({"startMs": duration_ms, "endMs": end, "reason": "capture_clock_mismatch"})
         has_missing = bool(missing)
         missing = bounded_missing(missing, duration_ms)
@@ -447,8 +462,14 @@ class Session:
             if errors:
                 atomic_json(destination / "failure.json", errors[0].public())
                 raise errors[0]
+        side_emit_ends = {
+            side: min(emit_end, max((fragment["endMs"] for fragment in self.state["fragments"][side]),
+                                    default=start))
+            for side in SIDES
+        }
         result = self.command("python", self.config["merge"], destination / "call.json", destination / "mic.json",
-                              start / 1000, start / 1000, emit_end / 1000,
+                              start / 1000, start / 1000, side_emit_ends["call"] / 1000,
+                              side_emit_ends["mic"] / 1000,
                               timestamp(self.manifest["startedAt"]), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               env={**os.environ, "TZ": self.manifest["timeZone"]})
         atomic_bytes(destination / "text.txt", result.stdout)

@@ -41,7 +41,8 @@ let
   # Emit [HH:MM:SS] (prefix) text lines from up to two whisper JSON
   # transcriptions (call and optional mic), sorted by time. Call lines
   # are unlabeled; mic lines are prefixed with "Me: ".
-  # Args: call_json mic_json_or_- win_off emit_lo emit_hi started_at_epoch
+  # Args: call_json mic_json_or_- win_off emit_lo call_emit_hi
+  #       mic_emit_hi started_at_epoch
   # If started_at_epoch > 0, timestamps are wall-clock (local time);
   # otherwise they're elapsed seconds from session start.
   mergePy = pkgs.writeText "record-call-merge.py" ''
@@ -50,10 +51,11 @@ let
     mic_src = sys.argv[2]
     win_off = float(sys.argv[3])
     emit_lo = float(sys.argv[4])
-    emit_hi = float(sys.argv[5])
-    started_at = float(sys.argv[6]) if len(sys.argv) > 6 else 0
+    call_emit_hi = float(sys.argv[5])
+    mic_emit_hi = float(sys.argv[6])
+    started_at = float(sys.argv[7]) if len(sys.argv) > 7 else 0
 
-    def load(path, prefix):
+    def load(path, prefix, emit_hi):
         if path == "-" or not path:
             return []
         try:
@@ -96,7 +98,7 @@ let
             out.append((abs_t, prefix, text))
         return out
 
-    entries = load(call_src, "") + load(mic_src, "Me: ")
+    entries = load(call_src, "", call_emit_hi) + load(mic_src, "Me: ", mic_emit_hi)
     entries.sort(key=lambda e: e[0])
     for t, prefix, text in entries:
         if started_at > 0:
@@ -560,7 +562,7 @@ in
               ffmpeg -hide_banner -loglevel error -y -i "$SRC" \
                 -ac 1 -ar 16000 -c:a pcm_s16le "$WORK/mono.wav"
               transcribe_audio "$WORK/mono.wav" "$WORK/out" "$MODEL_PATH" "$VAD_MODEL_PATH"
-              python3 ${mergePy} "$WORK/out.json" - 0 0 -1 0
+              python3 ${mergePy} "$WORK/out.json" - 0 0 -1 -1 0
             }
 
             cmd_diarize() {

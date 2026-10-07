@@ -64,6 +64,27 @@ class RecorderTests(unittest.TestCase):
         with self.assertRaises(recorder.Failure):
             recorder.validate_asr(self.root / "absent.json")
 
+    def test_asr_accepts_bounded_padding_timestamps_in_both_formats(self):
+        # Actual remote Whisper output for a 45-second recording window put
+        # its final ellipsis at 45.02–45.12. Padding is outside the emitted
+        # audio range, but must not reject all the valid speech in the window.
+        for key, segment in (
+            ("segments", {"start": 45.02, "end": 45.12, "text": "..."}),
+            ("transcription", {"offsets": {"from": 45020, "to": 45120}, "text": "..."}),
+        ):
+            with self.subTest(format=key):
+                self.assertEqual(recorder.validate_asr(self.asr({key: [segment]}), 45000), 1)
+
+    def test_asr_padding_tolerance_does_not_accept_invalid_timestamps(self):
+        for start, end in ((46.001, 46.1), (45.02, 46.001), (45.12, 45.02),
+                           (-0.01, 0), (float("nan"), 1), (0, float("inf"))):
+            for key, segment in (
+                ("segments", {"start": start, "end": end, "text": "invalid"}),
+                ("transcription", {"offsets": {"from": start * 1000, "to": end * 1000}, "text": "invalid"}),
+            ):
+                with self.subTest(format=key, start=start, end=end), self.assertRaises(recorder.Failure):
+                    recorder.validate_asr(self.asr({key: [segment]}), 45000)
+
     def test_atomic_commit_and_coverage_do_not_hide_dead_microphone(self):
         manifest = recorder.new_manifest("abc", "2026-10-06T15:00:00.000Z", "America/Denver")
         self.assertEqual(manifest["status"], "starting")
@@ -89,6 +110,74 @@ class RecorderTests(unittest.TestCase):
         self.assertFalse(recorder.calculate_coverage(spans, spans, 60000, [
             {"side": "mic", "startMs": 30000, "endMs": 30500, "reason": "capture_restarted"}
         ])["complete"])
+
+    def test_long_capture_allows_only_bounded_final_sample_clock_drift(self):
+        duration = 20588792
+        actual = {
+            "call": [{"startMs": 1, "endMs": 20578176.0625}],
+            "mic": [{"startMs": 4, "endMs": 20567085.6875}],
+        }
+        coverage = recorder.calculate_coverage(actual, actual, duration, [])
+        self.assertTrue(coverage["complete"])
+        self.assertEqual(coverage["sides"]["call"]["missing"], [])
+        self.assertEqual(coverage["sides"]["mic"]["missing"], [])
+        self.assertGreaterEqual(recorder.capture_end_tolerance(duration), 21707)
+        self.assertLessEqual(recorder.capture_end_tolerance(duration),
+                             recorder.MAX_CAPTURE_END_TOLERANCE_MS)
+
+        beyond_budget = {
+            "call": [{"startMs": 0, "endMs": duration}],
+            "mic": [{"startMs": 0, "endMs": duration - recorder.MAX_CAPTURE_END_TOLERANCE_MS - 1}],
+        }
+        coverage = recorder.calculate_coverage(beyond_budget, beyond_budget, duration, [])
+        self.assertFalse(coverage["complete"])
+        self.assertEqual(coverage["sides"]["mic"]["missing"], [{
+            "startMs": duration - recorder.MAX_CAPTURE_END_TOLERANCE_MS - 1,
+            "endMs": duration,
+            "reason": "capture_ended_early",
+        }])
+
+        late_start = {
+            "call": [{"startMs": 0, "endMs": duration}],
+            "mic": [{"startMs": recorder.EDGE_TOLERANCE_MS + 1, "endMs": duration}],
+        }
+        coverage = recorder.calculate_coverage(late_start, late_start, duration, [])
+        self.assertFalse(coverage["complete"])
+        self.assertEqual(coverage["sides"]["mic"]["missing"][0]["reason"], "capture_started_late")
+
+    def test_capture_end_tolerance_boundaries_do_not_weaken_other_evidence(self):
+        self.assertEqual(recorder.capture_end_tolerance(60000), recorder.EDGE_TOLERANCE_MS)
+        self.assertEqual(recorder.capture_end_tolerance(1000000), 1500)
+        self.assertEqual(recorder.capture_end_tolerance(30000000),
+                         recorder.MAX_CAPTURE_END_TOLERANCE_MS)
+
+        duration = 1000000
+        tolerance = recorder.capture_end_tolerance(duration)
+        for end in (duration - tolerance, duration + tolerance):
+            with self.subTest(end=end):
+                spans = {side: [{"startMs": 0, "endMs": end}] for side in recorder.SIDES}
+                self.assertTrue(recorder.calculate_coverage(spans, spans, duration, [])["complete"])
+
+        for end, reason in ((duration - tolerance - 0.0625, "capture_ended_early"),
+                            (duration + tolerance + 0.0625, "capture_clock_mismatch")):
+            with self.subTest(end=end):
+                spans = {side: [{"startMs": 0, "endMs": end}] for side in recorder.SIDES}
+                coverage = recorder.calculate_coverage(spans, spans, duration, [])
+                self.assertFalse(coverage["complete"])
+                reasons = [item["reason"] for item in coverage["sides"]["mic"]["missing"]]
+                if reason == "capture_clock_mismatch":
+                    # The range is outside public duration and clips away, but
+                    # has_missing still blocks READY.
+                    self.assertEqual(reasons, [])
+                else:
+                    self.assertEqual(reasons, [reason])
+
+        captured = {side: [{"startMs": 0, "endMs": duration}] for side in recorder.SIDES}
+        transcribed = {
+            "call": captured["call"],
+            "mic": [{"startMs": 0, "endMs": duration - 0.0625}],
+        }
+        self.assertFalse(recorder.calculate_coverage(captured, transcribed, duration, [])["complete"])
 
     def test_untranscribed_audio_and_missing_side_never_ready(self):
         spans = {"call": [{"startMs": 0, "endMs": 60000}],
@@ -156,7 +245,7 @@ class RecorderTests(unittest.TestCase):
         (self.root / "control.json").write_text("{}")
         executable = self.root / "fake-asr"
         executable.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import json, pathlib, sys, time
+            import json, pathlib, sys, time, wave
             root = pathlib.Path({str(self.root)!r})
             remote = '-F' in sys.argv
             audio = pathlib.Path(next(a[6:] for a in sys.argv if a.startswith('file=@'))) if remote else pathlib.Path(sys.argv[sys.argv.index('-f')+1])
@@ -171,6 +260,11 @@ class RecorderTests(unittest.TestCase):
                 print('synthetic ASR failure', file=sys.stderr)
                 sys.exit(17)
             value = {{'segments': [] if mode.get('silence') else [{{'start': 0.1, 'end': 0.2, 'text': side + ' window ' + index}}]}}
+            if mode.get('trailing_padding_' + side):
+                with wave.open(str(audio), 'rb') as source:
+                    duration = source.getnframes() / source.getframerate()
+                value['segments'].append({{'start': duration - 0.2, 'end': duration + 0.02, 'text': side + ' final tail ' + index}})
+                value['segments'].append({{'start': duration + 0.02, 'end': duration + 0.12, 'text': '...'}})
             text = '{{' if mode.get('malformed_' + side) else json.dumps(value)
             if remote:
                 print(text)
@@ -222,6 +316,59 @@ class RecorderTests(unittest.TestCase):
         session.finalize()
         self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), snapshot)
         self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+
+    def test_recovery_passes_padded_asr_and_finishes_remaining_audio_once(self):
+        session = self.session(duration=90000)
+        session.process_window(0, 45000, 30000)
+        first = session.private / "windows/000000/done.json"
+        first_receipt = first.read_bytes()
+        (self.root / "control.json").write_text('{"fail_mic":2}')
+        with self.assertRaises(recorder.Failure):
+            session.process_window(1, 75000, 60000)
+        second_call = session.private / "windows/000001/call.ok.json"
+        second_call_receipt = second_call.read_bytes()
+        (self.root / "control.json").write_text('{"trailing_padding_mic":true}')
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertTrue(session.manifest["coverage"]["complete"])
+        for side in recorder.SIDES:
+            self.assertEqual(session.manifest["coverage"]["sides"][side]["transcribedMs"], 90000)
+        self.assertEqual(first.read_bytes(), first_receipt)
+        self.assertEqual(second_call.read_bytes(), second_call_receipt)
+        text = (session.directory / "transcript.raw.txt").read_text()
+        for index in range(3):
+            for side in recorder.SIDES:
+                self.assertEqual(text.count(f"{side} window {index:06d}"), 1)
+        self.assertEqual(text.count("mic final tail 000002"), 1)
+        self.assertNotIn("...", text)
+        self.assertNotIn("mic final tail 000001", text)
+        self.assertEqual((self.root / "call-attempts").read_text(), "3")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "4")
+        finalized = (session.directory / "transcript.turns.txt").read_bytes()
+        session.finalize()
+        self.assertEqual((session.directory / "transcript.turns.txt").read_bytes(), finalized)
+        self.assertEqual((self.root / "call-attempts").read_text(), "3")
+        self.assertEqual((self.root / "mic-attempts").read_text(), "4")
+
+    def test_shorter_side_padding_cannot_enter_merged_transcript(self):
+        session = self.session(duration=90000)
+        mic = session.directory / "chunks/mic_000000.wav"
+        wav(mic, 89500)
+        session.state["fragments"]["mic"] = [{
+            "path": str(mic),
+            "startMs": 0,
+            "endMs": 89500,
+            "sha256": recorder.file_hash(mic),
+        }]
+        session.persist()
+        (self.root / "control.json").write_text('{"trailing_padding_mic":true}')
+        session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertTrue(session.manifest["coverage"]["complete"])
+        self.assertEqual(session.manifest["coverage"]["sides"]["mic"]["captureEndMs"], 89500)
+        transcript = (session.directory / "transcript.raw.txt").read_text()
+        self.assertNotIn("mic final tail", transcript)
+        self.assertNotIn("...", transcript)
 
     def asr_events(self, output):
         events = [json.loads(line) for line in output.getvalue().splitlines()]
