@@ -30,6 +30,7 @@ let
     name = "Bonsai 2 27B Local (PQ2_0)";
     repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
     file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
+    mmprojFile = "Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf";
     contextWindow = 262144;
     maxTokens = 8192;
   };
@@ -38,6 +39,8 @@ let
   modelDir = "${homeDir}/.local/share/llm/models";
   modelPath = "${modelDir}/${model.file}";
   modelUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.file}?download=true";
+  mmprojPath = "${modelDir}/${model.mmprojFile}";
+  mmprojUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.mmprojFile}?download=true";
 
   # Parallels Shared-network host stub — the Mac's own IP on the
   # bridge100 interface (verified via `ifconfig` on mac-work). NOT
@@ -60,18 +63,29 @@ let
   # trusting a truncated artifact.
   ensureModel = pkgs.writeShellScript "local-llm-ensure-model" ''
     set -euo pipefail
-    if [ -s ${lib.escapeShellArg modelPath} ]; then
-      exit 0
-    fi
     mkdir -p ${lib.escapeShellArg modelDir}
-    echo "Downloading ${model.name} (~7.2GB) -> ${modelPath}"
-    ${pkgs.curl}/bin/curl \
-      --location \
-      --fail \
-      --continue-at - \
-      --output ${lib.escapeShellArg "${modelPath}.tmp"} \
-      ${lib.escapeShellArg modelUrl}
-    mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
+
+    if [ ! -s ${lib.escapeShellArg modelPath} ]; then
+      echo "Downloading ${model.name} (~7.2GB) -> ${modelPath}"
+      ${pkgs.curl}/bin/curl \
+        --location \
+        --fail \
+        --continue-at - \
+        --output ${lib.escapeShellArg "${modelPath}.tmp"} \
+        ${lib.escapeShellArg modelUrl}
+      mv ${lib.escapeShellArg "${modelPath}.tmp"} ${lib.escapeShellArg modelPath}
+    fi
+
+    if [ ! -s ${lib.escapeShellArg mmprojPath} ]; then
+      echo "Downloading ${model.name} vision projector (~629MB) -> ${mmprojPath}"
+      ${pkgs.curl}/bin/curl \
+        --location \
+        --fail \
+        --continue-at - \
+        --output ${lib.escapeShellArg "${mmprojPath}.tmp"} \
+        ${lib.escapeShellArg mmprojUrl}
+      mv ${lib.escapeShellArg "${mmprojPath}.tmp"} ${lib.escapeShellArg mmprojPath}
+    fi
   '';
 
   # PrismML's published Metal invocation uses full GPU offload and flash
@@ -83,6 +97,7 @@ let
     ${ensureModel}
     exec ${llama-cpp-metal}/bin/llama-server \
       --model ${lib.escapeShellArg modelPath} \
+      --mmproj ${lib.escapeShellArg mmprojPath} \
       --alias ${model.id} \
       --host ${bindHost} \
       --port ${toString port} \
@@ -119,11 +134,11 @@ in
   # to ~/.local/share/llm/models/. Mirrors the workstation pattern
   # where `local-llm.service` is a systemd --user unit.
   #
-  # The first activation kicks off a ~7.2GB model download via curl
-  # --continue-at -; subsequent starts are instant. launchd will
-  # restart the agent on crash; ThrottleInterval=30s prevents a tight
-  # loop if `bindHost` isn't up (e.g. Parallels not yet initialized
-  # post-boot).
+  # The first activation kicks off a ~7.8GB model + vision-projector
+  # download via curl --continue-at -; subsequent starts are instant.
+  # launchd will restart the agent on crash; ThrottleInterval=30s
+  # prevents a tight loop if `bindHost` isn't up (e.g. Parallels not
+  # yet initialized post-boot).
   launchd.user.agents.local-llm = {
     serviceConfig = {
       Label = "net.faragao.local-llm";

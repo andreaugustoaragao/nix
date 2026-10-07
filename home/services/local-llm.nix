@@ -27,6 +27,7 @@ let
         name = "Qwen3.6 35B A3B Local";
         repo = "unsloth/Qwen3.6-35B-A3B-MTP-GGUF";
         file = "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf";
+        input = [ "text" ];
         contextWindow = 196608;
         maxTokens = 8192;
       }
@@ -36,6 +37,10 @@ let
         name = "Bonsai 2 27B Local (PQ2_0)";
         repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
         file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
+        input = [
+          "text"
+          "image"
+        ];
         contextWindow = 262144;
         maxTokens = 8192;
       };
@@ -231,11 +236,11 @@ in
         inherit (model)
           id
           name
+          input
           contextWindow
           maxTokens
           ;
         reasoning = false;
-        input = [ "text" ];
         cost = {
           input = 0;
           output = 0;
