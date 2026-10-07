@@ -309,16 +309,6 @@
                           (inputs.nixpkgs + "/pkgs/by-name/ed/edencommon/increase-test-discovery-timeout.patch")
                         ];
                       });
-                      # Importing FastMCP can exceed this regression test's
-                      # 60-second subprocess timeout on a loaded Darwin host.
-                      # Keep the test enabled, but give it enough time to
-                      # verify the non-UTF-8 dotenv behavior.
-                      mcp-nixos = prev.mcp-nixos.overrideAttrs (oldAttrs: {
-                        postPatch = (oldAttrs.postPatch or "") + ''
-                          substituteInPlace tests/test_env_file_safety.py \
-                            --replace-fail 'timeout=60,' 'timeout=180,'
-                        '';
-                      });
                     })
                   ];
                 }
