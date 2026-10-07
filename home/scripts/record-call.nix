@@ -1,4 +1,9 @@
-{ pkgs, isWorkstation, ... }:
+{
+  pkgs,
+  isWorkstation,
+  isDarwinHost ? false,
+  ...
+}:
 
 let
   # Enable Vulkan on the workstation (AMD RX 7900 XT via Mesa RADV) for
@@ -20,6 +25,15 @@ let
   defaultWhisperServerUrl =
     if isWorkstation then "" else "http://mac-work.local:8081/v1/audio/transcriptions";
 
+  # Global post-recording diarization runs through the FluidAudio sidecar.
+  # mac-work reaches the app directly on loopback; other hosts use the
+  # bridge-only proxy from darwin/services/diarization-server.nix.
+  defaultDiarizationServerUrl =
+    if isDarwinHost then
+      "http://127.0.0.1:12017/v1/audio/transcriptions"
+    else
+      "http://mac-work.local:8082/v1/audio/transcriptions";
+
   binPath = pkgs.lib.makeBinPath [
     pkgs.pipewire # pw-record; its PipeWire-native capture path avoids the
     # "Generic error in an external library" that `ffmpeg -f pulse` hits
@@ -30,7 +44,6 @@ let
     pkgs.inotify-tools
     pkgs.jq
     pkgs.python3
-    pkgs.uv # `uv run --script` for diarization (pyannote.audio + PyTorch)
     pkgs.curl
     pkgs.coreutils
     pkgs.gnused
@@ -110,38 +123,40 @@ let
         print(f"[{stamp}] {prefix}{text}")
   '';
 
-  # Speaker diarization via pyannote.audio — emits JSON segments of
-  # [start, end, speaker] for an input audio file. Uses uv's PEP-723
-  # inline metadata so PyTorch + pyannote are fetched on first run and
-  # cached in uv's global cache. Needs HF_TOKEN because the gated
-  # pyannote/speaker-diarization-3.1 model.
-  diarizePy = pkgs.writeText "record-call-diarize.py" ''
-    # /// script
-    # requires-python = ">=3.11"
-    # dependencies = ["pyannote.audio>=3.1,<4"]
-    # ///
-    import json, os, sys
-    from pyannote.audio import Pipeline
-    import torch
+  # Validate WhisperServer's FluidAudio response and reduce it to the stable
+  # [start, end, speaker] contract consumed by the transcript aligner.
+  diarizationResponsePy = pkgs.writeText "record-call-diarization-response.py" ''
+    import json, math, sys
 
-    audio = sys.argv[1]
-    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
-    if not token:
-        sys.stderr.write("HF_TOKEN not set — see 'record-call diarize' help\n")
-        sys.exit(1)
+    try:
+        with open(sys.argv[1]) as source:
+            data = json.load(source)
+        segments = data["speaker_segments"]
+        if not isinstance(segments, list) or not segments:
+            raise ValueError("speaker_segments is empty")
 
-    pipe = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1",
-        use_auth_token=token,
-    )
-    if torch.cuda.is_available():
-        pipe.to(torch.device("cuda"))
+        normalized = []
+        for segment in segments:
+            start, end, speaker = segment["start"], segment["end"], segment["speaker"]
+            if (
+                not isinstance(start, (int, float))
+                or isinstance(start, bool)
+                or not math.isfinite(start)
+                or not isinstance(end, (int, float))
+                or isinstance(end, bool)
+                or not math.isfinite(end)
+                or start < 0
+                or end < start
+                or not isinstance(speaker, str)
+                or not speaker.strip()
+            ):
+                raise ValueError("invalid speaker segment")
+            normalized.append({"start": float(start), "end": float(end), "speaker": speaker.strip()})
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        sys.stderr.write(f"Invalid FluidAudio diarization response: {error}\n")
+        raise SystemExit(1)
 
-    diarization = pipe(audio)
-    segs = []
-    for turn, _, speaker in diarization.itertracks(yield_label=True):
-        segs.append({"start": float(turn.start), "end": float(turn.end), "speaker": speaker})
-    json.dump(segs, sys.stdout)
+    json.dump(normalized, sys.stdout)
   '';
 
   # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
@@ -191,6 +206,12 @@ let
                 "%Y-%m-%d %H:%M:%S",
             ))
             rel = wall - epoch
+            # The microphone channel is already an authoritative source label.
+            # Diarization runs only against mixed call audio, so never replace
+            # `Me` with whichever remote participant happened to overlap.
+            if rest.startswith("Me: "):
+                out.write(f"[{h}:{mi}:{s}] {rest}\n")
+                continue
             spk = label(speaker_at(rel))
             prefix = f"[{h}:{mi}:{s}] "
             if spk:
@@ -566,21 +587,15 @@ in
             }
 
             cmd_diarize() {
-              # Post-process: speaker-label the transcript using pyannote.
+              # Post-process: speaker-label the mixed call channel globally
+              # through mac-work's FluidAudio sidecar.
               # Args: <dir>   (the recordings/calls/<ts>/ directory)
               SRC="''${1:-}"
               [ -d "$SRC" ] || { echo "Usage: record-call diarize <output-dir>" >&2; exit 1; }
               [ -f "$SRC/transcript.txt" ] || { echo "No transcript.txt in $SRC" >&2; exit 1; }
-              if [ -z "''${HF_TOKEN:-}" ] && [ -z "''${HUGGINGFACE_HUB_TOKEN:-}" ]; then
-                cat >&2 <<EOF
-      HF_TOKEN is required for pyannote's gated model.
-        1) Create an HF account at https://huggingface.co/join
-        2) Accept the license: https://huggingface.co/pyannote/speaker-diarization-3.1
-        3) Create a read token: https://huggingface.co/settings/tokens
-        4) export HF_TOKEN=hf_xxxxx and re-run
-      EOF
-                exit 1
-              fi
+              SERVER_URL="''${DIARIZATION_SERVER_URL:-${defaultDiarizationServerUrl}}"
+              MODEL="''${DIARIZATION_MODEL:-parakeet-tdt-0.6b-v3}"
+
               # Resolve session start epoch (for aligning wall-clock
               # transcript timestamps with diarization's audio-relative ones).
               EPOCH=""
@@ -607,10 +622,31 @@ in
               ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$WORK/list.txt" \
                 -c copy "$SRC/session.wav" </dev/null
 
-              # Run pyannote via uv (manages its own venv + torch)
-              echo "Running speaker diarization (first run downloads ~2GB)..."
-              uv run --script ${diarizePy} "$SRC/session.wav" > "$SRC/diarization.json" \
-                || { echo "diarize.py failed — see stderr above" >&2; exit 1; }
+              echo "Running global speaker diarization on mac-work..."
+              RAW_TMP="$SRC/diarization.response.json.tmp"
+              DIAR_TMP="$SRC/diarization.json.tmp"
+              rm -f "$RAW_TMP" "$DIAR_TMP"
+
+              if ! curl -fsS --max-time 7200 \
+                -F "file=@$SRC/session.wav" \
+                -F "model=$MODEL" \
+                -F "language=en" \
+                -F "response_format=verbose_json" \
+                -F "diarize=true" \
+                "$SERVER_URL" > "$RAW_TMP"; then
+                rm -f "$RAW_TMP" "$DIAR_TMP"
+                echo "FluidAudio diarization request failed: $SERVER_URL" >&2
+                exit 1
+              fi
+
+              if ! python3 ${diarizationResponsePy} "$RAW_TMP" > "$DIAR_TMP"; then
+                rm -f "$RAW_TMP" "$DIAR_TMP"
+                echo "FluidAudio returned no usable speaker segments" >&2
+                exit 1
+              fi
+
+              mv "$RAW_TMP" "$SRC/diarization.response.json"
+              mv "$DIAR_TMP" "$SRC/diarization.json"
 
               echo "Aligning with transcript..."
               python3 ${alignPy} "$SRC/transcript.txt" "$SRC/diarization.json" \
@@ -624,6 +660,7 @@ in
         Lines:      $LINES
         Transcript: $SRC/transcript.diarized.txt
         Raw diar:   $SRC/diarization.json
+        Server raw: $SRC/diarization.response.json
       EOF
             }
 
@@ -671,7 +708,7 @@ in
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
         record-call turns <dir|txt> [gap]   Group lines into speaker turns (default gap=8s)
         record-call retime <dir|txt>     Rewrite timestamps as wall-clock (HH:MM:SS local)
-        record-call diarize <dir>        Speaker-label the transcript (needs HF_TOKEN)
+        record-call diarize <dir>        Speaker-label the transcript via mac-work
 
       How it works:
         * Creates a uniquely owned PipeWire null-sink with a loopback to your

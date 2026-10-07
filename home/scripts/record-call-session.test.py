@@ -231,6 +231,41 @@ class RecorderTests(unittest.TestCase):
         with self.assertRaises(recorder.Failure):
             recorder.write_window_audio(fragments, 0, 1000, self.root / "out.wav")
 
+    def test_fluid_diarization_response_is_strictly_normalized(self):
+        session = self.session()
+        source = self.root / "diarization-response.json"
+        source.write_text(json.dumps({"speaker_segments": [
+            {"start": 0, "end": 1.25, "speaker": " Speaker_1 ", "text": "hello"},
+            {"start": 1.25, "end": 2, "speaker": "Speaker_2"},
+        ]}))
+        result = subprocess.run(
+            [sys.executable, session.config["diarizationResponse"], str(source)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [
+            {"start": 0.0, "end": 1.25, "speaker": "Speaker_1"},
+            {"start": 1.25, "end": 2.0, "speaker": "Speaker_2"},
+        ])
+
+        for value in (
+            {},
+            {"speaker_segments": []},
+            {"speaker_segments": [{"start": -1, "end": 2, "speaker": "Speaker_1"}]},
+            {"speaker_segments": [{"start": 2, "end": 1, "speaker": "Speaker_1"}]},
+            {"speaker_segments": [{"start": 0, "end": 1, "speaker": ""}]},
+        ):
+            with self.subTest(value=value):
+                source.write_text(json.dumps(value))
+                result = subprocess.run(
+                    [sys.executable, session.config["diarizationResponse"], str(source)],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Invalid FluidAudio diarization response", result.stderr)
+
     def test_stale_unit_identity_is_not_live(self):
         state = {"bootId": "old", "invocationId": "aaa", "unit": "record-call-test.service"}
         self.assertFalse(recorder.owner_matches(state, "new", {"ActiveState": "active", "InvocationID": "aaa"}))
@@ -274,8 +309,16 @@ class RecorderTests(unittest.TestCase):
         executable.chmod(0o700)
         source = Path(__file__).with_name("record-call.nix").read_text()
         config = {"python": sys.executable, "curl": str(executable), "whisper": str(executable)}
-        for name in ("merge", "dedupe", "turns", "align", "retime"):
-            begin = source.index(f'  {name}Py = pkgs.writeText "record-call-{name}.py" \'\'\n')
+        helpers = {
+            "merge": "record-call-merge.py",
+            "diarizationResponse": "record-call-diarization-response.py",
+            "dedupe": "record-call-dedupe.py",
+            "turns": "record-call-turns.py",
+            "align": "record-call-align.py",
+            "retime": "record-call-retime.py",
+        }
+        for name, filename in helpers.items():
+            begin = source.index(f'  {name}Py = pkgs.writeText "{filename}" \'\'\n')
             body = source[begin:].split("\n", 1)[1].split("\n  '';", 1)[0]
             path = self.root / (name + ".py")
             path.write_text(textwrap.dedent(body))
@@ -775,11 +818,14 @@ class RecorderTests(unittest.TestCase):
             timer.cancel()
         marker = (session.directory / ".started-at").read_text()
         transcript = self.root / "legacy-transcript.txt"
-        transcript.write_text("[00:00:01] Synthetic call\n")
+        transcript.write_text("[00:00:01] Synthetic call\n[00:00:01] Me: Local microphone\n")
         result = subprocess.run([sys.executable, session.config["retime"], str(transcript), marker],
                                 env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(transcript.read_text(), "[15:00:01] Synthetic call\n")
+        self.assertEqual(
+            transcript.read_text(),
+            "[15:00:01] Synthetic call\n[15:00:01] Me: Local microphone\n",
+        )
         diarization = self.root / "diarization.json"
         diarization.write_text('[{"start":0,"end":2,"speaker":"SPEAKER_00"}]')
         aligned = self.root / "aligned.txt"
@@ -787,7 +833,10 @@ class RecorderTests(unittest.TestCase):
                                  marker, str(aligned)], env={**os.environ, "TZ": "UTC"},
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(aligned.read_text(), "[15:00:01] Speaker 1: Synthetic call\n")
+        self.assertEqual(
+            aligned.read_text(),
+            "[15:00:01] Speaker 1: Synthetic call\n[15:00:01] Me: Local microphone\n",
+        )
         self.assertEqual(marker, "1791298800")
         self.assertEqual(session.manifest["startedAt"], "2026-10-06T15:00:00.123Z")
 
