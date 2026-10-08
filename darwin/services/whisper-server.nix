@@ -8,6 +8,12 @@
 }:
 
 let
+  # whisper.cpp 1.8.4 serializes a null language name after VAD rejects a
+  # silent request, crashing the server and any concurrent transcription.
+  whisperServerPkg = pkgs.whisper-cpp.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ../../pkgs/whisper-server-empty-language.patch ];
+  });
+
   # Reuse the workstation's whisper-cpp model cache layout
   # (XDG_CACHE_HOME defaults to ~/.cache on both Linux and macOS) so
   # the model file and `record-call`'s expected path are identical
@@ -73,20 +79,21 @@ let
     # belongs on the Mac side where ffmpeg is fast and GPU-adjacent.
     export PATH=${pkgs.ffmpeg}/bin:$PATH
     ${ensureModels}
-    exec ${pkgs.whisper-cpp}/bin/whisper-server \
+    exec ${whisperServerPkg}/bin/whisper-server \
       --host ${bindHost} \
       --port ${toString port} \
       --inference-path /v1/audio/transcriptions \
       --model ${lib.escapeShellArg modelPath} \
       --vad \
       --vad-model ${lib.escapeShellArg vadModelPath} \
+      --no-language-probabilities \
       --convert \
       --tmp-dir /tmp
   '';
 in
 {
   environment.systemPackages = [
-    pkgs.whisper-cpp
+    whisperServerPkg
     pkgs.ffmpeg
     (pkgs.writeShellScriptBin "whisper-server-download" ''
       exec ${ensureModels}

@@ -1,0 +1,25 @@
+--- a/examples/server/server.cpp
++++ b/examples/server/server.cpp
+@@ -1047,6 +1047,8 @@
++            // VAD can return no speech before a language has been assigned.
++            const char * language = whisper_lang_str_full(whisper_full_lang_id(ctx));
+             json jres = json{
+                 {"task", params.translate ? "translate" : "transcribe"},
+-                {"language", whisper_lang_str_full(whisper_full_lang_id(ctx))},
++                {"language", language ? json(language) : json(nullptr)},
+                 {"duration", float(pcmf32.size())/WHISPER_SAMPLE_RATE},
+                 {"text", results},
+                 {"segments", json::array()}
+@@ -1055,8 +1057,10 @@
+             if (!params.no_language_probabilities) {
+                 std::vector<float> lang_probs(whisper_lang_max_id() + 1, 0.0f);
+                 const auto detected_lang_id = whisper_lang_auto_detect(ctx, 0, params.n_threads, lang_probs.data());
+-                jres["detected_language"] = whisper_lang_str_full(detected_lang_id);
+-                jres["detected_language_probability"] = lang_probs[detected_lang_id];
++                const char * detected_language = whisper_lang_str_full(detected_lang_id);
++                jres["detected_language"] = detected_language ? json(detected_language) : json(nullptr);
++                jres["detected_language_probability"] = detected_lang_id >= 0
++                    ? json(lang_probs[detected_lang_id]) : json(nullptr);
+                 jres["language_probabilities"] = json::object();
+                 // Add all language probabilities
+                 for (int i = 0; i <= whisper_lang_max_id(); ++i) {

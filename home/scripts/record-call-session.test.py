@@ -25,7 +25,7 @@ SPEC.loader.exec_module(recorder)
 def wav(path, milliseconds=1000):
     with wave.open(str(path), "wb") as output:
         output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
-        output.writeframes(b"\x01\x00" * (milliseconds * 16))
+        output.writeframes(b"\xe8\x03" * (milliseconds * 16))
 
 
 class RecorderTests(unittest.TestCase):
@@ -221,6 +221,25 @@ class RecorderTests(unittest.TestCase):
         recorder.write_window_audio(fragments, 0, 1250, destination)
         self.assertEqual(recorder.wav_duration(destination), 1250)
         self.assertEqual(recorder.file_hash(source), recorder.file_hash(destination))
+
+    def test_audio_activity_gate_rejects_silence_and_single_spikes(self):
+        silence = self.root / "silence.wav"
+        with wave.open(str(silence), "wb") as output:
+            output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+            output.writeframes(b"\x00\x00" * (45 * 16000))
+        self.assertFalse(recorder.has_audio_activity(silence))
+
+        spike = self.root / "spike.wav"
+        with wave.open(str(spike), "wb") as output:
+            output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+            output.writeframes(b"\x00\x00" * (45 * 16000 - 1) + b"\xff\x7f")
+        self.assertFalse(recorder.has_audio_activity(spike))
+
+        speech = self.root / "speech.wav"
+        with wave.open(str(speech), "wb") as output:
+            output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+            output.writeframes(b"\xe8\x03" * 1600 + b"\x00\x00" * (45 * 16000 - 1600))
+        self.assertTrue(recorder.has_audio_activity(speech))
 
     def test_changed_committed_audio_is_rejected(self):
         source = self.root / "audio.wav"
@@ -600,6 +619,34 @@ class RecorderTests(unittest.TestCase):
         self.assertTrue(all(event["provider"] == "local" and event["code"] == "ok" for event in events))
         self.assertEqual(session.manifest["source"]["transcript"]["speechTurns"], 0)
 
+    def test_silent_call_skips_server_and_retains_receipt_when_microphone_retries(self):
+        session = self.session()
+        fragment = session.state["fragments"]["call"][0]
+        with wave.open(fragment["path"], "wb") as audio:
+            audio.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+            audio.writeframes(b"\x00\x00" * (1250 * 16))
+        fragment["sha256"] = recorder.file_hash(fragment["path"])
+        (self.root / "control.json").write_text('{"fail_call":99,"fail_mic":1}')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            with self.assertRaises(recorder.Failure) as error:
+                session.process_window(0, 1250, 1250)
+            self.assertEqual(error.exception.side, "mic")
+            window = session.private / "windows/000000"
+            receipt = (window / "call.ok.json").read_bytes()
+            session.finalize()
+            session.finalize()
+        self.assertFalse((self.root / "call-attempts").exists())
+        self.assertEqual((self.root / "mic-attempts").read_text(), "2")
+        self.assertEqual((window / "call.ok.json").read_bytes(), receipt)
+        self.assertEqual(recorder.read_json(window / "call.json"), {"segments": []})
+        self.assertTrue(session.manifest["coverage"]["complete"])
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertNotIn("call window", (session.directory / "transcript.txt").read_text())
+        events = self.asr_events(output)
+        self.assertEqual([(event["side"], event["code"]) for event in events], [
+            ("call", "silence"), ("mic", "asr_exit"), ("mic", "ok")])
+
     def test_logging_failure_never_turns_failed_asr_into_success(self):
         session = self.session()
         (self.root / "control.json").write_text('{"fail_mic":1}')
@@ -843,7 +890,7 @@ class RecorderTests(unittest.TestCase):
                 counter.touch()
             count = 0
             while True:
-                sys.stdout.buffer.write(b'\\x01\\x00' * 160)
+                sys.stdout.buffer.write(b'\\xe8\\x03' * 160)
                 sys.stdout.buffer.flush()
                 time.sleep(0.01)
                 count += 1
@@ -989,10 +1036,24 @@ class RecorderTests(unittest.TestCase):
     def test_capture_restart_retains_permanent_gap_after_successful_transcription(self):
         session = self.session()
         self.synthetic_capture(session, fail_first_call=True)
-        timer = recorder.threading.Timer(1.1, session.stop_event.set)
+        collect = session.collect_fragments
+
+        def stop_after_restarted_audio():
+            collect()
+            runs = session.state["runs"]["call"]
+            if len(runs) == 2 and any(
+                fragment["startMs"] >= runs[-1]["offsetMs"]
+                for fragment in session.state["fragments"]["call"]
+            ):
+                session.stop_event.set()
+
+        # Stop on evidence of the restart, not on machine-dependent startup
+        # timing. The timer only bounds a broken test's runtime.
+        timer = recorder.threading.Timer(15, session.stop_event.set)
         try:
             timer.start()
-            session.capture()
+            with patch.object(session, "collect_fragments", side_effect=stop_after_restarted_audio):
+                session.capture()
             self.assertEqual(len(session.state["runs"]["call"]), 2)
             self.assertTrue(any(gap["reason"] == "capture_restarted" for gap in session.state["gaps"]))
             with self.assertRaises(recorder.Failure) as error:

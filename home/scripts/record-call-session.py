@@ -4,6 +4,7 @@ The public recording.json is an intake contract. Private state and immutable
 window receipts live under .record-call. No shell state file is ever evaluated.
 """
 import argparse
+import array
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import csv
@@ -176,6 +177,27 @@ def wav_duration(path):
         raise Failure("capture", "invalid_audio", False) from None
 
 
+def has_audio_activity(path):
+    try:
+        with wave.open(str(path), "rb") as source:
+            rate = source.getframerate()
+            frames = source.readframes(source.getnframes())
+        samples = array.array("h")
+        samples.frombytes(frames)
+        if sys.byteorder != "little":
+            samples.byteswap()
+        # Sample at roughly 1 kHz: enough to reject empty windows without
+        # adding material CPU cost to every overlapping ASR request.
+        sampled = samples[::max(1, rate // 1000)]
+        if not sampled:
+            return False
+        rms = math.sqrt(sum(sample * sample for sample in sampled) / len(sampled))
+        active_ratio = sum(abs(sample) >= 200 for sample in sampled) / len(sampled)
+        return rms >= 30 and active_ratio >= 0.0005
+    except (OSError, EOFError, ValueError, wave.Error):
+        raise Failure("capture", "invalid_audio", False) from None
+
+
 def intervals(items):
     result = []
     for item in sorted(items, key=lambda value: value["startMs"]):
@@ -343,7 +365,7 @@ def observed_asr_attempts(provider, window):
         yield attempts
     finally:
         for side, attempt in attempts.items():
-            success = attempt["code"] == "ok"
+            success = attempt["code"] in ("ok", "silence")
             duration = round(max(0, attempt.get("finished", time.monotonic()) - attempt["started"]) * 1000)
             journal_event({"event": "record_call_asr_attempt", "level": "info" if success else "warning",
                            "provider": provider, "side": side, "windowIndex": window,
@@ -390,8 +412,11 @@ class Session:
     def transcribe_command(self, audio, prefix):
         remote = self.state["whisperServerUrl"]
         if remote:
+            # English is explicit; a second language-detection pass adds work
+            # and its probability fields are not used by the transcript merger.
             return [self.config["curl"], "-fsS", "--max-time", "120", "-F", f"file=@{audio}",
-                    "-F", "response_format=verbose_json", "-F", "language=en", remote]
+                    "-F", "response_format=verbose_json", "-F", "language=en",
+                    "-F", "no_language_probabilities=true", remote]
         return [self.config["whisper"], "-m", self.state["model"], "-l", "en", "-nt", "-oj",
                 "-of", str(prefix), "--vad", "--vad-model", self.state["vadModel"], "-f", str(audio)]
 
@@ -423,6 +448,22 @@ class Session:
                     validate_asr(destination / (side + ".json"), end - start)
                     continue
                 prefix = temporary / side
+                if not has_audio_activity(audio):
+                    started = time.monotonic()
+                    atomic_json(prefix.with_suffix(".json"), {"segments": []})
+                    target = destination / (side + ".json")
+                    atomic_bytes(target, prefix.with_suffix(".json").read_bytes())
+                    atomic_json(destination / (side + ".ok.json"), {
+                        "inputHash": input_hash,
+                        "outputHash": file_hash(target),
+                        "parameters": parameters,
+                    })
+                    attempts[side] = {
+                        "started": started,
+                        "finished": time.monotonic(),
+                        "code": "silence",
+                    }
+                    continue
                 log = (destination / (side + ".log")).open("wb")
                 output = prefix.with_suffix(".json").open("wb") if self.state["whisperServerUrl"] else subprocess.DEVNULL
                 attempts[side] = {"started": time.monotonic(), "code": "asr_interrupted"}

@@ -609,6 +609,7 @@ in
                   -F "file=@$in" \
                   -F "response_format=verbose_json" \
                   -F "language=en" \
+                  -F "no_language_probabilities=true" \
                   "$WHISPER_SERVER_URL" \
                   > "$out_prefix.json"
               else
