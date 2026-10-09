@@ -3,7 +3,7 @@
 # to /etc/nixos/configuration.nix instead.
 {
   lib,
-  pkgs,
+  unstable-pkgs,
   modulesPath,
   ...
 }:
@@ -144,7 +144,7 @@
   };
   hardware.parallels = {
     enable = true;
-    package = pkgs.prl-tools;
+    package = unstable-pkgs.prl-tools;
   };
 
   # Disable the Parallels Shared Printing bridge. This VM never prints,
