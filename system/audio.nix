@@ -30,6 +30,18 @@
         "default.clock.max-quantum" = 4096;
       };
     };
+
+    # Long VM recordings with Brave/PipeWire underruns lose sample-clock
+    # time while capture remains active. Give the VM one quantum of buffer
+    # headroom without exceeding its current 2048-sample maximum. This is
+    # a mitigation; the recorder still reports unproven audio coverage.
+    extraConfig.pipewire."99-vm-capture-quantum" = lib.mkIf (hostName == "prl-dev-vm") {
+      "context.properties" = {
+        "default.clock.quantum" = 2048;
+        "default.clock.min-quantum" = 1024;
+        "default.clock.max-quantum" = 2048;
+      };
+    };
   };
   services.pulseaudio.enable = false;
 

@@ -270,15 +270,19 @@ def calculate_coverage(captured, transcribed, duration_ms, gaps):
             # especially through virtualized PipeWire devices. Scale only the
             # final-edge tolerance: startup delays, internal gaps, explicit
             # process failures, and untranscribed audio remain exact failures.
-            if end < duration_ms - end_tolerance:
-                missing.append({"startMs": end, "endMs": duration_ms, "reason": "capture_ended_early"})
             if end > duration_ms + end_tolerance:
                 missing.append({"startMs": duration_ms, "endMs": end, "reason": "capture_clock_mismatch"})
-        has_missing = bool(missing)
+        # WAV and segment timestamps advance only when samples arrive. A short
+        # sample clock can reflect an underrun anywhere in a live capture; it
+        # does not prove that the last seconds of the call are missing.
+        shortfall = end is not None and end < duration_ms - end_tolerance
+        has_missing = bool(missing) or shortfall
         missing = bounded_missing(missing, duration_ms)
         side_result = {"captureStartMs": start, "captureEndMs": end,
                        "capturedMs": interval_size(spans), "transcribedMs": interval_size(done),
                        "missing": missing}
+        if shortfall:
+            side_result["sampleClockShortfallMs"] = round(duration_ms - end, 4)
         result["sides"][side] = side_result
         # Clipping a stop failure outside the timestamp interval must not erase
         # its effect on readiness, even when no positive public range remains.

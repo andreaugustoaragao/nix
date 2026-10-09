@@ -97,7 +97,8 @@ class RecorderTests(unittest.TestCase):
                  "mic": [{"startMs": 10, "endMs": 30000}]}
         coverage = recorder.calculate_coverage(spans, spans, 60000, [])
         self.assertFalse(coverage["complete"])
-        self.assertTrue(coverage["sides"]["mic"]["missing"])
+        self.assertEqual(coverage["sides"]["mic"]["sampleClockShortfallMs"], 30000)
+        self.assertEqual(coverage["sides"]["mic"]["missing"], [])
 
     def test_sample_jitter_preserves_tail_but_internal_gap_is_incomplete(self):
         spans = {"call": [{"startMs": 0, "endMs": 60032}],
@@ -110,6 +111,20 @@ class RecorderTests(unittest.TestCase):
         self.assertFalse(recorder.calculate_coverage(spans, spans, 60000, [
             {"side": "mic", "startMs": 30000, "endMs": 30500, "reason": "capture_restarted"}
         ])["complete"])
+
+    def test_continuous_capture_shortfall_does_not_invent_a_missing_tail(self):
+        # Both readers stayed active until stop. Their WAV sample clocks lagged
+        # wall time after an in-call stall, so the loss cannot be placed at stop.
+        duration = 2084975
+        spans = {
+            "call": [{"startMs": 4, "endMs": 2075587.0625}],
+            "mic": [{"startMs": 19, "endMs": 2078716.6875}],
+        }
+        coverage = recorder.calculate_coverage(spans, spans, duration, [])
+        self.assertFalse(coverage["complete"])
+        for side, expected in (("call", 9387.9375), ("mic", 6258.3125)):
+            self.assertEqual(coverage["sides"][side]["sampleClockShortfallMs"], expected)
+            self.assertEqual(coverage["sides"][side]["missing"], [])
 
     def test_long_capture_allows_only_bounded_final_sample_clock_drift(self):
         duration = 20588792
@@ -131,11 +146,9 @@ class RecorderTests(unittest.TestCase):
         }
         coverage = recorder.calculate_coverage(beyond_budget, beyond_budget, duration, [])
         self.assertFalse(coverage["complete"])
-        self.assertEqual(coverage["sides"]["mic"]["missing"], [{
-            "startMs": duration - recorder.MAX_CAPTURE_END_TOLERANCE_MS - 1,
-            "endMs": duration,
-            "reason": "capture_ended_early",
-        }])
+        self.assertEqual(coverage["sides"]["mic"]["missing"], [])
+        self.assertEqual(coverage["sides"]["mic"]["sampleClockShortfallMs"],
+                         recorder.MAX_CAPTURE_END_TOLERANCE_MS + 1)
 
         late_start = {
             "call": [{"startMs": 0, "endMs": duration}],
@@ -158,19 +171,19 @@ class RecorderTests(unittest.TestCase):
                 spans = {side: [{"startMs": 0, "endMs": end}] for side in recorder.SIDES}
                 self.assertTrue(recorder.calculate_coverage(spans, spans, duration, [])["complete"])
 
-        for end, reason in ((duration - tolerance - 0.0625, "capture_ended_early"),
+        for end, reason in ((duration - tolerance - 0.0625, "sample_clock_shortfall"),
                             (duration + tolerance + 0.0625, "capture_clock_mismatch")):
             with self.subTest(end=end):
                 spans = {side: [{"startMs": 0, "endMs": end}] for side in recorder.SIDES}
                 coverage = recorder.calculate_coverage(spans, spans, duration, [])
                 self.assertFalse(coverage["complete"])
                 reasons = [item["reason"] for item in coverage["sides"]["mic"]["missing"]]
-                if reason == "capture_clock_mismatch":
-                    # The range is outside public duration and clips away, but
-                    # has_missing still blocks READY.
-                    self.assertEqual(reasons, [])
-                else:
-                    self.assertEqual(reasons, [reason])
+                # Neither a sample deficit of unknown location nor an
+                # out-of-range clock excess is a known missing interval.
+                self.assertEqual(reasons, [])
+                if reason == "sample_clock_shortfall":
+                    self.assertEqual(coverage["sides"]["mic"]["sampleClockShortfallMs"],
+                                     tolerance + 0.0625)
 
         captured = {side: [{"startMs": 0, "endMs": duration}] for side in recorder.SIDES}
         transcribed = {
