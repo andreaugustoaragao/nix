@@ -203,10 +203,9 @@ let
       ];
 
     # Per-monitor bars. The default bar (full widget set) is scoped to
-    # DP-1; DP-2 (portrait, only 1440 logical wide) gets a slimmed-down
-    # version that drops widgets duplicated by the desktop System
-    # Monitor (cpu/mem/disk/network) and other desktop-irrelevant ones
-    # (battery, idleInhibitor).
+    # DP-1; portrait outputs get a slimmed-down version that drops widgets
+    # duplicated by the desktop System Monitor (cpu/mem/disk/network), plus
+    # desktop-irrelevant ones (battery, idleInhibitor).
     barConfigs =
       let
         baseRaw = builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0;
@@ -225,6 +224,42 @@ let
             }
           else
             baseRaw;
+        portraitBar = base // {
+          id = "dp2";
+          name = "Portrait Bar";
+          screenPreferences = [ displays.dp2 ];
+          showOnLastDisplay = false;
+          leftWidgets = [
+            "clock"
+            "workspaceSwitcher"
+          ];
+          centerWidgets = [ ];
+          rightWidgets = [
+            {
+              id = "clipboard";
+              enabled = true;
+            }
+            {
+              id = "notificationButton";
+              enabled = true;
+            }
+            {
+              id = "controlCenterButton";
+              enabled = true;
+            }
+            {
+              id = "privacyIndicator";
+              enabled = true;
+            }
+            {
+              id = "systemTray";
+              enabled = true;
+              trayUseInlineExpansion = false;
+            }
+          ];
+          fontScale = 0.85;
+          iconScale = 0.9;
+        };
       in
       [
         (
@@ -233,43 +268,15 @@ let
             screenPreferences = [ displays.dp1 ];
           }
         )
+        portraitBar
+      ]
+      ++ lib.optionals isVm [
         (
-          base
+          portraitBar
           // {
-            id = "dp2";
-            name = "Portrait Bar";
-            screenPreferences = [ displays.dp2 ];
-            showOnLastDisplay = false;
-            leftWidgets = [
-              "clock"
-              "workspaceSwitcher"
-            ];
-            centerWidgets = [ ];
-            rightWidgets = [
-              {
-                id = "clipboard";
-                enabled = true;
-              }
-              {
-                id = "notificationButton";
-                enabled = true;
-              }
-              {
-                id = "controlCenterButton";
-                enabled = true;
-              }
-              {
-                id = "privacyIndicator";
-                enabled = true;
-              }
-              {
-                id = "systemTray";
-                enabled = true;
-                trayUseInlineExpansion = false;
-              }
-            ];
-            fontScale = 0.85;
-            iconScale = 0.9;
+            id = "dp3";
+            name = "Third Bar";
+            screenPreferences = [ "Virtual-3" ];
           }
         )
       ];

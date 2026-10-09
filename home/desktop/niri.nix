@@ -107,11 +107,10 @@ in
     // skips output blocks for absent connectors, so leaving all four
     // here is harmless on either host.
     //
-    // Layout mirrors the workstation: dp2 (portrait) anchored at x=0 on
-    // the left, dp1 (landscape) flush to its right. Without explicit
-    // positions niri orders outputs by connection order, which on
-    // Parallels lands Virtual-1 on the left — opposite of what we want.
-    output "Virtual-2" {
+    // Parallels' Virtual-3 is the physical left portrait display.
+    // Keep the landscape Virtual-1 beside it and let niri place the
+    // remaining portrait Virtual-2 after Virtual-1's live width.
+    output "Virtual-3" {
         scale 2.0
         position x=0 y=0
     }
@@ -119,6 +118,10 @@ in
     output "Virtual-1" {
         scale 2.0
         position x=${toString dp2Dimensions.width} y=0
+    }
+
+    output "Virtual-2" {
+        scale 2.0
     }
 
     // DP-2: Dell S2725QS, 27" 4K, mounted in portrait to the left of DP-1.
