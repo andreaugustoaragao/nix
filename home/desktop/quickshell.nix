@@ -46,6 +46,22 @@ let
       # within each child still flows LTR).
       substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/Clock.qml \
         --replace-fail 'spacing: Theme.spacingS' 'spacing: Theme.spacingS; layoutDirection: Qt.RightToLeft'
+
+      ${lib.optionalString isVm ''
+        # Keep the desktop's font scale, but render clipboard history at the
+        # unscaled DMS sizes so its rows do not crowd the compact modal.
+        substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardHeader.qml \
+          --replace-fail 'font.pixelSize: Theme.fontSizeLarge' 'font.pixelSize: Math.round(Theme.fontSizeLarge / Theme.fontScale)'
+        substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardEntry.qml \
+          --replace-fail 'font.pixelSize: Theme.fontSizeSmall' 'font.pixelSize: Math.round(Theme.fontSizeSmall / Theme.fontScale)' \
+          --replace-fail 'font.pixelSize: Theme.fontSizeMedium' 'font.pixelSize: Math.round(Theme.fontSizeMedium / Theme.fontScale)'
+        substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardContent.qml \
+          --replace-fail 'font.pixelSize: Theme.fontSizeMedium' 'font.pixelSize: Math.round(Theme.fontSizeMedium / Theme.fontScale)'
+
+        # VM traffic uses a virtual Ethernet interface, not Wi-Fi.
+        substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/NetworkMonitor.qml \
+          --replace-fail 'name: "network_check"' 'name: "lan"'
+      ''}
     '';
   });
 
