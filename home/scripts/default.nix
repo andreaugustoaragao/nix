@@ -1,17 +1,13 @@
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 let
   # Shared with home/desktop/lockscreen.nix so the swayidle timeout and
   # the Mod+Ctrl+S keybinding both resolve to the same store path.
-  screensaver = import ./_screensaver.nix { inherit pkgs; };
+  screensaver = import ./_screensaver.nix { inherit pkgs inputs; };
 
   lockscreen = pkgs.writeShellScript "lockscreen" ''
     #!/usr/bin/env bash
-    if pgrep -f "cmatrix" >/dev/null 2>&1; then
-      killall -TERM cmatrix 2>/dev/null
-      sleep 0.2
-      pkill -f "cmatrix" 2>/dev/null
-    fi
+    pkill -f '[s]creensaver-effect' 2>/dev/null || true
     pkill -x swayidle 2>/dev/null
     rm -f "$HOME/.cache/screensaver-active"
     swaylock -f
@@ -42,7 +38,7 @@ in
     ./record-call.nix
   ];
 
-  # Screensaver — terminal-based cmatrix display.
+  # Screensaver — terminal-based animated hostname display.
   # On non-DMS hosts (hp-laptop) this is wired into swayidle timeouts.
   # On DMS hosts (workstation) it's available as a manual keybinding.
   home.packages = [

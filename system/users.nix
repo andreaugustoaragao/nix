@@ -1,6 +1,8 @@
 {
   pkgs,
+  lib,
   owner,
+  hostName,
   ...
 }:
 
@@ -12,11 +14,11 @@
       "wheel"
       "audio"
       "video"
-      "docker"
       "input"
       "lp"
       "scanner"
-    ];
+    ]
+    ++ lib.optional (hostName != "prl-dev-vm") "docker";
     shell = pkgs.zsh;
   };
 
@@ -34,17 +36,18 @@
 
   security.sudo = {
     enable = true;
-    extraConfig = ''
-      Defaults timestamp_timeout=60
-      # Passwordless nixos-rebuild is required by scripts/watch-rebuild.sh,
-      # which runs `sudo --non-interactive nixos-rebuild` in its edit loop and
-      # would hard-fail once the 60-minute sudo timestamp expires. Security
-      # trade-off, eyes open: a user-controlled `--flake` here is effectively
-      # passwordless root. The tighter fix — a root oneshot pinned to THIS
-      # flake path plus a narrow `systemctl start` grant, so the loop keeps
-      # working without granting arbitrary-flake root — is left as a follow-up.
-      ${owner.name} ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/nixos-rebuild
-      # (The previously-present k3s image NOPASSWD rule was unused; dropped.)
-    '';
+    extraConfig =
+      if hostName == "prl-dev-vm" then
+        ''
+          # Automatic builds run unprivileged. Activation requires sudo
+          # authentication, even when the flake path is fixed.
+          Defaults timestamp_timeout=5
+        ''
+      else
+        ''
+          Defaults timestamp_timeout=60
+          # Other hosts retain their existing policy until migrated.
+          ${owner.name} ALL=(ALL) NOPASSWD: /run/current-system/sw/bin/nixos-rebuild
+        '';
   };
 }

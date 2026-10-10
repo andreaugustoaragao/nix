@@ -358,7 +358,7 @@ in
         }
     }
 
-    // Fullscreen cmatrix screensaver — opens the terminal maximized.
+    // Fullscreen animated hostname screensaver — opens the terminal maximized.
     window-rule {
         match app-id="^Screensaver$"
         open-fullscreen true
@@ -530,7 +530,7 @@ in
             ''
         )}
 
-        // Screensaver toggle — runs cmatrix in a fullscreen terminal.
+        // Screensaver toggle — runs hostname text effects in a fullscreen terminal.
         Mod+Ctrl+S { spawn "screensaver"; }
 
         // Notification control

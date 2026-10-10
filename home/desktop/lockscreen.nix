@@ -1,5 +1,6 @@
 {
   pkgs,
+  inputs,
   lib,
   lockScreen ? false,
   useDms ? false,
@@ -10,15 +11,15 @@ let
   # Same derivation as home/scripts/default.nix installs to
   # ~/.local/bin/screensaver — referenced here by store path so swayidle
   # doesn't depend on the user PATH inside its systemd unit.
-  screensaver = import ../scripts/_screensaver.nix { inherit pkgs; };
+  screensaver = import ../scripts/_screensaver.nix { inherit pkgs inputs; };
 
-  # Lock wrapper: cmatrix is a foreground TTY app, so it stays running
+  # Lock wrapper: the animation is a foreground TTY app, so it stays running
   # under swaylock unless killed first. (The screensaver script's EXIT
   # trap nukes it on key-press, but the timeout-driven lock can fire
   # while the screensaver is up.)
   screensaverLock = pkgs.writeShellScript "screensaver-lock" ''
     #!/usr/bin/env bash
-    ${pkgs.procps}/bin/pkill -x cmatrix 2>/dev/null || true
+    ${pkgs.procps}/bin/pkill -f '[s]creensaver-effect' 2>/dev/null || true
     exec ${pkgs.swaylock-effects}/bin/swaylock -f
   '';
 

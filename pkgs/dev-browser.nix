@@ -18,6 +18,14 @@ let
       target = "linux-x64";
       hash = "sha256-l1J8DLyzYwpTVKXXrUaTscCdhd0UL6kXFmgDKzqSq/w=";
     };
+    aarch64-darwin = {
+      target = "darwin-arm64";
+      hash = "sha256-MKJahYzLGPxfxix3hCAxzdRe2v/i/aq30P8aSP2pXjI=";
+    };
+    x86_64-darwin = {
+      target = "darwin-x64";
+      hash = "sha256-EEeI2A648eVo4F0Uk4oIVMoWroga1vRlew0VST9DLNo=";
+    };
   };
   binary = binaries.${stdenv.hostPlatform.system};
   nativeCli = fetchurl {
@@ -27,7 +35,7 @@ let
 
   # Complete production dependency closure of the published 0.2.7 bundle.
   # Pin QuickJS's transitive packages as well as its root semver range.
-  # fsevents is Playwright's optional macOS dependency; this package is Linux-only.
+  # Playwright's optional fsevents dependency is not needed for browser control.
   runtimePackages = [
     {
       name = "playwright";
@@ -97,11 +105,8 @@ stdenv.mkDerivation {
     hash = "sha512-XikUANysgCBrTPbew+KUPZv+ecq14VBTNv/hduFfLjOVlXLTvdMdV75z7avqwvJmKvUOsLSPWRwWLRFoRJ0NSQ==";
   };
 
-  nativeBuildInputs = [
-    autoPatchelfHook
-    makeWrapper
-  ];
-  buildInputs = [ stdenv.cc.cc.lib ];
+  nativeBuildInputs = [ makeWrapper ] ++ lib.optional stdenv.hostPlatform.isLinux autoPatchelfHook;
+  buildInputs = lib.optional stdenv.hostPlatform.isLinux stdenv.cc.cc.lib;
   dontConfigure = true;
   dontBuild = true;
 

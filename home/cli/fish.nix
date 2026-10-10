@@ -133,6 +133,7 @@ in
             # This desktop uses the separate cluster VM, including when an
             # old parent shell still exports its retired local kubeconfig.
             set -gx KUBECONFIG $HOME/.kube/config-prl-k8s-vm
+            set -gx DOCKER_HOST unix://$XDG_RUNTIME_DIR/docker.sock
           ''
         else
           ''

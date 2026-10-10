@@ -41,6 +41,7 @@
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./registry-forward.nix
+    ./chroma.nix
   ]
   ++ lib.optionals isDarwinHost [
     ./notes-sync-darwin.nix

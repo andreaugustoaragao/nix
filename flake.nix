@@ -3,6 +3,12 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # Local ttfx fork, pinned to the upstream starting point. This checkout
+    # must exist on machines evaluating the flake until the fork is published.
+    ttfx-src = {
+      url = "git+file:///home/aragao/projects/personal/ttfx?rev=921bd551c308c235e01c5867f0199efe0691c271";
+      flake = false;
+    };
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -358,6 +364,7 @@
           };
         in
         {
+          dev-browser-mcp = pkgs.callPackage ./pkgs/dev-browser-mcp.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
@@ -708,6 +715,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
+          dev-browser-mcp = (pkgs.callPackage ./pkgs/dev-browser-mcp.nix { }).tests.protocol;
           kubernetes-vm = import ./system/kubernetes/check.nix {
             inherit pkgs;
             hostConfig = self.nixosConfigurations.prl-k8s-vm.config;

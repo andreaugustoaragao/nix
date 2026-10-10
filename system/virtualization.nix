@@ -2,10 +2,13 @@
   pkgs,
   lib,
   hostName,
+  owner,
   ...
 }:
 
 let
+  rootlessDocker = hostName == "prl-dev-vm";
+  rootlessRunc = pkgs.callPackage ../pkgs/rootless-runc.nix { };
   enableLocalK3s =
     !(builtins.elem hostName [
       "hp-laptop"
@@ -14,10 +17,27 @@ let
 in
 {
   virtualisation.docker = {
-    enable = true;
+    enable = !rootlessDocker;
     # Default `docker` was bumped to docker_28, which is now marked insecure
     # (unmaintained since 2025-11). Pin to docker_29 per the upstream notice.
     package = pkgs.docker_29;
+    rootless = lib.mkIf rootlessDocker {
+      enable = true;
+      package = pkgs.docker_29;
+      setSocketVariable = true;
+      extraPackages = [ pkgs.systemd ];
+      daemon.settings = {
+        log-driver = "local";
+        # Preserve systemd resource limits with the desktop's /proc privacy.
+        default-runtime = "runc-rootless";
+        runtimes.runc-rootless.path = "${rootlessRunc}/bin/runc";
+      };
+    };
+  };
+
+  # Keep the unprivileged daemon and Chroma available across logouts.
+  users.users = lib.mkIf rootlessDocker {
+    ${owner.name}.linger = true;
   };
 
   systemd = {
@@ -40,7 +60,7 @@ in
       # comes up without the daemon, and any oci-container pulled in by
       # multi-user.target (e.g. docker-chroma.service) hard-fails before
       # docker-lazy can rescue it.
-      docker = {
+      docker = lib.mkIf (!rootlessDocker) {
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
         # network-online via wants+after, not requisite: requisite only
         # succeeds if the target is ALREADY active and never pulls it up, so
@@ -61,7 +81,7 @@ in
       };
 
       # Create a delayed Docker startup service
-      docker-lazy = {
+      docker-lazy = lib.mkIf (!rootlessDocker) {
         description = "Lazy-load Docker after graphical session";
         after = [ "graphical.target" ];
         wantedBy = [ "graphical.target" ];

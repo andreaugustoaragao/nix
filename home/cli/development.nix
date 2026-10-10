@@ -190,6 +190,7 @@ in
         cloudflared # Cloudflare Tunnel client for exposing local services
 
         # Browser Automation & Testing
+        agent-browser # Browser automation CLI for AI agents
         playwright-driver.browsers # Playwright with bundled browsers
 
         # Audio/Video Processing & Speech-to-Text

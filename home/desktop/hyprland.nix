@@ -516,7 +516,7 @@ in
         "$mainMod SHIFT, S, exec, screenshot"
         "$mainMod SHIFT, F, exec, screenshot output"
 
-        # Same fullscreen cmatrix screensaver toggle as the Niri session.
+        # Same fullscreen animated hostname screensaver toggle as the Niri session.
         "$mainMod CTRL, S, exec, screensaver"
 
         # Notifications

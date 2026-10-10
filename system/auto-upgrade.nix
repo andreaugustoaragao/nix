@@ -4,6 +4,7 @@
   lib,
   owner,
   isServer,
+  hostName,
   ...
 }:
 
@@ -126,7 +127,10 @@ let
     fi
   '';
 in
-{
+# Desktop system activation requires an explicit authenticated action.
+# An agent can also push to this GitHub repository, so scheduled root
+# activation of that remote would bypass the desktop's sudo boundary.
+lib.mkIf (hostName != "prl-dev-vm") {
   system.autoUpgrade = {
     enable = true;
     flake = flakeUrl;

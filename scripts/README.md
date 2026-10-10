@@ -79,7 +79,13 @@ Adds a new host's age public key as a sops recipient. Run from a trusted machine
 
 ## `watch-rebuild.sh`
 
-Tails the journal and re-runs `nixos-rebuild switch` on file changes — convenient when iterating on a flake module locally. See the script header for usage.
+Watches source files and runs an unprivileged `nix build` for the current Linux
+or Darwin host. Run `./scripts/watch-rebuild.sh` as your normal user. Builds are
+debounced and changes during a build queue one follow-up. Each successful build
+prints the separate `sudo ... switch --flake ...` command for manual activation.
+The watcher rejects root execution and the former arbitrary `--__exec` command.
+
+Run its regression checks with `python3 scripts/test-watch-rebuild.py`.
 
 ## `codex-lsp-check.py`
 

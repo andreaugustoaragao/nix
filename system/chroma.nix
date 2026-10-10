@@ -1,6 +1,7 @@
 {
   lib,
   owner,
+  hostName,
   ...
 }:
 
@@ -15,7 +16,7 @@ let
   chromaDataDir = "${vaultDir}/.fulcrum/chroma";
 in
 
-{
+lib.mkIf (hostName != "prl-dev-vm") {
   # Run ChromaDB as a system-managed OCI container so the source-mode
   # Fulcrum service (home/services/fulcrum.nix) has a vector store to
   # talk to without anyone having to `docker compose up` by hand.

@@ -395,7 +395,8 @@
         "rust-overlay": "rust-overlay",
         "sops-nix": "sops-nix",
         "strata-package-src": "strata-package-src",
-        "strata-src": "strata-src"
+        "strata-src": "strata-src",
+        "ttfx-src": "ttfx-src"
       }
     },
     "rust-overlay": {
@@ -485,6 +486,23 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "ttfx-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790600764,
+        "narHash": "sha256-tLqFKEZAcXocj09l9+2ksvOgFe5465Z3Y37Hr/LrDp8=",
+        "ref": "refs/heads/nixos-screensaver",
+        "rev": "921bd551c308c235e01c5867f0199efe0691c271",
+        "revCount": 356,
+        "type": "git",
+        "url": "file:///home/aragao/projects/personal/ttfx"
+      },
+      "original": {
+        "rev": "921bd551c308c235e01c5867f0199efe0691c271",
+        "type": "git",
+        "url": "file:///home/aragao/projects/personal/ttfx"
       }
     }
   },

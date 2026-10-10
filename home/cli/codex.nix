@@ -14,6 +14,8 @@ let
   codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
     inherit (unstable-pkgs) go gopls;
   };
+  devBrowser = pkgs.callPackage ../../pkgs/dev-browser.nix { };
+  browserMcp = pkgs.callPackage ../../pkgs/dev-browser-mcp.nix { };
 
   # Lifecycle hooks inherit the Codex process environment; they do not
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
@@ -61,6 +63,14 @@ let
     required = true
     startup_timeout_sec = 10
     tool_timeout_sec = 60
+
+    # Discover the browser tool in every session; connect to a browser only
+    # when called, so headless hosts and closed browsers do not block startup.
+    [mcp_servers.dev_browser]
+    command = "${lib.getExe browserMcp}"
+    required = true
+    startup_timeout_sec = 15
+    tool_timeout_sec = 330
 
     [mcp_servers.nixos]
     command = "${lib.getExe pkgs.mcp-nixos}"
@@ -130,6 +140,8 @@ in
   # directly, so bubblewrap is irrelevant (and unbuildable).
   home.packages = [
     codeLsp
+    devBrowser
+    browserMcp
     pkgs.mcp-nixos
   ]
   ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.bubblewrap ];
@@ -161,6 +173,28 @@ in
     Use Context7 for library documentation when local source/types do not
     answer the question, and openaiDeveloperDocs for Codex/OpenAI questions.
     Select the project's library version and keep documentation queries focused.
+
+    # Browser control
+
+    Use agent-browser for routine browser navigation, reading, clicking, filling,
+    and screenshots. Invoke `${lib.getExe pkgs.agent-browser}` through the terminal;
+    use `--help` for the installed command syntax. Attach to the existing browser
+    with `--cdp 9222` on every invocation. List tabs with `tab`, select the relevant
+    tab with `tab <id>`, then inspect it with `snapshot -i`. Use the returned
+    element refs for actions and take a fresh snapshot after navigation or page
+    changes. Use screenshots to verify visual layout and styling.
+
+    Use the dev_browser MCP tool for custom Playwright scripts, batched actions,
+    assertions, and detailed DOM inspection. It attaches to an existing browser
+    by default; list tabs first and use the relevant tab ID or a named task page.
+    Scripts use QuickJS with a Playwright browser global, not Node.js; consult
+    `dev-browser --help` for its API. Browser tabs persist, but do not assume
+    JavaScript variables persist between scripts.
+
+    Choose one browser controller per task. Preserve unrelated tabs and inspect
+    the current page before retrying failed actions. If CDP is unavailable,
+    report the connection issue instead of installing browsers or changing the
+    user's browser profile or launch flags.
   '';
 
   # ~/.local/bin already precedes the npm prefix in home/default.nix.
