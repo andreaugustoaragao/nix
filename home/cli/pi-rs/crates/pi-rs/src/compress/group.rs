@@ -21,10 +21,7 @@ pub fn group_by_directory<P: AsRef<Path>>(paths: &[P]) -> BTreeMap<PathBuf, Vec<
     let mut map: BTreeMap<PathBuf, Vec<OsString>> = BTreeMap::new();
     for p in paths {
         let p = p.as_ref();
-        let parent = p
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_default();
+        let parent = p.parent().map(Path::to_path_buf).unwrap_or_default();
         let name = p
             .file_name()
             .map(|s| s.to_os_string())

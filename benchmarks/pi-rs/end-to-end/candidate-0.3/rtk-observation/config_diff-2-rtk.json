@@ -1,0 +1,152 @@
+{
+  "hook_audit": "2026-10-09T18:51:20 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T18:51:20 | rewrite | pwd; rg --files -g 'AGENTS.md' -g '*'; git diff --stat; git status --short | pwd; rtk rg --files -g 'AGENTS.md' -g '*'; rtk git diff --stat; rtk git status --short\n2026-10-09T18:51:23 | rewrite | cat README.md; cat config/services/service_057.toml; git diff -- config/services/service_057.toml | rtk read README.md; rtk read config/services/service_057.toml; rtk git diff -- config/services/service_057.toml\n2026-10-09T18:51:23 | rewrite | git diff --ignore-matching-lines='^#.*build' -- config; rg --files --hidden -g '!\\\\.git/**' -g 'AGENTS.md' | rtk git diff --ignore-matching-lines='^#.*build' -- config; rtk rg --files --hidden -g '!\\\\.git/**' -g 'AGENTS.md'\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T18:51:20",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T18:51:20",
+      "action": "rewrite",
+      "original": "pwd; rg --files -g 'AGENTS.md' -g '*'; git diff --stat; git status --short",
+      "rewritten": "pwd; rtk rg --files -g 'AGENTS.md' -g '*'; rtk git diff --stat; rtk git status --short"
+    },
+    {
+      "timestamp": "2026-10-09T18:51:23",
+      "action": "rewrite",
+      "original": "cat README.md; cat config/services/service_057.toml; git diff -- config/services/service_057.toml",
+      "rewritten": "rtk read README.md; rtk read config/services/service_057.toml; rtk git diff -- config/services/service_057.toml"
+    },
+    {
+      "timestamp": "2026-10-09T18:51:23",
+      "action": "rewrite",
+      "original": "git diff --ignore-matching-lines='^#.*build' -- config; rg --files --hidden -g '!\\\\.git/**' -g 'AGENTS.md'",
+      "rewritten": "rtk git diff --ignore-matching-lines='^#.*build' -- config; rtk rg --files --hidden -g '!\\\\.git/**' -g 'AGENTS.md'"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T00:51:20.293449776+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T00:51:20.486788506+00:00",
+          "original_cmd": "rg --files -g AGENTS.md -g *",
+          "rtk_cmd": "rtk rg --files -g AGENTS.md -g * (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 5,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T00:51:20.496417905+00:00",
+          "original_cmd": "git diff --stat",
+          "rtk_cmd": "rtk git diff --stat (passthrough)",
+          "input_tokens": 1245,
+          "output_tokens": 1245,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-10T00:51:20.502144051+00:00",
+          "original_cmd": "git status --short",
+          "rtk_cmd": "rtk git status --short",
+          "input_tokens": 1080,
+          "output_tokens": 1080,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 1,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 5,
+          "timestamp": "2026-10-10T00:51:23.563416611+00:00",
+          "original_cmd": "cat README.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 29,
+          "output_tokens": 29,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 6,
+          "timestamp": "2026-10-10T00:51:23.573177845+00:00",
+          "original_cmd": "cat config/services/service_057.toml",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 27,
+          "output_tokens": 27,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 7,
+          "timestamp": "2026-10-10T00:51:23.573360138+00:00",
+          "original_cmd": "git diff --ignore-matching-lines=^#.*build -- config",
+          "rtk_cmd": "rtk git diff --ignore-matching-lines=^#.*build -- config",
+          "input_tokens": 115,
+          "output_tokens": 80,
+          "saved_tokens": 35,
+          "savings_pct": 30.434782608695656,
+          "exec_time_ms": 10,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 8,
+          "timestamp": "2026-10-10T00:51:23.578516571+00:00",
+          "original_cmd": "git diff -- config/services/service_057.toml",
+          "rtk_cmd": "rtk git diff -- config/services/service_057.toml",
+          "input_tokens": 115,
+          "output_tokens": 80,
+          "saved_tokens": 35,
+          "savings_pct": 30.434782608695656,
+          "exec_time_ms": 2,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        },
+        {
+          "id": 9,
+          "timestamp": "2026-10-10T00:51:23.581228642+00:00",
+          "original_cmd": "rg --files --hidden -g !\\.git/** -g AGENTS.md",
+          "rtk_cmd": "rtk rg --files --hidden -g !\\.git/** -g AGENTS.md (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/config_diff-2-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

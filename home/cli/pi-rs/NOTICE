@@ -13,10 +13,81 @@ This product includes software derived from:
 
 The derived sources live under `crates/pi-rs/src/cmd/filters/`,
 `crates/pi-rs/src/compress/`, and `crates/pi-rs/src/rewrite/`, and were
-imported once from upstream tag `v0.40.0`. The fork evolves independently
-and does not track new upstream releases. Modifications since import are
-not individually annotated; the workspace history is the canonical record.
+originally imported from upstream tag `v0.40.0`. The fork evolves independently;
+selected upstream improvements are reviewed and adapted explicitly. The
+workspace history is the canonical record of those modifications.
 
 A copy of the Apache License, Version 2.0 is in `LICENSES/Apache-2.0.txt`.
 The rest of this workspace (everything outside the three subtrees above)
 is licensed under the MIT License of the parent flake.
+
+The pi-ast crate is derived from oh-my-pi (Can Boluk, MIT):
+https://github.com/can1357/oh-my-pi/tree/main/crates/pi-ast
+Its upstream license is preserved in crates/pi-ast/LICENSE.
+
+Upstream review, 2026-10-09
+--------------------------
+
+RTK v0.51.0, commit e001f773f80b22b7dc4c7a79521b30e35aaef026:
+https://github.com/rtk-ai/rtk/releases/tag/v0.51.0
+Adopted the output-size guard, recovery of original output before filtering,
+graceful recovery-storage failure, terminal-style cleanup, preservation of
+explicit output formats, and shell argument boundary safeguards. pi-rs uses
+exclusive, private recovery files to avoid overwriting concurrent output.
+The SQLite recall/history service and additional tool-specific wrappers were
+not adopted: they require new persistence and CLI contracts beyond this
+standalone toolbox's existing recovery-file interface.
+
+oh-my-pi commit 703a261df9533e74f16aa8d38e64eb41977ccf89:
+https://github.com/can1357/oh-my-pi/tree/703a261df9533e74f16aa8d38e64eb41977ccf89/crates/pi-ast
+Adapted breadth-first summary unfolding, JSON-pair pattern contexts, and
+linear edit application with identical-edit deduplication and UTF-8 range
+validation. pi-rs retains its embedded grammar set: upstream's runtime WASM
+grammar distribution and process-wide parse cache are designed for its
+long-running application, while pi-rs runs a standalone command per request.
+
+Grammar compatibility patches
+-----------------------------
+
+vendor/tree-sitter-clojure is crates.io tree-sitter-clojure 0.1.0,
+source commit 6248a3f3d3c76ec7d33c52e7553761facdcb4ab5 (MIT wrapper;
+the included Clojure grammar's COPYING.txt is retained).
+vendor/tree-sitter-just is crates.io tree-sitter-just 0.2.0,
+source commit 5685543a6e64f66335e25518c9ae8ffa1dae3d01 (MIT, LICENSE retained).
+Only the normalized Cargo manifests are patched: tree-sitter is moved from
+dependencies to dev-dependencies and updated to 0.27. Both libraries expose
+LanguageFn and use the runtime only in examples/tests. This permits the
+current ast-grep/Tree-sitter stack without changing either parser. The
+original manifests and source revision metadata are preserved for review.
+
+The yanked tree-sitter-perl-next package is replaced by the maintained
+ts-parser-perl 2.0 grammar from https://github.com/tree-sitter-perl/tree-sitter-perl.
+
+vendor/tree-sitter-sequel is crates.io tree-sitter-sequel 0.3.11,
+source revision metadata 7b51ecda191d36b92f5a90a8d1bc3faef1c7b8b8 (marked
+"dirty" by the publisher). Its parser and scanner are byte-identical to the
+published crate. Only the normalized manifest changes cc from ~1.2.1 to 1.6.
+The upstream MIT LICENSE was recovered from that revision because the
+published crate omitted it. Cargo.toml.orig and .cargo_vcs_info.json are retained.
+
+All 78 direct registry dependencies were checked against current stable
+crates.io releases on 2026-10-09. Cargo.lock records the resolved versions,
+including cc 1.6.0. A separate version-by-version audit of all 232 locked
+registry entries found six required older major lines: getrandom 0.2.17
+(const-random-macro), syn 2.0.119 (phf_macros/tracing-attributes), r-efi 6.0.0
+(getrandom/UEFI), redox_syscall 0.5.18 (parking_lot_core/Redox), wasi
+0.11.1+wasi-snapshot-preview1 (getrandom/WASI), and windows-link 0.2.1
+(parking_lot_core/windows-sys/Windows). These are current compatible releases
+within upstream constraints; newer majors also coexist where required. Rust 1.99.0 (2026-10-01 stable) is pinned in the root
+rust-toolchain.toml and provided by rust-overlay to development and builds.
+
+Comparison-driven changes, pi-rs 0.3.0
+--------------------------------------
+
+Independent implementations informed by the native/pi-rs/RTK comparison:
+selective inline guidance, plain CLI search/summary, complete pagination,
+byte budgets and targeted reads, timestamp-aware logs, conservative test
+summaries, complete history capture, compact diff evidence, JSON pointers and
+heterogeneous shapes, chronological pipes and explicit native streaming,
+content-addressed gzip recovery with bounded retention. The historical
+comparison and the fresh verification report remain in the parent reports/.

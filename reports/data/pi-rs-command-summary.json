@@ -1,0 +1,264 @@
+{
+  "all": {
+    "cases": 34,
+    "facts": 50,
+    "native": {
+      "initial_tokens": 172365,
+      "retained": 43,
+      "recovery_calls": 7,
+      "retained_after_recovery": 50,
+      "episode_tokens": 175726
+    },
+    "pi": {
+      "initial_tokens": 48073,
+      "retained": 38,
+      "recovery_calls": 11,
+      "retained_after_recovery": 50,
+      "episode_tokens": 52553
+    },
+    "initial_savings_percent": 72.10976706407914
+  },
+  "primary": {
+    "cases": 29,
+    "facts": 45,
+    "native": {
+      "initial_tokens": 125841,
+      "retained": 41,
+      "recovery_calls": 4,
+      "retained_after_recovery": 45,
+      "episode_tokens": 128970
+    },
+    "pi": {
+      "initial_tokens": 32087,
+      "retained": 36,
+      "recovery_calls": 8,
+      "retained_after_recovery": 45,
+      "episode_tokens": 36289
+    },
+    "initial_savings_percent": 74.50195087451625
+  },
+  "groups": {
+    "git": {
+      "cases": 10,
+      "facts": 15,
+      "native": {
+        "initial_tokens": 25074,
+        "retained": 15,
+        "recovery_calls": 0,
+        "retained_after_recovery": 15,
+        "episode_tokens": 25119
+      },
+      "pi": {
+        "initial_tokens": 7093,
+        "retained": 11,
+        "recovery_calls": 3,
+        "retained_after_recovery": 15,
+        "episode_tokens": 8018
+      },
+      "initial_savings_percent": 71.71173326952221
+    },
+    "files": {
+      "cases": 12,
+      "facts": 21,
+      "native": {
+        "initial_tokens": 65384,
+        "retained": 20,
+        "recovery_calls": 1,
+        "retained_after_recovery": 21,
+        "episode_tokens": 65525
+      },
+      "pi": {
+        "initial_tokens": 12901,
+        "retained": 18,
+        "recovery_calls": 3,
+        "retained_after_recovery": 21,
+        "episode_tokens": 13898
+      },
+      "initial_savings_percent": 80.26887311880583
+    },
+    "logs": {
+      "cases": 4,
+      "facts": 4,
+      "native": {
+        "initial_tokens": 30223,
+        "retained": 1,
+        "recovery_calls": 3,
+        "retained_after_recovery": 4,
+        "episode_tokens": 33146
+      },
+      "pi": {
+        "initial_tokens": 10526,
+        "retained": 2,
+        "recovery_calls": 2,
+        "retained_after_recovery": 4,
+        "episode_tokens": 14045
+      },
+      "initial_savings_percent": 65.17221983257784
+    },
+    "tests": {
+      "cases": 3,
+      "facts": 5,
+      "native": {
+        "initial_tokens": 5160,
+        "retained": 5,
+        "recovery_calls": 0,
+        "retained_after_recovery": 5,
+        "episode_tokens": 5180
+      },
+      "pi": {
+        "initial_tokens": 1567,
+        "retained": 5,
+        "recovery_calls": 0,
+        "retained_after_recovery": 5,
+        "episode_tokens": 2230
+      },
+      "initial_savings_percent": 69.63178294573645
+    },
+    "replays": {
+      "cases": 5,
+      "facts": 5,
+      "native": {
+        "initial_tokens": 46524,
+        "retained": 2,
+        "recovery_calls": 3,
+        "retained_after_recovery": 5,
+        "episode_tokens": 46756
+      },
+      "pi": {
+        "initial_tokens": 15986,
+        "retained": 2,
+        "recovery_calls": 3,
+        "retained_after_recovery": 5,
+        "episode_tokens": 16898
+      },
+      "initial_savings_percent": 65.63923996217007
+    }
+  },
+  "budgets": {
+    "1000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 23773,
+        "retained": 30,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45
+      },
+      "pi": {
+        "initial_tokens": 17975,
+        "retained": 32,
+        "recovery_calls": 8,
+        "retained_after_recovery": 45
+      },
+      "initial_savings_percent": 24.389012745551675
+    },
+    "4000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 62822,
+        "retained": 35,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45
+      },
+      "pi": {
+        "initial_tokens": 27845,
+        "retained": 36,
+        "recovery_calls": 8,
+        "retained_after_recovery": 45
+      },
+      "initial_savings_percent": 55.67635541689218
+    },
+    "10000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125841,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "episode_tokens": 128970
+      },
+      "pi": {
+        "initial_tokens": 32087,
+        "retained": 36,
+        "recovery_calls": 8,
+        "retained_after_recovery": 45,
+        "episode_tokens": 36289
+      },
+      "initial_savings_percent": 74.50195087451625
+    }
+  },
+  "encoders": {
+    "o200k_base": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125841,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "episode_tokens": 128970
+      },
+      "pi": {
+        "initial_tokens": 32087,
+        "retained": 36,
+        "recovery_calls": 8,
+        "retained_after_recovery": 45,
+        "episode_tokens": 36289
+      },
+      "initial_savings_percent": 74.50195087451625
+    },
+    "cl100k_base": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125374,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "episode_tokens": 128502
+      },
+      "pi": {
+        "initial_tokens": 32046,
+        "retained": 36,
+        "recovery_calls": 8,
+        "retained_after_recovery": 45,
+        "episode_tokens": 36248
+      },
+      "initial_savings_percent": 74.43967648794806
+    }
+  },
+  "focused": {
+    "cases": 19,
+    "facts": 32,
+    "focused": {
+      "tokens": 6580,
+      "retained": 32
+    },
+    "pi": {
+      "tokens": 21993,
+      "retained": 24
+    }
+  },
+  "median_case_overhead_ms": 1.696683,
+  "tee_storage": {
+    "files": 308,
+    "bytes": 13896806
+  },
+  "streaming": {
+    "native": {
+      "first_byte_ms": 10.055346000171994,
+      "total_ms": 613.3957319998444
+    },
+    "pi": {
+      "first_byte_ms": 616.1689260002277,
+      "total_ms": 616.4560540000821
+    }
+  },
+  "validation": {
+    "outputs_hashed": 87,
+    "exit_status_pairs": 34,
+    "facts_recovered_both_arms": 50
+  }
+}

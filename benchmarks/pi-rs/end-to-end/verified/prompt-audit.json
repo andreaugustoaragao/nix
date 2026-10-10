@@ -1,0 +1,15 @@
+{
+  "stock": {
+    "exit_code": 0,
+    "global_pi_guidance_present": false,
+    "skills_catalog_present": false,
+    "pi_guidance_occurrences": 0
+  },
+  "pi": {
+    "exit_code": 0,
+    "global_pi_guidance_present": true,
+    "skills_catalog_present": false,
+    "pi_guidance_occurrences": 1
+  },
+  "scope": "Codex debug prompt-input under the same mount namespace, explicit model/settings, approval mode and fixture; verifies instruction loading, not the API request body or execution-tool arguments. debug does not support exec --ignore-rules or output-schema flags."
+}

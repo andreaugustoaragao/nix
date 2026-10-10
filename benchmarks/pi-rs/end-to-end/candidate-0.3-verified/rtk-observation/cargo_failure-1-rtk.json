@@ -1,0 +1,107 @@
+{
+  "hook_audit": "2026-10-09T19:02:36 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T19:02:36 | rewrite | rg --files -g 'Cargo.toml' -g 'AGENTS.md' -g 'rust-toolchain*' -g '.cargo/config*' | rtk rg --files -g 'Cargo.toml' -g 'AGENTS.md' -g 'rust-toolchain*' -g '.cargo/config*'\n2026-10-09T19:02:39 | rewrite | cargo test --offline | rtk cargo test --offline\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T19:02:36",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T19:02:36",
+      "action": "rewrite",
+      "original": "rg --files -g 'Cargo.toml' -g 'AGENTS.md' -g 'rust-toolchain*' -g '.cargo/config*'",
+      "rewritten": "rtk rg --files -g 'Cargo.toml' -g 'AGENTS.md' -g 'rust-toolchain*' -g '.cargo/config*'"
+    },
+    {
+      "timestamp": "2026-10-09T19:02:39",
+      "action": "rewrite",
+      "original": "cargo test --offline",
+      "rewritten": "rtk cargo test --offline"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T01:02:36.747244054+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/cargo_failure-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T01:02:37.048294476+00:00",
+          "original_cmd": "rg --files -g Cargo.toml -g AGENTS.md -g rust-toolchain* -g .cargo/config*",
+          "rtk_cmd": "rtk rg --files -g Cargo.toml -g AGENTS.md -g rust-toolchain* -g .cargo/config* (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 9,
+          "project_path": "<run-root>/runs/cargo_failure-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T01:02:40.324848792+00:00",
+          "original_cmd": "cargo test --offline",
+          "rtk_cmd": "rtk cargo test --offline",
+          "input_tokens": 2423,
+          "output_tokens": 94,
+          "saved_tokens": 2329,
+          "savings_pct": 96.12051176227817,
+          "exec_time_ms": 480,
+          "project_path": "<run-root>/runs/cargo_failure-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    },
+    "recall.db": {
+      "recall_stats": [
+        {
+          "slug": "cargo_test",
+          "mode": "sqlite",
+          "elisions": 1,
+          "recalls": 0
+        }
+      ],
+      "recall": [
+        {
+          "hash": "50875993876a",
+          "command": "cargo_test",
+          "cwd": "<run-root>/runs/cargo_failure-1-rtk/fixture",
+          "exit_code": 101,
+          "created_at": 1791594160,
+          "total_lines": 264,
+          "shown_upto": 1,
+          "byte_size": 9692,
+          "truncated": 0,
+          "codec": "gzip",
+          "blob": {
+            "bytes": 1161,
+            "sha256": "82ce583757a3b6dd8364eee5b12d9a463e4aa32c8ea225e3a82c547edc2161d3"
+          },
+          "recalled": 0
+        }
+      ],
+      "tee_reads": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log",
+    "rtk/recall.db",
+    "rtk/recall.db-shm",
+    "rtk/recall.db-wal"
+  ]
+}

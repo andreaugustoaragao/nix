@@ -1,0 +1,2289 @@
+{
+  "date": "2026-10-09",
+  "rust": "1.99.0",
+  "direct_current": 78,
+  "locked_registry_entries": 232,
+  "all_direct_current": true,
+  "direct": [
+    {
+      "alias": "anyhow",
+      "package": "anyhow",
+      "requirement": "1.0",
+      "locked": [
+        "1.0.104"
+      ],
+      "latest": "1.0.104",
+      "index": "https://index.crates.io/an/yh/anyhow"
+    },
+    {
+      "alias": "clap",
+      "package": "clap",
+      "requirement": "4",
+      "locked": [
+        "4.6.7"
+      ],
+      "latest": "4.6.7",
+      "index": "https://index.crates.io/cl/ap/clap"
+    },
+    {
+      "alias": "serde",
+      "package": "serde",
+      "requirement": "1",
+      "locked": [
+        "1.0.229"
+      ],
+      "latest": "1.0.229",
+      "index": "https://index.crates.io/se/rd/serde"
+    },
+    {
+      "alias": "serde_json",
+      "package": "serde_json",
+      "requirement": "1",
+      "locked": [
+        "1.0.151"
+      ],
+      "latest": "1.0.151",
+      "index": "https://index.crates.io/se/rd/serde_json"
+    },
+    {
+      "alias": "toml",
+      "package": "toml",
+      "requirement": "1.1",
+      "locked": [
+        "1.1.8+spec-1.1.0"
+      ],
+      "latest": "1.1.8+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml"
+    },
+    {
+      "alias": "dirs",
+      "package": "dirs",
+      "requirement": "7",
+      "locked": [
+        "7.0.0"
+      ],
+      "latest": "7.0.0",
+      "index": "https://index.crates.io/di/rs/dirs"
+    },
+    {
+      "alias": "flate2",
+      "package": "flate2",
+      "requirement": "1.1.10",
+      "locked": [
+        "1.1.10"
+      ],
+      "latest": "1.1.10",
+      "index": "https://index.crates.io/fl/at/flate2"
+    },
+    {
+      "alias": "sha2",
+      "package": "sha2",
+      "requirement": "0.11.0",
+      "locked": [
+        "0.11.0"
+      ],
+      "latest": "0.11.0",
+      "index": "https://index.crates.io/sh/a2/sha2"
+    },
+    {
+      "alias": "shell-words",
+      "package": "shell-words",
+      "requirement": "1",
+      "locked": [
+        "1.1.1"
+      ],
+      "latest": "1.1.1",
+      "index": "https://index.crates.io/sh/el/shell-words"
+    },
+    {
+      "alias": "tempfile",
+      "package": "tempfile",
+      "requirement": "3",
+      "locked": [
+        "3.27.0"
+      ],
+      "latest": "3.27.0",
+      "index": "https://index.crates.io/te/mp/tempfile"
+    },
+    {
+      "alias": "globset",
+      "package": "globset",
+      "requirement": "0.4",
+      "locked": [
+        "0.4.20"
+      ],
+      "latest": "0.4.20",
+      "index": "https://index.crates.io/gl/ob/globset"
+    },
+    {
+      "alias": "grep-matcher",
+      "package": "grep-matcher",
+      "requirement": "0.1",
+      "locked": [
+        "0.1.9"
+      ],
+      "latest": "0.1.9",
+      "index": "https://index.crates.io/gr/ep/grep-matcher"
+    },
+    {
+      "alias": "grep-regex",
+      "package": "grep-regex",
+      "requirement": "0.1",
+      "locked": [
+        "0.1.14"
+      ],
+      "latest": "0.1.14",
+      "index": "https://index.crates.io/gr/ep/grep-regex"
+    },
+    {
+      "alias": "grep-searcher",
+      "package": "grep-searcher",
+      "requirement": "0.1",
+      "locked": [
+        "0.1.17"
+      ],
+      "latest": "0.1.17",
+      "index": "https://index.crates.io/gr/ep/grep-searcher"
+    },
+    {
+      "alias": "ignore",
+      "package": "ignore",
+      "requirement": "0.4",
+      "locked": [
+        "0.4.33"
+      ],
+      "latest": "0.4.33",
+      "index": "https://index.crates.io/ig/no/ignore"
+    },
+    {
+      "alias": "regex",
+      "package": "regex",
+      "requirement": "1",
+      "locked": [
+        "1.13.1"
+      ],
+      "latest": "1.13.1",
+      "index": "https://index.crates.io/re/ge/regex"
+    },
+    {
+      "alias": "smallvec",
+      "package": "smallvec",
+      "requirement": "1",
+      "locked": [
+        "1.16.2"
+      ],
+      "latest": "1.16.2",
+      "index": "https://index.crates.io/sm/al/smallvec"
+    },
+    {
+      "alias": "xxhash-rust",
+      "package": "xxhash-rust",
+      "requirement": "0.8",
+      "locked": [
+        "0.8.19"
+      ],
+      "latest": "0.8.19",
+      "index": "https://index.crates.io/xx/ha/xxhash-rust"
+    },
+    {
+      "alias": "rayon",
+      "package": "rayon",
+      "requirement": "1",
+      "locked": [
+        "1.12.0"
+      ],
+      "latest": "1.12.0",
+      "index": "https://index.crates.io/ra/yo/rayon"
+    },
+    {
+      "alias": "ast-grep-core",
+      "package": "ast-grep-core",
+      "requirement": "0.50",
+      "locked": [
+        "0.50.0"
+      ],
+      "latest": "0.50.0",
+      "index": "https://index.crates.io/as/t-/ast-grep-core"
+    },
+    {
+      "alias": "tree-sitter",
+      "package": "tree-sitter",
+      "requirement": "0.27",
+      "locked": [
+        "0.27.1"
+      ],
+      "latest": "0.27.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter"
+    },
+    {
+      "alias": "phf",
+      "package": "phf",
+      "requirement": "0.14",
+      "locked": [
+        "0.14.0"
+      ],
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/3/p/phf"
+    },
+    {
+      "alias": "tree-sitter-astro",
+      "package": "tree-sitter-astro-next",
+      "requirement": "0.1.1",
+      "locked": [
+        "0.1.1"
+      ],
+      "latest": "0.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-astro-next"
+    },
+    {
+      "alias": "tree-sitter-bash",
+      "package": "tree-sitter-bash",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.1"
+      ],
+      "latest": "0.25.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-bash"
+    },
+    {
+      "alias": "tree-sitter-c",
+      "package": "tree-sitter-c",
+      "requirement": "0.24",
+      "locked": [
+        "0.24.2"
+      ],
+      "latest": "0.24.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-c"
+    },
+    {
+      "alias": "tree-sitter-c-sharp",
+      "package": "tree-sitter-c-sharp",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.5"
+      ],
+      "latest": "0.23.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-c-sharp"
+    },
+    {
+      "alias": "tree-sitter-clojure",
+      "package": "tree-sitter-clojure",
+      "requirement": "0.1",
+      "locked": [
+        "0.1.0"
+      ],
+      "latest": "0.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-clojure"
+    },
+    {
+      "alias": "tree-sitter-cmake",
+      "package": "tree-sitter-cmake",
+      "requirement": "0.7.5",
+      "locked": [
+        "0.7.5"
+      ],
+      "latest": "0.7.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-cmake"
+    },
+    {
+      "alias": "tree-sitter-cpp",
+      "package": "tree-sitter-cpp",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.4"
+      ],
+      "latest": "0.23.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-cpp"
+    },
+    {
+      "alias": "tree-sitter-css",
+      "package": "tree-sitter-css",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.0"
+      ],
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-css"
+    },
+    {
+      "alias": "tree-sitter-dart",
+      "package": "tree-sitter-dart",
+      "requirement": "0.2",
+      "locked": [
+        "0.2.0"
+      ],
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-dart"
+    },
+    {
+      "alias": "tree-sitter-diff",
+      "package": "tree-sitter-diff",
+      "requirement": "0.1",
+      "locked": [
+        "0.1.0"
+      ],
+      "latest": "0.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-diff"
+    },
+    {
+      "alias": "tree-sitter-dockerfile",
+      "package": "tree-sitter-dockerfile-updated",
+      "requirement": "0.2.0",
+      "locked": [
+        "0.2.0"
+      ],
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-dockerfile-updated"
+    },
+    {
+      "alias": "tree-sitter-elixir",
+      "package": "tree-sitter-elixir",
+      "requirement": "0.3",
+      "locked": [
+        "0.3.5"
+      ],
+      "latest": "0.3.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-elixir"
+    },
+    {
+      "alias": "tree-sitter-erlang",
+      "package": "tree-sitter-erlang",
+      "requirement": "0.21",
+      "locked": [
+        "0.21.0"
+      ],
+      "latest": "0.21.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-erlang"
+    },
+    {
+      "alias": "tree-sitter-go",
+      "package": "tree-sitter-go",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.0"
+      ],
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-go"
+    },
+    {
+      "alias": "tree-sitter-graphql",
+      "package": "tree-sitter-graphql",
+      "requirement": "0.3",
+      "locked": [
+        "0.3.0"
+      ],
+      "latest": "0.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-graphql"
+    },
+    {
+      "alias": "tree-sitter-haskell",
+      "package": "tree-sitter-haskell",
+      "requirement": "0.24",
+      "locked": [
+        "0.24.1"
+      ],
+      "latest": "0.24.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-haskell"
+    },
+    {
+      "alias": "tree-sitter-hcl",
+      "package": "tree-sitter-hcl",
+      "requirement": "1.1",
+      "locked": [
+        "1.1.0"
+      ],
+      "latest": "1.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-hcl"
+    },
+    {
+      "alias": "tree-sitter-html",
+      "package": "tree-sitter-html",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.2"
+      ],
+      "latest": "0.23.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-html"
+    },
+    {
+      "alias": "tree-sitter-ini",
+      "package": "tree-sitter-ini",
+      "requirement": "1.4.0",
+      "locked": [
+        "1.4.0"
+      ],
+      "latest": "1.4.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ini"
+    },
+    {
+      "alias": "tree-sitter-java",
+      "package": "tree-sitter-java",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.5"
+      ],
+      "latest": "0.23.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-java"
+    },
+    {
+      "alias": "tree-sitter-javascript",
+      "package": "tree-sitter-javascript",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.0"
+      ],
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-javascript"
+    },
+    {
+      "alias": "tree-sitter-json",
+      "package": "tree-sitter-json",
+      "requirement": "0.24",
+      "locked": [
+        "0.24.8"
+      ],
+      "latest": "0.24.8",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-json"
+    },
+    {
+      "alias": "tree-sitter-julia",
+      "package": "tree-sitter-julia",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.1"
+      ],
+      "latest": "0.23.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-julia"
+    },
+    {
+      "alias": "tree-sitter-just",
+      "package": "tree-sitter-just",
+      "requirement": "0.2.0",
+      "locked": [
+        "0.2.0"
+      ],
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-just"
+    },
+    {
+      "alias": "tree-sitter-kotlin",
+      "package": "tree-sitter-kotlin-sg",
+      "requirement": "0.4",
+      "locked": [
+        "0.4.1"
+      ],
+      "latest": "0.4.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-kotlin-sg"
+    },
+    {
+      "alias": "tree-sitter-lua",
+      "package": "tree-sitter-lua",
+      "requirement": "0.5",
+      "locked": [
+        "0.5.0"
+      ],
+      "latest": "0.5.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-lua"
+    },
+    {
+      "alias": "tree-sitter-make",
+      "package": "tree-sitter-make",
+      "requirement": "1.1",
+      "locked": [
+        "1.1.1"
+      ],
+      "latest": "1.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-make"
+    },
+    {
+      "alias": "tree-sitter-md",
+      "package": "tree-sitter-md",
+      "requirement": "0.5",
+      "locked": [
+        "0.5.3"
+      ],
+      "latest": "0.5.3",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-md"
+    },
+    {
+      "alias": "tree-sitter-nix",
+      "package": "tree-sitter-nix",
+      "requirement": "0.3",
+      "locked": [
+        "0.3.0"
+      ],
+      "latest": "0.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-nix"
+    },
+    {
+      "alias": "tree-sitter-objc",
+      "package": "tree-sitter-objc",
+      "requirement": "3.0",
+      "locked": [
+        "3.0.2"
+      ],
+      "latest": "3.0.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-objc"
+    },
+    {
+      "alias": "tree-sitter-ocaml",
+      "package": "tree-sitter-ocaml",
+      "requirement": "0.26",
+      "locked": [
+        "0.26.0"
+      ],
+      "latest": "0.26.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ocaml"
+    },
+    {
+      "alias": "tree-sitter-odin",
+      "package": "tree-sitter-odin",
+      "requirement": "1.3",
+      "locked": [
+        "1.3.0"
+      ],
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-odin"
+    },
+    {
+      "alias": "tree-sitter-perl",
+      "package": "ts-parser-perl",
+      "requirement": "2.0",
+      "locked": [
+        "2.0.0"
+      ],
+      "latest": "2.0.0",
+      "index": "https://index.crates.io/ts/-p/ts-parser-perl"
+    },
+    {
+      "alias": "tree-sitter-php",
+      "package": "tree-sitter-php",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.1"
+      ],
+      "latest": "0.25.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-php"
+    },
+    {
+      "alias": "tree-sitter-powershell",
+      "package": "tree-sitter-powershell",
+      "requirement": "0.26.4",
+      "locked": [
+        "0.26.4"
+      ],
+      "latest": "0.26.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-powershell"
+    },
+    {
+      "alias": "tree-sitter-proto",
+      "package": "tree-sitter-proto",
+      "requirement": "0.6",
+      "locked": [
+        "0.6.0"
+      ],
+      "latest": "0.6.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-proto"
+    },
+    {
+      "alias": "tree-sitter-python",
+      "package": "tree-sitter-python",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.0"
+      ],
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-python"
+    },
+    {
+      "alias": "tree-sitter-r",
+      "package": "tree-sitter-r",
+      "requirement": "1.3",
+      "locked": [
+        "1.3.0"
+      ],
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-r"
+    },
+    {
+      "alias": "tree-sitter-regex",
+      "package": "tree-sitter-regex",
+      "requirement": "0.25",
+      "locked": [
+        "0.25.0"
+      ],
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-regex"
+    },
+    {
+      "alias": "tree-sitter-ruby",
+      "package": "tree-sitter-ruby",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.1"
+      ],
+      "latest": "0.23.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ruby"
+    },
+    {
+      "alias": "tree-sitter-rust",
+      "package": "tree-sitter-rust",
+      "requirement": "0.24",
+      "locked": [
+        "0.24.2"
+      ],
+      "latest": "0.24.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-rust"
+    },
+    {
+      "alias": "tree-sitter-scala",
+      "package": "tree-sitter-scala",
+      "requirement": "0.26",
+      "locked": [
+        "0.26.2"
+      ],
+      "latest": "0.26.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-scala"
+    },
+    {
+      "alias": "tree-sitter-solidity",
+      "package": "tree-sitter-solidity",
+      "requirement": "1.2",
+      "locked": [
+        "1.2.13"
+      ],
+      "latest": "1.2.13",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-solidity"
+    },
+    {
+      "alias": "tree-sitter-sql",
+      "package": "tree-sitter-sequel",
+      "requirement": "0.3.11",
+      "locked": [
+        "0.3.11"
+      ],
+      "latest": "0.3.11",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-sequel"
+    },
+    {
+      "alias": "tree-sitter-starlark",
+      "package": "tree-sitter-starlark",
+      "requirement": "1.3",
+      "locked": [
+        "1.3.0"
+      ],
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-starlark"
+    },
+    {
+      "alias": "tree-sitter-svelte",
+      "package": "tree-sitter-svelte-next",
+      "requirement": "0.1.1",
+      "locked": [
+        "0.1.1"
+      ],
+      "latest": "0.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-svelte-next"
+    },
+    {
+      "alias": "tree-sitter-swift",
+      "package": "tree-sitter-swift",
+      "requirement": "0.7",
+      "locked": [
+        "0.7.4"
+      ],
+      "latest": "0.7.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-swift"
+    },
+    {
+      "alias": "tree-sitter-tlaplus",
+      "package": "tree-sitter-tlaplus",
+      "requirement": "1.5",
+      "locked": [
+        "1.5.0"
+      ],
+      "latest": "1.5.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-tlaplus"
+    },
+    {
+      "alias": "tree-sitter-toml-ng",
+      "package": "tree-sitter-toml-ng",
+      "requirement": "0.7",
+      "locked": [
+        "0.7.0"
+      ],
+      "latest": "0.7.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-toml-ng"
+    },
+    {
+      "alias": "tree-sitter-typescript",
+      "package": "tree-sitter-typescript",
+      "requirement": "0.23",
+      "locked": [
+        "0.23.2"
+      ],
+      "latest": "0.23.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-typescript"
+    },
+    {
+      "alias": "tree-sitter-verilog",
+      "package": "tree-sitter-verilog",
+      "requirement": "1.0",
+      "locked": [
+        "1.0.3"
+      ],
+      "latest": "1.0.3",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-verilog"
+    },
+    {
+      "alias": "tree-sitter-vue",
+      "package": "tree-sitter-vue-next",
+      "requirement": "0.1.0",
+      "locked": [
+        "0.1.0"
+      ],
+      "latest": "0.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-vue-next"
+    },
+    {
+      "alias": "tree-sitter-xml",
+      "package": "tree-sitter-xml",
+      "requirement": "0.7",
+      "locked": [
+        "0.7.0"
+      ],
+      "latest": "0.7.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-xml"
+    },
+    {
+      "alias": "tree-sitter-yaml",
+      "package": "tree-sitter-yaml",
+      "requirement": "0.7",
+      "locked": [
+        "0.7.2"
+      ],
+      "latest": "0.7.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-yaml"
+    },
+    {
+      "alias": "tree-sitter-zig",
+      "package": "tree-sitter-zig",
+      "requirement": "1.1",
+      "locked": [
+        "1.1.2"
+      ],
+      "latest": "1.1.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-zig"
+    },
+    {
+      "alias": "html-to-markdown-rs",
+      "package": "html-to-markdown-rs",
+      "requirement": "3.17",
+      "locked": [
+        "3.17.2"
+      ],
+      "latest": "3.17.2",
+      "index": "https://index.crates.io/ht/ml/html-to-markdown-rs"
+    }
+  ],
+  "locked": [
+    {
+      "package": "adler2",
+      "requirement": "2.0.1",
+      "latest": "2.0.1",
+      "index": "https://index.crates.io/ad/le/adler2"
+    },
+    {
+      "package": "ahash",
+      "requirement": "0.8.12",
+      "latest": "0.8.12",
+      "index": "https://index.crates.io/ah/as/ahash"
+    },
+    {
+      "package": "aho-corasick",
+      "requirement": "1.1.5",
+      "latest": "1.1.5",
+      "index": "https://index.crates.io/ah/o-/aho-corasick"
+    },
+    {
+      "package": "anstream",
+      "requirement": "1.0.0",
+      "latest": "1.0.0",
+      "index": "https://index.crates.io/an/st/anstream"
+    },
+    {
+      "package": "anstyle",
+      "requirement": "1.0.14",
+      "latest": "1.0.14",
+      "index": "https://index.crates.io/an/st/anstyle"
+    },
+    {
+      "package": "anstyle-parse",
+      "requirement": "1.0.0",
+      "latest": "1.0.0",
+      "index": "https://index.crates.io/an/st/anstyle-parse"
+    },
+    {
+      "package": "anstyle-query",
+      "requirement": "1.1.5",
+      "latest": "1.1.5",
+      "index": "https://index.crates.io/an/st/anstyle-query"
+    },
+    {
+      "package": "anstyle-wincon",
+      "requirement": "3.0.11",
+      "latest": "3.0.11",
+      "index": "https://index.crates.io/an/st/anstyle-wincon"
+    },
+    {
+      "package": "anyhow",
+      "requirement": "1.0.104",
+      "latest": "1.0.104",
+      "index": "https://index.crates.io/an/yh/anyhow"
+    },
+    {
+      "package": "ast-grep-core",
+      "requirement": "0.50.0",
+      "latest": "0.50.0",
+      "index": "https://index.crates.io/as/t-/ast-grep-core"
+    },
+    {
+      "package": "astral-tl",
+      "requirement": "0.8.0",
+      "latest": "0.8.0",
+      "index": "https://index.crates.io/as/tr/astral-tl"
+    },
+    {
+      "package": "base64",
+      "requirement": "0.23.1",
+      "latest": "0.23.1",
+      "index": "https://index.crates.io/ba/se/base64"
+    },
+    {
+      "package": "bit-set",
+      "requirement": "0.11.1",
+      "latest": "0.11.1",
+      "index": "https://index.crates.io/bi/t-/bit-set"
+    },
+    {
+      "package": "bit-vec",
+      "requirement": "0.10.1",
+      "latest": "0.10.1",
+      "index": "https://index.crates.io/bi/t-/bit-vec"
+    },
+    {
+      "package": "bitflags",
+      "requirement": "2.13.2",
+      "latest": "2.13.2",
+      "index": "https://index.crates.io/bi/tf/bitflags"
+    },
+    {
+      "package": "block-buffer",
+      "requirement": "0.12.1",
+      "latest": "0.12.1",
+      "index": "https://index.crates.io/bl/oc/block-buffer"
+    },
+    {
+      "package": "borsh",
+      "requirement": "1.8.1",
+      "latest": "1.8.1",
+      "index": "https://index.crates.io/bo/rs/borsh"
+    },
+    {
+      "package": "borsh-derive",
+      "requirement": "1.8.1",
+      "latest": "1.8.1",
+      "index": "https://index.crates.io/bo/rs/borsh-derive"
+    },
+    {
+      "package": "bstr",
+      "requirement": "1.13.1",
+      "latest": "1.13.1",
+      "index": "https://index.crates.io/bs/tr/bstr"
+    },
+    {
+      "package": "bytes",
+      "requirement": "1.12.1",
+      "latest": "1.12.1",
+      "index": "https://index.crates.io/by/te/bytes"
+    },
+    {
+      "package": "cc",
+      "requirement": "1.6.0",
+      "latest": "1.6.0",
+      "index": "https://index.crates.io/2/cc"
+    },
+    {
+      "package": "cfg-if",
+      "requirement": "1.0.5",
+      "latest": "1.0.5",
+      "index": "https://index.crates.io/cf/g-/cfg-if"
+    },
+    {
+      "package": "cfg_aliases",
+      "requirement": "0.2.2",
+      "latest": "0.2.2",
+      "index": "https://index.crates.io/cf/g_/cfg_aliases"
+    },
+    {
+      "package": "clap",
+      "requirement": "4.6.7",
+      "latest": "4.6.7",
+      "index": "https://index.crates.io/cl/ap/clap"
+    },
+    {
+      "package": "clap_builder",
+      "requirement": "4.6.7",
+      "latest": "4.6.7",
+      "index": "https://index.crates.io/cl/ap/clap_builder"
+    },
+    {
+      "package": "clap_derive",
+      "requirement": "4.6.7",
+      "latest": "4.6.7",
+      "index": "https://index.crates.io/cl/ap/clap_derive"
+    },
+    {
+      "package": "clap_lex",
+      "requirement": "1.1.1",
+      "latest": "1.1.1",
+      "index": "https://index.crates.io/cl/ap/clap_lex"
+    },
+    {
+      "package": "colorchoice",
+      "requirement": "1.0.5",
+      "latest": "1.0.5",
+      "index": "https://index.crates.io/co/lo/colorchoice"
+    },
+    {
+      "package": "const-oid",
+      "requirement": "0.10.2",
+      "latest": "0.10.2",
+      "index": "https://index.crates.io/co/ns/const-oid"
+    },
+    {
+      "package": "const-random",
+      "requirement": "0.1.18",
+      "latest": "0.1.18",
+      "index": "https://index.crates.io/co/ns/const-random"
+    },
+    {
+      "package": "const-random-macro",
+      "requirement": "0.1.16",
+      "latest": "0.1.16",
+      "index": "https://index.crates.io/co/ns/const-random-macro"
+    },
+    {
+      "package": "core_detect",
+      "requirement": "1.0.0",
+      "latest": "1.0.0",
+      "index": "https://index.crates.io/co/re/core_detect"
+    },
+    {
+      "package": "cpufeatures",
+      "requirement": "0.3.1",
+      "latest": "0.3.1",
+      "index": "https://index.crates.io/cp/uf/cpufeatures"
+    },
+    {
+      "package": "crc32fast",
+      "requirement": "1.5.2",
+      "latest": "1.5.2",
+      "index": "https://index.crates.io/cr/c3/crc32fast"
+    },
+    {
+      "package": "crossbeam-deque",
+      "requirement": "0.8.8",
+      "latest": "0.8.8",
+      "index": "https://index.crates.io/cr/os/crossbeam-deque"
+    },
+    {
+      "package": "crossbeam-epoch",
+      "requirement": "0.9.21",
+      "latest": "0.9.21",
+      "index": "https://index.crates.io/cr/os/crossbeam-epoch"
+    },
+    {
+      "package": "crossbeam-utils",
+      "requirement": "0.8.23",
+      "latest": "0.8.23",
+      "index": "https://index.crates.io/cr/os/crossbeam-utils"
+    },
+    {
+      "package": "crunchy",
+      "requirement": "0.2.4",
+      "latest": "0.2.4",
+      "index": "https://index.crates.io/cr/un/crunchy"
+    },
+    {
+      "package": "crypto-common",
+      "requirement": "0.2.2",
+      "latest": "0.2.2",
+      "index": "https://index.crates.io/cr/yp/crypto-common"
+    },
+    {
+      "package": "digest",
+      "requirement": "0.11.3",
+      "latest": "0.11.3",
+      "index": "https://index.crates.io/di/ge/digest"
+    },
+    {
+      "package": "dirs",
+      "requirement": "7.0.0",
+      "latest": "7.0.0",
+      "index": "https://index.crates.io/di/rs/dirs"
+    },
+    {
+      "package": "dirs-sys",
+      "requirement": "0.5.0",
+      "latest": "0.5.0",
+      "index": "https://index.crates.io/di/rs/dirs-sys"
+    },
+    {
+      "package": "displaydoc",
+      "requirement": "0.2.7",
+      "latest": "0.2.7",
+      "index": "https://index.crates.io/di/sp/displaydoc"
+    },
+    {
+      "package": "either",
+      "requirement": "1.19.0",
+      "latest": "1.19.0",
+      "index": "https://index.crates.io/ei/th/either"
+    },
+    {
+      "package": "encoding_rs",
+      "requirement": "0.8.42",
+      "latest": "0.8.42",
+      "index": "https://index.crates.io/en/co/encoding_rs"
+    },
+    {
+      "package": "encoding_rs_io",
+      "requirement": "0.1.8",
+      "latest": "0.1.8",
+      "index": "https://index.crates.io/en/co/encoding_rs_io"
+    },
+    {
+      "package": "equivalent",
+      "requirement": "1.0.2",
+      "latest": "1.0.2",
+      "index": "https://index.crates.io/eq/ui/equivalent"
+    },
+    {
+      "package": "errno",
+      "requirement": "0.3.14",
+      "latest": "0.3.14",
+      "index": "https://index.crates.io/er/rn/errno"
+    },
+    {
+      "package": "fastrand",
+      "requirement": "2.5.0",
+      "latest": "2.5.0",
+      "index": "https://index.crates.io/fa/st/fastrand"
+    },
+    {
+      "package": "find-msvc-tools",
+      "requirement": "0.1.14",
+      "latest": "0.1.14",
+      "index": "https://index.crates.io/fi/nd/find-msvc-tools"
+    },
+    {
+      "package": "flate2",
+      "requirement": "1.1.10",
+      "latest": "1.1.10",
+      "index": "https://index.crates.io/fl/at/flate2"
+    },
+    {
+      "package": "form_urlencoded",
+      "requirement": "1.2.2",
+      "latest": "1.2.2",
+      "index": "https://index.crates.io/fo/rm/form_urlencoded"
+    },
+    {
+      "package": "getrandom",
+      "requirement": "0.2.17",
+      "latest": "0.4.3",
+      "index": "https://index.crates.io/ge/tr/getrandom"
+    },
+    {
+      "package": "getrandom",
+      "requirement": "0.4.3",
+      "latest": "0.4.3",
+      "index": "https://index.crates.io/ge/tr/getrandom"
+    },
+    {
+      "package": "globset",
+      "requirement": "0.4.20",
+      "latest": "0.4.20",
+      "index": "https://index.crates.io/gl/ob/globset"
+    },
+    {
+      "package": "grep-matcher",
+      "requirement": "0.1.9",
+      "latest": "0.1.9",
+      "index": "https://index.crates.io/gr/ep/grep-matcher"
+    },
+    {
+      "package": "grep-regex",
+      "requirement": "0.1.14",
+      "latest": "0.1.14",
+      "index": "https://index.crates.io/gr/ep/grep-regex"
+    },
+    {
+      "package": "grep-searcher",
+      "requirement": "0.1.17",
+      "latest": "0.1.17",
+      "index": "https://index.crates.io/gr/ep/grep-searcher"
+    },
+    {
+      "package": "hashbrown",
+      "requirement": "0.17.1",
+      "latest": "0.17.1",
+      "index": "https://index.crates.io/ha/sh/hashbrown"
+    },
+    {
+      "package": "heck",
+      "requirement": "0.5.0",
+      "latest": "0.5.0",
+      "index": "https://index.crates.io/he/ck/heck"
+    },
+    {
+      "package": "html-escape",
+      "requirement": "0.2.15",
+      "latest": "0.2.15",
+      "index": "https://index.crates.io/ht/ml/html-escape"
+    },
+    {
+      "package": "html-to-markdown-rs",
+      "requirement": "3.17.2",
+      "latest": "3.17.2",
+      "index": "https://index.crates.io/ht/ml/html-to-markdown-rs"
+    },
+    {
+      "package": "html5ever",
+      "requirement": "0.40.1",
+      "latest": "0.40.1",
+      "index": "https://index.crates.io/ht/ml/html5ever"
+    },
+    {
+      "package": "hybrid-array",
+      "requirement": "0.4.15",
+      "latest": "0.4.15",
+      "index": "https://index.crates.io/hy/br/hybrid-array"
+    },
+    {
+      "package": "icu_collections",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_collections"
+    },
+    {
+      "package": "icu_locale_core",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_locale_core"
+    },
+    {
+      "package": "icu_normalizer",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_normalizer"
+    },
+    {
+      "package": "icu_normalizer_data",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_normalizer_data"
+    },
+    {
+      "package": "icu_properties",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_properties"
+    },
+    {
+      "package": "icu_properties_data",
+      "requirement": "2.3.0",
+      "latest": "2.3.0",
+      "index": "https://index.crates.io/ic/u_/icu_properties_data"
+    },
+    {
+      "package": "icu_provider",
+      "requirement": "2.3.1",
+      "latest": "2.3.1",
+      "index": "https://index.crates.io/ic/u_/icu_provider"
+    },
+    {
+      "package": "idna",
+      "requirement": "1.1.0",
+      "latest": "1.1.0",
+      "index": "https://index.crates.io/id/na/idna"
+    },
+    {
+      "package": "idna_adapter",
+      "requirement": "1.2.2",
+      "latest": "1.2.2",
+      "index": "https://index.crates.io/id/na/idna_adapter"
+    },
+    {
+      "package": "ignore",
+      "requirement": "0.4.33",
+      "latest": "0.4.33",
+      "index": "https://index.crates.io/ig/no/ignore"
+    },
+    {
+      "package": "indexmap",
+      "requirement": "2.14.2",
+      "latest": "2.14.2",
+      "index": "https://index.crates.io/in/de/indexmap"
+    },
+    {
+      "package": "is_terminal_polyfill",
+      "requirement": "1.70.2",
+      "latest": "1.70.2",
+      "index": "https://index.crates.io/is/_t/is_terminal_polyfill"
+    },
+    {
+      "package": "itoa",
+      "requirement": "1.0.18",
+      "latest": "1.0.18",
+      "index": "https://index.crates.io/it/oa/itoa"
+    },
+    {
+      "package": "libc",
+      "requirement": "0.2.190",
+      "latest": "0.2.190",
+      "index": "https://index.crates.io/li/bc/libc"
+    },
+    {
+      "package": "libredox",
+      "requirement": "0.1.25",
+      "latest": "0.1.25",
+      "index": "https://index.crates.io/li/br/libredox"
+    },
+    {
+      "package": "linux-raw-sys",
+      "requirement": "0.12.1",
+      "latest": "0.12.1",
+      "index": "https://index.crates.io/li/nu/linux-raw-sys"
+    },
+    {
+      "package": "litemap",
+      "requirement": "0.8.3",
+      "latest": "0.8.3",
+      "index": "https://index.crates.io/li/te/litemap"
+    },
+    {
+      "package": "lock_api",
+      "requirement": "0.4.14",
+      "latest": "0.4.14",
+      "index": "https://index.crates.io/lo/ck/lock_api"
+    },
+    {
+      "package": "log",
+      "requirement": "0.4.34",
+      "latest": "0.4.34",
+      "index": "https://index.crates.io/3/l/log"
+    },
+    {
+      "package": "markup5ever",
+      "requirement": "0.40.0",
+      "latest": "0.40.0",
+      "index": "https://index.crates.io/ma/rk/markup5ever"
+    },
+    {
+      "package": "memchr",
+      "requirement": "2.8.3",
+      "latest": "2.8.3",
+      "index": "https://index.crates.io/me/mc/memchr"
+    },
+    {
+      "package": "memmap2",
+      "requirement": "0.9.11",
+      "latest": "0.9.11",
+      "index": "https://index.crates.io/me/mm/memmap2"
+    },
+    {
+      "package": "miniz_oxide",
+      "requirement": "0.9.1",
+      "latest": "0.9.1",
+      "index": "https://index.crates.io/mi/ni/miniz_oxide"
+    },
+    {
+      "package": "multiversion_no_op",
+      "requirement": "1.0.0",
+      "latest": "1.0.0",
+      "index": "https://index.crates.io/mu/lt/multiversion_no_op"
+    },
+    {
+      "package": "new_debug_unreachable",
+      "requirement": "1.0.6",
+      "latest": "1.0.6",
+      "index": "https://index.crates.io/ne/w_/new_debug_unreachable"
+    },
+    {
+      "package": "once_cell",
+      "requirement": "1.21.4",
+      "latest": "1.21.4",
+      "index": "https://index.crates.io/on/ce/once_cell"
+    },
+    {
+      "package": "once_cell_polyfill",
+      "requirement": "1.70.2",
+      "latest": "1.70.2",
+      "index": "https://index.crates.io/on/ce/once_cell_polyfill"
+    },
+    {
+      "package": "option-ext",
+      "requirement": "0.2.0",
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/op/ti/option-ext"
+    },
+    {
+      "package": "parking_lot",
+      "requirement": "0.12.5",
+      "latest": "0.12.5",
+      "index": "https://index.crates.io/pa/rk/parking_lot"
+    },
+    {
+      "package": "parking_lot_core",
+      "requirement": "0.9.12",
+      "latest": "0.9.12",
+      "index": "https://index.crates.io/pa/rk/parking_lot_core"
+    },
+    {
+      "package": "percent-encoding",
+      "requirement": "2.3.2",
+      "latest": "2.3.2",
+      "index": "https://index.crates.io/pe/rc/percent-encoding"
+    },
+    {
+      "package": "phf",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/3/p/phf"
+    },
+    {
+      "package": "phf_codegen",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/ph/f_/phf_codegen"
+    },
+    {
+      "package": "phf_generator",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/ph/f_/phf_generator"
+    },
+    {
+      "package": "phf_macros",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/ph/f_/phf_macros"
+    },
+    {
+      "package": "phf_shared",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/ph/f_/phf_shared"
+    },
+    {
+      "package": "pin-project-lite",
+      "requirement": "0.2.17",
+      "latest": "0.2.17",
+      "index": "https://index.crates.io/pi/n-/pin-project-lite"
+    },
+    {
+      "package": "potential_utf",
+      "requirement": "0.1.6",
+      "latest": "0.1.6",
+      "index": "https://index.crates.io/po/te/potential_utf"
+    },
+    {
+      "package": "precomputed-hash",
+      "requirement": "0.1.1",
+      "latest": "0.1.1",
+      "index": "https://index.crates.io/pr/ec/precomputed-hash"
+    },
+    {
+      "package": "proc-macro-crate",
+      "requirement": "3.5.0",
+      "latest": "3.5.0",
+      "index": "https://index.crates.io/pr/oc/proc-macro-crate"
+    },
+    {
+      "package": "proc-macro2",
+      "requirement": "1.0.107",
+      "latest": "1.0.107",
+      "index": "https://index.crates.io/pr/oc/proc-macro2"
+    },
+    {
+      "package": "quote",
+      "requirement": "1.0.47",
+      "latest": "1.0.47",
+      "index": "https://index.crates.io/qu/ot/quote"
+    },
+    {
+      "package": "r-efi",
+      "requirement": "6.0.0",
+      "latest": "7.1.0",
+      "index": "https://index.crates.io/r-/ef/r-efi"
+    },
+    {
+      "package": "rayon",
+      "requirement": "1.12.0",
+      "latest": "1.12.0",
+      "index": "https://index.crates.io/ra/yo/rayon"
+    },
+    {
+      "package": "rayon-core",
+      "requirement": "1.13.0",
+      "latest": "1.13.0",
+      "index": "https://index.crates.io/ra/yo/rayon-core"
+    },
+    {
+      "package": "redox_syscall",
+      "requirement": "0.5.18",
+      "latest": "0.9.4",
+      "index": "https://index.crates.io/re/do/redox_syscall"
+    },
+    {
+      "package": "redox_users",
+      "requirement": "0.5.3",
+      "latest": "0.5.3",
+      "index": "https://index.crates.io/re/do/redox_users"
+    },
+    {
+      "package": "regex",
+      "requirement": "1.13.1",
+      "latest": "1.13.1",
+      "index": "https://index.crates.io/re/ge/regex"
+    },
+    {
+      "package": "regex-automata",
+      "requirement": "0.4.18",
+      "latest": "0.4.18",
+      "index": "https://index.crates.io/re/ge/regex-automata"
+    },
+    {
+      "package": "regex-syntax",
+      "requirement": "0.8.11",
+      "latest": "0.8.11",
+      "index": "https://index.crates.io/re/ge/regex-syntax"
+    },
+    {
+      "package": "rustix",
+      "requirement": "1.1.5",
+      "latest": "1.1.5",
+      "index": "https://index.crates.io/ru/st/rustix"
+    },
+    {
+      "package": "rustversion",
+      "requirement": "1.0.23",
+      "latest": "1.0.23",
+      "index": "https://index.crates.io/ru/st/rustversion"
+    },
+    {
+      "package": "same-file",
+      "requirement": "1.0.6",
+      "latest": "1.0.6",
+      "index": "https://index.crates.io/sa/me/same-file"
+    },
+    {
+      "package": "scopeguard",
+      "requirement": "1.2.0",
+      "latest": "1.2.0",
+      "index": "https://index.crates.io/sc/op/scopeguard"
+    },
+    {
+      "package": "serde",
+      "requirement": "1.0.229",
+      "latest": "1.0.229",
+      "index": "https://index.crates.io/se/rd/serde"
+    },
+    {
+      "package": "serde_core",
+      "requirement": "1.0.229",
+      "latest": "1.0.229",
+      "index": "https://index.crates.io/se/rd/serde_core"
+    },
+    {
+      "package": "serde_derive",
+      "requirement": "1.0.229",
+      "latest": "1.0.229",
+      "index": "https://index.crates.io/se/rd/serde_derive"
+    },
+    {
+      "package": "serde_json",
+      "requirement": "1.0.151",
+      "latest": "1.0.151",
+      "index": "https://index.crates.io/se/rd/serde_json"
+    },
+    {
+      "package": "serde_spanned",
+      "requirement": "1.1.2",
+      "latest": "1.1.2",
+      "index": "https://index.crates.io/se/rd/serde_spanned"
+    },
+    {
+      "package": "sha2",
+      "requirement": "0.11.0",
+      "latest": "0.11.0",
+      "index": "https://index.crates.io/sh/a2/sha2"
+    },
+    {
+      "package": "shell-words",
+      "requirement": "1.1.1",
+      "latest": "1.1.1",
+      "index": "https://index.crates.io/sh/el/shell-words"
+    },
+    {
+      "package": "shlex",
+      "requirement": "2.0.1",
+      "latest": "2.0.1",
+      "index": "https://index.crates.io/sh/le/shlex"
+    },
+    {
+      "package": "simd-adler32",
+      "requirement": "0.3.10",
+      "latest": "0.3.10",
+      "index": "https://index.crates.io/si/md/simd-adler32"
+    },
+    {
+      "package": "simdutf8",
+      "requirement": "0.1.5",
+      "latest": "0.1.5",
+      "index": "https://index.crates.io/si/md/simdutf8"
+    },
+    {
+      "package": "siphasher",
+      "requirement": "1.0.4",
+      "latest": "1.0.4",
+      "index": "https://index.crates.io/si/ph/siphasher"
+    },
+    {
+      "package": "smallvec",
+      "requirement": "1.16.2",
+      "latest": "1.16.2",
+      "index": "https://index.crates.io/sm/al/smallvec"
+    },
+    {
+      "package": "stable_deref_trait",
+      "requirement": "1.2.1",
+      "latest": "1.2.1",
+      "index": "https://index.crates.io/st/ab/stable_deref_trait"
+    },
+    {
+      "package": "streaming-iterator",
+      "requirement": "0.1.9",
+      "latest": "0.1.9",
+      "index": "https://index.crates.io/st/re/streaming-iterator"
+    },
+    {
+      "package": "string_cache",
+      "requirement": "0.11.0",
+      "latest": "0.11.0",
+      "index": "https://index.crates.io/st/ri/string_cache"
+    },
+    {
+      "package": "string_cache_codegen",
+      "requirement": "0.11.2",
+      "latest": "0.11.2",
+      "index": "https://index.crates.io/st/ri/string_cache_codegen"
+    },
+    {
+      "package": "strsim",
+      "requirement": "0.11.1",
+      "latest": "0.11.1",
+      "index": "https://index.crates.io/st/rs/strsim"
+    },
+    {
+      "package": "syn",
+      "requirement": "2.0.119",
+      "latest": "3.0.6",
+      "index": "https://index.crates.io/3/s/syn"
+    },
+    {
+      "package": "syn",
+      "requirement": "3.0.6",
+      "latest": "3.0.6",
+      "index": "https://index.crates.io/3/s/syn"
+    },
+    {
+      "package": "synstructure",
+      "requirement": "0.14.0",
+      "latest": "0.14.0",
+      "index": "https://index.crates.io/sy/ns/synstructure"
+    },
+    {
+      "package": "tempfile",
+      "requirement": "3.27.0",
+      "latest": "3.27.0",
+      "index": "https://index.crates.io/te/mp/tempfile"
+    },
+    {
+      "package": "tendril",
+      "requirement": "0.5.1",
+      "latest": "0.5.1",
+      "index": "https://index.crates.io/te/nd/tendril"
+    },
+    {
+      "package": "thiserror",
+      "requirement": "2.0.21",
+      "latest": "2.0.21",
+      "index": "https://index.crates.io/th/is/thiserror"
+    },
+    {
+      "package": "thiserror-impl",
+      "requirement": "2.0.21",
+      "latest": "2.0.21",
+      "index": "https://index.crates.io/th/is/thiserror-impl"
+    },
+    {
+      "package": "tiny-keccak",
+      "requirement": "2.0.2",
+      "latest": "2.0.2",
+      "index": "https://index.crates.io/ti/ny/tiny-keccak"
+    },
+    {
+      "package": "tinystr",
+      "requirement": "0.8.4",
+      "latest": "0.8.4",
+      "index": "https://index.crates.io/ti/ny/tinystr"
+    },
+    {
+      "package": "toml",
+      "requirement": "1.1.8+spec-1.1.0",
+      "latest": "1.1.8+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml"
+    },
+    {
+      "package": "toml_datetime",
+      "requirement": "1.1.2+spec-1.1.0",
+      "latest": "1.1.2+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml_datetime"
+    },
+    {
+      "package": "toml_edit",
+      "requirement": "0.25.17+spec-1.1.0",
+      "latest": "0.25.17+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml_edit"
+    },
+    {
+      "package": "toml_parser",
+      "requirement": "1.1.5+spec-1.1.0",
+      "latest": "1.1.5+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml_parser"
+    },
+    {
+      "package": "toml_writer",
+      "requirement": "1.1.3+spec-1.1.0",
+      "latest": "1.1.3+spec-1.1.0",
+      "index": "https://index.crates.io/to/ml/toml_writer"
+    },
+    {
+      "package": "tracing",
+      "requirement": "0.1.44",
+      "latest": "0.1.44",
+      "index": "https://index.crates.io/tr/ac/tracing"
+    },
+    {
+      "package": "tracing-attributes",
+      "requirement": "0.1.31",
+      "latest": "0.1.31",
+      "index": "https://index.crates.io/tr/ac/tracing-attributes"
+    },
+    {
+      "package": "tracing-core",
+      "requirement": "0.1.36",
+      "latest": "0.1.36",
+      "index": "https://index.crates.io/tr/ac/tracing-core"
+    },
+    {
+      "package": "tree-sitter",
+      "requirement": "0.27.1",
+      "latest": "0.27.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter"
+    },
+    {
+      "package": "tree-sitter-astro-next",
+      "requirement": "0.1.1",
+      "latest": "0.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-astro-next"
+    },
+    {
+      "package": "tree-sitter-bash",
+      "requirement": "0.25.1",
+      "latest": "0.25.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-bash"
+    },
+    {
+      "package": "tree-sitter-c",
+      "requirement": "0.24.2",
+      "latest": "0.24.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-c"
+    },
+    {
+      "package": "tree-sitter-c-sharp",
+      "requirement": "0.23.5",
+      "latest": "0.23.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-c-sharp"
+    },
+    {
+      "package": "tree-sitter-cmake",
+      "requirement": "0.7.5",
+      "latest": "0.7.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-cmake"
+    },
+    {
+      "package": "tree-sitter-cpp",
+      "requirement": "0.23.4",
+      "latest": "0.23.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-cpp"
+    },
+    {
+      "package": "tree-sitter-css",
+      "requirement": "0.25.0",
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-css"
+    },
+    {
+      "package": "tree-sitter-dart",
+      "requirement": "0.2.0",
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-dart"
+    },
+    {
+      "package": "tree-sitter-diff",
+      "requirement": "0.1.0",
+      "latest": "0.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-diff"
+    },
+    {
+      "package": "tree-sitter-dockerfile-updated",
+      "requirement": "0.2.0",
+      "latest": "0.2.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-dockerfile-updated"
+    },
+    {
+      "package": "tree-sitter-elixir",
+      "requirement": "0.3.5",
+      "latest": "0.3.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-elixir"
+    },
+    {
+      "package": "tree-sitter-erlang",
+      "requirement": "0.21.0",
+      "latest": "0.21.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-erlang"
+    },
+    {
+      "package": "tree-sitter-go",
+      "requirement": "0.25.0",
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-go"
+    },
+    {
+      "package": "tree-sitter-graphql",
+      "requirement": "0.3.0",
+      "latest": "0.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-graphql"
+    },
+    {
+      "package": "tree-sitter-haskell",
+      "requirement": "0.24.1",
+      "latest": "0.24.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-haskell"
+    },
+    {
+      "package": "tree-sitter-hcl",
+      "requirement": "1.1.0",
+      "latest": "1.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-hcl"
+    },
+    {
+      "package": "tree-sitter-html",
+      "requirement": "0.23.2",
+      "latest": "0.23.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-html"
+    },
+    {
+      "package": "tree-sitter-ini",
+      "requirement": "1.4.0",
+      "latest": "1.4.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ini"
+    },
+    {
+      "package": "tree-sitter-java",
+      "requirement": "0.23.5",
+      "latest": "0.23.5",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-java"
+    },
+    {
+      "package": "tree-sitter-javascript",
+      "requirement": "0.25.0",
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-javascript"
+    },
+    {
+      "package": "tree-sitter-json",
+      "requirement": "0.24.8",
+      "latest": "0.24.8",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-json"
+    },
+    {
+      "package": "tree-sitter-julia",
+      "requirement": "0.23.1",
+      "latest": "0.23.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-julia"
+    },
+    {
+      "package": "tree-sitter-kotlin-sg",
+      "requirement": "0.4.1",
+      "latest": "0.4.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-kotlin-sg"
+    },
+    {
+      "package": "tree-sitter-language",
+      "requirement": "0.1.9",
+      "latest": "0.1.9",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-language"
+    },
+    {
+      "package": "tree-sitter-lua",
+      "requirement": "0.5.0",
+      "latest": "0.5.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-lua"
+    },
+    {
+      "package": "tree-sitter-make",
+      "requirement": "1.1.1",
+      "latest": "1.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-make"
+    },
+    {
+      "package": "tree-sitter-md",
+      "requirement": "0.5.3",
+      "latest": "0.5.3",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-md"
+    },
+    {
+      "package": "tree-sitter-nix",
+      "requirement": "0.3.0",
+      "latest": "0.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-nix"
+    },
+    {
+      "package": "tree-sitter-objc",
+      "requirement": "3.0.2",
+      "latest": "3.0.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-objc"
+    },
+    {
+      "package": "tree-sitter-ocaml",
+      "requirement": "0.26.0",
+      "latest": "0.26.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ocaml"
+    },
+    {
+      "package": "tree-sitter-odin",
+      "requirement": "1.3.0",
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-odin"
+    },
+    {
+      "package": "tree-sitter-php",
+      "requirement": "0.25.1",
+      "latest": "0.25.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-php"
+    },
+    {
+      "package": "tree-sitter-powershell",
+      "requirement": "0.26.4",
+      "latest": "0.26.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-powershell"
+    },
+    {
+      "package": "tree-sitter-proto",
+      "requirement": "0.6.0",
+      "latest": "0.6.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-proto"
+    },
+    {
+      "package": "tree-sitter-python",
+      "requirement": "0.25.0",
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-python"
+    },
+    {
+      "package": "tree-sitter-r",
+      "requirement": "1.3.0",
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-r"
+    },
+    {
+      "package": "tree-sitter-regex",
+      "requirement": "0.25.0",
+      "latest": "0.25.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-regex"
+    },
+    {
+      "package": "tree-sitter-ruby",
+      "requirement": "0.23.1",
+      "latest": "0.23.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-ruby"
+    },
+    {
+      "package": "tree-sitter-rust",
+      "requirement": "0.24.2",
+      "latest": "0.24.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-rust"
+    },
+    {
+      "package": "tree-sitter-scala",
+      "requirement": "0.26.2",
+      "latest": "0.26.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-scala"
+    },
+    {
+      "package": "tree-sitter-solidity",
+      "requirement": "1.2.13",
+      "latest": "1.2.13",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-solidity"
+    },
+    {
+      "package": "tree-sitter-starlark",
+      "requirement": "1.3.0",
+      "latest": "1.3.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-starlark"
+    },
+    {
+      "package": "tree-sitter-svelte-next",
+      "requirement": "0.1.1",
+      "latest": "0.1.1",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-svelte-next"
+    },
+    {
+      "package": "tree-sitter-swift",
+      "requirement": "0.7.4",
+      "latest": "0.7.4",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-swift"
+    },
+    {
+      "package": "tree-sitter-tlaplus",
+      "requirement": "1.5.0",
+      "latest": "1.5.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-tlaplus"
+    },
+    {
+      "package": "tree-sitter-toml-ng",
+      "requirement": "0.7.0",
+      "latest": "0.7.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-toml-ng"
+    },
+    {
+      "package": "tree-sitter-typescript",
+      "requirement": "0.23.2",
+      "latest": "0.23.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-typescript"
+    },
+    {
+      "package": "tree-sitter-verilog",
+      "requirement": "1.0.3",
+      "latest": "1.0.3",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-verilog"
+    },
+    {
+      "package": "tree-sitter-vue-next",
+      "requirement": "0.1.0",
+      "latest": "0.1.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-vue-next"
+    },
+    {
+      "package": "tree-sitter-xml",
+      "requirement": "0.7.0",
+      "latest": "0.7.0",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-xml"
+    },
+    {
+      "package": "tree-sitter-yaml",
+      "requirement": "0.7.2",
+      "latest": "0.7.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-yaml"
+    },
+    {
+      "package": "tree-sitter-zig",
+      "requirement": "1.1.2",
+      "latest": "1.1.2",
+      "index": "https://index.crates.io/tr/ee/tree-sitter-zig"
+    },
+    {
+      "package": "ts-parser-perl",
+      "requirement": "2.0.0",
+      "latest": "2.0.0",
+      "index": "https://index.crates.io/ts/-p/ts-parser-perl"
+    },
+    {
+      "package": "typenum",
+      "requirement": "1.20.1",
+      "latest": "1.20.1",
+      "index": "https://index.crates.io/ty/pe/typenum"
+    },
+    {
+      "package": "unicode-ident",
+      "requirement": "1.0.26",
+      "latest": "1.0.26",
+      "index": "https://index.crates.io/un/ic/unicode-ident"
+    },
+    {
+      "package": "url",
+      "requirement": "2.5.8",
+      "latest": "2.5.8",
+      "index": "https://index.crates.io/3/u/url"
+    },
+    {
+      "package": "utf8_iter",
+      "requirement": "1.0.4",
+      "latest": "1.0.4",
+      "index": "https://index.crates.io/ut/f8/utf8_iter"
+    },
+    {
+      "package": "utf8parse",
+      "requirement": "0.2.2",
+      "latest": "0.2.2",
+      "index": "https://index.crates.io/ut/f8/utf8parse"
+    },
+    {
+      "package": "version_check",
+      "requirement": "0.9.5",
+      "latest": "0.9.5",
+      "index": "https://index.crates.io/ve/rs/version_check"
+    },
+    {
+      "package": "walkdir",
+      "requirement": "2.5.0",
+      "latest": "2.5.0",
+      "index": "https://index.crates.io/wa/lk/walkdir"
+    },
+    {
+      "package": "wasi",
+      "requirement": "0.11.1+wasi-snapshot-preview1",
+      "latest": "0.14.7+wasi-0.2.4",
+      "index": "https://index.crates.io/wa/si/wasi"
+    },
+    {
+      "package": "web_atoms",
+      "requirement": "0.3.0",
+      "latest": "0.3.0",
+      "index": "https://index.crates.io/we/b_/web_atoms"
+    },
+    {
+      "package": "winapi-util",
+      "requirement": "0.1.11",
+      "latest": "0.1.11",
+      "index": "https://index.crates.io/wi/na/winapi-util"
+    },
+    {
+      "package": "windows-link",
+      "requirement": "0.2.1",
+      "latest": "0.100.0",
+      "index": "https://index.crates.io/wi/nd/windows-link"
+    },
+    {
+      "package": "windows-sys",
+      "requirement": "0.61.2",
+      "latest": "0.61.2",
+      "index": "https://index.crates.io/wi/nd/windows-sys"
+    },
+    {
+      "package": "winnow",
+      "requirement": "1.0.4",
+      "latest": "1.0.4",
+      "index": "https://index.crates.io/wi/nn/winnow"
+    },
+    {
+      "package": "writeable",
+      "requirement": "0.6.4",
+      "latest": "0.6.4",
+      "index": "https://index.crates.io/wr/it/writeable"
+    },
+    {
+      "package": "xxhash-rust",
+      "requirement": "0.8.19",
+      "latest": "0.8.19",
+      "index": "https://index.crates.io/xx/ha/xxhash-rust"
+    },
+    {
+      "package": "yoke",
+      "requirement": "0.8.3",
+      "latest": "0.8.3",
+      "index": "https://index.crates.io/yo/ke/yoke"
+    },
+    {
+      "package": "yoke-derive",
+      "requirement": "0.8.4",
+      "latest": "0.8.4",
+      "index": "https://index.crates.io/yo/ke/yoke-derive"
+    },
+    {
+      "package": "zerocopy",
+      "requirement": "0.8.62",
+      "latest": "0.8.62",
+      "index": "https://index.crates.io/ze/ro/zerocopy"
+    },
+    {
+      "package": "zerocopy-derive",
+      "requirement": "0.8.62",
+      "latest": "0.8.62",
+      "index": "https://index.crates.io/ze/ro/zerocopy-derive"
+    },
+    {
+      "package": "zerofrom",
+      "requirement": "0.1.8",
+      "latest": "0.1.8",
+      "index": "https://index.crates.io/ze/ro/zerofrom"
+    },
+    {
+      "package": "zerofrom-derive",
+      "requirement": "0.1.8",
+      "latest": "0.1.8",
+      "index": "https://index.crates.io/ze/ro/zerofrom-derive"
+    },
+    {
+      "package": "zerotrie",
+      "requirement": "0.2.5",
+      "latest": "0.2.5",
+      "index": "https://index.crates.io/ze/ro/zerotrie"
+    },
+    {
+      "package": "zerovec",
+      "requirement": "0.11.8",
+      "latest": "0.11.8",
+      "index": "https://index.crates.io/ze/ro/zerovec"
+    },
+    {
+      "package": "zerovec-derive",
+      "requirement": "0.11.6",
+      "latest": "0.11.6",
+      "index": "https://index.crates.io/ze/ro/zerovec-derive"
+    },
+    {
+      "package": "zlib-rs",
+      "requirement": "0.6.8",
+      "latest": "0.6.8",
+      "index": "https://index.crates.io/zl/ib/zlib-rs"
+    },
+    {
+      "package": "zmij",
+      "requirement": "1.0.23",
+      "latest": "1.0.23",
+      "index": "https://index.crates.io/zm/ij/zmij"
+    }
+  ],
+  "older_major_constraints": [
+    {
+      "package": "getrandom",
+      "requirement": "0.2.17",
+      "latest": "0.4.3",
+      "index": "https://index.crates.io/ge/tr/getrandom"
+    },
+    {
+      "package": "r-efi",
+      "requirement": "6.0.0",
+      "latest": "7.1.0",
+      "index": "https://index.crates.io/r-/ef/r-efi"
+    },
+    {
+      "package": "redox_syscall",
+      "requirement": "0.5.18",
+      "latest": "0.9.4",
+      "index": "https://index.crates.io/re/do/redox_syscall"
+    },
+    {
+      "package": "syn",
+      "requirement": "2.0.119",
+      "latest": "3.0.6",
+      "index": "https://index.crates.io/3/s/syn"
+    },
+    {
+      "package": "wasi",
+      "requirement": "0.11.1+wasi-snapshot-preview1",
+      "latest": "0.14.7+wasi-0.2.4",
+      "index": "https://index.crates.io/wa/si/wasi"
+    },
+    {
+      "package": "windows-link",
+      "requirement": "0.2.1",
+      "latest": "0.100.0",
+      "index": "https://index.crates.io/wi/nd/windows-link"
+    }
+  ],
+  "sql_source_hashes": [
+    {
+      "path": ".cargo_vcs_info.json",
+      "sha256": "5a20be6ca15aec8300019d4b4966aad50b6f1ca0457b850e161d3dc0eb1594fb"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "140a96fb5d609226239e7d20d5e236b56158e2d399ed025f4757d58d47db3c2c"
+    },
+    {
+      "path": "Cargo.toml.orig",
+      "sha256": "78c8cd04a101bc4e90394dff2fd0c200eb01b8c18bd4ee25a322959b2abf0215"
+    },
+    {
+      "path": "README.md",
+      "sha256": "2608961446a32ade255f97f69184bb118c18950ab03de383f0187f3f170e239c"
+    },
+    {
+      "path": "bindings/rust/build.rs",
+      "sha256": "e77395b9ddee352b6cd32e36ddc655615e267b2d9bda1a93ffb927974c5c1c0a"
+    },
+    {
+      "path": "bindings/rust/lib.rs",
+      "sha256": "d6cf7aaf5738e4c8c795cb532800815899184502f030744dfd3d7f417bdc12af"
+    },
+    {
+      "path": "grammar.js",
+      "sha256": "6b1f0554a355d8fe3b341ef25c7236cf4b433f85b632e39ade62931b78de16bc"
+    },
+    {
+      "path": "queries/highlights.scm",
+      "sha256": "80e726903b67fbe471bf1272a447ab6a6758e95654f9e9c8f5c2e4af729af8de"
+    },
+    {
+      "path": "queries/indents.scm",
+      "sha256": "c90c797ffe6ccee5912eab2c9b8644ba0db0477ed93cbfefa10c574552348b32"
+    },
+    {
+      "path": "src/grammar.json",
+      "sha256": "d0ce0452876e14e73b533dd2a3010fbded021a55d153d6e6842cd0127efa971c"
+    },
+    {
+      "path": "src/node-types.json",
+      "sha256": "227cb2197775686cc0b0064aa08e709f7f9575b724b2339371b10fb209e37d73"
+    },
+    {
+      "path": "src/parser.c",
+      "sha256": "852e088fb8470952cdb2a1b78c1c58626c7d91562b26baa4672d51f9754bf580"
+    },
+    {
+      "path": "src/scanner.c",
+      "sha256": "de17b5cffc3c86f56cf6630abb969330c3c839a81ece0b901bdac0ecee93c403"
+    },
+    {
+      "path": "src/tree_sitter/alloc.h",
+      "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+    },
+    {
+      "path": "src/tree_sitter/array.h",
+      "sha256": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94"
+    },
+    {
+      "path": "src/tree_sitter/parser.h",
+      "sha256": "a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a"
+    }
+  ],
+  "rust_stable_manifest_sha256": "ce6dddc886364f8d786514771212cebe9b731ba82d6b859951c6b0ccc516b6a2",
+  "cargo_lock_sha256": "6396d852c007bbce914fc61990daaf4e9af5435847e3689e701d0046b4af8d52"
+}

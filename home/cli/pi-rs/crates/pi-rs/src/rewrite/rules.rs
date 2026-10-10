@@ -48,27 +48,82 @@ pub static RULES: &[Rule] = &[
     // External-tool wrappers. These accept anything (clap external
     // subcommand passthrough or trailing-var-arg) so no argv predicate
     // is needed.
-    Rule { bin: "git",     subcmd: "git",     argv_compatible: None },
-    Rule { bin: "cargo",   subcmd: "cargo",   argv_compatible: None },
-    Rule { bin: "gh",      subcmd: "gh",      argv_compatible: None },
-    Rule { bin: "npm",     subcmd: "npm",     argv_compatible: None },
-    Rule { bin: "pnpm",    subcmd: "pnpm",    argv_compatible: None },
-    Rule { bin: "yarn",    subcmd: "yarn",    argv_compatible: None },
-    Rule { bin: "pytest",  subcmd: "pytest",  argv_compatible: None },
-    Rule { bin: "docker",  subcmd: "docker",  argv_compatible: None },
-    Rule { bin: "kubectl", subcmd: "kubectl", argv_compatible: None },
-
+    Rule {
+        bin: "git",
+        subcmd: "git",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "cargo",
+        subcmd: "cargo",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "gh",
+        subcmd: "gh",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "npm",
+        subcmd: "npm",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "pnpm",
+        subcmd: "pnpm",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "yarn",
+        subcmd: "yarn",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "pytest",
+        subcmd: "pytest",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "docker",
+        subcmd: "docker",
+        argv_compatible: None,
+    },
+    Rule {
+        bin: "kubectl",
+        subcmd: "kubectl",
+        argv_compatible: None,
+    },
     // Primitive remaps. `pi-rs ls / find / grep / read / json` each have
     // a CLI that is *narrower* than the tool they shadow, so the oracle
     // must refuse to auto-rewrite anything outside that grammar — otherwise
     // ordinary commands like `ls -la`, `find . -maxdepth 3 -type f`, or
     // `rg -n 'foo' src/` would fail with a confusing clap error instead of
     // running the real tool.
-    Rule { bin: "cat",  subcmd: "read", argv_compatible: Some(cat_argv_ok) },
-    Rule { bin: "rg",   subcmd: "grep", argv_compatible: Some(rg_argv_ok) },
-    Rule { bin: "ls",   subcmd: "ls",   argv_compatible: Some(ls_argv_ok) },
-    Rule { bin: "find", subcmd: "find", argv_compatible: Some(find_argv_ok) },
-    Rule { bin: "jq",   subcmd: "json", argv_compatible: Some(jq_argv_ok) },
+    Rule {
+        bin: "cat",
+        subcmd: "read",
+        argv_compatible: Some(cat_argv_ok),
+    },
+    Rule {
+        bin: "rg",
+        subcmd: "grep",
+        argv_compatible: Some(rg_argv_ok),
+    },
+    Rule {
+        bin: "ls",
+        subcmd: "ls",
+        argv_compatible: Some(ls_argv_ok),
+    },
+    Rule {
+        bin: "find",
+        subcmd: "find",
+        argv_compatible: Some(find_argv_ok),
+    },
+    Rule {
+        bin: "jq",
+        subcmd: "json",
+        argv_compatible: Some(jq_argv_ok),
+    },
 ];
 
 /// `pi-rs ls` accepts at most one positional path and only `-a`/`--all`
@@ -88,8 +143,8 @@ fn ls_argv_ok(args: &[String]) -> bool {
                 // accept it, so passthrough.
                 return false;
             }
-            // Short-flag cluster — only `-a` / `-A` allowed.
-            if !rest.chars().all(|c| matches!(c, 'a' | 'A')) {
+            // Short-flag cluster — only `-a` allowed.
+            if !rest.chars().all(|c| c == 'a') {
                 return false;
             }
         } else {
@@ -102,126 +157,22 @@ fn ls_argv_ok(args: &[String]) -> bool {
     true
 }
 
-/// `pi-rs find PATTERN [PATH] [--limit N]`. Any GNU-find action
-/// (`-maxdepth`, `-type`, `-name`, `-print`, …) starts with `-` and is
-/// neither of our accepted long flags, so we passthrough.
-fn find_argv_ok(args: &[String]) -> bool {
-    let mut positional = 0_usize;
-    let mut i = 0;
-    while i < args.len() {
-        let a = &args[i];
-        if let Some(rest) = a.strip_prefix("--") {
-            let flag = rest.split('=').next().unwrap_or(rest);
-            if flag != "limit" {
-                return false;
-            }
-            if !a.contains('=') {
-                if i + 1 >= args.len() {
-                    return false;
-                }
-                i += 2;
-                continue;
-            }
-        } else if a.starts_with('-') {
-            // GNU-find actions / tests: `-maxdepth`, `-type`, `-name`,
-            // `-print`, `-print0`, `-printf`, `-iname`, etc.
-            return false;
-        } else {
-            positional += 1;
-            if positional > 2 {
-                return false;
-            }
-        }
-        i += 1;
-    }
-    positional >= 1
+/// Native find paths/actions and ripgrep's -p (pretty) option do not map
+/// to the pi-rs primitives. Only explicit pi-rs invocations use those CLIs.
+fn find_argv_ok(_args: &[String]) -> bool {
+    false
 }
 
-/// `pi-rs grep` requires `--pattern`/`-e` AND `--path`/`-p`. Without both
-/// it cannot run, so the oracle declines and the real `rg` runs.
-fn rg_argv_ok(args: &[String]) -> bool {
-    const ALLOWED: &[&str] = &[
-        "-e",
-        "--pattern",
-        "-p",
-        "--path",
-        "-i",
-        "--ignore-case",
-        "-A",
-        "--context-after",
-        "-B",
-        "--context-before",
-        "--no-gitignore",
-        "--hidden",
-        "--limit",
-        "--skip",
-        "--max-columns",
-        "--per-file-cap",
-    ];
-    let mut has_pattern = false;
-    let mut has_path = false;
-    let mut i = 0;
-    while i < args.len() {
-        let a = &args[i];
-        if !a.starts_with('-') {
-            // pi-rs grep takes paths via `--path`/`-p` only; a bare
-            // positional means GNU-style ripgrep usage → passthrough.
-            return false;
-        }
-        let flag = a.split('=').next().unwrap_or(a.as_str());
-        if !ALLOWED.contains(&flag) {
-            return false;
-        }
-        if matches!(flag, "-e" | "--pattern") {
-            has_pattern = true;
-        }
-        if matches!(flag, "-p" | "--path") {
-            has_path = true;
-        }
-        // Flag-with-value: consume the next token if it's a value
-        // (doesn't start with `-`) and the flag doesn't carry `=value`.
-        if !a.contains('=') && i + 1 < args.len() && !args[i + 1].starts_with('-') {
-            i += 2;
-            continue;
-        }
-        i += 1;
-    }
-    has_pattern && has_path
+fn rg_argv_ok(_args: &[String]) -> bool {
+    false
 }
 
-/// `pi-rs read` = exactly one path + optional `--level`/`-l <mode>`.
-/// `cat -A file`, `cat -n file`, `cat file1 file2`, `cat <heredoc` etc.
-/// all passthrough.
+/// Only a single native cat path has the same argument meaning in pi-rs.
 fn cat_argv_ok(args: &[String]) -> bool {
-    const ALLOWED: &[&str] = &["-l", "--level"];
-    let mut positional = 0_usize;
-    let mut i = 0;
-    while i < args.len() {
-        let a = &args[i];
-        if a.starts_with('-') {
-            let flag = a.split('=').next().unwrap_or(a.as_str());
-            if !ALLOWED.contains(&flag) {
-                return false;
-            }
-            if !a.contains('=') {
-                if i + 1 >= args.len() {
-                    return false;
-                }
-                i += 2;
-                continue;
-            }
-        } else {
-            positional += 1;
-            if positional > 1 {
-                return false;
-            }
-        }
-        i += 1;
-    }
-    positional == 1
+    args.len() == 1 && !args[0].starts_with('-')
 }
 
-/// `pi-rs json` is a structure-only viewer with a CLI totally unlike jq's.
+/// `pi-rs json` has a selection/viewer CLI distinct from jq's filter language.
 /// Disable the auto-rewrite entirely — explicit `pi-rs json …` still
 /// works.
 fn jq_argv_ok(_args: &[String]) -> bool {
@@ -259,11 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn find_accepts_glob_pattern() {
-        assert!(find_argv_ok(&v(&["*.rs"])));
-        assert!(find_argv_ok(&v(&["Cargo.toml", "."])));
-        assert!(find_argv_ok(&v(&["--limit", "10", "*.rs"])));
-        assert!(find_argv_ok(&v(&["--limit=10", "*.rs"])));
+    fn find_never_reinterprets_native_paths_as_patterns() {
+        assert!(!find_argv_ok(&v(&["*.rs"])));
+        assert!(!find_argv_ok(&v(&["Cargo.toml", "."])));
+        assert!(!find_argv_ok(&v(&["--limit", "10", "*.rs"])));
+        assert!(!find_argv_ok(&v(&["--limit=10", "*.rs"])));
     }
 
     #[test]
@@ -276,12 +227,18 @@ mod tests {
     }
 
     #[test]
-    fn rg_accepts_pi_rs_grep_shape_only() {
-        assert!(rg_argv_ok(&v(&["-e", "foo", "-p", "src"])));
-        assert!(rg_argv_ok(&v(&["--pattern", "foo", "--path", "src"])));
-        assert!(rg_argv_ok(&v(&["--pattern=foo", "--path=src"])));
-        assert!(rg_argv_ok(&v(&[
-            "-e", "foo", "-p", "src", "-i", "--context-after", "5",
+    fn rg_never_reinterprets_pretty_as_a_path_flag() {
+        assert!(!rg_argv_ok(&v(&["-e", "foo", "-p", "src"])));
+        assert!(!rg_argv_ok(&v(&["--pattern", "foo", "--path", "src"])));
+        assert!(!rg_argv_ok(&v(&["--pattern=foo", "--path=src"])));
+        assert!(!rg_argv_ok(&v(&[
+            "-e",
+            "foo",
+            "-p",
+            "src",
+            "-i",
+            "--context-after",
+            "5",
         ])));
     }
 
@@ -301,8 +258,8 @@ mod tests {
     #[test]
     fn cat_accepts_single_path() {
         assert!(cat_argv_ok(&v(&["/etc/passwd"])));
-        assert!(cat_argv_ok(&v(&["-l", "signature", "src/main.rs"])));
-        assert!(cat_argv_ok(&v(&["--level=raw", "src/main.rs"])));
+        assert!(!cat_argv_ok(&v(&["-l", "signature", "src/main.rs"])));
+        assert!(!cat_argv_ok(&v(&["--level=raw", "src/main.rs"])));
     }
 
     #[test]

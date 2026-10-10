@@ -1,0 +1,128 @@
+{
+  "hook_audit": "2026-10-09T18:48:42 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T18:48:42 | skip:no_rewrite | pwd | \n2026-10-09T18:48:482026-10-09T18:48:48 |  | rewriterewrite |  | git status --short && git diffrg --files -g 'AGENTS.md' -g '*README*' -g '*requirement*' -g '*test*' -g '*deploy*' -g '*config*' -g 'package.json' -g 'pyproject.toml' |  | rtk git status --short && rtk git diffrtk rg --files -g 'AGENTS.md' -g '*README*' -g '*requirement*' -g '*test*' -g '*deploy*' -g '*config*' -g 'package.json' -g 'pyproject.toml'\n\n2026-10-09T18:48:52 | rewrite | cat README.md && git diff -- config/services/service_057.toml && rg --files --hidden -g '!.git' -g '!config/services/**' | rtk read README.md && rtk git diff -- config/services/service_057.toml && rtk rg --files --hidden -g '!.git' -g '!config/services/**'\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T18:48:42",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T18:48:42",
+      "action": "skip:no_rewrite",
+      "original": "pwd",
+      "rewritten": ""
+    },
+    {
+      "timestamp": "2026-10-09T18:48:482026-10-09T18:48:48",
+      "action": "",
+      "original": "rewriterewrite",
+      "rewritten": " | git status --short && git diffrg --files -g 'AGENTS.md' -g '*README*' -g '*requirement*' -g '*test*' -g '*deploy*' -g '*config*' -g 'package.json' -g 'pyproject.toml' |  | rtk git status --short && rtk git diffrtk rg --files -g 'AGENTS.md' -g '*README*' -g '*requirement*' -g '*test*' -g '*deploy*' -g '*config*' -g 'package.json' -g 'pyproject.toml'"
+    },
+    {
+      "timestamp": "2026-10-09T18:48:52",
+      "action": "rewrite",
+      "original": "cat README.md && git diff -- config/services/service_057.toml && rg --files --hidden -g '!.git' -g '!config/services/**'",
+      "rewritten": "rtk read README.md && rtk git diff -- config/services/service_057.toml && rtk rg --files --hidden -g '!.git' -g '!config/services/**'"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T00:48:42.224977116+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T00:48:48.242703523+00:00",
+          "original_cmd": "git status --short",
+          "rtk_cmd": "rtk git status --short",
+          "input_tokens": 1080,
+          "output_tokens": 1080,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 2,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T00:48:48.244806005+00:00",
+          "original_cmd": "rg --files -g AGENTS.md -g *README* -g *requirement* -g *test* -g *deploy* -g *config* -g package.json -g pyproject.toml",
+          "rtk_cmd": "rtk rg --files -g AGENTS.md -g *README* -g *requirement* -g *test* -g *deploy* -g *config* -g package.json -g pyproject.toml (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-10T00:48:48.262638165+00:00",
+          "original_cmd": "git diff ",
+          "rtk_cmd": "rtk git diff ",
+          "input_tokens": 11511,
+          "output_tokens": 4847,
+          "saved_tokens": 6664,
+          "savings_pct": 57.89245069933108,
+          "exec_time_ms": 13,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 5,
+          "timestamp": "2026-10-10T00:48:52.240380438+00:00",
+          "original_cmd": "cat README.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 29,
+          "output_tokens": 29,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 6,
+          "timestamp": "2026-10-10T00:48:52.261454884+00:00",
+          "original_cmd": "git diff -- config/services/service_057.toml",
+          "rtk_cmd": "rtk git diff -- config/services/service_057.toml",
+          "input_tokens": 115,
+          "output_tokens": 80,
+          "saved_tokens": 35,
+          "savings_pct": 30.434782608695656,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 7,
+          "timestamp": "2026-10-10T00:48:52.271342121+00:00",
+          "original_cmd": "rg --files --hidden -g !.git -g !config/services/**",
+          "rtk_cmd": "rtk rg --files --hidden -g !.git -g !config/services/** (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

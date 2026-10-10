@@ -84,14 +84,30 @@ export default function (pi: ExtensionAPI) {
           maximum: 50,
         }),
       ),
+      unfold_until_lines: Type.Optional(
+        Type.Integer({
+          description: "Reveal nested structure toward this visible-line target. Default 40; 0 keeps signatures only.",
+          minimum: 0,
+        }),
+      ),
+      unfold_limit_lines: Type.Optional(
+        Type.Integer({
+          description: "Unfold only while visible source lines stay within this limit. Defaults to twice the target.",
+          minimum: 0,
+        }),
+      ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-      const args: string[] = ["summary", params.path];
+      const args: string[] = ["summary", "--json", params.path];
       if (params.lang) args.push("--lang", params.lang);
       if (params.min_body_lines !== undefined)
         args.push("--min-body-lines", String(params.min_body_lines));
       if (params.min_comment_lines !== undefined)
         args.push("--min-comment-lines", String(params.min_comment_lines));
+      if (params.unfold_until_lines !== undefined)
+        args.push("--unfold-until-lines", String(params.unfold_until_lines));
+      if (params.unfold_limit_lines !== undefined)
+        args.push("--unfold-limit-lines", String(params.unfold_limit_lines));
 
       try {
         const result = await runPiRs(args, signal);

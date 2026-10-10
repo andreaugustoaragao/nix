@@ -22,7 +22,13 @@ pub fn run(args: DockerArgs) -> anyhow::Result<()> {
         Some(sub) => format!("docker_{sub}"),
         None => "docker".into(),
     };
-    let code = run_filtered("docker", &refs, &hint, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)?;
+    let code = run_filtered(
+        "docker",
+        &refs,
+        &hint,
+        DEFAULT_HEAD_LINES,
+        DEFAULT_TAIL_LINES,
+    )?;
     if code != 0 {
         std::process::exit(code);
     }

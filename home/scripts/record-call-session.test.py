@@ -6,11 +6,13 @@ import os
 from pathlib import Path
 import subprocess
 import shutil
+import shlex
 import sys
 import tempfile
 import textwrap
 import unittest
 import wave
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
 from contextlib import redirect_stdout
 
@@ -126,19 +128,17 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(coverage["sides"][side]["sampleClockShortfallMs"], expected)
             self.assertEqual(coverage["sides"][side]["missing"], [])
 
-    def test_long_capture_allows_only_bounded_final_sample_clock_drift(self):
+    def test_long_capture_drift_cannot_claim_complete_audio(self):
         duration = 20588792
         actual = {
             "call": [{"startMs": 1, "endMs": 20578176.0625}],
             "mic": [{"startMs": 4, "endMs": 20567085.6875}],
         }
         coverage = recorder.calculate_coverage(actual, actual, duration, [])
-        self.assertTrue(coverage["complete"])
+        self.assertFalse(coverage["complete"])
         self.assertEqual(coverage["sides"]["call"]["missing"], [])
         self.assertEqual(coverage["sides"]["mic"]["missing"], [])
-        self.assertGreaterEqual(recorder.capture_end_tolerance(duration), 21707)
-        self.assertLessEqual(recorder.capture_end_tolerance(duration),
-                             recorder.MAX_CAPTURE_END_TOLERANCE_MS)
+        self.assertEqual(recorder.capture_end_tolerance(duration), recorder.EDGE_TOLERANCE_MS)
 
         beyond_budget = {
             "call": [{"startMs": 0, "endMs": duration}],
@@ -160,9 +160,8 @@ class RecorderTests(unittest.TestCase):
 
     def test_capture_end_tolerance_boundaries_do_not_weaken_other_evidence(self):
         self.assertEqual(recorder.capture_end_tolerance(60000), recorder.EDGE_TOLERANCE_MS)
-        self.assertEqual(recorder.capture_end_tolerance(1000000), 1500)
-        self.assertEqual(recorder.capture_end_tolerance(30000000),
-                         recorder.MAX_CAPTURE_END_TOLERANCE_MS)
+        self.assertEqual(recorder.capture_end_tolerance(1000000), recorder.EDGE_TOLERANCE_MS)
+        self.assertEqual(recorder.capture_end_tolerance(30000000), recorder.EDGE_TOLERANCE_MS)
 
         duration = 1000000
         tolerance = recorder.capture_end_tolerance(duration)
@@ -344,7 +343,10 @@ class RecorderTests(unittest.TestCase):
             if mode.get('fail_' + side, 0) >= count:
                 print('synthetic ASR failure', file=sys.stderr)
                 sys.exit(17)
-            value = {{'segments': [] if mode.get('silence') else [{{'start': 0.1, 'end': 0.2, 'text': side + ' window ' + index}}]}}
+            value = {{'segments': [] if mode.get('silence') else [{{'start': 0.1, 'end': 0.2,
+                     'text': 'Please schedule the follow up' if side == 'mic' and mode.get('distinct_mic') else side + ' window ' + index}}]}}
+            if mode.get('multiline_speech') and side == 'call':
+                value['segments'][0]['text'] = 'First sentence.\\nSecond sentence.\\r\\nThird sentence.\\u2028Final sentence.'
             if mode.get('trailing_padding_' + side):
                 with wave.open(str(audio), 'rb') as source:
                     duration = source.getnframes() / source.getframerate()
@@ -359,13 +361,16 @@ class RecorderTests(unittest.TestCase):
         executable.chmod(0o700)
         diarizer = self.root / "fake-diarizer"
         diarizer.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import json, pathlib, sys
+            import json, pathlib, subprocess, sys
             root = pathlib.Path({str(self.root)!r})
             directory = pathlib.Path(sys.argv[1])
             counter = root / 'diarization-attempts'
             count = int(counter.read_text()) + 1 if counter.exists() else 1
             counter.write_text(str(count))
             mode = json.loads((root / 'control.json').read_text())
+            if mode.get('diarization_corrupt_then_fail'):
+                (directory / 'transcript.diarized.turns.txt').write_text('partial replacement')
+                sys.exit(17)
             if not mode.get('diarization_success'):
                 print('synthetic diarization failure', file=sys.stderr)
                 sys.exit(17)
@@ -375,13 +380,25 @@ class RecorderTests(unittest.TestCase):
                 for line in lines
             ]
             text = '\\n'.join(labeled) + ('\\n' if labeled else '')
-            segments = [{{'start': 0.0, 'end': 1.0, 'speaker': 'Speaker_1'}}]
+            segments = [{{'start': 0.0, 'end': 999.0 if mode.get('diarization_invalid_timeline') else 1.0,
+                         'speaker': 'Speaker_1'}}]
+            if mode.get('diarization_unlabeled'):
+                text = '\\n'.join(lines) + ('\\n' if lines else '')
+            if mode.get('diarization_partial_labels'):
+                labeled = [line if 'Later remote speech' not in line else line.replace('] Speaker 1: ', '] ', 1)
+                           for line in labeled]
+                text = '\\n'.join(labeled) + ('\\n' if labeled else '')
             (directory / 'diarization.response.json').write_text(json.dumps({{
                 'text': text, 'speaker_segments': segments
             }}))
             (directory / 'diarization.json').write_text(json.dumps(segments))
             (directory / 'transcript.diarized.txt').write_text(text)
-            (directory / 'transcript.diarized.turns.txt').write_text(text)
+            subprocess.run([sys.executable, str(root / 'turns.py'),
+                            str(directory / 'transcript.diarized.txt'),
+                            str(directory / 'transcript.diarized.turns.txt'), '8',
+                            str(directory / 'transcript.offsets.json')], check=True)
+            if mode.get('diarization_truncated_turns'):
+                (directory / 'transcript.diarized.turns.txt').write_text('[15:00:00] Speaker 1:\\n  Different speech\\n\\n')
         '''))
         diarizer.chmod(0o700)
         source = Path(__file__).with_name("record-call.nix").read_text()
@@ -471,17 +488,139 @@ class RecorderTests(unittest.TestCase):
 
     def test_automatic_diarization_publishes_speaker_transcript_and_preserves_me(self):
         session = self.session()
-        (self.root / "control.json").write_text('{"diarization_success":true}')
+        (self.root / "control.json").write_text('{"diarization_success":true,"distinct_mic":true}')
         session.finalize()
         self.assertEqual(session.manifest["status"], "ready")
-        self.assertEqual(
-            session.manifest["source"]["transcript"]["path"],
-            "transcript.diarized.turns.txt",
-        )
+        published = session.manifest["source"]["transcript"]["path"]
+        self.assertRegex(published, r"^transcript\.diarized\.[0-9a-f]{32}\.turns\.txt$")
         self.assertEqual(session.state["diarization"]["status"], "ready")
         self.assertEqual(session.state["diarization"]["speakers"], 1)
-        text = (session.directory / "transcript.diarized.turns.txt").read_text()
-        self.assertIn("Speaker 1: call window", text)
+        text = (session.directory / published).read_text()
+        self.assertIn("Speaker 1:\n  call window", text)
+        self.assertIn("Me:\n  Please schedule the follow up", text)
+
+    def assert_multiline_speech_retained(self, salvage):
+        session = self.session()
+        (self.root / 'control.json').write_text('{"multiline_speech":true}')
+        if salvage:
+            session.manifest['endedAt'] = None
+            session.salvage_retained()
+            self.assertEqual(session.manifest['status'], 'incomplete')
+        else:
+            session.finalize()
+            self.assertEqual(session.manifest['status'], 'ready')
+        raw = (session.directory / 'transcript.txt').read_text()
+        self.assertIn('First sentence. Second sentence. Third sentence. Final sentence.', raw)
+        self.assertEqual(len(raw.splitlines()), len(recorder.read_json(session.directory / 'transcript.offsets.json')))
+        attempts = (self.root / 'call-attempts').read_text()
+        session.assemble()
+        self.assertEqual((self.root / 'call-attempts').read_text(), attempts)
+
+    def test_multiline_asr_can_finalize_with_consistent_offsets(self):
+        self.assert_multiline_speech_retained(False)
+
+    def test_multiline_asr_can_salvage_with_consistent_offsets(self):
+        self.assert_multiline_speech_retained(True)
+
+    def test_assembly_keeps_exact_offset_identity_after_dedupe_in_repeated_hour(self):
+        session = self.session()
+        # Valid merged lines around Denver's repeated 01:30 hour. The first
+        # short occurrence is a duplicate; the second belongs an hour later.
+        window = session.private / 'windows/000000'
+        window.mkdir(parents=True)
+        text = window / 'text.txt'
+        text.write_text('[01:29:59] The team will review the delivery plan on Friday.\n'
+                        '[01:30:00] The team will review the delivery plan.\n'
+                        '[01:30:00] The team will review the delivery plan.\n')
+        offsets = window / 'offsets.json'
+        recorder.atomic_json(offsets, [9000, 10000, 3610000])
+        recorder.atomic_json(window / 'done.json', {
+            'sha256': recorder.file_hash(text), 'offsetsSha256': recorder.file_hash(offsets)})
+        session.assemble()
+        self.assertEqual(recorder.read_json(session.directory / 'transcript.offsets.json'), [9000, 3610000])
+        self.assertIn('[01:30:00] Them:', (session.directory / 'transcript.turns.txt').read_text())
+
+    def public_transform(self, session, command, target):
+        source = Path(__file__).with_name('record-call.nix').read_text()
+        functions = []
+        for name in ('transcript_offsets', 'cmd_' + command):
+            body = source.split('            ' + name + '() {\n', 1)[1].split('\n            }', 1)[0]
+            body = body.replace("''${", '${').replace('${dedupePy}', shlex.quote(session.config['dedupe'])).replace('${turnsPy}', shlex.quote(session.config['turns']))
+            functions.append(name + '() {\n' + body + '\n}')
+        script = 'set -euo pipefail\n' + '\n'.join(functions) + '\ncmd_' + command + ' "$@"'
+        result = subprocess.run([shutil.which('bash'), '-c', script, '--', str(target)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_public_transforms_keep_repeated_hour_speech_and_offsets_together(self):
+        session = self.session()
+        transcript = session.directory / 'transcript.txt'
+        transcript.write_text('[01:29:59] The team will review the delivery plan on Friday.\n'
+                              '[01:30:00] The team will review the delivery plan.\n'
+                              '[01:30:00] The team will review the delivery plan.\n')
+        offsets = session.directory / 'transcript.offsets.json'
+        recorder.atomic_json(offsets, [9000, 10000, 3610000])
+        self.public_transform(session, 'dedupe', session.directory)
+        self.assertEqual(recorder.read_json(offsets), [9000, 3610000])
+        self.assertEqual(len(transcript.read_text().splitlines()), 2)
+        self.public_transform(session, 'turns', session.directory)
+        self.assertEqual((session.directory / 'transcript.turns.txt').read_text().count('Them:\n'), 2)
+        aligned = session.directory / 'transcript.diarized.txt'
+        aligned.write_text(transcript.read_text().replace('] ', '] Speaker 1: '))
+        self.public_transform(session, 'dedupe', aligned)
+        self.assertEqual(recorder.read_json(offsets), [9000, 3610000])
+        self.assertEqual(recorder.read_json(session.directory / 'transcript.diarized.offsets.json'), [9000, 3610000])
+        self.public_transform(session, 'turns', session.directory)
+        self.assertEqual((session.directory / 'transcript.diarized.turns.txt').read_text().count('Speaker 1:\n'), 2)
+
+    def test_diarization_retry_cannot_overwrite_published_transcript(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        session.finalize()
+        published = session.manifest["source"]["transcript"]
+        snapshot = (session.directory / published["path"]).read_bytes()
+        (self.root / "control.json").write_text('{"diarization_corrupt_then_fail":true}')
+        self.assertFalse(session.attempt_diarization())
+        self.assertEqual(session.manifest["source"]["transcript"], published)
+        self.assertEqual((session.directory / published["path"]).read_bytes(), snapshot)
+        self.assertEqual(recorder.file_hash(session.directory / published["path"]), published["sha256"])
+
+    def test_legacy_stable_diarization_is_protected_before_retry(self):
+        session = self.session()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        session.finalize()
+        stable = session.directory / "transcript.diarized.turns.txt"
+        original = stable.read_bytes()
+        legacy = session.transcript_descriptor(stable)
+        session.manifest["source"]["transcript"] = legacy
+        session.state["diarization"]["transcript"] = legacy
+        session.persist()
+        (self.root / "control.json").write_text('{"diarization_corrupt_then_fail":true}')
+        self.assertFalse(session.attempt_diarization())
+        protected = session.manifest["source"]["transcript"]
+        self.assertNotEqual(protected["path"], stable.name)
+        self.assertEqual((session.directory / protected["path"]).read_bytes(), original)
+        self.assertEqual(recorder.file_hash(session.directory / protected["path"]), protected["sha256"])
+
+    def test_diarization_rejects_bad_timeline_and_unlabeled_remote_speech(self):
+        session = self.session()
+        session.finalize()
+        for defect in ("diarization_invalid_timeline", "diarization_unlabeled", "diarization_truncated_turns"):
+            with self.subTest(defect=defect):
+                (self.root / "control.json").write_text(json.dumps({"diarization_success": True, defect: True}))
+                self.assertFalse(session.attempt_diarization())
+                self.assertEqual(session.state["diarization"]["status"], "failed")
+                self.assertEqual(session.manifest["source"]["transcript"]["path"], "transcript.turns.txt")
+
+    def test_diarization_rejects_partial_remote_labels(self):
+        session = self.session()
+        session.finalize()
+        with (session.directory / "transcript.txt").open("a") as output:
+            output.write("[15:00:02] Later remote speech\n")
+        offsets = session.directory / "transcript.offsets.json"
+        recorder.atomic_json(offsets, recorder.read_json(offsets) + [2000])
+        (self.root / "control.json").write_text('{"diarization_success":true,"diarization_partial_labels":true}')
+        self.assertFalse(session.attempt_diarization())
+        self.assertEqual(session.state["diarization"]["status"], "failed")
 
     def test_diarization_only_retry_never_replays_asr(self):
         session = self.session()
@@ -892,13 +1031,18 @@ class RecorderTests(unittest.TestCase):
                     self.fail("a second writer acquired the lock")
         self.assertEqual(error.exception.code, "recording_busy")
 
-    def synthetic_capture(self, session, fail_loopback=False, fail_first_call=False):
+    def synthetic_capture(self, session, fail_loopback=False, fail_first_call=False, stall_first_call=False):
         """Real child pipes/ffmpeg, fake PCM producer and fake pactl. No audio IO."""
         producer = self.root / "synthetic-pcm"
         producer.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import pathlib, sys, time
+            import pathlib, signal, sys, time
+            # PipeWire 1.6.9's pw-cat returns EXIT_FAILURE unless playback
+            # drained, including an intentional SIGTERM while recording.
+            signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
             counter = pathlib.Path({str(self.root / 'call-started')!r})
-            fail = {fail_first_call!r} and '--target=31' in sys.argv and not counter.exists()
+            first_call = '--target=31' in sys.argv and not counter.exists()
+            fail = {fail_first_call!r} and first_call
+            stall = {stall_first_call!r} and first_call
             if '--target=31' in sys.argv:
                 counter.touch()
             count = 0
@@ -909,6 +1053,9 @@ class RecorderTests(unittest.TestCase):
                 count += 1
                 if fail and count == 20:
                     sys.exit(9)
+                if stall and count == 20:
+                    pathlib.Path({str(self.root / 'call-stalled')!r}).touch()
+                    time.sleep(30)
         '''))
         producer.chmod(0o700)
         pactl = self.root / "synthetic-pactl"
@@ -932,8 +1079,15 @@ class RecorderTests(unittest.TestCase):
                 path.write_text(json.dumps([m for m in modules if m['index'] != int(args[1])]))
             elif args[0] == 'get-default-source':
                 print('fixture-mic')
+            elif args == ['list', 'short', 'modules']:
+                # Native modules may have multiline arguments. Only actual
+                # module rows have a numeric ID and tab-separated name.
+                print('1\\tlibpipewire-module-rt\\t{{\\n nice.level = -11\\n}}\\t')
+                for module in modules:
+                    print(str(module['index']) + '\\t' + module['name'] + '\\t' + module['argument'] + '\\t')
             elif args[-1] == 'modules':
-                print(json.dumps(modules))
+                # The installed pactl omits module indices from JSON.
+                print(json.dumps([{{k: v for k, v in m.items() if k != 'index'}} for m in modules]))
             elif args[-1] == 'sources':
                 sink = next(m['argument'].split()[0].split('=',1)[1] for m in modules if m['index'] > 12 and m['name'] == 'module-null-sink')
                 print(json.dumps([{{'index':31,'name':sink+'.monitor'}},{{'index':32,'name':'fixture-mic'}}]))
@@ -955,6 +1109,29 @@ class RecorderTests(unittest.TestCase):
         session.manifest["endedAt"] = None
         session.persist()
 
+    def test_long_fragments_expose_live_sample_progress_before_close(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        session.state['fragmentMs'] = 30000
+        session.setup_audio()
+        try:
+            session.launch_capture('call')
+            path = session.directory / 'chunks/call_000000.wav'
+            deadline = recorder.time.monotonic() + 3
+            sizes = set()
+            while recorder.time.monotonic() < deadline:
+                sizes.add(path.stat().st_size if path.exists() else 0)
+                if len([size for size in sizes if size > 78]) >= 2:
+                    break
+                recorder.time.sleep(0.05)
+            # The watchdog must see samples during an open long fragment,
+            # before FFmpeg's default 256 KiB buffer would fill after 8s.
+            self.assertGreaterEqual(len([size for size in sizes if size > 78]), 2)
+            self.assertIsNone(session.capture_health('call'))
+        finally:
+            session.stop_capture('call')
+            session.cleanup_modules()
+
     def test_owned_capture_flushes_tail_and_leaves_unrelated_resources_alive(self):
         session = self.session()
         self.synthetic_capture(session)
@@ -965,6 +1142,7 @@ class RecorderTests(unittest.TestCase):
             session.capture()
             self.assertIsNone(unrelated.poll())
             self.assertFalse(session.captures)
+            self.assertFalse(session.state["gaps"])
             self.assertEqual([m["index"] for m in json.loads((self.root / "modules.json").read_text())], [11, 12])
             self.assertIsNotNone(session.manifest["endedAt"])
             self.assertIsNone(session.manifest["finalizedAt"])
@@ -979,6 +1157,16 @@ class RecorderTests(unittest.TestCase):
             timer.cancel()
             unrelated.terminate()
             unrelated.wait()
+
+    def test_owned_module_cleanup_recovers_ids_missing_from_durable_state(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        session.setup_audio()
+        # Simulate a crash between module creation and persisting its ID.
+        session.state['modules'] = {}
+        session.cleanup_modules()
+        self.assertEqual([m['index'] for m in json.loads((self.root / 'modules.json').read_text())], [11, 12])
+        self.assertNotIn('cleanupWarning', session.state)
 
     def test_capture_marker_is_accepted_by_existing_diarize_and_retime_consumers(self):
         session = self.session()
@@ -1014,6 +1202,64 @@ class RecorderTests(unittest.TestCase):
         )
         self.assertEqual(marker, "1791298800")
         self.assertEqual(session.manifest["startedAt"], "2026-10-06T15:00:00.123Z")
+
+    def test_diarization_alignment_survives_midnight_and_dst_fallback(self):
+        session = self.session()
+        zone = ZoneInfo("America/Denver")
+        for start, stamps in (
+            (recorder.datetime(2026, 10, 9, 23, 59, 50, tzinfo=zone), ("23:59:59", "00:00:10")),
+            (recorder.datetime(2026, 11, 1, 1, 59, 50, tzinfo=zone, fold=0), ("01:59:59", "01:00:10")),
+        ):
+            with self.subTest(start=start):
+                source = self.root / "cross-boundary.txt"
+                source.write_text(f"[{stamps[0]}] Before\n[{stamps[1]}] After\n")
+                segments = self.root / "cross-boundary.json"
+                segments.write_text(json.dumps([
+                    {"start": 8, "end": 12, "speaker": "first"},
+                    {"start": 18, "end": 22, "speaker": "second"},
+                ]))
+                output = self.root / "cross-boundary.aligned.txt"
+                result = subprocess.run([sys.executable, session.config["align"], str(source), str(segments),
+                                         str(int(start.timestamp())), str(output)],
+                                        env={**os.environ, "TZ": "America/Denver"},
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text(),
+                                 f"[{stamps[0]}] Speaker 1: Before\n[{stamps[1]}] Speaker 2: After\n")
+
+    def test_elapsed_sidecar_disambiguates_repeated_dst_hour_and_turn_gaps(self):
+        session = self.session()
+        zone = ZoneInfo("America/Denver")
+        start = recorder.datetime(2026, 11, 1, 1, 29, 50, tzinfo=zone, fold=0)
+        source = self.root / "repeated-hour.txt"
+        source.write_text("[01:30:00] Before\n[01:30:01] After\n")
+        offsets = self.root / "repeated-hour.offsets.json"
+        offsets.write_text("[10000, 3611000]")
+        segments = self.root / "repeated-hour.segments.json"
+        segments.write_text(json.dumps([
+            {"start": 9, "end": 11, "speaker": "first"},
+            {"start": 3610, "end": 3612, "speaker": "second"},
+        ]))
+        aligned = self.root / "repeated-hour.aligned.txt"
+        result = subprocess.run([sys.executable, session.config["align"], str(source), str(segments),
+                                 str(int(start.timestamp())), str(aligned), str(offsets)],
+                                env={**os.environ, "TZ": "America/Denver"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(aligned.read_text(),
+                         "[01:30:00] Speaker 1: Before\n[01:30:01] Speaker 2: After\n")
+        same_speaker = self.root / "repeated-hour.same-speaker.txt"
+        same_speaker.write_text("[01:30:00] Speaker 1: Before\n[01:30:01] Speaker 1: After\n")
+        turns = self.root / "repeated-hour.turns.txt"
+        result = subprocess.run([sys.executable, session.config["turns"], str(same_speaker), str(turns),
+                                 "8", str(offsets)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(turns.read_text().count("Speaker 1:"), 2)
+        deduped = self.root / "repeated-hour.deduped.txt"
+        deduped.write_text("[01:30:00] Repeated words\n[01:30:01] Repeated words\n")
+        result = subprocess.run([sys.executable, session.config["dedupe"], str(deduped), str(offsets)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(deduped.read_text().splitlines()), 2)
 
     def test_partial_startup_cleans_only_acquired_owned_module(self):
         session = self.session()
@@ -1078,6 +1324,284 @@ class RecorderTests(unittest.TestCase):
         finally:
             timer.cancel()
 
+    def test_live_reader_stall_is_restarted_and_never_becomes_ready(self):
+        session = self.session()
+        self.synthetic_capture(session, stall_first_call=True)
+        collect = session.collect_fragments
+
+        def stop_after_recovered_audio():
+            collect()
+            runs = session.state["runs"]["call"]
+            if len(runs) == 2 and any(
+                fragment["startMs"] >= runs[-1]["offsetMs"]
+                for fragment in session.state["fragments"]["call"]
+            ):
+                session.stop_event.set()
+
+        timer = recorder.threading.Timer(10, session.stop_event.set)
+        try:
+            timer.start()
+            with patch.object(recorder, "CAPTURE_STALL_SECONDS", 0.6), \
+                 patch.object(session, "collect_fragments", side_effect=stop_after_recovered_audio):
+                session.capture()
+            self.assertTrue((self.root / "call-stalled").exists())
+            self.assertEqual(len(session.state["runs"]["call"]), 2)
+            self.assertTrue(any(issue["side"] == "call" and issue["code"] == "capture_stalled"
+                                for issue in session.state["captureIssues"]))
+            issue = next(issue for issue in session.state["captureIssues"] if issue["code"] == "capture_stalled")
+            gap = next(gap for gap in session.state["gaps"] if gap["side"] == "call")
+            self.assertLess(gap["startMs"], issue["atMs"])
+            self.assertGreaterEqual(gap["endMs"], issue["atMs"])
+            with self.assertRaises(recorder.Failure) as error:
+                session.finalize()
+            self.assertEqual(error.exception.code, "incomplete_audio_coverage")
+        finally:
+            timer.cancel()
+
+    def test_restart_persists_suspected_stall_before_stopping_reader(self):
+        session = self.session()
+        session.capture_activity["call"] = {"changedAt": recorder.time.monotonic() - 0.5}
+        with patch.object(session, "elapsed", return_value=1000), \
+             patch.object(session, "stop_capture", side_effect=RuntimeError("reader stop failed")):
+            with self.assertRaisesRegex(RuntimeError, "reader stop failed"):
+                session.restart_capture("call", "capture_stalled")
+        saved = recorder.read_json(session.private / "state.json")
+        issue = saved["captureIssues"][-1]
+        gap = saved["gaps"][-1]
+        self.assertEqual(issue["code"], "capture_stalled")
+        self.assertLess(gap["startMs"], issue["atMs"])
+        self.assertGreaterEqual(gap["endMs"], issue["atMs"])
+
+    def test_clock_lag_detects_loss_below_long_session_end_tolerance(self):
+        duration = 4 * 60 * 60 * 1000
+        retained = duration - 20000
+        spans = {side: [{"startMs": 0, "endMs": retained}] for side in recorder.SIDES}
+        self.assertFalse(recorder.calculate_coverage(spans, spans, duration, [])["complete"])
+
+        session = self.session()
+        session.state["runs"]["call"] = [{"offsetMs": 0}]
+        path = str(session.directory / "chunks/call_000000.wav")
+        session.capture_activity["call"] = {"index": 0, "bytes": 0,
+                                            "changedAt": recorder.time.monotonic(),
+                                            "fragmentEndMs": None, "clockAnchor": None}
+        session.state["fragments"]["call"] = [{"path": path, "startMs": 0, "endMs": duration - 500}]
+        with patch.object(session, "elapsed", return_value=duration):
+            self.assertIsNone(session.capture_health("call"))
+        session.state["fragments"]["call"].append(
+            {"path": path, "startMs": duration - 500, "endMs": duration + 60000 - 3500})
+        with patch.object(session, "elapsed", return_value=duration + 60000):
+            self.assertEqual(session.capture_health("call"), "capture_clock_lag")
+
+    def test_late_collection_of_closed_fragment_does_not_fake_clock_loss(self):
+        session = self.session()
+        path = session.directory / "chunks/call_000000.wav"
+        session.state["runs"]["call"] = [{"offsetMs": 0}]
+        session.state["fragments"]["call"] = [{"path": str(path), "startMs": 0, "endMs": 6000}]
+        session.capture_activity["call"] = {"index": 0, "bytes": 0,
+                                            "changedAt": recorder.time.monotonic(),
+                                            "lastCheckedAt": recorder.time.monotonic() - 5,
+                                            "fragmentEndMs": 1000, "clockAnchor": (1000, 500)}
+        with patch.object(session, "elapsed", return_value=10000):
+            self.assertIsNone(session.capture_health("call"))
+
+    def test_startup_sample_pause_cannot_become_a_long_ready_recording(self):
+        session = self.session()
+        path = str(session.directory / "chunks/call_000000.wav")
+        session.state["runs"]["call"] = [{"offsetMs": 0}]
+        session.state["fragments"]["call"] = [{"path": path, "startMs": 0, "endMs": 5000}]
+        session.capture_activity["call"] = {"index": 0, "bytes": 0,
+                                            "changedAt": recorder.time.monotonic(),
+                                            "fragmentEndMs": None, "clockAnchor": None}
+        with patch.object(session, "elapsed", return_value=8000):
+            self.assertEqual(session.capture_health("call"), "capture_clock_lag")
+
+    def test_transient_browser_route_failure_does_not_end_audio_capture(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        route_calls = 0
+
+        def route():
+            nonlocal route_calls
+            route_calls += 1
+            if route_calls == 1:
+                raise subprocess.TimeoutExpired("pactl", 5)
+
+        timer = recorder.threading.Timer(1.4, session.stop_event.set)
+        try:
+            timer.start()
+            with patch.object(session, "route", side_effect=route):
+                session.capture()
+            self.assertGreaterEqual(route_calls, 2)
+            self.assertEqual(session.manifest["status"], "finalizing")
+            self.assertNotIn("routingWarning", session.state)
+            self.assertTrue(any(gap["side"] == "call" and gap["reason"] == "routing_uncertain"
+                                for gap in session.state["gaps"]))
+            self.assertFalse(session.manifest["coverage"]["complete"])
+            self.assertTrue(all(session.state["fragments"][side] for side in recorder.SIDES))
+        finally:
+            timer.cancel()
+
+    def test_sustained_missing_browser_stream_marks_uncertain_call_audio(self):
+        session = self.session()
+        with patch.object(session, "elapsed", return_value=0):
+            session.observe_browser_stream(0)
+        self.assertNotIn("routingWarning", session.state)
+        with patch.object(session, "elapsed", return_value=11000):
+            session.observe_browser_stream(0)
+        self.assertEqual(session.state["routingWarning"], "browser_stream_missing")
+        with patch.object(session, "elapsed", return_value=12000):
+            session.observe_browser_stream(1)
+        self.assertNotIn("routingWarning", session.state)
+        self.assertTrue(any(gap["side"] == "call" and gap["reason"] == "routing_uncertain"
+                            for gap in session.state["gaps"]))
+        self.assertFalse(session.manifest["coverage"]["complete"])
+
+    def test_changed_default_microphone_restarts_capture_and_keeps_gap(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        timer = recorder.threading.Timer(1.4, session.stop_event.set)
+        try:
+            timer.start()
+            with patch.object(session, "default_mic_source", side_effect=[32, 99]):
+                session.capture()
+            self.assertEqual(session.state["sources"]["mic"], 99)
+            self.assertTrue(any(issue["side"] == "mic" and issue["code"] == "microphone_source_changed"
+                                for issue in session.state["captureIssues"]))
+            self.assertTrue(any(gap["side"] == "mic" and gap["reason"] == "capture_restarted"
+                                for gap in session.state["gaps"]))
+            self.assertFalse(session.manifest["coverage"]["complete"])
+        finally:
+            timer.cancel()
+
+    def test_transient_default_microphone_lookup_failure_remains_in_coverage(self):
+        session = self.session()
+        self.synthetic_capture(session)
+        calls = 0
+        def source():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise subprocess.TimeoutExpired("pactl", 5)
+            return 32
+        timer = recorder.threading.Timer(1.4, session.stop_event.set)
+        try:
+            timer.start()
+            with patch.object(session, "default_mic_source", side_effect=source):
+                session.capture()
+            self.assertGreaterEqual(calls, 2)
+            self.assertNotIn("micSourceWarning", session.state)
+            self.assertTrue(any(gap["side"] == "mic" and gap["reason"] == "microphone_source_uncertain"
+                                for gap in session.state["gaps"]))
+            self.assertFalse(session.manifest["coverage"]["complete"])
+        finally:
+            timer.cancel()
+
+    def test_stop_signals_both_readers_before_waiting_for_either(self):
+        session = self.session()
+        events = []
+
+        class Reader:
+            def __init__(self, side):
+                self.side = side
+                self.stopped = False
+
+            def poll(self):
+                return -15 if self.stopped else None
+
+            def terminate(self):
+                events.append("signal-" + self.side)
+                self.stopped = True
+
+            def wait(self, timeout=None):
+                events.append("wait-" + self.side)
+                return -15
+
+        class Segmenter:
+            def wait(self, timeout=None):
+                return 0
+
+        def launch(side):
+            session.captures[side] = (Reader(side), Segmenter())
+
+        session.stop_event.set()
+        with patch.object(session, "setup_audio"), patch.object(session, "launch_capture", side_effect=launch), \
+             patch.object(session, "collect_fragments"), patch.object(session, "cleanup_modules"):
+            session.capture()
+        self.assertEqual(events[:2], ["signal-call", "signal-mic"])
+        self.assertEqual(events[2:], ["wait-call", "wait-mic"])
+        self.assertFalse(session.state["gaps"])
+
+    def test_unexpected_reader_exit_at_stop_is_not_declared_complete(self):
+        session = self.session()
+
+        class ExitedReader:
+            def poll(self):
+                return 9
+
+            def wait(self, timeout=None):
+                return 9
+
+        class Segmenter:
+            def wait(self, timeout=None):
+                return 0
+
+        session.captures["call"] = (ExitedReader(), Segmenter())
+        session.stop_capture("call")
+        self.assertTrue(any(gap["side"] == "call" and gap["reason"] == "reader_failed"
+                            for gap in session.state["gaps"]))
+
+    def test_reader_exit_one_without_a_stop_request_is_still_a_failure(self):
+        session = self.session()
+        child = subprocess.Popen([sys.executable, '-c', 'raise SystemExit(1)'])
+        child.wait(timeout=5)
+        segmenter = subprocess.Popen([sys.executable, '-c', 'pass'])
+        session.captures['call'] = (child, segmenter)
+        session.stop_capture('call')
+        self.assertTrue(any(gap['reason'] == 'reader_failed' for gap in session.state['gaps']))
+
+    def test_unexpected_exit_code_after_a_stop_request_is_still_a_failure(self):
+        session = self.session()
+        child = subprocess.Popen([sys.executable, '-c', 'raise SystemExit(9)'])
+        child.wait(timeout=5)
+        segmenter = subprocess.Popen([sys.executable, '-c', 'pass'])
+        session.captures['call'] = (child, segmenter)
+        session.capture_stop_requested.add('call')
+        session.stop_capture('call')
+        self.assertTrue(any(gap['reason'] == 'reader_failed' for gap in session.state['gaps']))
+
+    def test_unknown_end_salvages_closed_audio_without_claiming_complete_capture(self):
+        session = self.session()
+        session.manifest.update({"status": "incomplete", "endedAt": None, "finalizedAt": None,
+                                 "failure": {"stage": "recovery", "code": "capture_end_unknown", "retryable": False}})
+        session.persist()
+        unlisted = session.directory / "chunks/call_000001.wav"
+        wav(unlisted, 200)
+        unlisted_hash = recorder.file_hash(unlisted)
+
+        session.salvage_retained()
+        self.assertEqual(session.manifest["status"], "incomplete")
+        self.assertEqual(session.manifest["failure"]["code"], "capture_end_unknown")
+        self.assertIsNone(session.manifest["endedAt"])
+        self.assertIsNone(session.manifest["finalizedAt"])
+        self.assertFalse(session.manifest["coverage"]["complete"])
+        self.assertTrue(session.manifest["coverage"]["captureEndUnknown"])
+        self.assertEqual(session.manifest["coverage"]["sides"]["call"]["capturedMs"], 1250)
+        self.assertEqual(session.manifest["coverage"]["sides"]["call"]["transcribedMs"], 1250)
+        self.assertGreater(session.manifest["source"]["transcript"]["speechTurns"], 0)
+        self.assertEqual(recorder.file_hash(unlisted), unlisted_hash)
+        self.assertEqual((self.root / "call-attempts").read_text(), "1")
+        session.salvage_retained()
+        self.assertEqual((self.root / "call-attempts").read_text(), "1")
+        self.assertFalse(recorder.status(session.directory, session.config)["salvageable"])
+
+    def test_unknown_end_without_closed_audio_refuses_salvage(self):
+        session = self.session()
+        session.manifest["endedAt"] = None
+        session.state["fragments"] = {side: [] for side in recorder.SIDES}
+        with self.assertRaises(recorder.Failure) as error:
+            session.salvage_retained()
+        self.assertEqual(error.exception.code, "no_retained_audio")
+
     def test_unlisted_or_partially_listed_audio_never_counts_as_finalized(self):
         session = self.session()
         original = session.state["fragments"]["call"][0]
@@ -1094,6 +1618,32 @@ class RecorderTests(unittest.TestCase):
         listing.write_text(row + '\n')
         session.collect_fragments()
         self.assertEqual(len(session.state["fragments"]["call"]), 1)
+
+    def test_public_salvage_accepts_a_closed_receipt_before_its_first_state_snapshot(self):
+        session = self.session()
+        original = session.state['fragments']['call'][0]
+        session.manifest.update(status='incomplete', endedAt=None)
+        session.state['fragments'] = {side: [] for side in recorder.SIDES}
+        listing = session.private / 'call-0000.csv'
+        session.state['runs']['call'] = [{'list': str(listing), 'offsetMs': 0, 'seen': [], 'index': 0}]
+        listing.write_text(f'{original["path"]},0.000000,1.250000\n')
+        session.persist()
+        before = (session.private / 'state.json').read_bytes()
+        self.assertTrue(recorder.status(session.directory, session.config)['salvageable'])
+        self.assertEqual((session.private / 'state.json').read_bytes(), before)
+        with patch.object(recorder, 'state_root', return_value=self.root), \
+             patch.object(recorder, 'current_directory', return_value=None), \
+             patch.object(recorder, 'owner_properties', return_value={'ActiveState': 'inactive'}), \
+             patch.object(recorder, 'launch_unit') as launch:
+            recorder.salvage(session.directory, session.config, self.root / 'config.json')
+        self.assertEqual(launch.call_args.args[2], 'salvage')
+        # The worker, after ownership handoff, reconciles before transcription.
+        with recorder.locked(session.private / 'writer.lock'):
+            session.collect_fragments()
+            session.salvage_retained()
+        self.assertEqual(session.manifest['status'], 'incomplete')
+        self.assertIsNone(session.manifest['endedAt'])
+        self.assertGreater(session.manifest['source']['transcript']['speechTurns'], 0)
 
     def test_even_short_unlisted_tail_blocks_ready(self):
         session = self.session()
@@ -1303,6 +1853,14 @@ class RecorderTests(unittest.TestCase):
             assert.strictEqual(root.finalizationPercent, 11);
             assert.strictEqual(statusText(root), 'Finalizing 11%');
             assert.strictEqual(tooltip(root), 'Finalizing transcript — 80 of 686 windows (11%)');
+            root._pollOut = JSON.stringify({status:'recording',startedAt:'2026-10-06T15:00:00Z',
+                captureIssues:[{side:'call',code:'capture_stalled',atMs:90000}],routingWarning:'routing_unavailable'});
+            status(root, 0, 0);
+            root.recording = true;
+            root.elapsedText = () => '01:30';
+            assert.strictEqual(root.captureIssueSides, 'call');
+            assert.ok(tooltip(root).includes('audio capture was interrupted on call'));
+            root.recording = false;
             let toggleProcess = {running:false};
             root.finalizing = true;
             toggle(root, toggleProcess);
@@ -1323,6 +1881,18 @@ class RecorderTests(unittest.TestCase):
             root.startNew = () => startNew(root, toggleProcess);
             root.failureText = () => 'Speech recognition failed';
             assert.ok(tooltip(root).includes('right-click to start another recording'));
+            root._pollOut = JSON.stringify({status:'incomplete',outputDir:'/retained recording',salvageable:true,
+                failure:{code:'capture_end_unknown',retryable:false}});
+            status(root, 0, 0);
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','salvage','/retained recording']);
+            assert.ok(tooltip(root).includes('partial transcript'));
+            root._pollOut = JSON.stringify({status:'incomplete',failure:{code:'incomplete_audio_coverage',retryable:false},
+                coverage:{sides:{call:{sampleClockShortfallMs:9387.9375},mic:{sampleClockShortfallMs:6258.3125}}}});
+            status(root, 0, 0);
+            assert.ok(tooltip(root).includes('call 9.4 s, mic 6.3 s'));
+            assert.ok(tooltip(root).includes('position in the call is unknown'));
             rightClick(root)();
             assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
             root._pollOut = '{';

@@ -1,0 +1,339 @@
+{
+  "started_utc": "2026-10-09T23:26:10.957933+00:00",
+  "codex_version": "codex-cli 0.162.0",
+  "pi_version": "pi-rs 0.2.0",
+  "pi_binary": "/nix/store/72bp5wkb8qrjz0z60lzj5j029d86c4gn-pi-rs-0.2.0/bin/pi-rs",
+  "guidance_sha256": "cf3ceefd0db69ed2bf2b4eaa80083af51bfdaae14e5aa01566bc79c99a8a60ab",
+  "configuration": {
+    "model": "gpt-6.1-sol",
+    "model_reasoning_effort": "medium",
+    "model_provider": "litellm",
+    "project_doc_max_bytes": 0,
+    "allow_login_shell": false,
+    "skills.include_instructions": false,
+    "features.skip_host_skill_discovery": true,
+    "features.hooks": false,
+    "features.plugin_hooks": false,
+    "features.plugins": false,
+    "features.apps": false,
+    "features.memories": false,
+    "features.multi_agent": false,
+    "features.multi_agent_v2": false,
+    "features.shell_snapshot": false,
+    "features.shell_snapshot_v2": false,
+    "web_search": "disabled",
+    "suppress_unstable_features_warning": true,
+    "sandbox_workspace_write.network_access": false,
+    "provider_details": "Inherited selected provider/auth command; endpoint and credential details omitted."
+  },
+  "repeats": 3,
+  "isolation": "bwrap: root read-only, /tmp writable, temporary .codex and pi-rs data mounts; unchanged HOME/CODEX_HOME; ignore user config and execpolicy rules; no inherited instructions except treatment AGENTS.md",
+  "cli_flags": [
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--json",
+    "--color",
+    "never",
+    "--sandbox",
+    "workspace-write"
+  ],
+  "order": "task order fixed; first arm alternates per task and repetition",
+  "working_root": "/tmp/pi-rs-codex-ab-bozbu_e9",
+  "results": [
+    {
+      "run_id": "noisy_log-1-stock",
+      "task": "noisy_log",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.391134371000135,
+      "usage": {
+        "input_tokens": 33036,
+        "cached_input_tokens": 21773,
+        "cache_write_input_tokens": 11254,
+        "output_tokens": 173,
+        "reasoning_output_tokens": 26
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg -n -m 20 'fail|error|ERROR|FAIL' logs/service.log\"",
+        "/run/current-system/sw/bin/zsh -c \"sed -n '3997,4004p' logs/service.log\""
+      ],
+      "command_output_bytes": 667,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "noisy_log-1-pi",
+      "task": "noisy_log",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 8.168546419999984,
+      "usage": {
+        "input_tokens": 23189,
+        "cached_input_tokens": 11463,
+        "cache_write_input_tokens": 11720,
+        "output_tokens": 165,
+        "reasoning_output_tokens": 72
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs log logs/service.log'"
+      ],
+      "command_output_bytes": 412,
+      "pi_command_count": 1,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "config_diff-1-pi",
+      "task": "config_diff",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 10.253767288999825,
+      "usage": {
+        "input_tokens": 36646,
+        "cached_input_tokens": 23894,
+        "cache_write_input_tokens": 12743,
+        "output_tokens": 252,
+        "reasoning_output_tokens": 42
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 4,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs git diff --no-ext-diff'",
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g 'AGENTS.md' -g '*README*' -g '*require*' -g '*deploy*' -g '*config*' -g '*test*'\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs read README.md'",
+        "/run/current-system/sw/bin/zsh -c \"git diff --no-ext-diff --ignore-matching-lines='\"'^# build stamp:'\"'\""
+      ],
+      "command_output_bytes": 2658,
+      "pi_command_count": 2,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "config_diff-1-stock",
+      "task": "config_diff",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 13.708289420000256,
+      "usage": {
+        "input_tokens": 58964,
+        "cached_input_tokens": 34643,
+        "cache_write_input_tokens": 24312,
+        "output_tokens": 276,
+        "reasoning_output_tokens": 29
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*README*' -g '*deploy*' -g '*config*' -g '*test*' -g '*.yaml' -g '*.yml' -g '*.toml' -g '*.json'; git diff --stat; git diff\"",
+        "/run/current-system/sw/bin/zsh -c \"cat README.md; rg --files --hidden -g '\"'!'\"\\\\.git/**' -g 'AGENTS.md' -g '\"'!config/services/**'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"git diff HEAD -- config/services/service_057.toml; git diff HEAD -G '\"'^[''^#]'\"' -- config/services; git diff --cached --stat\""
+      ],
+      "command_output_bytes": 50902,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "source_lookup-1-stock",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.190874523000275,
+      "usage": {
+        "input_tokens": 34024,
+        "cached_input_tokens": 21810,
+        "cache_write_input_tokens": 12205,
+        "output_tokens": 137,
+        "reasoning_output_tokens": 22
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g '\"'!node_modules'\"' -g '\"'!vendor'\"' -g '\"'!'\"\\\\.git'\"",
+        "/run/current-system/sw/bin/zsh -c \"rg -n 'checkout|timeout|retr|import|def|class' README.md src\""
+      ],
+      "command_output_bytes": 4087,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "source_lookup-1-pi",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 6.598541333999947,
+      "usage": {
+        "input_tokens": 24828,
+        "cached_input_tokens": 11452,
+        "cache_write_input_tokens": 13370,
+        "output_tokens": 105,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs ls'",
+        "/run/current-system/sw/bin/zsh -c \"pi-rs grep --pattern 'checkout|timeout|retries' --path .\""
+      ],
+      "command_output_bytes": 4907,
+      "pi_command_count": 2,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    },
+    {
+      "run_id": "cargo_failure-1-pi",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 6.809589721000066,
+      "usage": {
+        "input_tokens": 23815,
+        "cached_input_tokens": 11494,
+        "cache_write_input_tokens": 12315,
+        "output_tokens": 89,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs cargo test'"
+      ],
+      "command_output_bytes": 2286,
+      "pi_command_count": 1,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ]
+    }
+  ],
+  "excluded_from_main_analysis": true,
+  "stopped_reason": "Protocol correction: the common fixture-only prompt did not explicitly permit reads of generated pi-rs recovery files outside the fixture. Seven completed sessions retained; cargo_failure-1-stock was interrupted and has no recorded completion or usage. No scored outcome determined the correction.",
+  "interrupted_run": "cargo_failure-1-stock"
+}

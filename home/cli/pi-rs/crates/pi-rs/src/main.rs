@@ -6,8 +6,8 @@
 //!
 //! - Subcommands that produce *text the model consumes* (`hash`, `html2md`)
 //!   emit raw text on stdout — no JSON envelope, no field names, no quotes.
-//! - Subcommands that produce *structured results* (`grep`, `summary`,
-//!   `ast-grep`, `ast-edit`) emit one JSON object:
+//! - `grep` and `summary` emit plain text by default; `--json` requests the
+//!   Pi extension envelope. `ast-grep` and `ast-edit` always emit one JSON object:
 //!   `{"content": "<model-facing text>", "details": {...}}`.
 //!   The TS extension passes `content` to the model and uses `details` to
 //!   populate the tool result's `details` field for TUI rendering. The model
@@ -20,8 +20,8 @@
 //! support — were derived from `rtk-ai/rtk` @ tag `v0.40.0`
 //! (https://github.com/rtk-ai/rtk), licensed Apache-2.0. See
 //! `LICENSES/Apache-2.0.txt` and `NOTICE` at the workspace root. The fork is
-//! a one-time import; this tree evolves independently from upstream and does
-//! not track new releases.
+//! maintained independently, with selected upstream improvements recorded in
+//! NOTICE rather than automatic upstream synchronization.
 
 use clap::{Parser, Subcommand};
 
@@ -39,15 +39,23 @@ mod rewrite;
     long_about = None,
 )]
 struct Cli {
+    /// Forward live native output without filtering (put before the subcommand).
+    #[arg(long)]
+    stream: bool,
+    /// Maximum filtered output size, including recovery hints.
+    #[arg(long, env = "PI_RS_MAX_OUTPUT_BYTES", default_value_t = 32_000, value_parser = clap::value_parser!(u32).range(512..))]
+    max_output_bytes: u32,
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Run any command with native stdin, stdout, stderr and exit status.
+    Proxy(cmd::filters::ProxyArgs),
     /// Format text with LINE+HASH|TEXT anchors compatible with omp hashline.
     Hash(cmd::hash::Args),
-    /// Regex search across files / directories with grouped hashline output.
+    /// Regex search with plain matches or optional JSON/hashline output.
     Grep(cmd::grep::Args),
     /// Tree-sitter elision summary of a source file.
     Summary(cmd::summary::Args),
@@ -64,32 +72,42 @@ enum Command {
 
     // External-tool wrappers.
     /// Compact `git` (status, diff, log, show; passthrough otherwise).
+    #[command(disable_help_flag = true)]
     Git(cmd::filters::git::GitArgs),
     /// Compact `cargo` (test/build/check/clippy/run; passthrough otherwise).
+    #[command(disable_help_flag = true)]
     Cargo(cmd::filters::cargo::CargoArgs),
     /// Compact `gh` (GitHub CLI; passthrough with truncation).
+    #[command(disable_help_flag = true)]
     Gh(cmd::filters::gh::GhArgs),
     /// Compact `npm` (install/test/run; passthrough otherwise).
+    #[command(disable_help_flag = true)]
     Npm(cmd::filters::npm::NpmArgs),
     /// Compact `pnpm` (install/test/run; passthrough otherwise).
+    #[command(disable_help_flag = true)]
     Pnpm(cmd::filters::pnpm::PnpmArgs),
     /// Compact `yarn` (install/test/run; passthrough otherwise).
+    #[command(disable_help_flag = true)]
     Yarn(cmd::filters::yarn::YarnArgs),
-    /// Compact `pytest` (failures-only on the test runner).
+    /// Compact `pytest` progress while preserving diagnostics.
+    #[command(disable_help_flag = true)]
     Pytest(cmd::filters::pytest::PytestArgs),
     /// Compact `docker` (logs deduped, lists truncated).
+    #[command(disable_help_flag = true)]
     Docker(cmd::filters::docker::DockerArgs),
     /// Compact `kubectl` (logs deduped, lists truncated).
+    #[command(disable_help_flag = true)]
     Kubectl(cmd::filters::kubectl::KubectlArgs),
 
     // LLM-facing primitives.
     /// Smart file read with `--level` for signature-only mode.
+    #[command(alias = "recall")]
     Read(cmd::filters::read::ReadArgs),
-    /// Compact directory listing with grouping.
+    /// Sorted directory listing; grouping and counts are optional.
     Ls(cmd::filters::ls::LsArgs),
     /// Compact `find` with directory grouping.
     Find(cmd::filters::find::FindArgs),
-    /// JSON structure-only view (drops scalar values).
+    /// Inspect JSON values, structures, array samples and exact pointers.
     Json(cmd::filters::json::JsonArgs),
     /// Deduplicated log viewer.
     Log(cmd::filters::log::LogArgs),
@@ -97,7 +115,31 @@ enum Command {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    compress::tee::set_output_budget(cli.max_output_bytes as usize);
+    if cli.stream {
+        let (program, args) = match &cli.command {
+            Command::Git(a) => ("git", &a.args),
+            Command::Cargo(a) => ("cargo", &a.args),
+            Command::Gh(a) => ("gh", &a.args),
+            Command::Npm(a) => ("npm", &a.args),
+            Command::Pnpm(a) => ("pnpm", &a.args),
+            Command::Yarn(a) => ("yarn", &a.args),
+            Command::Pytest(a) => ("pytest", &a.args),
+            Command::Docker(a) => ("docker", &a.args),
+            Command::Kubectl(a) => ("kubectl", &a.args),
+            Command::Proxy(a) => {
+                return cmd::filters::proxy(cmd::filters::ProxyArgs {
+                    command: a.command.clone(),
+                });
+            }
+            _ => anyhow::bail!("--stream requires an external-tool wrapper or proxy"),
+        };
+        let refs: Vec<_> = args.iter().map(String::as_str).collect();
+        let code = cmd::filters::run_passthrough(program, &refs)?;
+        std::process::exit(code);
+    }
     match cli.command {
+        Command::Proxy(args) => cmd::filters::proxy(args),
         Command::Hash(args) => cmd::hash::run(args),
         Command::Grep(args) => cmd::grep::run(args),
         Command::Summary(args) => cmd::summary::run(args),

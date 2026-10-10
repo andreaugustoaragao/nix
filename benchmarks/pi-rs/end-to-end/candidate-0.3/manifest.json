@@ -1,0 +1,1586 @@
+{
+  "started_utc": "2026-10-10T00:47:58.185654+00:00",
+  "codex_version": "codex-cli 0.162.0",
+  "pi_version": "pi-rs 0.3.0",
+  "pi_binary": "/tmp/pi-rtk-codex-23le1ubx/binary-snapshot/pi-rs",
+  "pi_binary_source": "/home/aragao/projects/personal/nix/home/cli/pi-rs/target/release/pi-rs",
+  "pi_binary_sha256": "c77241161d07c1e04b3f28be36c5a30d0485cf1cce9777795ea99d975e06e28f",
+  "pi_guidance_source": "/home/aragao/projects/personal/nix/home/cli/pi-rs/agent-hooks/codex-rules.md",
+  "guidance_sha256": "fdb6f50ae6527156268795c7aa78f3be18788ece3af4d8ef7f93729ea25efcde",
+  "toolchain_bin": "/nix/store/x4638d1wvzlak3d5wv5vavj7ngrys37w-rust-default-1.99.0/bin",
+  "rtk_version": "rtk 0.51.0",
+  "rtk_binary": "/tmp/pi-rs-rtk-0.51.0/rtk",
+  "rtk_binary_sha256": "c9a048412139955ce48f85f82065067b524e98b86bf34f012a92a45d719816b5",
+  "rtk_source_commit": "e001f773f80b22b7dc4c7a79521b30e35aaef026",
+  "rtk_awareness_level": "default",
+  "rtk_recovery_mode": "sqlite (unmodified default)",
+  "rtk_hook_command": "rtk hook codex",
+  "rtk_hooks_enabled_arm": "rtk only",
+  "configuration": {
+    "model": "gpt-6.1-sol",
+    "model_reasoning_effort": "medium",
+    "model_provider": "litellm",
+    "project_doc_max_bytes": 0,
+    "allow_login_shell": false,
+    "skills.include_instructions": false,
+    "features.skip_host_skill_discovery": true,
+    "features.hooks": false,
+    "features.plugin_hooks": false,
+    "features.plugins": false,
+    "features.apps": false,
+    "features.memories": false,
+    "features.multi_agent": false,
+    "features.multi_agent_v2": false,
+    "features.shell_snapshot": false,
+    "features.shell_snapshot_v2": false,
+    "web_search": "disabled",
+    "suppress_unstable_features_warning": true,
+    "sandbox_workspace_write.network_access": false,
+    "provider_details": "Inherited selected provider/auth command; endpoint and credential details omitted.",
+    "shell_environment_policy.set.PATH": "/tmp/pi-rs-rtk-0.51.0:/tmp/pi-rtk-codex-23le1ubx/binary-snapshot:/nix/store/x4638d1wvzlak3d5wv5vavj7ngrys37w-rust-default-1.99.0/bin:/home/aragao/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/codex-path:/home/aragao/.config/carapace/bin:/home/aragao/go/bin:/home/aragao/.local/bin:/run/wrappers/bin:/home/aragao/.nix-profile/bin:/nix/profile/bin:/home/aragao/.local/state/nix/profile/bin:/etc/profiles/per-user/aragao/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:/nix/store/ddf9514vlpfkngj7a22ph0283aq4x41v-kitty-0.49.1/bin:/nix/store/58m0ffvvgb90ld11b3h9qghm5nmsfjz7-imagemagick-7.1.2-32/bin:/nix/store/8jb6sq1wbgpar9hj1z0sjg4bl23rqv51-ncurses-6.6-dev/bin:/nix/store/abjnfnvs1pd12hmwyr39yy27p4aykflk-shader-slang-2026.18/bin:/home/aragao/go/bin:/home/aragao/.cargo/bin:/home/aragao/.npm-global/bin:/home/aragao/.codex/tmp/arg0/codex-arg0TrMd10:/home/aragao/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-arm64/vendor/aarch64-unknown-linux-musl/codex-path"
+  },
+  "repeats": 3,
+  "arms": [
+    "stock",
+    "pi",
+    "rtk"
+  ],
+  "isolation": "bwrap root read-only; /tmp, fresh .codex/.local/share/.config mounts; unchanged HOME/CODEX_HOME; RTK official init in its isolated mount; hook trust bypass only for the RTK arm",
+  "environment": {
+    "RTK_TELEMETRY_DISABLED": "1",
+    "RTK_HOOK_AUDIT": "1",
+    "CARGO_NET_OFFLINE": "true",
+    "all_other_RTK_overrides_removed": true
+  },
+  "cli_flags": [
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--json",
+    "--color",
+    "never",
+    "--sandbox",
+    "workspace-write",
+    "--add-dir",
+    "/home/aragao/.local/share"
+  ],
+  "rtk_extra_flags": [
+    "--dangerously-bypass-hook-trust",
+    "-c",
+    "features.hooks=true"
+  ],
+  "order": "rotate (stock,pi,rtk) by (task_index+repeat_index)%3; every arm occupies each position once per task",
+  "working_root": "/tmp/pi-rtk-codex-23le1ubx",
+  "results": [
+    {
+      "run_id": "noisy_log-1-stock",
+      "task": "noisy_log",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 7.827516442999695,
+      "usage": {
+        "input_tokens": 21781,
+        "cached_input_tokens": 10810,
+        "cache_write_input_tokens": 10965,
+        "output_tokens": 155,
+        "reasoning_output_tokens": 47
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg -n -m 8 'fail|error|ERROR|FAIL' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        0
+      ],
+      "command_output_bytes": 101,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "noisy_log-1-pi",
+      "task": "noisy_log",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 8.873689257001388,
+      "usage": {
+        "input_tokens": 33714,
+        "cached_input_tokens": 22338,
+        "cache_write_input_tokens": 11367,
+        "output_tokens": 155,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pi-rs read logs/service.log --grep 'fail|error|ERROR|FAIL' --lines 40\"",
+        "/run/current-system/sw/bin/zsh -c \"rg -n -m 6 -i 'fail|error' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        1,
+        0
+      ],
+      "command_output_bytes": 101,
+      "pi_command_count": 1,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 2
+    },
+    {
+      "run_id": "noisy_log-1-rtk",
+      "task": "noisy_log",
+      "repeat": 1,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.514701390000482,
+      "usage": {
+        "input_tokens": 33351,
+        "cached_input_tokens": 22029,
+        "cache_write_input_tokens": 11313,
+        "output_tokens": 228,
+        "reasoning_output_tokens": 45
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g AGENTS.md -g service.log -g '*log*'\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg -n -m 8 'failed|failure|error|ERROR' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 664,
+      "pi_command_count": 0,
+      "rtk_command_count": 3,
+      "rtk_history_count": 3,
+      "rtk_hook_rewrite_count": 3,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 3
+    },
+    {
+      "run_id": "config_diff-1-pi",
+      "task": "config_diff",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.221207627000695,
+      "usage": {
+        "input_tokens": 41979,
+        "cached_input_tokens": 25024,
+        "cache_write_input_tokens": 16946,
+        "output_tokens": 362,
+        "reasoning_output_tokens": 48
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 6,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*requirements*' -g '*deploy*' -g '*README*' -g '*.yaml' -g '*.yml' -g '*.toml' -g '*.json'\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs git diff --stat'",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs read README.md'",
+        "/run/current-system/sw/bin/zsh -c \"git diff HEAD --unified=0 -- config | rg '\"'^(diff --git|[-+][''^#+-])'\"'\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs git diff -- config/services/service_057.toml'",
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g '\"'!config/services/**'\"' -g '\"'!README.md'\"'; pi-rs read config/services/service_057.toml\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 19341,
+      "pi_command_count": 4,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "config_diff-1-rtk",
+      "task": "config_diff",
+      "repeat": 1,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 18.964579577999757,
+      "usage": {
+        "input_tokens": 62734,
+        "cached_input_tokens": 42263,
+        "cache_write_input_tokens": 20459,
+        "output_tokens": 285,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 5,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c pwd",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g 'AGENTS.md' -g '*README*' -g '*requirement*' -g '*test*' -g '*deploy*' -g '*config*' -g 'package.json' -g 'pyproject.toml'\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk git status --short && rtk git diff'",
+        "/run/current-system/sw/bin/zsh -c \"rtk read README.md && rtk git diff -- config/services/service_057.toml && rtk rg --files --hidden -g '\"'!.git'\"' -g '\"'!config/services/**'\"'\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 24758,
+      "pi_command_count": 0,
+      "rtk_command_count": 4,
+      "rtk_history_count": 7,
+      "rtk_hook_rewrite_count": 2,
+      "rtk_hook_skip_count": 1,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 2
+    },
+    {
+      "run_id": "config_diff-1-stock",
+      "task": "config_diff",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 10.821876971000165,
+      "usage": {
+        "input_tokens": 49005,
+        "cached_input_tokens": 29719,
+        "cache_write_input_tokens": 19277,
+        "output_tokens": 321,
+        "reasoning_output_tokens": 13
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*config*' -g '*deploy*' -g '*README*' -g '*requirements*'; git diff --no-ext-diff; git status --short\"",
+        "/run/current-system/sw/bin/zsh -c \"cat README.md; rg --files --hidden -g '\"'!.git/**'\"' -g '\"'!config/services/**'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"git diff --no-ext-diff HEAD --unified=0 | python3 -c 'import sys; p=\\\"\\\"; out=[]\nfor line in sys.stdin:\n if line.startswith(\\\"diff --git \\\"): p=line.strip()\n elif line.startswith((\\\"+\\\", \\\"-\\\")) and not line.startswith((\\\"+++\\\", \\\"---\\\", \\\"+# build stamp:\\\", \\\"-# build stamp:\\\")): out.append((p,line.strip()))\nfor p,line in out: print(p); print(line)'\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 45780,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    },
+    {
+      "run_id": "source_lookup-1-rtk",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 14.150919707999492,
+      "usage": {
+        "input_tokens": 46783,
+        "cached_input_tokens": 34294,
+        "cache_write_input_tokens": 12477,
+        "output_tokens": 245,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 5,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json'\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg -n 'checkout|timeout|retr' .\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files --hidden -g '\"'!.git'\"'\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk read src/client.py'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 3974,
+      "pi_command_count": 0,
+      "rtk_command_count": 5,
+      "rtk_history_count": 5,
+      "rtk_hook_rewrite_count": 5,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 1
+    },
+    {
+      "run_id": "source_lookup-1-stock",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.589914261998274,
+      "usage": {
+        "input_tokens": 45987,
+        "cached_input_tokens": 33774,
+        "cache_write_input_tokens": 12201,
+        "output_tokens": 192,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json' -g 'README*'\"",
+        "/run/current-system/sw/bin/zsh -c \"rg --files --hidden -g '\"'!.git'\"'; rg -n 'checkout|timeout|retr' .\"",
+        "/run/current-system/sw/bin/zsh -c 'cat src/client.py'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 3484,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 2
+    },
+    {
+      "run_id": "source_lookup-1-pi",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 8.721117727000092,
+      "usage": {
+        "input_tokens": 35278,
+        "cached_input_tokens": 23078,
+        "cache_write_input_tokens": 12191,
+        "output_tokens": 93,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg -n 'checkout|timeout|retries' .\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs read src/client.py'"
+      ],
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "command_output_bytes": 3019,
+      "pi_command_count": 1,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    },
+    {
+      "run_id": "cargo_failure-1-stock",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 10.552155180001137,
+      "usage": {
+        "input_tokens": 35881,
+        "cached_input_tokens": 21861,
+        "cache_write_input_tokens": 14011,
+        "output_tokens": 165,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pwd; rg --files -g AGENTS.md -g Cargo.toml -g Cargo.lock -g rust-toolchain -g rust-toolchain.toml -g .cargo/config.toml -g .cargo/config'",
+        "/run/current-system/sw/bin/zsh -c 'cargo test'"
+      ],
+      "command_exit_codes": [
+        0,
+        101
+      ],
+      "command_output_bytes": 9735,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "cargo_failure-1-pi",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 7.795362340000793,
+      "usage": {
+        "input_tokens": 22660,
+        "cached_input_tokens": 11136,
+        "cache_write_input_tokens": 11518,
+        "output_tokens": 91,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs cargo test'"
+      ],
+      "command_exit_codes": [
+        101
+      ],
+      "command_output_bytes": 853,
+      "pi_command_count": 1,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 2
+    },
+    {
+      "run_id": "cargo_failure-1-rtk",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.647697045000314,
+      "usage": {
+        "input_tokens": 33563,
+        "cached_input_tokens": 22108,
+        "cache_write_input_tokens": 11446,
+        "output_tokens": 187,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g 'AGENTS.md' -g 'Cargo.toml' -g 'Cargo.lock' -g 'rust-toolchain*'\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk cargo test --offline'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        101
+      ],
+      "command_output_bytes": 969,
+      "pi_command_count": 0,
+      "rtk_command_count": 3,
+      "rtk_history_count": 3,
+      "rtk_hook_rewrite_count": 3,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 3
+    },
+    {
+      "run_id": "recent_history-1-pi",
+      "task": "recent_history",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.38833312099996,
+      "usage": {
+        "input_tokens": 35222,
+        "cached_input_tokens": 22587,
+        "cache_write_input_tokens": 12626,
+        "output_tokens": 200,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "commit": "88262bd",
+        "subject": "cache: increase TTL to reduce origin load",
+        "before": 30,
+        "after": 120
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg -n -i 'cache.*ttl|ttl.*cache' . --glob '\"'!package-lock.json'\"' --glob '\"'!Cargo.lock'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"git log -15 --format='%h %s'\"",
+        "/run/current-system/sw/bin/zsh -c \"rg --files --hidden -g '\"'!.git'\"'; git log -p --format='commit %h%nsubject %s' -- .\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 3373,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "recent_history-1-rtk",
+      "task": "recent_history",
+      "repeat": 1,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.758703837000212,
+      "usage": {
+        "input_tokens": 45390,
+        "cached_input_tokens": 33557,
+        "cache_write_input_tokens": 11821,
+        "output_tokens": 268,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "commit": "88262bd",
+        "subject": "cache: increase TTL to reduce origin load",
+        "before": 30,
+        "after": 120
+      },
+      "correct": true,
+      "command_count": 5,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c 'rtk git log -15 --oneline'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g AGENTS.md -g '*cache*' -g '*config*'\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg -n -i 'ttl|cache' .\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk git log -p --format='commit %h%nsubject %s' -- config/cache.toml\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 1569,
+      "pi_command_count": 0,
+      "rtk_command_count": 5,
+      "rtk_history_count": 5,
+      "rtk_hook_rewrite_count": 5,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 2
+    },
+    {
+      "run_id": "recent_history-1-stock",
+      "task": "recent_history",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.734912881000128,
+      "usage": {
+        "input_tokens": 34332,
+        "cached_input_tokens": 21892,
+        "cache_write_input_tokens": 12431,
+        "output_tokens": 201,
+        "reasoning_output_tokens": 39
+      },
+      "answer": {
+        "commit": "88262bd",
+        "subject": "cache: increase TTL to reduce origin load",
+        "before": 30,
+        "after": 120
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '\"'!node_modules'\"' -g '\"'!vendor'\"'; git log -15 --oneline\"",
+        "/run/current-system/sw/bin/zsh -c \"git show --format=fuller --stat 88262bd; git show --format= --no-ext-diff 88262bd; git log -p --all --format='%h %s'\""
+      ],
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "command_output_bytes": 3759,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    },
+    {
+      "run_id": "noisy_log-2-pi",
+      "task": "noisy_log",
+      "repeat": 2,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 7.529645855000126,
+      "usage": {
+        "input_tokens": 33665,
+        "cached_input_tokens": 22312,
+        "cache_write_input_tokens": 11344,
+        "output_tokens": 131,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pi-rs read logs/service.log --grep 'fail|error|ERROR' --lines 40\"",
+        "/run/current-system/sw/bin/zsh -c \"rg -n -m 5 'failed|error|ERROR|FAIL' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        1,
+        0
+      ],
+      "command_output_bytes": 101,
+      "pi_command_count": 1,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "noisy_log-2-rtk",
+      "task": "noisy_log",
+      "repeat": 2,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 8.485001279999778,
+      "usage": {
+        "input_tokens": 33167,
+        "cached_input_tokens": 21937,
+        "cache_write_input_tokens": 11221,
+        "output_tokens": 156,
+        "reasoning_output_tokens": 30
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg -n -m 15 'fail|FAIL|error|ERROR' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "command_output_bytes": 647,
+      "pi_command_count": 0,
+      "rtk_command_count": 2,
+      "rtk_history_count": 2,
+      "rtk_hook_rewrite_count": 2,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 2
+    },
+    {
+      "run_id": "noisy_log-2-stock",
+      "task": "noisy_log",
+      "repeat": 2,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.44163065199973,
+      "usage": {
+        "input_tokens": 33064,
+        "cached_input_tokens": 21775,
+        "cache_write_input_tokens": 11280,
+        "output_tokens": 216,
+        "reasoning_output_tokens": 69
+      },
+      "answer": {
+        "timestamp": "2026-06-12T08:42:17Z",
+        "upstream": "inventory",
+        "error_code": "TLS_CERT_EXPIRED"
+      },
+      "correct": true,
+      "command_count": 2,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg -n -m 8 'fail|error|ERROR|FAIL' logs/service.log\"",
+        "/run/current-system/sw/bin/zsh -c \"sed -n '3997,4005p' logs/service.log\""
+      ],
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "command_output_bytes": 741,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    },
+    {
+      "run_id": "config_diff-2-rtk",
+      "task": "config_diff",
+      "repeat": 2,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.165715028000704,
+      "usage": {
+        "input_tokens": 48694,
+        "cached_input_tokens": 29506,
+        "cache_write_input_tokens": 19179,
+        "output_tokens": 265,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 4,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"pwd; rtk rg --files -g 'AGENTS.md' -g '*'; rtk git diff --stat; rtk git status --short\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk read README.md; rtk read config/services/service_057.toml; rtk git diff -- config/services/service_057.toml'",
+        "/run/current-system/sw/bin/zsh -c \"rtk git diff --ignore-matching-lines='\"'^#.*build'\"' -- config; rtk rg --files --hidden -g '\"'!'\"\\\\.git/**' -g 'AGENTS.md'\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "command_output_bytes": 22253,
+      "pi_command_count": 0,
+      "rtk_command_count": 4,
+      "rtk_history_count": 9,
+      "rtk_hook_rewrite_count": 4,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 1
+    },
+    {
+      "run_id": "config_diff-2-stock",
+      "task": "config_diff",
+      "repeat": 2,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 11.485535141999208,
+      "usage": {
+        "input_tokens": 60704,
+        "cached_input_tokens": 35565,
+        "cache_write_input_tokens": 25130,
+        "output_tokens": 236,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*'; git status --short; git diff\"",
+        "/run/current-system/sw/bin/zsh -c \"cat README.md; rg --files --hidden -g '\"'! .git'\"' -g 'AGENTS.md' -g '*test*' -g '*require*'\"",
+        "/run/current-system/sw/bin/zsh -c \"git diff HEAD --ignore-matching-lines='\"'^[[:space:]]*# build stamp:'\"' -- config; git diff --cached --stat\""
+      ],
+      "command_exit_codes": [
+        0,
+        1,
+        0
+      ],
+      "command_output_bytes": 57415,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 2
+    },
+    {
+      "run_id": "config_diff-2-pi",
+      "task": "config_diff",
+      "repeat": 2,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 10.444523722000667,
+      "usage": {
+        "input_tokens": 37475,
+        "cached_input_tokens": 24050,
+        "cache_write_input_tokens": 13416,
+        "output_tokens": 291,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "file": "config/services/service_057.toml",
+        "setting": "auth_required",
+        "before": "true",
+        "after": "false"
+      },
+      "correct": true,
+      "command_count": 5,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*deploy*' -g '*require*' -g '*config*' -g 'README*'\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs git diff --stat'",
+        "/run/current-system/sw/bin/zsh -c \"git diff --ignore-matching-lines='\"'^[[:space:]]*#.*build'\"' -- config/services\"",
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g '\"'!config/services/*'\"' -g '\"'!src/*'\"' -g '\"'!*.lock'\"' -g '\"'!node_modules/**'\"'; pi-rs read config/services/service_057.toml\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs read README.md'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 5626,
+      "pi_command_count": 3,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    },
+    {
+      "run_id": "source_lookup-2-stock",
+      "task": "source_lookup",
+      "repeat": 2,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 11.6366704510001,
+      "usage": {
+        "input_tokens": 46010,
+        "cached_input_tokens": 33781,
+        "cache_write_input_tokens": 12217,
+        "output_tokens": 197,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g '*checkout*' -g '*config*' -g '*client*' -g 'package.json' -g 'README*'\"",
+        "/run/current-system/sw/bin/zsh -c \"rg --files --hidden -g '\"'!.git'\"'; rg -n 'checkout|timeout|retr' .\"",
+        "/run/current-system/sw/bin/zsh -c 'cat src/client.py README.md'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 3540,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "source_lookup-2-pi",
+      "task": "source_lookup",
+      "repeat": 2,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 5.711370425999121,
+      "usage": {
+        "input_tokens": 23085,
+        "cached_input_tokens": 11094,
+        "cache_write_input_tokens": 11985,
+        "output_tokens": 91,
+        "reasoning_output_tokens": 29
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg -n 'checkout|timeout|retries' .\""
+      ],
+      "command_exit_codes": [
+        0
+      ],
+      "command_output_bytes": 2591,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 2
+    },
+    {
+      "run_id": "source_lookup-2-rtk",
+      "task": "source_lookup",
+      "repeat": 2,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.514493299000605,
+      "usage": {
+        "input_tokens": 46827,
+        "cached_input_tokens": 34322,
+        "cache_write_input_tokens": 12493,
+        "output_tokens": 257,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 5,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json' -g 'README*'\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files --hidden -g '\"'!.git/**'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg -n 'checkout|timeout|retr(y|ies)|AGENTS' .\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk read src/client.py'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "command_output_bytes": 3984,
+      "pi_command_count": 0,
+      "rtk_command_count": 5,
+      "rtk_history_count": 5,
+      "rtk_hook_rewrite_count": 3,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 3
+    },
+    {
+      "run_id": "cargo_failure-2-pi",
+      "task": "cargo_failure",
+      "repeat": 2,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 7.035186667999369,
+      "usage": {
+        "input_tokens": 22661,
+        "cached_input_tokens": 11136,
+        "cache_write_input_tokens": 11519,
+        "output_tokens": 122,
+        "reasoning_output_tokens": 31
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs cargo test'"
+      ],
+      "command_exit_codes": [
+        101
+      ],
+      "command_output_bytes": 853,
+      "pi_command_count": 1,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 1
+    },
+    {
+      "run_id": "cargo_failure-2-rtk",
+      "task": "cargo_failure",
+      "repeat": 2,
+      "arm": "rtk",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.309704910001528,
+      "usage": {
+        "input_tokens": 44755,
+        "cached_input_tokens": 33270,
+        "cache_write_input_tokens": 11473,
+        "output_tokens": 191,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'rtk read /home/aragao/.codex/RTK.md'",
+        "/run/current-system/sw/bin/zsh -c \"rtk rg --files -g AGENTS.md -g Cargo.toml -g Cargo.lock -g rust-toolchain\\\\* -g .cargo/config\\\\*\"",
+        "/run/current-system/sw/bin/zsh -c 'rtk cargo test --offline'"
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        101
+      ],
+      "command_output_bytes": 969,
+      "pi_command_count": 0,
+      "rtk_command_count": 3,
+      "rtk_history_count": 3,
+      "rtk_hook_rewrite_count": 3,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 1,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ],
+      "errors": [
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."
+      ],
+      "position": 2
+    },
+    {
+      "run_id": "cargo_failure-2-stock",
+      "task": "cargo_failure",
+      "repeat": 2,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 14.179653089000567,
+      "usage": {
+        "input_tokens": 50388,
+        "cached_input_tokens": 35991,
+        "cache_write_input_tokens": 14385,
+        "output_tokens": 352,
+        "reasoning_output_tokens": 93
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 4,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"pwd; rg --files -g 'AGENTS.md' -g 'Cargo.toml' -g 'Cargo.lock' -g 'rust-toolchain*' -g '.cargo/config*' -g '\"'!target'\"' -g '\"'!vendor'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"cat Cargo.toml; rg --files -g 'AGENTS.md' -g '*.rs' -g '\"'!target'\"'\"",
+        "/run/current-system/sw/bin/zsh -c 'cargo test --offline'",
+        "/run/current-system/sw/bin/zsh -c \"sed -n '485,498p' src/lib.rs\""
+      ],
+      "command_exit_codes": [
+        0,
+        0,
+        101,
+        0
+      ],
+      "command_output_bytes": 10229,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution"
+      ],
+      "errors": [],
+      "position": 3
+    }
+  ]
+}

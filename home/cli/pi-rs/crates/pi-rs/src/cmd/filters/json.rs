@@ -1,86 +1,216 @@
-//! `pi-rs json [FILE] [--structure]` — JSON structure viewer.
-//!
-//! Default mode pretty-prints the document with truncation. `--structure`
-//! strips scalar values, keeping only key names and types — useful for
-//! understanding the shape of an API response or config file without
-//! pulling the full payload into context.
-
-use std::io::Read;
-use std::path::PathBuf;
-
+//! JSON inspection with heterogeneous structure, array exceptions and pointers.
+use crate::compress::{
+    recovery,
+    tee::{self, TruncateRequest, truncate_with_tee},
+};
 use clap::Args;
 use serde_json::Value;
-
-use super::DEFAULT_HEAD_LINES;
-use crate::compress::tee::{TruncateRequest, truncate_with_tee};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+    path::PathBuf,
+};
 
 #[derive(Args, Debug)]
 pub struct JsonArgs {
-    /// Path to JSON file. Stdin used when omitted.
     pub path: Option<PathBuf>,
-    /// Emit structure only — keys + types, drop scalar values.
+    /// Show all distinct array shapes, without scalar values.
     #[arg(short, long)]
     pub structure: bool,
+    /// Select a value using an RFC 6901 JSON pointer, e.g. /records/250.
+    #[arg(long)]
+    pub pointer: Option<String>,
+    /// Filter an array by POINTER=JSON, e.g. '/status="failed"'.
+    #[arg(long = "where")]
+    pub predicate: Option<String>,
+    /// Print the selected JSON without summarization or byte limits.
+    #[arg(long, conflicts_with = "structure")]
+    pub full: bool,
 }
 
 pub fn run(args: JsonArgs) -> anyhow::Result<()> {
-    let raw = match &args.path {
-        Some(p) => std::fs::read_to_string(p)
-            .map_err(|e| anyhow::anyhow!("read {}: {e}", p.display()))?,
-        None => {
-            let mut s = String::new();
-            std::io::stdin().read_to_string(&mut s)?;
-            s
-        }
-    };
-    let value: Value = serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("parse json: {e}"))?;
-
-    let rendered = if args.structure {
-        let mut s = String::new();
-        render_structure(&value, 0, &mut s);
-        s
+    let raw = if let Some(path) = &args.path {
+        String::from_utf8(recovery::read(path)?)?
     } else {
-        serde_json::to_string_pretty(&value)?
+        let mut s = String::new();
+        std::io::stdin().read_to_string(&mut s)?;
+        s
     };
-
-    let hint = args
-        .path
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "json".into());
-    let r = truncate_with_tee(TruncateRequest {
+    let document: Value = serde_json::from_str(&raw)?;
+    let selected = if let Some(pointer) = &args.pointer {
+        document
+            .pointer(pointer)
+            .ok_or_else(|| anyhow::anyhow!("JSON pointer not found: {pointer}"))?
+    } else {
+        &document
+    };
+    let filtered;
+    let selected = if let Some(predicate) = &args.predicate {
+        let (pointer, expected) = predicate
+            .split_once('=')
+            .ok_or_else(|| anyhow::anyhow!("--where requires POINTER=JSON"))?;
+        let expected: Value = serde_json::from_str(expected)?;
+        let items = selected.as_array().ok_or_else(|| {
+            anyhow::anyhow!("--where requires an array (select one with --pointer)")
+        })?;
+        filtered = Value::Array(
+            items
+                .iter()
+                .filter(|v| v.pointer(pointer) == Some(&expected))
+                .cloned()
+                .collect(),
+        );
+        &filtered
+    } else {
+        selected
+    };
+    let pretty = serde_json::to_string_pretty(selected)? + "\n";
+    if args.full {
+        print!("{pretty}");
+        return Ok(());
+    }
+    let mut rendered = String::new();
+    if args.structure {
+        render_structure(selected, 0, &mut rendered);
+    } else if pretty.len() > tee::output_budget() {
+        render_compact(selected, 0, &mut rendered);
+    } else {
+        rendered = pretty.clone();
+    }
+    let explicit = args.structure || args.pointer.is_some() || args.predicate.is_some();
+    if args.structure {
+        // A requested structure view may be larger than a tiny input. Honor it
+        // while retaining exact input, including stdin, for later inspection.
+        match tee::resolve_tee_dir(None)
+            .and_then(|d| recovery::store(raw.as_bytes(), &d, recovery::Limits::from_env()))
+        {
+            Ok(path) => rendered.push_str(&format!("[full output: {}]\n", path.display())),
+            Err(_) => {
+                print!("{raw}");
+                return Ok(());
+            }
+        }
+    }
+    let original = if explicit { &pretty } else { &raw };
+    // Explicit projections have intentionally selected a different payload.
+    let guarded = truncate_with_tee(TruncateRequest {
         content: &rendered,
-        head_lines: DEFAULT_HEAD_LINES * 3,
-        tail_lines: DEFAULT_HEAD_LINES,
-        cmd_hint: &hint,
+        original: if args.structure { None } else { Some(original) },
+        head_lines: 2,
+        tail_lines: 1,
         tee_dir: None,
+        max_bytes: None,
     })?;
-    print!("{}", r.content);
+    print!("{}", guarded.content);
     Ok(())
 }
 
-/// Render a JSON value's structure (keys + types) without scalar values.
+fn shape(v: &Value) -> String {
+    match v {
+        Value::Null => "null".into(),
+        Value::Bool(_) => "bool".into(),
+        Value::Number(_) => "number".into(),
+        Value::String(_) => "string".into(),
+        Value::Array(a) => {
+            let shapes: BTreeSet<_> = a.iter().map(shape).collect();
+            format!(
+                "array<{}>",
+                shapes.into_iter().collect::<Vec<_>>().join("|")
+            )
+        }
+        Value::Object(m) => {
+            let fields: BTreeMap<_, _> = m.iter().map(|(k, v)| (k, shape(v))).collect();
+            format!("{fields:?}")
+        }
+    }
+}
+
 fn render_structure(v: &Value, depth: usize, out: &mut String) {
     let indent = "  ".repeat(depth);
     match v {
-        Value::Null => out.push_str(&format!("{indent}null\n")),
-        Value::Bool(_) => out.push_str(&format!("{indent}<bool>\n")),
-        Value::Number(_) => out.push_str(&format!("{indent}<number>\n")),
-        Value::String(_) => out.push_str(&format!("{indent}<string>\n")),
         Value::Array(items) => {
             out.push_str(&format!("{indent}[{}] array\n", items.len()));
-            if let Some(first) = items.first() {
-                render_structure(first, depth + 1, out);
+            let mut shapes = BTreeSet::new();
+            for (i, item) in items.iter().enumerate() {
+                if shapes.insert(shape(item)) {
+                    out.push_str(&format!("{indent}  [{i}] shape:\n"));
+                    render_structure(item, depth + 2, out);
+                }
             }
         }
         Value::Object(map) => {
-            out.push_str(&format!("{indent}{{{}}} object\n", map.len()));
-            for (k, child) in map {
-                out.push_str(&format!("{indent}  {k}:\n"));
-                render_structure(child, depth + 2, out);
+            for (key, child) in map {
+                out.push_str(&format!("{indent}{key}:\n"));
+                render_structure(child, depth + 1, out);
             }
         }
+        _ => out.push_str(&format!("{indent}<{}>\n", shape(v))),
+    }
+}
+
+fn interesting_indices(items: &[Value]) -> BTreeSet<usize> {
+    let mut keep: BTreeSet<_> = (0..items.len().min(3))
+        .chain(items.len().saturating_sub(2)..items.len())
+        .collect();
+    let mut shapes: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    let mut fields: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
+    for (i, v) in items.iter().enumerate() {
+        shapes.entry(shape(v)).or_default().push(i);
+        if let Value::Object(map) = v {
+            for (key, value) in map {
+                if value.is_string() || value.is_boolean() || value.is_null() {
+                    fields
+                        .entry(key.clone())
+                        .or_default()
+                        .entry(value.to_string())
+                        .or_default()
+                        .push(i);
+                }
+            }
+        }
+    }
+    for indices in shapes.values() {
+        keep.insert(indices[0]);
+        if indices.len() <= 3 {
+            keep.extend(indices);
+        }
+    }
+    for values in fields.values() {
+        // Low-cardinality categorical fields expose uncommon states without
+        // treating unique IDs or free-text messages as anomalies.
+        if values.len() <= 12 && values.len() * 4 <= items.len() {
+            for indices in values.values() {
+                keep.insert(indices[0]);
+                if indices.len() <= 3 {
+                    keep.extend(indices);
+                }
+            }
+        }
+    }
+    keep
+}
+
+fn render_compact(v: &Value, depth: usize, out: &mut String) {
+    let indent = "  ".repeat(depth);
+    match v {
+        Value::Array(items) if items.len() > 12 => {
+            let keep = interesting_indices(items);
+            out.push_str(&format!("{indent}[{} items; {} omitted; sampled endpoints, shapes and uncommon categorical values]\n", items.len(), items.len() - keep.len()));
+            for i in keep {
+                out.push_str(&format!("{indent}[{i}] {}\n", items[i]));
+            }
+        }
+        Value::Object(map) => {
+            for (key, child) in map {
+                out.push_str(&format!("{indent}{key}: "));
+                if child.is_array() || child.is_object() {
+                    out.push('\n');
+                    render_compact(child, depth + 1, out);
+                } else {
+                    out.push_str(&format!("{child}\n"));
+                }
+            }
+        }
+        _ => out.push_str(&format!("{indent}{v}\n")),
     }
 }

@@ -1,51 +1,23 @@
-//! `pi-rs git` wrapper.
-//!
-//! Subcommands: `status`, `diff`, `log`, `show`. Unknown subcommands pass
-//! through to `git` directly via [`clap`]'s external-subcommand mechanism.
-//! Every path lands in [`super::run_filtered`] eventually so the
-//! compression pipeline is uniform.
+//! Git output compression with explicit formats and global arguments preserved.
 
-use clap::{Args, Subcommand};
+use clap::Args;
 
-use super::{DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES, run_filtered};
+use super::{DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES, run_filtered, run_passthrough};
 
 #[derive(Args, Debug)]
 pub struct GitArgs {
-    #[command(subcommand)]
-    pub command: GitCommand,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum GitCommand {
-    /// Compact `git status` (defaults to --short).
-    Status(Trailing),
-    /// `git diff` with head/tail truncation and tee log on overflow.
-    Diff(Trailing),
-    /// `git log` (defaults to --oneline -n 20).
-    Log(Trailing),
-    /// `git show` with truncation.
-    Show(Trailing),
-    /// Any other git subcommand — passthrough subprocess + truncate.
-    #[command(external_subcommand)]
-    Other(Vec<String>),
-}
-
-/// Wrapper for trailing-var-arg subcommands. Any argv after the
-/// subcommand name lands here; we forward it to `git` after optional
-/// defaults.
-#[derive(Args, Debug)]
-pub struct Trailing {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub args: Vec<String>,
 }
 
 pub fn run(args: GitArgs) -> anyhow::Result<()> {
-    let code = match args.command {
-        GitCommand::Status(t) => status(t)?,
-        GitCommand::Diff(t) => diff(t)?,
-        GitCommand::Log(t) => log(t)?,
-        GitCommand::Show(t) => show(t)?,
-        GitCommand::Other(argv) => other(argv)?,
+    let (argv, compact) = prepare(args.args);
+    let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+    let code = if compact {
+        let hint = format!("git_{}", refs[0]);
+        run_filtered("git", &refs, &hint, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)?
+    } else {
+        run_passthrough("git", &refs)?
     };
     if code != 0 {
         std::process::exit(code);
@@ -53,117 +25,138 @@ pub fn run(args: GitArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `git status` → default to `--short` for compactness if the caller
-/// hasn't pinned a format flag themselves.
-fn status(t: Trailing) -> anyhow::Result<i32> {
-    let has_format = t.args.iter().any(|a| {
-        matches!(
-            a.as_str(),
-            "--short" | "-s" | "--porcelain" | "--long" | "--branch" | "-b"
-        )
-    });
-    let mut argv: Vec<String> = vec!["status".into()];
-    if !has_format {
-        argv.push("--short".into());
-    }
-    argv.extend(t.args);
-    run_git(&argv, "git_status")
-}
-
-/// `git diff` → no arg defaults (diff scope is intentional); rely on the
-/// tee escape hatch when the diff is large.
-fn diff(t: Trailing) -> anyhow::Result<i32> {
-    let mut argv: Vec<String> = vec!["diff".into()];
-    argv.extend(t.args);
-    run_git(&argv, "git_diff")
-}
-
-/// `git log` → default to `--oneline -n 20` for a compact recent-history
-/// view. Caller flags win when present.
-fn log(t: Trailing) -> anyhow::Result<i32> {
-    let has_oneline = t.args.iter().any(|a| a == "--oneline" || a == "--pretty");
-    let has_n = t.args.iter().any(|a| a == "-n" || a.starts_with("--max-count"));
-    let mut argv: Vec<String> = vec!["log".into()];
-    if !has_oneline {
-        argv.push("--oneline".into());
-    }
-    if !has_n {
-        argv.push("-n".into());
-        argv.push("20".into());
-    }
-    argv.extend(t.args);
-    run_git(&argv, "git_log")
-}
-
-fn show(t: Trailing) -> anyhow::Result<i32> {
-    let mut argv: Vec<String> = vec!["show".into()];
-    argv.extend(t.args);
-    run_git(&argv, "git_show")
-}
-
-fn other(argv: Vec<String>) -> anyhow::Result<i32> {
-    // argv[0] is the subcommand name (e.g. "fetch"); pass through verbatim.
-    let hint = if let Some(first) = argv.first() {
-        format!("git_{first}")
-    } else {
-        "git".into()
+fn prepare(mut args: Vec<String>) -> (Vec<String>, bool) {
+    let Some(subcommand) = args.first().map(String::as_str) else {
+        return (args, false);
     };
-    run_git(&argv, &hint)
+    // Global options such as -C/-c and other subcommands retain native Git
+    // behavior. Machine-readable formats are output contracts, not summaries.
+    if !matches!(subcommand, "status" | "diff" | "log" | "show") {
+        return (args, false);
+    }
+    if args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "-z" | "--null" | "--binary" | "--numstat" | "--raw"
+        ) || [
+            "--porcelain",
+            "--format",
+            "--pretty",
+            "--output",
+            "--name-only",
+            "--name-status",
+        ]
+        .iter()
+        .any(|flag| arg == flag || arg.strip_prefix(flag).is_some_and(|s| s.starts_with('=')))
+    }) || (subcommand == "show"
+        && args
+            .iter()
+            .skip(1)
+            .any(|arg| !arg.starts_with('-') && arg.contains(':')))
+    {
+        return (args, false);
+    }
+    if subcommand == "status" {
+        let has_format = args.iter().skip(1).any(|arg| {
+            matches!(arg.as_str(), "--short" | "--long")
+                || (arg.starts_with('-') && !arg.starts_with("--") && arg.contains('s'))
+        });
+        if !has_format {
+            args.insert(1, "--short".into());
+        }
+    }
+    (args, true)
 }
 
-fn run_git(argv: &[String], cmd_hint: &str) -> anyhow::Result<i32> {
-    let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
-    run_filtered("git", &refs, cmd_hint, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)
+/// Keep patch metadata and every changed line; omit only unchanged context.
+/// The shared recovery guard retains the exact patch before this transform.
+pub fn summarize(text: &str, args: &[&str]) -> String {
+    if !matches!(args.first(), Some(&"diff" | &"show")) || !text.contains("diff --git ") {
+        return text.to_owned();
+    }
+    let mut patch = false;
+    let mut out = String::from("[patch summary; unchanged context and blob IDs omitted]\n");
+    let lines: Vec<_> = text.split_inclusive('\n').collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        if line.starts_with("diff --git ") {
+            patch = false;
+        }
+        if line.starts_with("@@") {
+            patch = true;
+        }
+        if line.starts_with("index ") || (patch && line.starts_with(' ')) {
+            i += 1;
+            continue;
+        }
+        if patch && line.starts_with('-') {
+            let start = i;
+            while i < lines.len() && lines[i].starts_with('-') {
+                i += 1;
+            }
+            let mid = i;
+            while i < lines.len() && lines[i].starts_with('+') {
+                i += 1;
+            }
+            let paired = mid - start == i - mid
+                && (0..mid - start).all(|j| {
+                    match (
+                        lines[start + j][1..].split_once('='),
+                        lines[mid + j][1..].split_once('='),
+                    ) {
+                        (Some((a, _)), Some((b, _))) => a == b,
+                        _ => false,
+                    }
+                });
+            if paired {
+                for j in 0..mid - start {
+                    let old = lines[start + j][1..].trim_end().split_once('=').unwrap().1;
+                    out.push_str(&format!("{} [was {old}]\n", lines[mid + j].trim_end()));
+                }
+            } else {
+                for line in &lines[start..i] {
+                    out.push_str(line);
+                }
+            }
+            continue;
+        }
+        out.push_str(line);
+        i += 1;
+    }
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn t(args: &[&str]) -> Trailing {
-        Trailing {
-            args: args.iter().map(|s| s.to_string()).collect(),
+    fn prepare_args(args: &[&str]) -> (Vec<String>, bool) {
+        prepare(args.iter().map(|arg| (*arg).to_string()).collect())
+    }
+
+    #[test]
+    fn adds_defaults_only_for_human_output() {
+        assert_eq!(prepare_args(&["status"]).0, ["status", "--short"]);
+        assert_eq!(prepare_args(&["status", "-sb"]).0, ["status", "-sb"]);
+        assert_eq!(prepare_args(&["log", "-n5"]).0, ["log", "-n5"]);
+        assert_eq!(prepare_args(&["log", "-5"]).0, ["log", "-5"]);
+    }
+
+    #[test]
+    fn explicit_formats_and_global_options_are_verbatim() {
+        for args in [
+            vec!["status", "--porcelain=v2"],
+            vec!["log", "--format=%H"],
+            vec!["log", "--pretty=raw"],
+            vec!["diff", "--numstat", "-z"],
+            vec!["show", "HEAD:path/to/file"],
+            vec!["-C", "/tmp/repo", "status"],
+            vec!["rev-parse", "HEAD"],
+        ] {
+            let (actual, compact) = prepare_args(&args);
+            assert!(!compact, "{args:?}");
+            assert_eq!(actual, args);
         }
-    }
-
-    // These tests verify the arg-massage logic. They don't subprocess git.
-
-    #[test]
-    fn status_defaults_to_short() {
-        let mut argv: Vec<String> = vec!["status".into()];
-        let trailing = t(&[]);
-        let has_format = trailing.args.iter().any(|a| {
-            matches!(
-                a.as_str(),
-                "--short" | "-s" | "--porcelain" | "--long" | "--branch" | "-b"
-            )
-        });
-        if !has_format {
-            argv.push("--short".into());
-        }
-        assert_eq!(argv, vec!["status", "--short"]);
-    }
-
-    #[test]
-    fn status_keeps_explicit_format_flag() {
-        let trailing = t(&["--porcelain=v2"]);
-        let has_format = trailing.args.iter().any(|a| {
-            matches!(
-                a.as_str(),
-                "--short" | "-s" | "--porcelain" | "--long" | "--branch" | "-b"
-            )
-        });
-        // The matcher only considers exact tokens, so `--porcelain=v2`
-        // doesn't match `--porcelain` exactly. Document the limitation:
-        // composite flags like `--porcelain=v2` still get the default
-        // appended. This is intentional — we keep the matcher cheap.
-        assert!(!has_format);
-    }
-
-    #[test]
-    fn log_defaults_appended_only_when_missing() {
-        let trailing = t(&["-n", "5"]);
-        let has_n = trailing.args.iter().any(|a| a == "-n" || a.starts_with("--max-count"));
-        assert!(has_n, "explicit -n short-circuits the default");
     }
 }

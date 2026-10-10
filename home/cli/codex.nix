@@ -3,6 +3,7 @@
   lib,
   osConfig,
   pkgs,
+  unstable-pkgs,
   ...
 }:
 
@@ -10,9 +11,9 @@ let
   trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
   trustedInfinityCorePath = "${config.home.homeDirectory}/projects/work/infinity-core";
 
-  # pi-rs token compression is instructional here: AGENTS.md asks Codex
-  # to prefer `pi-rs <tool>`. Project lifecycle hooks remain independent.
-  piRs = pkgs.callPackage ./pi-rs { };
+  codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
+    inherit (unstable-pkgs) go gopls;
+  };
 
   # Lifecycle hooks inherit the Codex process environment; they do not
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
@@ -52,6 +53,31 @@ let
 
     [mcp_servers.atlassian]
     url = "https://mcp.atlassian.com/v2/mcp"
+
+    # User-level registration applies to every project. Leaving cwd unset
+    # lets each Codex session supply its working directory to the launcher.
+    [mcp_servers.lsp]
+    command = "${lib.getExe codeLsp}"
+    required = true
+    startup_timeout_sec = 10
+    tool_timeout_sec = 60
+
+    [mcp_servers.nixos]
+    command = "${lib.getExe pkgs.mcp-nixos}"
+    startup_timeout_sec = 15
+    tool_timeout_sec = 60
+
+    [mcp_servers.context7]
+    url = "https://mcp.context7.com/mcp"
+    enabled_tools = ["resolve-library-id", "query-docs"]
+    startup_timeout_sec = 10
+    tool_timeout_sec = 30
+
+    [mcp_servers.openaiDeveloperDocs]
+    url = "https://developers.openai.com/mcp"
+    enabled_tools = ["search_openai_docs", "fetch_openai_doc"]
+    startup_timeout_sec = 10
+    tool_timeout_sec = 30
 
     [model_providers.litellm]
     name = "LiteLLM"
@@ -102,9 +128,11 @@ in
   # without it in PATH it falls back to a bundled copy and prints a
   # warning at every invocation. On macOS codex uses Seatbelt/sandbox-exec
   # directly, so bubblewrap is irrelevant (and unbuildable).
-  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-    pkgs.bubblewrap
-  ];
+  home.packages = [
+    codeLsp
+    pkgs.mcp-nixos
+  ]
+  ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.bubblewrap ];
 
   # Schema: https://developers.openai.com/codex/config-reference
   #
@@ -116,9 +144,24 @@ in
   # Consequence: ~/.codex/config.toml is a regular file (not a
   # /nix/store symlink). That's appropriate since its contents now
   # depend on a runtime-decrypted value.
-  # Materialize ~/.codex/AGENTS.md from the pi-rs-managed rules fragment.
-  # Codex reads this file as global instruction context.
-  home.file.".codex/AGENTS.md".source = "${piRs}/share/pi-rs/agent-hooks/codex-rules.md";
+  # Codex reads this file globally, independently of project instructions.
+  home.file.".codex/AGENTS.md".text = builtins.readFile ./pi-rs/agent-hooks/codex-rules.md + ''
+
+    # Code intelligence
+
+    Use the lsp tools for definitions, references, types, symbol outlines and
+    diagnostics in Go, Rust, Nix and TypeScript/JavaScript. Positions are
+    1-based. Prefer focused rg queries for known text. Query changed files
+    first; use project tests/type checks to confirm fixes. Rename tools
+    default to previews. If a server fails, inspect get_server_status and
+    restart that server once, then use compiler/CLI diagnostics.
+
+    Use the nixos MCP tools for NixOS/Home Manager/nix-darwin package and
+    option lookup; match the project's channel/version when relevant.
+    Use Context7 for library documentation when local source/types do not
+    answer the question, and openaiDeveloperDocs for Codex/OpenAI questions.
+    Select the project's library version and keep documentation queries focused.
+  '';
 
   # ~/.local/bin already precedes the npm prefix in home/default.nix.
   # Keep the npm-managed installation intact so explicit upgrades continue

@@ -1,10 +1,5 @@
-//! `pi-rs pytest` wrapper.
-//!
-//! Defaults to `-q` (quiet) to drop the per-test PASSED markers that
-//! make pytest's default output verbose. The compress pipeline plus tee
-//! handles the rest. Per-format JSON parsing via `pytest-json-report` is
-//! a future smartness; failures still surface because `-q` keeps
-//! `FAILED` / `ERROR` lines.
+//! Pytest wrapper: retain caller arguments and compact recognized progress.
+//! Failure blocks, warnings, unknown plugin output and explicit verbosity remain.
 
 use clap::Args;
 
@@ -17,16 +12,70 @@ pub struct PytestArgs {
 }
 
 pub fn run(args: PytestArgs) -> anyhow::Result<()> {
-    let has_quiet = args.args.iter().any(|a| a == "-q" || a == "--quiet" || a == "-v" || a == "--verbose");
-    let mut argv: Vec<String> = Vec::with_capacity(args.args.len() + 1);
-    if !has_quiet {
-        argv.push("-q".into());
-    }
-    argv.extend(args.args);
-    let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
-    let code = run_filtered("pytest", &refs, "pytest", DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)?;
+    let refs: Vec<&str> = args.args.iter().map(String::as_str).collect();
+    let code = run_filtered(
+        "pytest",
+        &refs,
+        "pytest",
+        DEFAULT_HEAD_LINES,
+        DEFAULT_TAIL_LINES,
+    )?;
     if code != 0 {
         std::process::exit(code);
     }
     Ok(())
+}
+
+/// Remove only recognized progress rows. Failure, warning and plugin output
+/// remain verbatim, including everything after the first diagnostic section.
+pub fn summarize(text: &str) -> String {
+    if !text
+        .lines()
+        .any(|l| l.contains(" passed") || l.contains(" failed") || l.contains(" error"))
+    {
+        return text.to_owned();
+    }
+    let progress =
+        regex::Regex::new(r"^(?:[^\s]+\.py(?:::[^ ]+)?\s+)?[.sFxEX]+(?:\s+\[\s*\d+%\])?\s*$")
+            .unwrap();
+    let verbose =
+        regex::Regex::new(r"^\S+\.py::\S+\s+(?:PASSED|SKIPPED|XFAIL)(?:\s+\[\s*\d+%\])?\s*$")
+            .unwrap();
+    let session = text
+        .lines()
+        .any(|line| line.trim_matches('=').trim() == "test session starts");
+    let result = regex::Regex::new(r"^=+\s+\d+ (?:passed|failed|skipped|error).+\s+=+$").unwrap();
+    let mut diagnostics = false;
+    let mut out = String::new();
+    for line in text.split_inclusive('\n') {
+        if line.starts_with('=')
+            && (line.contains("FAILURES")
+                || line.contains("ERRORS")
+                || line.contains("warnings summary"))
+        {
+            diagnostics = true;
+        }
+        if !diagnostics && (progress.is_match(line.trim_end()) || verbose.is_match(line.trim_end()))
+        {
+            continue;
+        }
+        if session
+            && !diagnostics
+            && (line.trim().is_empty()
+                || line.trim_matches(['=', '\n', ' ']) == "test session starts"
+                || line.starts_with("platform ")
+                || line.starts_with("rootdir: ")
+                || (line.starts_with("collected ")
+                    && (line.trim_end().ends_with(" items") || line.trim_end().ends_with(" item"))))
+        {
+            continue;
+        }
+        if result.is_match(line.trim_end()) {
+            out.push_str(line.trim_matches(['=', '\n', ' ']));
+            out.push('\n');
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
 }

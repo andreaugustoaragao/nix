@@ -1,0 +1,4 @@
+tiktoken==0.14.0
+pytest==9.1.1
+matplotlib==3.10.8
+numpy==2.2.6

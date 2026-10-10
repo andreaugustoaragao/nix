@@ -1,0 +1,781 @@
+{
+  "source": "benchmarks/pi-rs/end-to-end/three-way/manifest.json",
+  "totals": {
+    "stock": {
+      "input_tokens": 583172,
+      "cached_input_tokens": 364498,
+      "uncached_input_tokens": 218674,
+      "cache_write_input_tokens": 218539,
+      "output_tokens": 3441,
+      "reasoning_output_tokens": 486,
+      "seconds": 160.04709467100292,
+      "command_count": 38,
+      "command_output_bytes": 200063,
+      "pi_command_count": 0,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 0,
+      "sessions": 15,
+      "successes": 15,
+      "median_seconds": 10.254722581000351,
+      "task_failures": [],
+      "error_items": 0,
+      "hook_trust_notice_items": 0,
+      "other_error_items": 0,
+      "malformed_hook_audit_records": 0
+    },
+    "pi": {
+      "input_tokens": 484777,
+      "cached_input_tokens": 283577,
+      "uncached_input_tokens": 201200,
+      "cache_write_input_tokens": 201086,
+      "output_tokens": 2684,
+      "reasoning_output_tokens": 215,
+      "seconds": 132.7890337880017,
+      "command_count": 39,
+      "command_output_bytes": 80974,
+      "pi_command_count": 32,
+      "rtk_command_count": 0,
+      "rtk_history_count": 0,
+      "rtk_hook_rewrite_count": 0,
+      "rtk_hook_skip_count": 0,
+      "recovery_command_count": 4,
+      "agent_instruction_read_count": 0,
+      "sessions": 15,
+      "successes": 15,
+      "median_seconds": 7.5890108730000065,
+      "task_failures": [],
+      "error_items": 0,
+      "hook_trust_notice_items": 0,
+      "other_error_items": 0,
+      "malformed_hook_audit_records": 0
+    },
+    "rtk": {
+      "input_tokens": 666064,
+      "cached_input_tokens": 461546,
+      "uncached_input_tokens": 204518,
+      "cache_write_input_tokens": 204356,
+      "output_tokens": 3509,
+      "reasoning_output_tokens": 335,
+      "seconds": 172.5368490740002,
+      "command_count": 55,
+      "command_output_bytes": 105322,
+      "pi_command_count": 0,
+      "rtk_command_count": 52,
+      "rtk_history_count": 62,
+      "rtk_hook_rewrite_count": 48,
+      "rtk_hook_skip_count": 3,
+      "recovery_command_count": 0,
+      "agent_instruction_read_count": 15,
+      "sessions": 15,
+      "successes": 15,
+      "median_seconds": 11.653983143000005,
+      "task_failures": [],
+      "error_items": 30,
+      "hook_trust_notice_items": 30,
+      "other_error_items": 0,
+      "malformed_hook_audit_records": 2
+    }
+  },
+  "per_task": [
+    {
+      "task": "noisy_log",
+      "stock": {
+        "input_tokens": 88162,
+        "cached_input_tokens": 54461,
+        "uncached_input_tokens": 33701,
+        "cache_write_input_tokens": 33677,
+        "output_tokens": 735,
+        "reasoning_output_tokens": 211,
+        "seconds": 29.70451690400114,
+        "command_count": 7,
+        "command_output_bytes": 1391,
+        "pi_command_count": 0,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 69561,
+        "cached_input_tokens": 34395,
+        "uncached_input_tokens": 35166,
+        "cache_write_input_tokens": 35148,
+        "output_tokens": 350,
+        "reasoning_output_tokens": 91,
+        "seconds": 19.61371110300024,
+        "command_count": 3,
+        "command_output_bytes": 1236,
+        "pi_command_count": 3,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "rtk": {
+        "input_tokens": 122738,
+        "cached_input_tokens": 88352,
+        "uncached_input_tokens": 34386,
+        "cache_write_input_tokens": 34353,
+        "output_tokens": 686,
+        "reasoning_output_tokens": 162,
+        "seconds": 35.88361581800018,
+        "command_count": 9,
+        "command_output_bytes": 3133,
+        "pi_command_count": 0,
+        "rtk_command_count": 8,
+        "rtk_history_count": 8,
+        "rtk_hook_rewrite_count": 8,
+        "rtk_hook_skip_count": 1,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 3,
+        "successes": 3
+      }
+    },
+    {
+      "task": "config_diff",
+      "stock": {
+        "input_tokens": 173998,
+        "cached_input_tokens": 101403,
+        "uncached_input_tokens": 72595,
+        "cache_write_input_tokens": 72568,
+        "output_tokens": 968,
+        "reasoning_output_tokens": 68,
+        "seconds": 37.04937224599962,
+        "command_count": 9,
+        "command_output_bytes": 158410,
+        "pi_command_count": 0,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 148530,
+        "cached_input_tokens": 97177,
+        "uncached_input_tokens": 51353,
+        "cache_write_input_tokens": 51323,
+        "output_tokens": 1080,
+        "reasoning_output_tokens": 25,
+        "seconds": 36.96009118399979,
+        "command_count": 14,
+        "command_output_bytes": 52292,
+        "pi_command_count": 7,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 4,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "rtk": {
+        "input_tokens": 180591,
+        "cached_input_tokens": 117134,
+        "uncached_input_tokens": 63457,
+        "cache_write_input_tokens": 63424,
+        "output_tokens": 956,
+        "reasoning_output_tokens": 11,
+        "seconds": 35.88252398399982,
+        "command_count": 15,
+        "command_output_bytes": 82383,
+        "pi_command_count": 0,
+        "rtk_command_count": 13,
+        "rtk_history_count": 22,
+        "rtk_hook_rewrite_count": 9,
+        "rtk_hook_skip_count": 2,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 3,
+        "successes": 3
+      }
+    },
+    {
+      "task": "source_lookup",
+      "stock": {
+        "input_tokens": 112231,
+        "cached_input_tokens": 77332,
+        "uncached_input_tokens": 34899,
+        "cache_write_input_tokens": 34869,
+        "output_tokens": 656,
+        "reasoning_output_tokens": 108,
+        "seconds": 30.32081131800078,
+        "command_count": 9,
+        "command_output_bytes": 5063,
+        "pi_command_count": 0,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 88034,
+        "cached_input_tokens": 47709,
+        "uncached_input_tokens": 40325,
+        "cache_write_input_tokens": 40304,
+        "output_tokens": 390,
+        "reasoning_output_tokens": 61,
+        "seconds": 21.316514292000647,
+        "command_count": 7,
+        "command_output_bytes": 15149,
+        "pi_command_count": 7,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "rtk": {
+        "input_tokens": 126607,
+        "cached_input_tokens": 89421,
+        "uncached_input_tokens": 37186,
+        "cache_write_input_tokens": 37153,
+        "output_tokens": 607,
+        "reasoning_output_tokens": 79,
+        "seconds": 34.1630486389995,
+        "command_count": 11,
+        "command_output_bytes": 12397,
+        "pi_command_count": 0,
+        "rtk_command_count": 11,
+        "rtk_history_count": 12,
+        "rtk_hook_rewrite_count": 11,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 3,
+        "successes": 3
+      }
+    },
+    {
+      "task": "cargo_failure",
+      "stock": {
+        "input_tokens": 107521,
+        "cached_input_tokens": 65518,
+        "uncached_input_tokens": 42003,
+        "cache_write_input_tokens": 41976,
+        "output_tokens": 540,
+        "reasoning_output_tokens": 79,
+        "seconds": 31.568390648000786,
+        "command_count": 6,
+        "command_output_bytes": 29159,
+        "pi_command_count": 0,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 71444,
+        "cached_input_tokens": 34488,
+        "uncached_input_tokens": 36956,
+        "cache_write_input_tokens": 36938,
+        "output_tokens": 248,
+        "reasoning_output_tokens": 0,
+        "seconds": 20.18429072100116,
+        "command_count": 3,
+        "command_output_bytes": 6858,
+        "pi_command_count": 3,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "rtk": {
+        "input_tokens": 100313,
+        "cached_input_tokens": 66140,
+        "uncached_input_tokens": 34173,
+        "cache_write_input_tokens": 34146,
+        "output_tokens": 478,
+        "reasoning_output_tokens": 45,
+        "seconds": 29.92574190400046,
+        "command_count": 7,
+        "command_output_bytes": 2885,
+        "pi_command_count": 0,
+        "rtk_command_count": 7,
+        "rtk_history_count": 7,
+        "rtk_hook_rewrite_count": 7,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 3,
+        "successes": 3
+      }
+    },
+    {
+      "task": "recent_history",
+      "stock": {
+        "input_tokens": 101260,
+        "cached_input_tokens": 65784,
+        "uncached_input_tokens": 35476,
+        "cache_write_input_tokens": 35449,
+        "output_tokens": 542,
+        "reasoning_output_tokens": 20,
+        "seconds": 31.4040035550006,
+        "command_count": 7,
+        "command_output_bytes": 6040,
+        "pi_command_count": 0,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 107208,
+        "cached_input_tokens": 69808,
+        "uncached_input_tokens": 37400,
+        "cache_write_input_tokens": 37373,
+        "output_tokens": 616,
+        "reasoning_output_tokens": 38,
+        "seconds": 34.714426487999845,
+        "command_count": 12,
+        "command_output_bytes": 5439,
+        "pi_command_count": 12,
+        "rtk_command_count": 0,
+        "rtk_history_count": 0,
+        "rtk_hook_rewrite_count": 0,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 0,
+        "successes": 3
+      },
+      "rtk": {
+        "input_tokens": 135815,
+        "cached_input_tokens": 100499,
+        "uncached_input_tokens": 35316,
+        "cache_write_input_tokens": 35280,
+        "output_tokens": 782,
+        "reasoning_output_tokens": 38,
+        "seconds": 36.681918729000245,
+        "command_count": 13,
+        "command_output_bytes": 4524,
+        "pi_command_count": 0,
+        "rtk_command_count": 13,
+        "rtk_history_count": 13,
+        "rtk_hook_rewrite_count": 13,
+        "rtk_hook_skip_count": 0,
+        "recovery_command_count": 0,
+        "agent_instruction_read_count": 3,
+        "successes": 3
+      }
+    }
+  ],
+  "comparisons": {
+    "pi_vs_stock": {
+      "baseline": "stock",
+      "treatment": "pi",
+      "reduction_percent": {
+        "input_tokens": 16.872380704149034,
+        "uncached_input_tokens": 7.990890549402306,
+        "output_tokens": 21.999418773612323,
+        "seconds": 17.03127503753419,
+        "command_output_bytes": 59.52574938894249
+      },
+      "input_savings_pairs": 9,
+      "pairs": [
+        {
+          "task": "noisy_log",
+          "repeat": 1,
+          "baseline_input": 33487,
+          "treatment_input": 23193,
+          "input_reduction_percent": 30.740287275659213
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 2,
+          "baseline_input": 32894,
+          "treatment_input": 23194,
+          "input_reduction_percent": 29.488660545996233
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 3,
+          "baseline_input": 21781,
+          "treatment_input": 23174,
+          "input_reduction_percent": -6.395482301088104
+        },
+        {
+          "task": "config_diff",
+          "repeat": 1,
+          "baseline_input": 51858,
+          "treatment_input": 75238,
+          "input_reduction_percent": -45.08465424813915
+        },
+        {
+          "task": "config_diff",
+          "repeat": 2,
+          "baseline_input": 59102,
+          "treatment_input": 36573,
+          "input_reduction_percent": 38.11884538594295
+        },
+        {
+          "task": "config_diff",
+          "repeat": 3,
+          "baseline_input": 63038,
+          "treatment_input": 36719,
+          "input_reduction_percent": 41.75100732891272
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 1,
+          "baseline_input": 44456,
+          "treatment_input": 24834,
+          "input_reduction_percent": 44.13802411373043
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 2,
+          "baseline_input": 34720,
+          "treatment_input": 38364,
+          "input_reduction_percent": -10.495391705069125
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 3,
+          "baseline_input": 33055,
+          "treatment_input": 24836,
+          "input_reduction_percent": 24.86461957343821
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 1,
+          "baseline_input": 35858,
+          "treatment_input": 23823,
+          "input_reduction_percent": 33.56294271850076
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 2,
+          "baseline_input": 35834,
+          "treatment_input": 23822,
+          "input_reduction_percent": 33.52123681419881
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 3,
+          "baseline_input": 35829,
+          "treatment_input": 23799,
+          "input_reduction_percent": 33.57615339529432
+        },
+        {
+          "task": "recent_history",
+          "repeat": 1,
+          "baseline_input": 33321,
+          "treatment_input": 36049,
+          "input_reduction_percent": -8.187029200804298
+        },
+        {
+          "task": "recent_history",
+          "repeat": 2,
+          "baseline_input": 33370,
+          "treatment_input": 35530,
+          "input_reduction_percent": -6.4728798321845975
+        },
+        {
+          "task": "recent_history",
+          "repeat": 3,
+          "baseline_input": 34569,
+          "treatment_input": 35629,
+          "input_reduction_percent": -3.066331105904134
+        }
+      ],
+      "descriptive_bootstrap_95_percent": [
+        2.0168954409487094,
+        28.388523897500477
+      ]
+    },
+    "rtk_vs_stock": {
+      "baseline": "stock",
+      "treatment": "rtk",
+      "reduction_percent": {
+        "input_tokens": -14.21398832591414,
+        "uncached_input_tokens": 6.473563386593742,
+        "output_tokens": -1.9761697181052018,
+        "seconds": -7.803799518305253,
+        "command_output_bytes": 47.35558299135772
+      },
+      "input_savings_pairs": 4,
+      "pairs": [
+        {
+          "task": "noisy_log",
+          "repeat": 1,
+          "baseline_input": 33487,
+          "treatment_input": 44915,
+          "input_reduction_percent": -34.12667602353152
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 2,
+          "baseline_input": 32894,
+          "treatment_input": 44513,
+          "input_reduction_percent": -35.32255122514744
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 3,
+          "baseline_input": 21781,
+          "treatment_input": 33310,
+          "input_reduction_percent": -52.93145401955833
+        },
+        {
+          "task": "config_diff",
+          "repeat": 1,
+          "baseline_input": 51858,
+          "treatment_input": 64758,
+          "input_reduction_percent": -24.875621890547265
+        },
+        {
+          "task": "config_diff",
+          "repeat": 2,
+          "baseline_input": 59102,
+          "treatment_input": 51361,
+          "input_reduction_percent": 13.097695509458223
+        },
+        {
+          "task": "config_diff",
+          "repeat": 3,
+          "baseline_input": 63038,
+          "treatment_input": 64472,
+          "input_reduction_percent": -2.274818363526762
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 1,
+          "baseline_input": 44456,
+          "treatment_input": 46509,
+          "input_reduction_percent": -4.618049307180133
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 2,
+          "baseline_input": 34720,
+          "treatment_input": 45652,
+          "input_reduction_percent": -31.48617511520737
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 3,
+          "baseline_input": 33055,
+          "treatment_input": 34446,
+          "input_reduction_percent": -4.208137951898351
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 1,
+          "baseline_input": 35858,
+          "treatment_input": 33379,
+          "input_reduction_percent": 6.913380556640081
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 2,
+          "baseline_input": 35834,
+          "treatment_input": 33380,
+          "input_reduction_percent": 6.848244683819836
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 3,
+          "baseline_input": 35829,
+          "treatment_input": 33554,
+          "input_reduction_percent": 6.349605068519915
+        },
+        {
+          "task": "recent_history",
+          "repeat": 1,
+          "baseline_input": 33321,
+          "treatment_input": 45212,
+          "input_reduction_percent": -35.68620389544132
+        },
+        {
+          "task": "recent_history",
+          "repeat": 2,
+          "baseline_input": 33370,
+          "treatment_input": 45253,
+          "input_reduction_percent": -35.60982918789332
+        },
+        {
+          "task": "recent_history",
+          "repeat": 3,
+          "baseline_input": 34569,
+          "treatment_input": 45350,
+          "input_reduction_percent": -31.186901559200443
+        }
+      ],
+      "descriptive_bootstrap_95_percent": [
+        -20.309734513274336,
+        -8.838839134704118
+      ]
+    },
+    "rtk_vs_pi": {
+      "baseline": "pi",
+      "treatment": "rtk",
+      "reduction_percent": {
+        "input_tokens": -37.395957316456844,
+        "uncached_input_tokens": -1.6491053677932406,
+        "output_tokens": -30.737704918032787,
+        "seconds": -29.933055578562374,
+        "command_output_bytes": -30.068911008471854
+      },
+      "input_savings_pairs": 1,
+      "pairs": [
+        {
+          "task": "noisy_log",
+          "repeat": 1,
+          "baseline_input": 23193,
+          "treatment_input": 44915,
+          "input_reduction_percent": -93.65756909412323
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 2,
+          "baseline_input": 23194,
+          "treatment_input": 44513,
+          "input_reduction_percent": -91.91601276192118
+        },
+        {
+          "task": "noisy_log",
+          "repeat": 3,
+          "baseline_input": 23174,
+          "treatment_input": 33310,
+          "input_reduction_percent": -43.73867265038405
+        },
+        {
+          "task": "config_diff",
+          "repeat": 1,
+          "baseline_input": 75238,
+          "treatment_input": 64758,
+          "input_reduction_percent": 13.929131555862728
+        },
+        {
+          "task": "config_diff",
+          "repeat": 2,
+          "baseline_input": 36573,
+          "treatment_input": 51361,
+          "input_reduction_percent": -40.43420009296476
+        },
+        {
+          "task": "config_diff",
+          "repeat": 3,
+          "baseline_input": 36719,
+          "treatment_input": 64472,
+          "input_reduction_percent": -75.5821236961791
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 1,
+          "baseline_input": 24834,
+          "treatment_input": 46509,
+          "input_reduction_percent": -87.27953611983571
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 2,
+          "baseline_input": 38364,
+          "treatment_input": 45652,
+          "input_reduction_percent": -18.996976331977898
+        },
+        {
+          "task": "source_lookup",
+          "repeat": 3,
+          "baseline_input": 24836,
+          "treatment_input": 34446,
+          "input_reduction_percent": -38.693831534868735
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 1,
+          "baseline_input": 23823,
+          "treatment_input": 33379,
+          "input_reduction_percent": -40.11249632707887
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 2,
+          "baseline_input": 23822,
+          "treatment_input": 33380,
+          "input_reduction_percent": -40.122575770296365
+        },
+        {
+          "task": "cargo_failure",
+          "repeat": 3,
+          "baseline_input": 23799,
+          "treatment_input": 33554,
+          "input_reduction_percent": -40.98911718979789
+        },
+        {
+          "task": "recent_history",
+          "repeat": 1,
+          "baseline_input": 36049,
+          "treatment_input": 45212,
+          "input_reduction_percent": -25.4181808094538
+        },
+        {
+          "task": "recent_history",
+          "repeat": 2,
+          "baseline_input": 35530,
+          "treatment_input": 45253,
+          "input_reduction_percent": -27.365606529693213
+        },
+        {
+          "task": "recent_history",
+          "repeat": 3,
+          "baseline_input": 35629,
+          "treatment_input": 45350,
+          "input_reduction_percent": -27.28395408234865
+        }
+      ],
+      "descriptive_bootstrap_95_percent": [
+        -54.22508841273144,
+        -21.82628752723659
+      ]
+    }
+  },
+  "positions": {
+    "stock": {
+      "1": 5,
+      "2": 5,
+      "3": 5
+    },
+    "pi": {
+      "1": 5,
+      "2": 5,
+      "3": 5
+    },
+    "rtk": {
+      "1": 5,
+      "2": 5,
+      "3": 5
+    }
+  },
+  "observations": 45,
+  "all_transcripts_match_manifest": true,
+  "all_tracked_files_unchanged": true,
+  "all_intact_logged_hook_rewrites_match_executed_commands": true,
+  "hook_audit_scope": "RTK audit writes can interleave under concurrent commands; parsed rewrite counts are lower bounds when malformed records exist. Completed command events and SQLite history remain separate execution evidence.",
+  "bootstrap_scope": "20,000 paired resamples within each fixed task, descriptive only; not a production-workload confidence guarantee.",
+  "usage_scope": "Provider-reported cumulative input, including repeated cached context; uncached=input-cached. Command-output bytes are sanitized CLI event payloads, not exact model-visible token counts.",
+  "integration_scope": "RTK official hook plus default awareness-file reference; pi-rs deployed inline guidance only; native clean baseline. Includes the cost of reading awareness files and differing model decisions."
+}

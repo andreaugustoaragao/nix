@@ -1,0 +1,223 @@
+{
+  "started_utc": "2026-10-09T23:24:14.853601+00:00",
+  "codex_version": "codex-cli 0.162.0",
+  "pi_version": "pi-rs 0.2.0",
+  "pi_binary": "/nix/store/72bp5wkb8qrjz0z60lzj5j029d86c4gn-pi-rs-0.2.0/bin/pi-rs",
+  "guidance_sha256": "cf3ceefd0db69ed2bf2b4eaa80083af51bfdaae14e5aa01566bc79c99a8a60ab",
+  "configuration": {
+    "model": "gpt-6.1-sol",
+    "model_reasoning_effort": "medium",
+    "model_provider": "litellm",
+    "project_doc_max_bytes": 0,
+    "allow_login_shell": false,
+    "skills.include_instructions": false,
+    "features.skip_host_skill_discovery": true,
+    "features.hooks": false,
+    "features.codex_hooks": false,
+    "features.plugin_hooks": false,
+    "features.plugins": false,
+    "features.apps": false,
+    "features.connectors": false,
+    "features.memories": false,
+    "features.memory_tool": false,
+    "features.multi_agent": false,
+    "features.multi_agent_v2": false,
+    "features.collab": false,
+    "features.shell_snapshot": false,
+    "features.shell_snapshot_v2": false,
+    "web_search": "disabled",
+    "suppress_unstable_features_warning": true,
+    "sandbox_workspace_write.network_access": false,
+    "provider_details": "Inherited selected provider/auth command; endpoint and credential details omitted."
+  },
+  "repeats": 1,
+  "isolation": "bwrap: root read-only, /tmp writable, temporary .codex and pi-rs data mounts; unchanged HOME/CODEX_HOME; ignore user config and execpolicy rules; no inherited instructions except treatment AGENTS.md",
+  "cli_flags": [
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--ephemeral",
+    "--json",
+    "--color",
+    "never",
+    "--sandbox",
+    "workspace-write"
+  ],
+  "order": "task order fixed; first arm alternates per task and repetition",
+  "working_root": "/tmp/pi-rs-codex-ab-z3jcbiwn",
+  "results": [
+    {
+      "run_id": "source_lookup-1-stock",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 12.588317317000019,
+      "usage": {
+        "input_tokens": 45866,
+        "cached_input_tokens": 33585,
+        "cache_write_input_tokens": 12269,
+        "output_tokens": 140,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g '\"'!node_modules'\"' -g '\"'!vendor'\"' -g '\"'!.git'\"'\"",
+        "/run/current-system/sw/bin/zsh -c \"rg -n 'checkout|timeout|retr|import|AGENTS' .\"",
+        "/run/current-system/sw/bin/zsh -c 'cat src/client.py'"
+      ],
+      "command_output_bytes": 4445,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ]
+    },
+    {
+      "run_id": "source_lookup-1-pi",
+      "task": "source_lookup",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 8.833010206999916,
+      "usage": {
+        "input_tokens": 35547,
+        "cached_input_tokens": 23319,
+        "cache_write_input_tokens": 12219,
+        "output_tokens": 137,
+        "reasoning_output_tokens": 0
+      },
+      "answer": {
+        "timeout_ms": 4200,
+        "retries": 3
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs ls .'",
+        "/run/current-system/sw/bin/zsh -c \"rg -n 'checkout|timeout_ms|retries' .\"",
+        "/run/current-system/sw/bin/zsh -c 'pi-rs read src/client.py'"
+      ],
+      "command_output_bytes": 2142,
+      "pi_command_count": 2,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ]
+    },
+    {
+      "run_id": "cargo_failure-1-pi",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "pi",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 7.877880726000058,
+      "usage": {
+        "input_tokens": 25690,
+        "cached_input_tokens": 11348,
+        "cache_write_input_tokens": 14336,
+        "output_tokens": 84,
+        "reasoning_output_tokens": 16
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 1,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c 'pi-rs cargo test'"
+      ],
+      "command_output_bytes": 9675,
+      "pi_command_count": 1,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ]
+    },
+    {
+      "run_id": "cargo_failure-1-stock",
+      "task": "cargo_failure",
+      "repeat": 1,
+      "arm": "stock",
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 9.315975710000203,
+      "usage": {
+        "input_tokens": 35482,
+        "cached_input_tokens": 21587,
+        "cache_write_input_tokens": 13886,
+        "output_tokens": 169,
+        "reasoning_output_tokens": 13
+      },
+      "answer": {
+        "test": "shipping_total_for_three_items",
+        "actual": 27,
+        "expected": 25,
+        "passed": 240,
+        "failed": 1
+      },
+      "correct": true,
+      "command_count": 3,
+      "commands": [
+        "/run/current-system/sw/bin/zsh -c pwd",
+        "/run/current-system/sw/bin/zsh -c \"rg --files -g 'AGENTS.md' -g 'Cargo.toml' -g 'Cargo.lock' -g 'rust-toolchain*' -g '.cargo/config*'\"",
+        "/run/current-system/sw/bin/zsh -c 'cargo test --offline'"
+      ],
+      "command_output_bytes": 9735,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "event_types": [
+        "item.completed",
+        "item.started",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "item_types": [
+        "agent_message",
+        "command_execution",
+        "error"
+      ]
+    }
+  ],
+  "finished_utc": "2026-10-09T23:24:53.597663+00:00"
+}

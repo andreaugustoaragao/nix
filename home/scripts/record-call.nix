@@ -100,7 +100,9 @@ let
 
         out = []
         for t, text in segments:
-            text = (text or "").strip()
+            # One emitted line and offset per segment, including provider text
+            # with embedded newlines or Unicode line separators.
+            text = " ".join((text or "").split())
             if not text:
                 continue
             abs_t = t + win_off
@@ -113,7 +115,9 @@ let
 
     entries = load(call_src, "", call_emit_hi) + load(mic_src, "Me: ", mic_emit_hi)
     entries.sort(key=lambda e: e[0])
+    offsets = []
     for t, prefix, text in entries:
+        offsets.append(round(t * 1000))
         if started_at > 0:
             stamp = time.strftime("%H:%M:%S", time.localtime(started_at + t))
         else:
@@ -121,6 +125,9 @@ let
             m, sec = divmod(rem, 60)
             stamp = f"{h:02d}:{m:02d}:{sec:02d}"
         print(f"[{stamp}] {prefix}{text}")
+    if len(sys.argv) > 8:
+        with open(sys.argv[8], "w") as sidecar:
+            json.dump(offsets, sidecar)
   '';
 
   # Validate WhisperServer's FluidAudio response and reduce it to the stable
@@ -189,13 +196,24 @@ let
 
   # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
   # diarization JSON by prepending the active speaker to each line.
-  # Args: transcript_path diar_json started_at_epoch out_path
+  # Args: transcript_path diar_json started_at_epoch out_path [elapsed_offsets_json]
   alignPy = pkgs.writeText "record-call-align.py" ''
-    import json, re, sys, time
+    import json, os, re, sys
+    from datetime import datetime, timedelta, time as clock_time
+    from zoneinfo import ZoneInfo
     tpath, dpath, epoch_s, outpath = sys.argv[1:5]
     epoch = int(epoch_s)
+    zone = ZoneInfo(os.environ["TZ"])
+    first_day = datetime.fromtimestamp(epoch, zone).date()
+    previous = epoch
     with open(dpath) as f:
         segs = json.load(f)
+    offsets = None
+    if len(sys.argv) > 5 and os.path.isfile(sys.argv[5]):
+        with open(sys.argv[5]) as f:
+            offsets = json.load(f)
+        if not isinstance(offsets, list):
+            raise ValueError("invalid transcript offsets")
 
     def speaker_at(t):
         # Pick the diarization segment whose [start, end] contains t,
@@ -221,19 +239,42 @@ let
             canonical[raw] = f"Speaker {len(canonical) + 1}"
         return canonical[raw]
 
+    def wall_epoch(h, mi, s):
+        # A transcript displays only local HH:MM:SS. Resolve each stamp in
+        # chronological order across midnight and both sides of a DST fold.
+        # Round-to-second text may precede the precise start by < 1 second.
+        for day_offset in range(3):
+            day = first_day + timedelta(days=day_offset)
+            naive = datetime.combine(day, clock_time(int(h), int(mi), int(s)))
+            candidates = []
+            for fold in (0, 1):
+                instant = naive.replace(tzinfo=zone, fold=fold).timestamp()
+                if datetime.fromtimestamp(instant, zone).replace(tzinfo=None) != naive:
+                    continue  # nonexistent local time during a spring jump
+                if instant >= epoch - 1 and instant >= previous - 5:
+                    candidates.append(instant)
+            if candidates:
+                return min(candidates)
+        raise ValueError("transcript time cannot be aligned")
+
     pat = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.*)$")
     with open(tpath) as f, open(outpath, "w") as out:
+        line_count = 0
         for ln in f:
             m = pat.match(ln.rstrip("\n"))
             if not m:
                 out.write(ln)
                 continue
             h, mi, s, rest = m.groups()
-            wall = time.mktime(time.strptime(
-                time.strftime("%Y-%m-%d ", time.localtime(epoch)) + f"{h}:{mi}:{s}",
-                "%Y-%m-%d %H:%M:%S",
-            ))
-            rel = wall - epoch
+            if offsets is not None:
+                if line_count >= len(offsets) or not isinstance(offsets[line_count], (int, float)) or offsets[line_count] < 0:
+                    raise ValueError("invalid transcript offset")
+                rel = offsets[line_count] / 1000
+            else:
+                wall = wall_epoch(h, mi, s)
+                previous = max(previous, wall)
+                rel = wall - epoch
+            line_count += 1
             # The microphone channel is already an authoritative source label.
             # Diarization runs only against mixed call audio, so never replace
             # `Me` with whichever remote participant happened to overlap.
@@ -246,6 +287,8 @@ let
                 out.write(f"{prefix}{spk}: {rest}\n")
             else:
                 out.write(f"{prefix}{rest}\n")
+        if offsets is not None and line_count != len(offsets):
+            raise ValueError("transcript offset count mismatch")
   '';
 
   # Rewrite a transcript's [HH:MM:SS] timestamps as wall-clock local
@@ -281,9 +324,9 @@ let
   # periods) are normalized in the process. Per-segment timestamps
   # within a turn are dropped; only the turn-header timestamp remains.
   # If you need timestamps at segment granularity, grep transcript.txt.
-  # Args: <input.txt> <output.txt> [gap_seconds]
+  # Args: <input.txt> <output.txt> [gap_seconds] [elapsed_offsets_json]
   turnsPy = pkgs.writeText "record-call-turns.py" ''
-    import re, sys, textwrap
+    import json, re, sys, textwrap
 
     LINE_RE = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.+)$")
     SPEAKER_RE = re.compile(r"^(Me|Speaker \d+): (.*)$")
@@ -322,6 +365,12 @@ let
     src = sys.argv[1]
     dst = sys.argv[2]
     gap = int(sys.argv[3]) if len(sys.argv) > 3 else 8
+    offsets = None
+    if len(sys.argv) > 4:
+        with open(sys.argv[4]) as sidecar:
+            offsets = json.load(sidecar)
+        if not isinstance(offsets, list):
+            raise ValueError("invalid transcript offsets")
 
     turns = []  # [(header_stamp, speaker, [segment_text, ...])]
     last_t = None
@@ -331,12 +380,18 @@ let
         if not p:
             continue
         t, stamp, spk, text = p
+        if offsets is not None:
+            if seg_count >= len(offsets) or not isinstance(offsets[seg_count], (int, float)) or offsets[seg_count] < 0:
+                raise ValueError("invalid transcript offset")
+            t = offsets[seg_count] / 1000
         seg_count += 1
-        if turns and turns[-1][1] == spk and last_t is not None and (t - last_t) < gap:
+        if turns and turns[-1][1] == spk and last_t is not None and 0 <= (t - last_t) < gap:
             turns[-1][2].append(text)
         else:
             turns.append((stamp, spk, [text]))
         last_t = t
+    if offsets is not None and seg_count != len(offsets):
+        raise ValueError("transcript offset count mismatch")
 
     with open(dst, "w") as f:
         for header_stamp, spk, segs in turns:
@@ -376,7 +431,7 @@ let
   # collapses of distinct sentences sharing filler words ("any day in
   # that week is problematic" vs "Days in that week are problematic").
   dedupePy = pkgs.writeText "record-call-dedupe.py" ''
-    import difflib, re, sys
+    import difflib, json, re, sys
 
     WIN_S = 6
     RATIO_THRESH = 0.78
@@ -419,6 +474,12 @@ let
     with open(path) as f:
         lines = f.readlines()
     parsed = [parse(ln) for ln in lines]
+    if len(sys.argv) > 2:
+        with open(sys.argv[2]) as sidecar:
+            offsets = json.load(sidecar)
+        if not isinstance(offsets, list) or len(offsets) != len(lines):
+            raise ValueError("invalid transcript offsets")
+        parsed = [(offsets[i] / 1000, value[1]) if value else None for i, value in enumerate(parsed)]
     drop = set()
 
     for i in range(len(parsed)):
@@ -445,6 +506,11 @@ let
     kept = [ln for i, ln in enumerate(lines) if i not in drop]
     with open(path, "w") as f:
         f.writelines(kept)
+    if len(sys.argv) > 2:
+        # Preserve occurrence identity even when displayed lines repeat during
+        # DST fallback. Text matching cannot recover which copy was retained.
+        with open(sys.argv[2], "w") as sidecar:
+            json.dump([offset for i, offset in enumerate(offsets) if i not in drop], sidecar)
     print(f"dedupe: dropped {len(drop)} duplicate line(s) of {len(lines)} total")
   '';
 
@@ -493,16 +559,31 @@ let
       "$SRC/transcript.txt" \
       "$WORK/diarization.json" \
       "$EPOCH" \
-      "$WORK/transcript.diarized.txt"
-    python3 ${turnsPy} \
       "$WORK/transcript.diarized.txt" \
-      "$WORK/transcript.diarized.turns.txt" \
-      "''${RECORD_CALL_TURN_GAP_SEC:-8}" >/dev/null
+      "$SRC/transcript.offsets.json"
+    if [ -f "$SRC/transcript.offsets.json" ]; then
+      python3 ${turnsPy} \
+        "$WORK/transcript.diarized.txt" \
+        "$WORK/transcript.diarized.turns.txt" \
+        "''${RECORD_CALL_TURN_GAP_SEC:-8}" \
+        "$SRC/transcript.offsets.json" >/dev/null
+    else
+      python3 ${turnsPy} \
+        "$WORK/transcript.diarized.txt" \
+        "$WORK/transcript.diarized.turns.txt" \
+        "''${RECORD_CALL_TURN_GAP_SEC:-8}" >/dev/null
+    fi
 
     mv "$WORK/diarization.response.json" "$SRC/diarization.response.json"
     mv "$WORK/diarization.json" "$SRC/diarization.json"
     mv "$WORK/transcript.diarized.txt" "$SRC/transcript.diarized.txt"
     mv "$WORK/transcript.diarized.turns.txt" "$SRC/transcript.diarized.turns.txt"
+    if [ -f "$SRC/transcript.offsets.json" ]; then
+      cp "$SRC/transcript.offsets.json" "$WORK/transcript.diarized.offsets.json"
+      mv "$WORK/transcript.diarized.offsets.json" "$SRC/transcript.diarized.offsets.json"
+    else
+      rm -f "$SRC/transcript.diarized.offsets.json"
+    fi
   '';
 
   sessionConfig = pkgs.writeText "record-call-session-config.json" (
@@ -534,7 +615,7 @@ in
             # Capture and finalization share one owned user-unit lifecycle.
             # Public status is structured; legacy session.env is never sourced.
             case "''${1:-help}" in
-              start|stop|status|retry|retry-diarization|diarize|route|tail)
+              start|stop|status|retry|salvage|retry-diarization|diarize|route|tail)
                 exec python3 ${./record-call-session.py} --config ${sessionConfig} "$@"
                 ;;
             esac
@@ -619,6 +700,13 @@ in
               fi
             }
 
+            transcript_offsets() {
+              OFFSETS="''${1%.txt}.offsets.json"
+              if [ ! -f "$OFFSETS" ] && [ "$(basename "$1")" = "transcript.diarized.txt" ]; then
+                OFFSETS="$(dirname "$1")/transcript.offsets.json"
+              fi
+            }
+
             cmd_turns() {
               # Group a transcript into speaker turns. Works on both
               # the line-per-segment transcript.txt and the
@@ -643,7 +731,10 @@ in
                 OUT="''${SRC%.txt}.turns.txt"
               fi
               [ -f "$IN" ] || { echo "Not a file: $IN" >&2; exit 1; }
-              python3 ${turnsPy} "$IN" "$OUT" "$GAP"
+              transcript_offsets "$IN"
+              OFFSET_ARGS=()
+              if [ -f "$OFFSETS" ]; then OFFSET_ARGS=("$OFFSETS"); fi
+              python3 ${turnsPy} "$IN" "$OUT" "$GAP" "''${OFFSET_ARGS[@]}"
               echo "Wrote: $OUT"
             }
 
@@ -658,7 +749,18 @@ in
               fi
               [ -f "$SRC" ] || { echo "Not a file: $SRC" >&2; exit 1; }
               cp -f "$SRC" "$SRC.raw"
-              python3 ${dedupePy} "$SRC"
+              transcript_offsets "$SRC"
+              OFFSET_ARGS=()
+              if [ -f "$OFFSETS" ]; then
+                # A manually edited diarized copy gets its own offsets; never
+                # shorten the raw transcript's shared timestamp sidecar.
+                OWN_OFFSETS="''${SRC%.txt}.offsets.json"
+                if [ "$OFFSETS" != "$OWN_OFFSETS" ]; then cp "$OFFSETS" "$OWN_OFFSETS"; fi
+                OFFSETS="$OWN_OFFSETS"
+                cp -f "$OFFSETS" "$OFFSETS.raw"
+                OFFSET_ARGS=("$OFFSETS")
+              fi
+              python3 ${dedupePy} "$SRC" "''${OFFSET_ARGS[@]}"
               echo "Raw backup: $SRC.raw"
             }
 
@@ -715,6 +817,7 @@ in
         record-call tail                 Follow the live transcript
         record-call stop                 Stop capture; finalize in its owned user unit
         record-call retry <dir>          Resume failed retained transcription
+        record-call salvage <dir>        Transcribe verified audio after an unknown capture end
         record-call retry-diarization <dir> Retry participant labeling only
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s

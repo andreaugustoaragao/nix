@@ -1,0 +1,74 @@
+{
+  "hook_audit": "2026-10-09T17:51:57 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T17:52:00 | rewrite | rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json' -g '!yarn.lock' | rtk rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json' -g '!yarn.lock'\n2026-10-09T17:52:03 | rewrite | rg -n 'checkout\\|timeout\\|retr\\|import\\|environ' src README.md | rtk rg -n 'checkout\\|timeout\\|retr\\|import\\|environ' src README.md\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T17:51:57",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T17:52:00",
+      "action": "rewrite",
+      "original": "rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json' -g '!yarn.lock'",
+      "rewritten": "rtk rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json' -g '!yarn.lock'"
+    },
+    {
+      "timestamp": "2026-10-09T17:52:03",
+      "action": "rewrite",
+      "original": "rg -n 'checkout\\|timeout\\|retr\\|import\\|environ' src README.md",
+      "rewritten": "rtk rg -n 'checkout\\|timeout\\|retr\\|import\\|environ' src README.md"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-09T23:51:57.898993367+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/source_lookup-2-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-09T23:52:00.508499279+00:00",
+          "original_cmd": "rg --files -g !node_modules -g !vendor -g !package-lock.json -g !yarn.lock",
+          "rtk_cmd": "rtk rg --files -g !node_modules -g !vendor -g !package-lock.json -g !yarn.lock (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/source_lookup-2-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-09T23:52:03.615946737+00:00",
+          "original_cmd": "rg -n checkout|timeout|retr|import|environ src README.md",
+          "rtk_cmd": "rtk rg",
+          "input_tokens": 879,
+          "output_tokens": 879,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/source_lookup-2-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

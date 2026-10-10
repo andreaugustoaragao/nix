@@ -1,0 +1,365 @@
+{
+  "source": "benchmarks/pi-rs/end-to-end/verified/manifest.json",
+  "totals": {
+    "stock": {
+      "input_tokens": 603610,
+      "cached_input_tokens": 392910,
+      "uncached_input_tokens": 210700,
+      "cache_write_input_tokens": 210559,
+      "output_tokens": 2907,
+      "reasoning_output_tokens": 276,
+      "seconds": 173.56869738099886,
+      "command_count": 37,
+      "command_output_bytes": 194415,
+      "pi_command_count": 0,
+      "recovery_command_count": 0,
+      "sessions": 15,
+      "successes": 15,
+      "median_seconds": 10.992488690999835
+    },
+    "pi": {
+      "input_tokens": 463965,
+      "cached_input_tokens": 272025,
+      "uncached_input_tokens": 191940,
+      "cache_write_input_tokens": 191826,
+      "output_tokens": 2482,
+      "reasoning_output_tokens": 213,
+      "seconds": 129.65004299200018,
+      "command_count": 37,
+      "command_output_bytes": 50758,
+      "pi_command_count": 33,
+      "recovery_command_count": 3,
+      "sessions": 15,
+      "successes": 15,
+      "median_seconds": 8.152983519999907
+    }
+  },
+  "per_task": [
+    {
+      "task": "noisy_log",
+      "stock": {
+        "input_tokens": 76816,
+        "cached_input_tokens": 43460,
+        "uncached_input_tokens": 33356,
+        "cache_write_input_tokens": 33335,
+        "output_tokens": 407,
+        "reasoning_output_tokens": 82,
+        "seconds": 32.938007555999775,
+        "command_count": 4,
+        "command_output_bytes": 1253,
+        "pi_command_count": 0,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 69638,
+        "cached_input_tokens": 34443,
+        "uncached_input_tokens": 35195,
+        "cache_write_input_tokens": 35177,
+        "output_tokens": 284,
+        "reasoning_output_tokens": 42,
+        "seconds": 20.237835578000613,
+        "command_count": 3,
+        "command_output_bytes": 1236,
+        "pi_command_count": 3,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "input_reduction_percent": 9.34440741512185,
+      "uncached_input_reduction_percent": -5.513250989327258,
+      "elapsed_reduction_percent": 38.557802734141944
+    },
+    {
+      "task": "config_diff",
+      "stock": {
+        "input_tokens": 178339,
+        "cached_input_tokens": 114384,
+        "uncached_input_tokens": 63955,
+        "cache_write_input_tokens": 63925,
+        "output_tokens": 902,
+        "reasoning_output_tokens": 36,
+        "seconds": 41.62594413699935,
+        "command_count": 11,
+        "command_output_bytes": 149181,
+        "pi_command_count": 0,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 115937,
+        "cached_input_tokens": 73389,
+        "uncached_input_tokens": 42548,
+        "cache_write_input_tokens": 42521,
+        "output_tokens": 926,
+        "reasoning_output_tokens": 35,
+        "seconds": 33.25794719799978,
+        "command_count": 13,
+        "command_output_bytes": 23533,
+        "pi_command_count": 9,
+        "recovery_command_count": 3,
+        "successes": 3
+      },
+      "input_reduction_percent": 34.99066384806464,
+      "uncached_input_reduction_percent": 33.47197248065046,
+      "elapsed_reduction_percent": 20.102839977536142
+    },
+    {
+      "task": "source_lookup",
+      "stock": {
+        "input_tokens": 125956,
+        "cached_input_tokens": 89441,
+        "uncached_input_tokens": 36515,
+        "cache_write_input_tokens": 36482,
+        "output_tokens": 472,
+        "reasoning_output_tokens": 44,
+        "seconds": 35.03078774100004,
+        "command_count": 8,
+        "command_output_bytes": 10791,
+        "pi_command_count": 0,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 87995,
+        "cached_input_tokens": 47774,
+        "uncached_input_tokens": 40221,
+        "cache_write_input_tokens": 40200,
+        "output_tokens": 327,
+        "reasoning_output_tokens": 44,
+        "seconds": 19.71949694900013,
+        "command_count": 7,
+        "command_output_bytes": 15026,
+        "pi_command_count": 7,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "input_reduction_percent": 30.138302264282768,
+      "uncached_input_reduction_percent": -10.149253731343283,
+      "elapsed_reduction_percent": 43.70809730344594
+    },
+    {
+      "task": "cargo_failure",
+      "stock": {
+        "input_tokens": 121994,
+        "cached_input_tokens": 79700,
+        "uncached_input_tokens": 42294,
+        "cache_write_input_tokens": 42264,
+        "output_tokens": 647,
+        "reasoning_output_tokens": 114,
+        "seconds": 37.45937877399956,
+        "command_count": 7,
+        "command_output_bytes": 29474,
+        "pi_command_count": 0,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 71566,
+        "cached_input_tokens": 34536,
+        "uncached_input_tokens": 37030,
+        "cache_write_input_tokens": 37012,
+        "output_tokens": 373,
+        "reasoning_output_tokens": 92,
+        "seconds": 24.205782726000052,
+        "command_count": 3,
+        "command_output_bytes": 6858,
+        "pi_command_count": 3,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "input_reduction_percent": 41.33645917012312,
+      "uncached_input_reduction_percent": 12.44620986428335,
+      "elapsed_reduction_percent": 35.38124892022713
+    },
+    {
+      "task": "recent_history",
+      "stock": {
+        "input_tokens": 100505,
+        "cached_input_tokens": 65925,
+        "uncached_input_tokens": 34580,
+        "cache_write_input_tokens": 34553,
+        "output_tokens": 479,
+        "reasoning_output_tokens": 0,
+        "seconds": 26.51457917300013,
+        "command_count": 7,
+        "command_output_bytes": 3716,
+        "pi_command_count": 0,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "pi": {
+        "input_tokens": 118829,
+        "cached_input_tokens": 81883,
+        "uncached_input_tokens": 36946,
+        "cache_write_input_tokens": 36916,
+        "output_tokens": 572,
+        "reasoning_output_tokens": 0,
+        "seconds": 32.2289805409996,
+        "command_count": 11,
+        "command_output_bytes": 4105,
+        "pi_command_count": 11,
+        "recovery_command_count": 0,
+        "successes": 3
+      },
+      "input_reduction_percent": -18.231928759763196,
+      "uncached_input_reduction_percent": -6.842105263157896,
+      "elapsed_reduction_percent": -21.551921796361988
+    }
+  ],
+  "pairs": [
+    {
+      "task": "noisy_log",
+      "repeat": 1,
+      "stock_input_tokens": 21796,
+      "pi_input_tokens": 23226,
+      "input_reduction_percent": -6.560836850798311,
+      "stock_seconds": 15.75246849899986,
+      "pi_seconds": 7.196633292000115
+    },
+    {
+      "task": "noisy_log",
+      "repeat": 2,
+      "stock_input_tokens": 33228,
+      "pi_input_tokens": 23205,
+      "input_reduction_percent": 30.164319248826292,
+      "stock_seconds": 9.790254184999867,
+      "pi_seconds": 5.911283142000229
+    },
+    {
+      "task": "noisy_log",
+      "repeat": 3,
+      "stock_input_tokens": 21792,
+      "pi_input_tokens": 23207,
+      "input_reduction_percent": -6.493208516886931,
+      "stock_seconds": 7.3952848720000475,
+      "pi_seconds": 7.129919144000269
+    },
+    {
+      "task": "config_diff",
+      "repeat": 1,
+      "stock_input_tokens": 49162,
+      "pi_input_tokens": 36697,
+      "input_reduction_percent": 25.354948944306578,
+      "stock_seconds": 16.54073365999966,
+      "pi_seconds": 14.022678841000015
+    },
+    {
+      "task": "config_diff",
+      "repeat": 2,
+      "stock_input_tokens": 60716,
+      "pi_input_tokens": 39157,
+      "input_reduction_percent": 35.50793859938072,
+      "stock_seconds": 9.99594430199977,
+      "pi_seconds": 8.594552008999926
+    },
+    {
+      "task": "config_diff",
+      "repeat": 3,
+      "stock_input_tokens": 68461,
+      "pi_input_tokens": 40083,
+      "input_reduction_percent": 41.45133725770877,
+      "stock_seconds": 15.08926617499992,
+      "pi_seconds": 10.640716347999842
+    },
+    {
+      "task": "source_lookup",
+      "repeat": 1,
+      "stock_input_tokens": 45964,
+      "pi_input_tokens": 24740,
+      "input_reduction_percent": 46.175267600731004,
+      "stock_seconds": 14.966028291999919,
+      "pi_seconds": 6.068804126000032
+    },
+    {
+      "task": "source_lookup",
+      "repeat": 2,
+      "stock_input_tokens": 45935,
+      "pi_input_tokens": 24841,
+      "input_reduction_percent": 45.92141068901709,
+      "stock_seconds": 11.10259955499987,
+      "pi_seconds": 5.944808260999707
+    },
+    {
+      "task": "source_lookup",
+      "repeat": 3,
+      "stock_input_tokens": 34057,
+      "pi_input_tokens": 38414,
+      "input_reduction_percent": -12.793258360983058,
+      "stock_seconds": 8.962159894000251,
+      "pi_seconds": 7.705884562000392
+    },
+    {
+      "task": "cargo_failure",
+      "repeat": 1,
+      "stock_input_tokens": 35928,
+      "pi_input_tokens": 23860,
+      "input_reduction_percent": 33.589401024270764,
+      "stock_seconds": 10.992488690999835,
+      "pi_seconds": 7.785598861999915
+    },
+    {
+      "task": "cargo_failure",
+      "repeat": 2,
+      "stock_input_tokens": 50143,
+      "pi_input_tokens": 23854,
+      "input_reduction_percent": 52.42805576052489,
+      "stock_seconds": 15.254914447999909,
+      "pi_seconds": 8.26720034400023
+    },
+    {
+      "task": "cargo_failure",
+      "repeat": 3,
+      "stock_input_tokens": 35923,
+      "pi_input_tokens": 23852,
+      "input_reduction_percent": 33.60242741419147,
+      "stock_seconds": 11.211975634999817,
+      "pi_seconds": 8.152983519999907
+    },
+    {
+      "task": "recent_history",
+      "repeat": 1,
+      "stock_input_tokens": 33445,
+      "pi_input_tokens": 47474,
+      "input_reduction_percent": -41.94647929436388,
+      "stock_seconds": 8.317347616000006,
+      "pi_seconds": 11.698613413999738
+    },
+    {
+      "task": "recent_history",
+      "repeat": 2,
+      "stock_input_tokens": 33527,
+      "pi_input_tokens": 35659,
+      "input_reduction_percent": -6.359053896859248,
+      "stock_seconds": 9.156389751000006,
+      "pi_seconds": 10.298639268999978
+    },
+    {
+      "task": "recent_history",
+      "repeat": 3,
+      "stock_input_tokens": 33533,
+      "pi_input_tokens": 35696,
+      "input_reduction_percent": -6.450362329645423,
+      "stock_seconds": 9.040841806000117,
+      "pi_seconds": 10.231727857999886
+    }
+  ],
+  "input_reduction_percent": 23.134971256274746,
+  "uncached_input_reduction_percent": 8.903654485049833,
+  "output_reduction_percent": 14.619883040935672,
+  "elapsed_reduction_percent": 25.303326608825838,
+  "input_savings_pairs": 9,
+  "total_pairs": 15,
+  "descriptive_bootstrap_95_percent": [
+    13.995885736810337,
+    30.400743771603207
+  ],
+  "bootstrap_scope": "20,000 resamples of paired repeats within each of the five fixed tasks; descriptive sampling variability, not generalization to other workloads.",
+  "all_tracked_files_unchanged": true,
+  "notes": [
+    "Input usage is the provider-reported cumulative sum across model requests, including cached tokens.",
+    "Uncached = input - cached_input; cache-write input is reported separately and may carry provider-specific billing.",
+    "Command output bytes are the completed CLI event payloads after path/URL sanitization, not tokenizer counts or guaranteed exact model-visible output.",
+    "Reasoning output may be included in output_tokens; it is never added again.",
+    "Whole-task input differences include command selection, batching, instruction overhead, and recovery."
+  ]
+}

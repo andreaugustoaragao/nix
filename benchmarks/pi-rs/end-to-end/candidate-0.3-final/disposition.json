@@ -1,0 +1,17 @@
+{
+  "status": "second_formative_pilot_excluded_from_final_comparison",
+  "labelled_utc": "2026-10-10T00:58:56.124435+00:00",
+  "completed_sessions": 21,
+  "correct_answers": 21,
+  "planned_sessions": 45,
+  "manifest_sha256": "599a9992febd7374ef76d81e056ea1db261f20b84bb9ea045712e37943011b0e",
+  "preservation": "Original manifest, all transcripts, usage, guidance, preflights, and RTK observations retained; no completed observations dropped or overwritten.",
+  "reason": "Parent found a pytest small-suite output regression in the separate command benchmark (115 native tokens versus 137 candidate tokens) and requested a revised executable before the final model comparison. This model fixture suite contains Cargo, not pytest; no end-to-end task failed.",
+  "stop_boundary": {
+    "stop_before_run_id": "source_lookup-2-stock",
+    "reason": "Parent found a pytest summary regression in separate command benchmark and requested a revised executable. Finish and retain the current model session; no further model sessions until final binary ready."
+  },
+  "stop_mechanism": "In-flight config_diff-2-pi completed and was archived. A pre-created empty fixture at the next planned session caused copytree to stop the harness before another model session began. Harness exit 1 is the intentional between-session stop, not a task failure.",
+  "pool_with_final": false,
+  "final_run_tag": "candidate-0.3-verified"
+}

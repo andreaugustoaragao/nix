@@ -1,0 +1,110 @@
+{
+  "hook_audit": "2026-10-09T19:07:41 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T19:07:41 | rewrite | rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json' | rtk rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json'\n2026-10-09T19:07:44 | rewrite | rg --files --hidden -g '!.git' | rtk rg --files --hidden -g '!.git'\n2026-10-09T19:07:44 | rewrite | rg -n 'checkout\\|timeout\\|retries\\|retry' . | rtk rg -n 'checkout\\|timeout\\|retries\\|retry' .\n2026-10-09T19:07:46 | rewrite | cat src/client.py | rtk read src/client.py\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T19:07:41",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T19:07:41",
+      "action": "rewrite",
+      "original": "rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json'",
+      "rewritten": "rtk rg --files -g 'AGENTS.md' -g '*checkout*' -g '*client*' -g '*config*' -g 'package.json'"
+    },
+    {
+      "timestamp": "2026-10-09T19:07:44",
+      "action": "rewrite",
+      "original": "rg --files --hidden -g '!.git'",
+      "rewritten": "rtk rg --files --hidden -g '!.git'"
+    },
+    {
+      "timestamp": "2026-10-09T19:07:44",
+      "action": "rewrite",
+      "original": "rg -n 'checkout\\|timeout\\|retries\\|retry' .",
+      "rewritten": "rtk rg -n 'checkout\\|timeout\\|retries\\|retry' ."
+    },
+    {
+      "timestamp": "2026-10-09T19:07:46",
+      "action": "rewrite",
+      "original": "cat src/client.py",
+      "rewritten": "rtk read src/client.py"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T01:07:41.653121073+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/source_lookup-3-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T01:07:41.878734300+00:00",
+          "original_cmd": "rg --files -g AGENTS.md -g *checkout* -g *client* -g *config* -g package.json",
+          "rtk_cmd": "rtk rg --files -g AGENTS.md -g *checkout* -g *client* -g *config* -g package.json (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/source_lookup-3-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T01:07:44.415694670+00:00",
+          "original_cmd": "rg --files --hidden -g !.git",
+          "rtk_cmd": "rtk rg --files --hidden -g !.git (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 5,
+          "project_path": "<run-root>/runs/source_lookup-3-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-10T01:07:44.644673724+00:00",
+          "original_cmd": "rg -n checkout|timeout|retries|retry .",
+          "rtk_cmd": "rtk rg",
+          "input_tokens": 648,
+          "output_tokens": 648,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/source_lookup-3-rtk/fixture"
+        },
+        {
+          "id": 5,
+          "timestamp": "2026-10-10T01:07:46.700538032+00:00",
+          "original_cmd": "cat src/client.py",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 107,
+          "output_tokens": 107,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/source_lookup-3-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

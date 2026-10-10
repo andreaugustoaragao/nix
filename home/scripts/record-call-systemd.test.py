@@ -236,7 +236,8 @@ class SystemdTests(unittest.TestCase):
         manifest = recorder.read_json(self.session.directory / "recording.json")
         state = recorder.read_json(self.session.private / "state.json")
         self.assertEqual(manifest["status"], "ready")
-        self.assertEqual(manifest["source"]["transcript"]["path"], "transcript.diarized.turns.txt")
+        self.assertRegex(manifest["source"]["transcript"]["path"],
+                         r"^transcript\.diarized\.[0-9a-f]{32}\.turns\.txt$")
         self.assertEqual(state["diarization"]["status"], "ready")
         self.assertEqual(state["diarization"]["attempts"], 2)
         self.assertEqual(

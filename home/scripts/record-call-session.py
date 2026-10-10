@@ -33,6 +33,8 @@ ACTIVE = ("starting", "recording", "finalizing", "diarizing")
 EDGE_TOLERANCE_MS = 1000
 MAX_CAPTURE_CLOCK_DRIFT_PPM = 1500
 MAX_CAPTURE_END_TOLERANCE_MS = 30000
+CAPTURE_STALL_SECONDS = 8
+CAPTURE_CLOCK_SLACK_MS = 1500
 
 
 class Failure(Exception):
@@ -127,8 +129,10 @@ def number(value):
 
 
 def capture_end_tolerance(duration_ms):
-    accumulated_drift = math.ceil(max(0, duration_ms) * MAX_CAPTURE_CLOCK_DRIFT_PPM / 1_000_000)
-    return min(MAX_CAPTURE_END_TOLERANCE_MS, max(EDGE_TOLERANCE_MS, accumulated_drift))
+    # The consumer's READY contract allows only a one-second edge difference.
+    # A larger deficit may be clock drift or missing speech; neither is proven
+    # complete from sample counts alone.
+    return EDGE_TOLERANCE_MS
 
 
 def validate_asr(path, duration_ms=None):
@@ -385,6 +389,8 @@ class Session:
         self.manifest = read_json(self.directory / "recording.json")
         self.state = read_json(self.private / "state.json")
         self.captures = {}
+        self.capture_activity = {}
+        self.capture_stop_requested = set()
         self.stop_event = threading.Event()
         self.started_monotonic = time.monotonic()
 
@@ -402,14 +408,15 @@ class Session:
     def elapsed(self):
         return round((time.monotonic() - self.started_monotonic) * 1000)
 
-    def refresh_coverage(self):
+    def refresh_coverage(self, duration_override=None):
         completed = {side: [] for side in SIDES}
         for receipt in sorted((self.private / "windows").glob("*/done.json")):
             value = read_json(receipt)
             for side in SIDES:
                 completed[side].extend(value["coverage"][side])
         end = self.manifest["endedAt"]
-        duration = round((timestamp(end) - timestamp(self.manifest["startedAt"])) * 1000) if end else self.elapsed()
+        duration = (round((timestamp(end) - timestamp(self.manifest["startedAt"])) * 1000)
+                    if end else duration_override if duration_override is not None else self.elapsed())
         self.manifest["coverage"] = calculate_coverage(self.state["fragments"], completed,
                                                       duration, self.state["gaps"])
 
@@ -432,7 +439,8 @@ class Session:
         receipt = destination / "done.json"
         if receipt.exists():
             value = read_json(receipt)
-            if value["parameters"] != parameters or file_hash(destination / "text.txt") != value["sha256"]:
+            if (value["parameters"] != parameters or file_hash(destination / "text.txt") != value["sha256"]
+                    or ("offsetsSha256" in value and file_hash(destination / "offsets.json") != value["offsetsSha256"])):
                 raise Failure("recovery", "window_changed", False, window=index)
             return
         running, errors = {}, []
@@ -518,10 +526,13 @@ class Session:
         result = self.command("python", self.config["merge"], destination / "call.json", destination / "mic.json",
                               start / 1000, start / 1000, side_emit_ends["call"] / 1000,
                               side_emit_ends["mic"] / 1000,
-                              timestamp(self.manifest["startedAt"]), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timestamp(self.manifest["startedAt"]), destination / "offsets.json",
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               env={**os.environ, "TZ": self.manifest["timeZone"]})
         atomic_bytes(destination / "text.txt", result.stdout)
+        atomic_bytes(destination / "offsets.json", (destination / "offsets.json").read_bytes())
         atomic_json(receipt, {"parameters": parameters, "sha256": file_hash(destination / "text.txt"),
+                             "offsetsSha256": file_hash(destination / "offsets.json"),
                              "coverage": {side: intersect(self.state["fragments"][side], start, emit_end) for side in SIDES}})
 
     @staticmethod
@@ -548,6 +559,8 @@ class Session:
     def assemble(self):
         receipts = sorted((self.private / "windows").glob("*/done.json"))
         chunks = []
+        offsets = []
+        offsets_available = True
         for index, receipt in enumerate(receipts):
             if receipt.parent.name != f"{index:06d}":
                 raise Failure("assembly", "missing_window")
@@ -556,24 +569,107 @@ class Session:
             if hashlib.sha256(data).hexdigest() != value["sha256"]:
                 raise Failure("assembly", "window_changed", False)
             chunks.append(data)
+            if "offsetsSha256" in value:
+                path = receipt.parent / "offsets.json"
+                if file_hash(path) != value["offsetsSha256"]:
+                    raise Failure("assembly", "window_changed", False)
+                sidecar = read_json(path)
+                if not isinstance(sidecar, list) or len(sidecar) != len(data.splitlines()) or any(
+                        not number(offset) or offset < 0 for offset in sidecar):
+                    raise Failure("assembly", "window_changed", False)
+                offsets.extend(sidecar)
+            else:
+                offsets_available = False
         raw = b"".join(chunks)
         with tempfile.TemporaryDirectory(prefix="assemble-", dir=self.private) as temporary:
             temporary = Path(temporary)
             transcript = temporary / "transcript.txt"
             transcript.write_bytes(raw)
+            raw_offsets = temporary / "offsets.raw.json"
+            if offsets_available:
+                atomic_json(raw_offsets, offsets)
             try:
-                self.command("python", self.config["dedupe"], transcript, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                self.command("python", self.config["dedupe"], transcript,
+                             *([raw_offsets] if offsets_available else []), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                if offsets_available:
+                    atomic_bytes(temporary / "offsets.json", raw_offsets.read_bytes())
                 self.command("python", self.config["turns"], transcript, temporary / "turns.txt", self.state["turnGap"],
+                             *([temporary / "offsets.json"] if offsets_available else []),
                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             except subprocess.CalledProcessError:
                 raise Failure("assembly", "turns_failed") from None
             turns = (temporary / "turns.txt").read_bytes()
             atomic_bytes(self.directory / "transcript.raw.txt", raw)
             atomic_bytes(self.directory / "transcript.txt", transcript.read_bytes())
+            if offsets_available:
+                atomic_bytes(self.directory / "transcript.offsets.json", (temporary / "offsets.json").read_bytes())
             atomic_bytes(self.directory / "transcript.turns.txt", turns)
         self.manifest["source"]["transcript"] = self.transcript_descriptor(
             self.directory / "transcript.turns.txt"
         )
+
+    def protect_published_diarization(self):
+        """Move legacy mutable diarization out of the manifest before a retry."""
+        published = self.manifest["source"].get("transcript") or {}
+        if published.get("path") != "transcript.diarized.turns.txt":
+            return
+        source = self.directory / published["path"]
+        if source.is_symlink() or self.transcript_descriptor(source) != published:
+            raise ValueError("published diarization changed")
+        protected = self.directory / f"transcript.diarized.{uuid.uuid4().hex}.turns.txt"
+        atomic_bytes(protected, source.read_bytes())
+        self.manifest["source"]["transcript"] = self.transcript_descriptor(protected)
+        self.persist()
+
+    def validate_diarization(self, transcript, segments):
+        if not transcript.is_file() or transcript.is_symlink() or not isinstance(segments, list) or not segments or len(segments) > 100000:
+            raise ValueError("invalid diarization artifacts")
+        call_seconds = sum(item["endMs"] - item["startMs"] for item in self.state["fragments"]["call"]) / 1000
+        speakers = set()
+        previous_start = -1
+        for segment in segments:
+            if not isinstance(segment, dict):
+                raise ValueError("invalid diarization segment")
+            start, end, speaker = segment.get("start"), segment.get("end"), segment.get("speaker")
+            if (not number(start) or not number(end) or start < 0 or start < previous_start
+                    or end <= start or end > call_seconds + 1
+                    or not isinstance(speaker, str) or not speaker.strip()):
+                raise ValueError("invalid diarization timeline")
+            previous_start = start
+            speakers.add(speaker)
+        raw = (self.directory / "transcript.txt").read_text().splitlines()
+        aligned = (self.directory / "transcript.diarized.txt").read_text().splitlines()
+        if len(aligned) != len(raw):
+            raise ValueError("diarization dropped transcript lines")
+        labeled_remote = 0
+        for before, after in zip(raw, aligned):
+            prefix = re.match(r"^\[\d\d:\d\d:\d\d\] ", before)
+            if not prefix:
+                if after != before:
+                    raise ValueError("diarization changed transcript structure")
+                continue
+            if before.startswith(prefix.group() + "Me: "):
+                if after != before:
+                    raise ValueError("diarization changed microphone speech")
+                continue
+            expected = re.escape(prefix.group()) + r"Speaker \d+: " + re.escape(before[len(prefix.group()):])
+            if not re.fullmatch(expected, after):
+                raise ValueError("remote speech is not labeled")
+            labeled_remote += 1
+        if not labeled_remote:
+            raise ValueError("no labeled remote speech")
+        # The published artifact groups speech below multiline turn headers.
+        # Rebuild it from the fully validated alignment, so a truncated or stale
+        # turns file cannot pass merely by containing one speaker label.
+        offsets = self.directory / "transcript.offsets.json"
+        with tempfile.TemporaryDirectory(prefix="validate-diarization-", dir=self.private) as temporary:
+            expected = Path(temporary) / "turns.txt"
+            self.command("python", self.config["turns"], self.directory / "transcript.diarized.txt",
+                         expected, self.state["turnGap"], *([offsets] if offsets.exists() else []),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60)
+            if transcript.read_bytes() != expected.read_bytes():
+                raise ValueError("diarization turns do not match labeled speech")
+        return len(speakers)
 
     def attempt_diarization(self):
         prior = self.state.get("diarization") or {}
@@ -621,6 +717,7 @@ class Session:
 
         log_path = self.private / "diarization.log"
         try:
+            self.protect_published_diarization()
             with log_path.open("ab") as log:
                 self.command(
                     "diarize",
@@ -630,19 +727,15 @@ class Session:
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     timeout=7200,
+                    env={**os.environ, "TZ": self.manifest["timeZone"],
+                         "RECORD_CALL_TURN_GAP_SEC": str(self.state["turnGap"])},
                 )
             transcript = self.directory / "transcript.diarized.turns.txt"
             diarization = read_json(self.directory / "diarization.json")
-            if not transcript.is_file() or transcript.is_symlink() or not isinstance(diarization, list):
-                raise ValueError("invalid diarization artifacts")
-            descriptor = self.transcript_descriptor(transcript)
-            speakers = len({
-                segment["speaker"]
-                for segment in diarization
-                if isinstance(segment, dict) and isinstance(segment.get("speaker"), str)
-            })
-            if not speakers:
-                raise ValueError("no diarized speakers")
+            speakers = self.validate_diarization(transcript, diarization)
+            immutable = self.directory / f"transcript.diarized.{uuid.uuid4().hex}.turns.txt"
+            atomic_bytes(immutable, transcript.read_bytes())
+            descriptor = self.transcript_descriptor(immutable)
             self.manifest["source"]["transcript"] = descriptor
             self.state["diarization"] = {
                 "status": "ready",
@@ -699,8 +792,16 @@ class Session:
     def cleanup_modules(self):
         started = time.monotonic()
         try:
-            modules = json.loads(self.command("pactl", "-f", "json", "list", "modules", stdout=subprocess.PIPE,
-                                               stderr=subprocess.PIPE, timeout=5).stdout)
+            # pactl 17 omits module indices from JSON. The short listing carries
+            # the ID, name and arguments in one response, so ownership can be
+            # checked without correlating potentially different snapshots.
+            listing = self.command("pactl", "list", "short", "modules", stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, timeout=5).stdout.decode()
+            modules = []
+            for line in listing.splitlines():
+                fields = line.split("\t", 3)
+                if len(fields) >= 3 and fields[0].isascii() and fields[0].isdigit():
+                    modules.append({"index": int(fields[0]), "name": fields[1], "argument": fields[2]})
             for role, kind in (("loopback", "module-loopback"), ("sink", "module-null-sink")):
                 index = self.state["modules"].get(role)
                 for module in modules:
@@ -724,7 +825,8 @@ class Session:
         indices = [int(path.stem.split("_")[1]) for path in (self.directory / "chunks").glob(side + "_*.wav")
                    if re.fullmatch(side + r"_\d{6}\.wav", path.name)]
         next_index = max(indices, default=-1) + 1
-        run = {"list": str(listing), "offsetMs": self.elapsed(), "seen": [], "index": run_index}
+        run = {"list": str(listing), "offsetMs": self.elapsed(), "seen": [], "index": run_index,
+               "firstChunkIndex": next_index}
         runs.append(run)
         self.persist()
         with (self.directory / f"pw-{side}.log").open("ab") as log:
@@ -737,6 +839,9 @@ class Session:
                     self.config["ffmpeg"], "-hide_banner", "-loglevel", "warning", "-y",
                     "-f", "s16le", "-ar", "16000", "-ac", "1", "-i", "-", "-c:a", "pcm_s16le",
                     "-f", "segment", "-segment_time", str(self.state["fragmentMs"] / 1000),
+                    # Expose live PCM progress even for long open fragments;
+                    # the default 256 KiB buffer can hide over eight seconds.
+                    "-segment_format_options", "flush_packets=1",
                     "-reset_timestamps", "1", "-segment_start_number", str(next_index),
                     "-segment_list", str(listing), "-segment_list_type", "csv", "-segment_list_size", "0",
                     str(self.directory / "chunks").replace("%", "%%") + "/" + side + "_%06d.wav"],
@@ -748,6 +853,86 @@ class Session:
         finally:
             reader.stdout.close()
         self.captures[side] = (reader, segmenter)
+        self.capture_stop_requested.discard(side)
+        self.capture_activity[side] = {
+            "index": next_index, "bytes": 0, "changedAt": time.monotonic(),
+            "fragmentEndMs": None, "clockAnchor": None,
+            "lastCheckedAt": time.monotonic(),
+        }
+
+    def capture_health(self, side):
+        """Detect a live child that has stopped producing data or lost clock time.
+
+        Closed fragment receipts remain the authority for final coverage. File
+        growth is used only to decide when to restart an unresponsive live pipe.
+        """
+        activity = self.capture_activity[side]
+        index = activity["index"]
+        chunks = self.directory / "chunks"
+        while (chunks / f"{side}_{index + 1:06d}.wav").exists():
+            index += 1
+        path = chunks / f"{side}_{index:06d}.wav"
+        size = path.stat().st_size if path.exists() else 0
+        now = time.monotonic()
+        observation_gap = now - activity.get("lastCheckedAt", now)
+        activity["lastCheckedAt"] = now
+        if index > activity["index"] or size > activity["bytes"]:
+            activity.update(index=index, bytes=size, changedAt=now)
+        if now - activity["changedAt"] > CAPTURE_STALL_SECONDS:
+            return "capture_stalled"
+
+        run = self.state["runs"][side][-1]
+        latest = max((fragment for fragment in self.state["fragments"][side]
+                      if fragment["startMs"] >= run["offsetMs"]),
+                     key=lambda fragment: fragment["endMs"], default=None)
+        end = latest["endMs"] if latest else None
+        if end is not None and end != activity["fragmentEndMs"]:
+            # A slow control command can delay observing a closed WAV. Use a
+            # monotonic observation gap, not file mtime on the wall clock:
+            # time corrections must not invent or hide a capture fault.
+            if observation_gap > 1.5:
+                activity["fragmentEndMs"] = end
+                return None
+            elapsed = self.elapsed()
+            lag = elapsed - end
+            if activity["clockAnchor"] is None:
+                if lag > CAPTURE_CLOCK_SLACK_MS:
+                    return "capture_clock_lag"
+                activity["clockAnchor"] = (elapsed, lag)
+            else:
+                anchor_elapsed, anchor_lag = activity["clockAnchor"]
+                allowed = CAPTURE_CLOCK_SLACK_MS + (elapsed - anchor_elapsed) * MAX_CAPTURE_CLOCK_DRIFT_PPM / 1_000_000
+                if lag - anchor_lag > allowed:
+                    return "capture_clock_lag"
+            activity["fragmentEndMs"] = end
+        return None
+
+    def restart_capture(self, side, code):
+        observed_at = self.elapsed()
+        issue = {"side": side, "code": code, "atMs": observed_at}
+        self.state.setdefault("captureIssues", []).append(issue)
+        # A stalled or exited reader may have stopped producing samples well
+        # before this loop noticed it. Mark the entire unobserved interval as
+        # uncertain, and commit it before stopping the old child so a crash
+        # during recovery cannot erase the evidence.
+        gap_start = observed_at
+        if code in ("capture_stalled", "capture_process_exited"):
+            last_growth = self.capture_activity.get(side, {}).get("changedAt")
+            if last_growth is not None:
+                gap_start = max(0, observed_at - max(0, round((time.monotonic() - last_growth) * 1000)))
+        gap = {"side": side, "startMs": gap_start,
+               "endMs": max(gap_start + 1, observed_at), "reason": "capture_restarted"}
+        self.state["gaps"].append(gap)
+        journal_event({"event": "record_call_capture_fault", "level": "warning", **issue})
+        self.persist_state()
+        self.stop_capture(side, expected_exit=True)
+        self.collect_fragments()
+        if len(self.state["runs"][side]) >= 4:
+            raise Failure("capture", "capture_restart_limit", False, side)
+        self.launch_capture(side)
+        gap["endMs"] = max(gap["endMs"], self.elapsed())
+        self.refresh_coverage()
+        self.persist()
 
     def collect_fragments(self):
         changed = False
@@ -787,12 +972,52 @@ class Session:
             self.refresh_coverage()
             self.persist()
 
-    def stop_capture(self, side):
-        reader, segmenter = self.captures.pop(side)
+    def has_retained_audio_candidate(self):
+        if any(self.state["fragments"][side] for side in SIDES):
+            return True
+        # A muxer can close its first WAV/CSV row just before owner loss, before
+        # the controller saves any fragment. Status only offers recovery here;
+        # the owned worker validates those receipts under its writer lock.
+        for side in SIDES:
+            for run in self.state["runs"][side]:
+                path = Path(run["list"])
+                try:
+                    if path.parent.resolve() != self.private.resolve() or path.is_symlink():
+                        continue
+                    with path.open("rb") as listing:
+                        if b"\n" in listing.read(65536):
+                            return True
+                except OSError:
+                    continue
+        return False
+
+    def request_stop_capture(self, side):
+        reader = self.captures[side][0]
         if reader.poll() is None:
-            reader.terminate()
+            try:
+                reader.terminate()
+                self.capture_stop_requested.add(side)
+            except ProcessLookupError:
+                pass
+
+    def stop_capture(self, side, expected_exit=False):
+        reader, segmenter = self.captures.pop(side)
+        requested = side in self.capture_stop_requested
+        if not requested and reader.poll() is None:
+            try:
+                reader.terminate()
+                requested = True
+            except ProcessLookupError:
+                pass
         try:
-            reader.wait(timeout=5)
+            code = reader.wait(timeout=5)
+            # pw-cat 1.6.9 exits 1 on an intentional recording stop: its signal
+            # handler quits the loop, and only drained playback exits 0. Accept
+            # that status only for our stop request; an unsolicited exit still
+            # means capture failed. WAV receipts and coverage remain mandatory.
+            if not expected_exit and (not requested or code not in (0, 1, -signal.SIGTERM)):
+                self.state["gaps"].append({"side": side, "startMs": self.elapsed(),
+                                           "endMs": self.elapsed() + 1, "reason": "reader_failed"})
         except subprocess.TimeoutExpired:
             reader.kill()
             reader.wait()
@@ -808,6 +1033,8 @@ class Session:
             segmenter.wait()
             self.state["gaps"].append({"side": side, "startMs": self.elapsed(), "endMs": self.elapsed() + 1,
                                        "reason": "segmenter_stop_timeout"})
+        self.capture_stop_requested.discard(side)
+        self.capture_activity.pop(side, None)
 
     def route(self):
         sinks = json.loads(self.command("pactl", "-f", "json", "list", "sinks", stdout=subprocess.PIPE,
@@ -817,12 +1044,67 @@ class Session:
             raise Failure("capture", "recording_sink_missing", False)
         inputs = json.loads(self.command("pactl", "-f", "json", "list", "sink-inputs", stdout=subprocess.PIPE,
                                           stderr=subprocess.PIPE, timeout=5).stdout)
+        browser_inputs = 0
         for item in inputs:
             properties = item.get("properties", {})
             application = properties.get("application.process.binary", "") + " " + properties.get("application.name", "")
-            if item["sink"] != target and re.search(r"chrome|chromium|brave|google|firefox", application, re.I):
-                self.command("pactl", "move-sink-input", item["index"], target, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.PIPE, timeout=5)
+            if re.search(r"chrome|chromium|brave|google|firefox", application, re.I):
+                browser_inputs += 1
+                if item["sink"] != target:
+                    self.command("pactl", "move-sink-input", item["index"], target, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.PIPE, timeout=5)
+        return browser_inputs
+
+    def begin_routing_uncertainty(self, code, start=None):
+        if self.state.get("routingUncertainStartMs") is None:
+            observed_at = self.elapsed() if start is None else start
+            self.state["routingUncertainStartMs"] = observed_at
+            self.state.setdefault("captureIssues", []).append({
+                "side": "call", "code": "routing_uncertain", "atMs": observed_at})
+        if self.state.get("routingWarning") != code:
+            self.state["routingWarning"] = code
+            self.persist_state()
+            journal_event({"event": "record_call_routing", "level": "warning", "code": code})
+
+    def observe_browser_stream(self, count):
+        if count == 0:
+            start = self.state.setdefault("browserStreamAbsentStartMs", self.elapsed())
+            if self.elapsed() - start >= 10000:
+                self.begin_routing_uncertainty("browser_stream_missing", start)
+        else:
+            self.state.pop("browserStreamAbsentStartMs", None)
+            if self.state.pop("routingWarning", None):
+                self.close_routing_uncertainty()
+
+    def default_mic_source(self):
+        name = self.command("pactl", "get-default-source", stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, timeout=5).stdout.decode().strip()
+        sources = json.loads(self.command("pactl", "-f", "json", "list", "sources",
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5).stdout)
+        source = next((item["index"] for item in sources if item["name"] == name), None)
+        if source is None:
+            raise Failure("capture", "microphone_source_missing", False, "mic")
+        return source
+
+    def close_mic_uncertainty(self):
+        start = self.state.pop("micUncertainStartMs", None)
+        if start is None:
+            return
+        self.state["gaps"].append({"side": "mic", "startMs": start,
+                                   "endMs": max(start + 1, self.elapsed()),
+                                   "reason": "microphone_source_uncertain"})
+        self.refresh_coverage()
+        self.persist()
+
+    def close_routing_uncertainty(self):
+        start = self.state.pop("routingUncertainStartMs", None)
+        if start is None:
+            return
+        self.state["gaps"].append({"side": "call", "startMs": start,
+                                   "endMs": max(start + 1, self.elapsed()),
+                                   "reason": "routing_uncertain"})
+        self.refresh_coverage()
+        self.persist()
 
     def next_window(self):
         index = 0
@@ -850,6 +1132,8 @@ class Session:
                          and start < emitted <= end <= start + self.state["windowMs"]
                          and emitted <= audio_end
                          and file_hash(path.parent / "text.txt") == receipt["sha256"])
+                if "offsetsSha256" in receipt:
+                    valid &= file_hash(path.parent / "offsets.json") == receipt["offsetsSha256"]
                 for side in SIDES:
                     success = read_json(path.parent / (side + ".ok.json"))
                     valid &= (success["parameters"] == parameters
@@ -888,18 +1172,34 @@ class Session:
                         break
                     self.collect_fragments()
                     for side, processes in list(self.captures.items()):
-                        if any(child.poll() is not None for child in processes):
-                            before = self.elapsed()
-                            self.stop_capture(side)
-                            self.collect_fragments()
-                            if len(self.state["runs"][side]) >= 4:
-                                raise Failure("capture", "capture_restart_limit", False, side)
-                            self.launch_capture(side)
-                            self.state["gaps"].append({"side": side, "startMs": before,
-                                                       "endMs": max(before + 1, self.elapsed()), "reason": "capture_restarted"})
-                            self.persist()
+                        exited = any(child.poll() is not None for child in processes)
+                        fault = "capture_process_exited" if exited else self.capture_health(side)
+                        if fault:
+                            self.restart_capture(side, fault)
                     if time.monotonic() - routed >= 1:
-                        self.route()
+                        try:
+                            mic_source = self.default_mic_source()
+                        except (Failure, OSError, subprocess.SubprocessError, ValueError):
+                            if self.state.get("micSourceWarning") != "microphone_source_unavailable":
+                                self.state["micSourceWarning"] = "microphone_source_unavailable"
+                                self.state["micUncertainStartMs"] = self.elapsed()
+                                self.state.setdefault("captureIssues", []).append({
+                                    "side": "mic", "code": "microphone_source_uncertain",
+                                    "atMs": self.state["micUncertainStartMs"]})
+                                self.persist_state()
+                        else:
+                            if self.state.pop("micSourceWarning", None):
+                                self.close_mic_uncertainty()
+                            if mic_source != self.state["sources"]["mic"]:
+                                self.state["sources"]["mic"] = mic_source
+                                self.persist_state()
+                                self.restart_capture("mic", "microphone_source_changed")
+                        try:
+                            browser_inputs = self.route()
+                        except (Failure, OSError, subprocess.SubprocessError, ValueError):
+                            self.begin_routing_uncertainty("routing_unavailable")
+                        else:
+                            self.observe_browser_stream(browser_inputs)
                         routed = time.monotonic()
                     if pending is not None and pending.done():
                         try:
@@ -921,6 +1221,10 @@ class Session:
                     self.stop_event.wait(0.2)
             finally:
                 # The stop instant is independent of transcription/cleanup time.
+                self.close_routing_uncertainty()
+                self.close_mic_uncertainty()
+                for side in list(self.captures):
+                    self.request_stop_capture(side)
                 self.manifest["endedAt"] = utc_now()
                 self.manifest["status"] = "finalizing"
                 self.persist()
@@ -935,16 +1239,14 @@ class Session:
                 except Failure as error:
                     self.manifest["failure"] = error.public()
 
-    def finalize(self):
-        initial_status = self.manifest["status"]
-        if self.manifest["endedAt"] is None:
-            raise Failure("recovery", "capture_end_unknown", False)
+    def verify_retained_audio(self, require_all_chunks=True):
         known = {Path(fragment["path"]).resolve() for side in SIDES for fragment in self.state["fragments"][side]}
-        for path in (self.directory / "chunks").glob("*.wav"):
-            if path.resolve() not in known:
-                # Even a short unlisted tail is missing evidence, not clock
-                # jitter. Retain it and refuse automatic READY publication.
-                raise Failure("capture", "unfinalized_audio", False)
+        if require_all_chunks:
+            for path in (self.directory / "chunks").glob("*.wav"):
+                if path.resolve() not in known:
+                    # Even a short unlisted tail is missing evidence, not clock
+                    # jitter. Retain it and refuse automatic READY publication.
+                    raise Failure("capture", "unfinalized_audio", False)
         for side in SIDES:
             for fragment in self.state["fragments"][side]:
                 path = Path(fragment["path"])
@@ -952,6 +1254,8 @@ class Session:
                     raise Failure("recovery", "audio_changed", False, side)
                 if abs(wav_duration(path) - (fragment["endMs"] - fragment["startMs"])) > 1:
                     raise Failure("recovery", "audio_changed", False, side)
+
+    def transcribe_retained_audio(self):
         self.manifest["status"] = "finalizing"
         self.manifest["finalizedAt"] = None
         self.state["finalizationStage"] = "transcribing"
@@ -971,6 +1275,35 @@ class Session:
             index += 1
             frontier = emit_end
         self.assemble()
+        return end
+
+    def salvage_retained(self):
+        """Transcribe verified closed fragments when the capture end is unknown.
+
+        Unlisted open tails remain on disk for inspection. A partial transcript
+        is useful, but without an end timestamp it can never be published READY.
+        """
+        if self.manifest["endedAt"] is not None:
+            raise Failure("recovery", "capture_end_known", False)
+        if not any(self.state["fragments"][side] for side in SIDES):
+            raise Failure("recovery", "no_retained_audio", False)
+        self.verify_retained_audio(require_all_chunks=False)
+        end = self.transcribe_retained_audio()
+        self.refresh_coverage(duration_override=math.ceil(end))
+        self.manifest["coverage"]["complete"] = False
+        self.manifest["coverage"]["captureEndUnknown"] = True
+        self.manifest["status"] = "incomplete"
+        self.manifest["failure"] = Failure("recovery", "capture_end_unknown", False).public()
+        self.manifest["finalizedAt"] = None
+        self.state["finalizationStage"] = "partial"
+        self.persist()
+
+    def finalize(self):
+        initial_status = self.manifest["status"]
+        if self.manifest["endedAt"] is None:
+            raise Failure("recovery", "capture_end_unknown", False)
+        self.verify_retained_audio()
+        self.transcribe_retained_audio()
         self.refresh_coverage()
         if not self.manifest["coverage"]["complete"]:
             raise Failure("capture", "incomplete_audio_coverage", False)
@@ -1008,7 +1341,10 @@ class Session:
                     # A final muxer row may have committed after the last state
                     # snapshot but before an interrupted finalizer exited.
                     self.collect_fragments()
-                self.finalize()
+                if mode == "salvage":
+                    self.salvage_retained()
+                else:
+                    self.finalize()
             except (Failure, subprocess.SubprocessError, OSError, ValueError) as error:
                 for side in list(self.captures):
                     self.stop_capture(side)
@@ -1023,6 +1359,12 @@ class Session:
                 self.manifest["failure"] = failure.public()
                 self.manifest["finalizedAt"] = utc_now() if self.manifest["endedAt"] is not None else None
                 self.persist()
+                journal_event({"event": "record_call_result", "level": "warning", "outcome": "incomplete",
+                               "code": failure.code, "stage": failure.stage,
+                               "durationMs": self.manifest["coverage"]["durationMs"],
+                               "sampleClockShortfallMs": {
+                                   side: self.manifest["coverage"]["sides"][side].get("sampleClockShortfallMs", 0)
+                                   for side in SIDES}})
                 return 1
         return 0
 
@@ -1052,6 +1394,9 @@ def status(directory, config):
     result = dict(session.manifest)
     result["outputDir"] = str(session.directory)
     result["sinkName"] = session.state["sink"]
+    result["captureIssues"] = session.state.get("captureIssues", [])
+    result["routingWarning"] = session.state.get("routingWarning")
+    result["micSourceWarning"] = session.state.get("micSourceWarning")
     result["diarization"] = session.state.get("diarization") or {
         "status": "pending",
         "attempts": 0,
@@ -1081,6 +1426,9 @@ def status(directory, config):
     if result["status"] == "finalizing":
         result["finalization"] = session.finalization_progress()
         result["finalization"]["stage"] = session.state.get("finalizationStage", "transcribing")
+    result["salvageable"] = (result["status"] == "incomplete" and result["endedAt"] is None
+                             and result["source"].get("transcript") is None
+                             and session.has_retained_audio_candidate())
     return result
 
 
@@ -1118,7 +1466,7 @@ def launch_unit(session, config_path, mode):
         }
         session.persist_state()
     else:
-        session.manifest["status"] = "finalizing" if mode == "retry" else "starting"
+        session.manifest["status"] = "finalizing" if mode in ("retry", "salvage") else "starting"
         session.persist()
     cleanup = [session.config["python"], str(Path(__file__).resolve()), "--config", str(config_path),
                "_cleanup", str(session.directory)]
@@ -1132,7 +1480,7 @@ def launch_unit(session, config_path, mode):
                "--property=UMask=0077", "--property=Restart=no", cleanup_property,
                session.config["python"], str(Path(__file__).resolve()),
                "--config", str(config_path),
-               {"capture": "_run", "retry": "_retry", "diarize": "_diarize"}[mode],
+               {"capture": "_run", "retry": "_retry", "salvage": "_salvage", "diarize": "_diarize"}[mode],
                str(session.directory)]
     atomic_json(state_root() / "current.json", {"recordingId": session.manifest["recordingId"], "directory": str(session.directory)})
     subprocess.run(command, check=True)
@@ -1245,6 +1593,23 @@ def retry(directory, config, config_path):
         print("Retrying retained transcription: " + str(session.directory))
 
 
+def salvage(directory, config, config_path):
+    with locked(state_root() / "command.lock"):
+        session = Session(directory, config)
+        if status(current_directory(), config)["status"] in ACTIVE:
+            raise Failure("recovery", "recording_busy")
+        if session.manifest["endedAt"] is not None:
+            raise Failure("recovery", "capture_end_known", False)
+        if not session.has_retained_audio_candidate():
+            raise Failure("recovery", "no_retained_audio", False)
+        properties = owner_properties(session.state, config)
+        if properties.get("ActiveState") in ("active", "activating", "deactivating"):
+            raise Failure("recovery", "recording_busy")
+        with locked(session.private / "writer.lock"):
+            launch_unit(session, config_path, "salvage")
+        print("Verifying and salvaging retained audio: " + str(session.directory))
+
+
 def retry_diarization(directory, config, config_path, force=False):
     with locked(state_root() / "command.lock"):
         session = Session(directory, config)
@@ -1287,8 +1652,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("command", choices=(
-        "start", "stop", "status", "retry", "retry-diarization", "diarize",
-        "route", "tail", "_run", "_retry", "_diarize", "_cleanup"))
+        "start", "stop", "status", "retry", "salvage", "retry-diarization", "diarize",
+        "route", "tail", "_run", "_retry", "_salvage", "_diarize", "_cleanup"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
@@ -1302,6 +1667,10 @@ def main():
             if not arguments.directory:
                 raise Failure("recovery", "recording_directory_required", False)
             retry(arguments.directory, config, arguments.config)
+        elif arguments.command == "salvage":
+            if not arguments.directory:
+                raise Failure("recovery", "recording_directory_required", False)
+            salvage(arguments.directory, config, arguments.config)
         elif arguments.command in ("retry-diarization", "diarize"):
             if not arguments.directory:
                 raise Failure("diarization", "recording_directory_required", False)
@@ -1311,8 +1680,8 @@ def main():
                 arguments.config,
                 force=arguments.command == "diarize",
             )
-        elif arguments.command in ("_run", "_retry", "_diarize"):
-            mode = {"_run": "capture", "_retry": "retry", "_diarize": "diarize"}[arguments.command]
+        elif arguments.command in ("_run", "_retry", "_salvage", "_diarize"):
+            mode = {"_run": "capture", "_retry": "retry", "_salvage": "salvage", "_diarize": "diarize"}[arguments.command]
             return Session(arguments.directory, config).run(mode)
         elif arguments.command == "_cleanup":
             cleanup_after_owner(arguments.directory, config)

@@ -1,0 +1,110 @@
+{
+  "hook_audit": "2026-10-09T18:50:30 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T18:50:33 | rewrite | rg -n -i 'ttl\\|cache' . | rtk rg -n -i 'ttl\\|cache' .\n2026-10-09T18:50:33 | rewrite | rg --files -g AGENTS.md -g '*cache*' -g '*config*' | rtk rg --files -g AGENTS.md -g '*cache*' -g '*config*'\n2026-10-09T18:50:33 | rewrite | git log -15 --oneline | rtk git log -15 --oneline\n2026-10-09T18:50:37 | rewrite | git log -p --format='commit %h%nsubject %s' -- config/cache.toml | rtk git log -p --format='commit %h%nsubject %s' -- config/cache.toml\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T18:50:30",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T18:50:33",
+      "action": "rewrite",
+      "original": "rg -n -i 'ttl\\|cache' .",
+      "rewritten": "rtk rg -n -i 'ttl\\|cache' ."
+    },
+    {
+      "timestamp": "2026-10-09T18:50:33",
+      "action": "rewrite",
+      "original": "rg --files -g AGENTS.md -g '*cache*' -g '*config*'",
+      "rewritten": "rtk rg --files -g AGENTS.md -g '*cache*' -g '*config*'"
+    },
+    {
+      "timestamp": "2026-10-09T18:50:33",
+      "action": "rewrite",
+      "original": "git log -15 --oneline",
+      "rewritten": "rtk git log -15 --oneline"
+    },
+    {
+      "timestamp": "2026-10-09T18:50:37",
+      "action": "rewrite",
+      "original": "git log -p --format='commit %h%nsubject %s' -- config/cache.toml",
+      "rewritten": "rtk git log -p --format='commit %h%nsubject %s' -- config/cache.toml"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T00:50:30.688671520+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/recent_history-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T00:50:34.267170697+00:00",
+          "original_cmd": "git log -15 --oneline",
+          "rtk_cmd": "rtk git log -15 --oneline",
+          "input_tokens": 88,
+          "output_tokens": 88,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 1,
+          "project_path": "<run-root>/runs/recent_history-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T00:50:34.297839706+00:00",
+          "original_cmd": "rg --files -g AGENTS.md -g *cache* -g *config*",
+          "rtk_cmd": "rtk rg --files -g AGENTS.md -g *cache* -g *config* (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/recent_history-1-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-10T00:50:34.299426307+00:00",
+          "original_cmd": "rg -n -i ttl|cache .",
+          "rtk_cmd": "rtk rg",
+          "input_tokens": 48,
+          "output_tokens": 48,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 5,
+          "project_path": "<run-root>/runs/recent_history-1-rtk/fixture"
+        },
+        {
+          "id": 5,
+          "timestamp": "2026-10-10T00:50:37.253541339+00:00",
+          "original_cmd": "git log -p --format=commit %h%nsubject %s -- config/cache.toml",
+          "rtk_cmd": "rtk git log -p --format=commit %h%nsubject %s -- config/cache.toml (passthrough)",
+          "input_tokens": 116,
+          "output_tokens": 116,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 2,
+          "project_path": "<run-root>/runs/recent_history-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

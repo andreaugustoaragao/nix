@@ -1,0 +1,122 @@
+{
+  "hook_audit": "2026-10-09T17:48:40 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T17:48:40 | skip:no_rewrite | pwd | \n2026-10-09T17:48:432026-10-09T17:48:43 |  | rewriterewrite |  | rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'git status --short && git diff |  | rtk rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'rtk git status --short && rtk git diff\n\n2026-10-09T17:48:47 | rewrite | cat README.md config/services/service_057.toml | rtk read README.md config/services/service_057.toml\n2026-10-09T17:48:47 | skip:defer | python - <<'PY'\\nimport subprocess\\nfrom pathlib import Path\\npaths = subprocess.check_output(['git', 'diff', 'HEAD', '--name-only'], text=True).splitlines()\\nfor path in paths:\\n    before = subprocess.check_output(['git', 'show', 'HEAD:' + path], text=True)\\n    after = Path(path).read_text()\\n    strip = lambda s: [line for line in s.splitlines() if not line.lstrip().startswith('# build stamp:')]\\n    if strip(before) != strip(after):\\n        print(path)\\n        import difflib\\n        print('\\\\n'.join(difflib.unified_diff(strip(before), strip(after), fromfile='before', tofile='after')))\\nPY | \n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T17:48:40",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T17:48:40",
+      "action": "skip:no_rewrite",
+      "original": "pwd",
+      "rewritten": ""
+    },
+    {
+      "timestamp": "2026-10-09T17:48:432026-10-09T17:48:43",
+      "action": "",
+      "original": "rewriterewrite",
+      "rewritten": " | rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'git status --short && git diff |  | rtk rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'rtk git status --short && rtk git diff"
+    },
+    {
+      "timestamp": "2026-10-09T17:48:47",
+      "action": "rewrite",
+      "original": "cat README.md config/services/service_057.toml",
+      "rewritten": "rtk read README.md config/services/service_057.toml"
+    },
+    {
+      "timestamp": "2026-10-09T17:48:47",
+      "action": "skip:defer",
+      "original": "python - <<'PY'\\nimport subprocess\\nfrom pathlib import Path\\npaths = subprocess.check_output(['git', 'diff', 'HEAD', '--name-only'], text=True).splitlines()\\nfor path in paths:\\n    before = subprocess.check_output(['git', 'show', 'HEAD:' + path], text=True)\\n    after = Path(path).read_text()\\n    strip = lambda s: [line for line in s.splitlines() if not line.lstrip().startswith('# build stamp:')]\\n    if strip(before) != strip(after):\\n        print(path)\\n        import difflib\\n        print('\\\\n'.join(difflib.unified_diff(strip(before), strip(after), fromfile='before', tofile='after')))\\nPY",
+      "rewritten": ""
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-09T23:48:40.430228680+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-09T23:48:43.460620059+00:00",
+          "original_cmd": "rg --files -g !node_modules -g !vendor -g !*lock* -g !\\.git",
+          "rtk_cmd": "rtk rg --files -g !node_modules -g !vendor -g !*lock* -g !\\.git (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-09T23:48:43.469494785+00:00",
+          "original_cmd": "git status --short",
+          "rtk_cmd": "rtk git status --short",
+          "input_tokens": 1080,
+          "output_tokens": 1080,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 1,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-09T23:48:43.483269193+00:00",
+          "original_cmd": "git diff ",
+          "rtk_cmd": "rtk git diff ",
+          "input_tokens": 11511,
+          "output_tokens": 4847,
+          "saved_tokens": 6664,
+          "savings_pct": 57.89245069933108,
+          "exec_time_ms": 9,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 5,
+          "timestamp": "2026-10-09T23:48:47.703074334+00:00",
+          "original_cmd": "cat README.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 29,
+          "output_tokens": 29,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        },
+        {
+          "id": 6,
+          "timestamp": "2026-10-09T23:48:47.705114108+00:00",
+          "original_cmd": "cat config/services/service_057.toml",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 27,
+          "output_tokens": 27,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/config_diff-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

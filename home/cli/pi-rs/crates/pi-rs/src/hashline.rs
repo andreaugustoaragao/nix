@@ -78,14 +78,11 @@ pub fn format_hash_line(line_number: u32, line: &str) -> String {
 pub fn format_hash_lines(text: &str, start_line: u32) -> String {
     let mut out = String::with_capacity(text.len() + text.lines().count() * 4);
     let mut first = true;
-    let mut n = start_line;
-    for line in text.split('\n') {
+    for (n, line) in (start_line..).zip(text.split('\n')) {
         if !first {
             out.push('\n');
         }
-        out.push_str(&format!("{}{}{}", n, compute_line_hash(line), HL_BODY_SEP));
-        out.push_str(line);
-        n += 1;
+        out.push_str(&format_hash_line(n, line));
         first = false;
     }
     out

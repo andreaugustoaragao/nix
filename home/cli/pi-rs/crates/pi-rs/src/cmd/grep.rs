@@ -6,7 +6,7 @@
 //! - Multiline auto-enabled when the pattern contains a newline (literal or
 //!   the two-char `\n`).
 //! - `.gitignore` respected for directory walks (toggle via `--no-gitignore`).
-//! - Context before/after defaults to omp's `1` / `3`.
+//! - CLI context defaults to zero; extensions request their own context.
 //! - Global `--skip` paginates across all files.
 //! - Lines longer than `--max-columns` (default 1024) are truncated with `…`.
 //! - Each directory page caps at `--limit` matches (default 100) and uses a
@@ -19,6 +19,7 @@
 
 use std::{
     collections::BTreeMap,
+    collections::{BTreeSet, VecDeque},
     fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
@@ -42,10 +43,22 @@ pub struct Args {
     #[arg(long, short = 'e')]
     pub pattern: String,
 
-    /// One or more files, directories, or globs to search. Repeat the flag
+    /// One or more files or directories to search. Repeat the flag
     /// for multiple targets.
     #[arg(long = "path", short = 'p', required = true, num_args = 1.., action = clap::ArgAction::Append)]
     pub paths: Vec<String>,
+
+    /// Emit the Pi extension envelope and hashline anchors.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Match the pattern literally.
+    #[arg(short = 'F', long)]
+    pub fixed_strings: bool,
+
+    /// Symmetric context around matches.
+    #[arg(short = 'C', long)]
+    pub context: Option<u32>,
 
     /// Case-insensitive matching.
     #[arg(short = 'i', long)]
@@ -60,11 +73,11 @@ pub struct Args {
     pub hidden: bool,
 
     /// Context lines before each match.
-    #[arg(short = 'B', long, default_value_t = 1)]
+    #[arg(short = 'B', long, default_value_t = 0)]
     pub context_before: u32,
 
     /// Context lines after each match.
-    #[arg(short = 'A', long, default_value_t = 3)]
+    #[arg(short = 'A', long, default_value_t = 0)]
     pub context_after: u32,
 
     /// Maximum line width before truncation (chars).
@@ -79,8 +92,7 @@ pub struct Args {
     #[arg(long, default_value_t = 0)]
     pub skip: u32,
 
-    /// Per-file match cap before round-robin (default 20 for multi-file,
-    /// 200 for single-file).
+    /// Matches per file in each round-robin batch (no matches discarded).
     #[arg(long)]
     pub per_file_cap: Option<u32>,
 }
@@ -89,9 +101,14 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     if args.pattern.trim().is_empty() {
         anyhow::bail!("Pattern must not be empty");
     }
-    let multiline = args.pattern.contains('\n') || args.pattern.contains("\\n");
+    let multiline =
+        args.pattern.contains('\n') || (!args.fixed_strings && args.pattern.contains("\\n"));
 
-    let sanitized = sanitize_braces(&args.pattern);
+    let sanitized = if args.fixed_strings {
+        regex::escape(&args.pattern)
+    } else {
+        sanitize_braces(&args.pattern)
+    };
     let matcher = RegexMatcherBuilder::new()
         .case_insensitive(args.ignore_case)
         .multi_line(multiline)
@@ -110,8 +127,8 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     builder
         .binary_detection(BinaryDetection::quit(b'\x00'))
         .multi_line(multiline)
-        .before_context(args.context_before as usize)
-        .after_context(args.context_after as usize);
+        .before_context(0)
+        .after_context(0);
     let mut searcher = builder.build();
 
     // Collect all (path, file_matches) for each input path. Single-file and
@@ -119,6 +136,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     let mut all: Vec<FileHits> = Vec::new();
     let mut files_searched: u32 = 0;
     let mut missing: Vec<String> = Vec::new();
+    let mut seen = BTreeSet::new();
+    let before = args.context.unwrap_or(args.context_before) as usize;
+    let after = args.context.unwrap_or(args.context_after) as usize;
 
     for path_str in &args.paths {
         let p = PathBuf::from(path_str);
@@ -128,8 +148,18 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         }
         let md = fs::metadata(&p)?;
         if md.is_file() {
+            if !seen.insert(fs::canonicalize(&p)?) {
+                continue;
+            }
             files_searched += 1;
-            let hits = search_file(&mut searcher, &matcher, &p, p.display().to_string(), args.max_columns)?;
+            let hits = search_file(
+                &mut searcher,
+                &matcher,
+                &p,
+                p.display().to_string(),
+                before,
+                after,
+            )?;
             if !hits.matches.is_empty() {
                 all.push(hits);
             }
@@ -140,20 +170,29 @@ pub fn run(args: Args) -> anyhow::Result<()> {
                 .git_exclude(!args.no_gitignore)
                 .git_global(!args.no_gitignore)
                 .build();
-            for entry in walker.filter_map(|e| e.ok()) {
+            for entry in walker {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(e) => {
+                        missing.push(e.to_string());
+                        continue;
+                    }
+                };
                 if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
                     continue;
                 }
-                files_searched += 1;
                 let abs = entry.path();
-                let rel = abs
-                    .strip_prefix(&p)
-                    .unwrap_or(abs)
-                    .display()
-                    .to_string();
-                let hits = match search_file(&mut searcher, &matcher, abs, rel, args.max_columns) {
+                if !seen.insert(fs::canonicalize(abs)?) {
+                    continue;
+                }
+                files_searched += 1;
+                let rel = abs.display().to_string();
+                let hits = match search_file(&mut searcher, &matcher, abs, rel, before, after) {
                     Ok(h) => h,
-                    Err(_) => continue,
+                    Err(e) => {
+                        missing.push(format!("{}: {e}", abs.display()));
+                        continue;
+                    }
                 };
                 if !hits.matches.is_empty() {
                     all.push(hits);
@@ -163,20 +202,26 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     }
 
     let single_file_mode = args.paths.len() == 1
-        && PathBuf::from(&args.paths[0]).metadata().map(|m| m.is_file()).unwrap_or(false);
+        && PathBuf::from(&args.paths[0])
+            .metadata()
+            .map(|m| m.is_file())
+            .unwrap_or(false);
     let per_file_cap = args
         .per_file_cap
         .unwrap_or(if single_file_mode { 200 } else { 20 }) as usize;
 
     // Apply per-file caps and skip.
-    let (visible_groups, total_matches, file_match_counts, limit_reached) = collate(
-        all,
-        per_file_cap,
-        args.skip as usize,
-        args.limit as usize,
-    );
+    let (visible_groups, total_matches, file_match_counts, limit_reached) =
+        collate(all, per_file_cap, args.skip as usize, args.limit as usize);
 
-    let mut content = format_output_with_notes(&visible_groups, single_file_mode, &missing);
+    let full = format_output_with_notes(&visible_groups, single_file_mode, &missing, args.json, 0);
+    let mut content = format_output_with_notes(
+        &visible_groups,
+        single_file_mode,
+        &missing,
+        args.json,
+        args.max_columns as usize,
+    );
     if !visible_groups.is_empty() && !missing.is_empty() {
         content.push_str(&format!(
             "\nSkipped missing paths: {}\n",
@@ -184,14 +229,35 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         ));
     }
     let file_count = visible_groups.len();
-    let match_count: u32 = visible_groups
-        .iter()
-        .map(|g| g.matches.len() as u32)
-        .sum();
+    let match_count: u32 = visible_groups.iter().map(|g| g.matches.len() as u32).sum();
 
+    let next = args.skip as usize + match_count as usize;
+    let note = if limit_reached {
+        format!(
+            "\n[showing {match_count} of {total_matches} matches; continue with --skip {next}]\n"
+        )
+    } else {
+        String::new()
+    };
+    content.push_str(&note);
+    let full = full + &note;
+    let result = crate::compress::tee::truncate_with_tee(crate::compress::tee::TruncateRequest {
+        content: &content,
+        original: Some(&full),
+        head_lines: 2,
+        tail_lines: 1,
+        tee_dir: None,
+        max_bytes: None,
+    })?;
+    if !args.json {
+        print!("{}", result.content);
+        return Ok(());
+    }
     proto::emit(
-        &content,
+        &result.content,
         json!({
+            "recoveryPath": result.tee_path,
+            "truncated": result.truncated,
             "pattern": args.pattern,
             "matchCount": match_count,
             "totalMatches": total_matches,
@@ -213,7 +279,6 @@ struct FileHits {
 struct MatchRecord {
     line_number: u64,
     line: String,
-    truncated: bool,
     context_before: Vec<ContextLine>,
     context_after: Vec<ContextLine>,
 }
@@ -228,19 +293,38 @@ fn search_file(
     matcher: &impl Matcher,
     abs: &Path,
     relative: String,
-    max_columns: u32,
+    before: usize,
+    after: usize,
 ) -> anyhow::Result<FileHits> {
     let mut buf = Vec::new();
     let mut file = File::open(abs)?;
     file.read_to_end(&mut buf)?;
     let mut collector = Collector {
         matches: Vec::new(),
-        max_columns: max_columns as usize,
+        max_columns: usize::MAX,
         pending_before: Vec::new(),
     };
     searcher
         .search_slice(matcher, &buf, &mut collector)
         .map_err(|e| anyhow::anyhow!("search failed: {e}"))?;
+    let source = String::from_utf8_lossy(&buf);
+    let lines: Vec<_> = source.lines().collect();
+    for m in &mut collector.matches {
+        let i = m.line_number.saturating_sub(1) as usize;
+        let end = i + m.line.lines().count().max(1);
+        m.context_before = (i.saturating_sub(before)..i)
+            .map(|n| ContextLine {
+                line_number: n as u64 + 1,
+                line: lines[n].into(),
+            })
+            .collect();
+        m.context_after = (end..end.saturating_add(after).min(lines.len()))
+            .map(|n| ContextLine {
+                line_number: n as u64 + 1,
+                line: lines[n].into(),
+            })
+            .collect();
+    }
     Ok(FileHits {
         relative_path: relative,
         matches: collector.matches,
@@ -255,19 +339,26 @@ struct Collector {
 
 impl Sink for Collector {
     type Error = io::Error;
-    fn matched(&mut self, _s: &Searcher, m: &SinkMatch<'_>) -> std::result::Result<bool, io::Error> {
+    fn matched(
+        &mut self,
+        _s: &Searcher,
+        m: &SinkMatch<'_>,
+    ) -> std::result::Result<bool, io::Error> {
         let raw = bytes_to_string(m.bytes());
-        let (line, truncated) = truncate(raw, self.max_columns);
+        let (line, _) = truncate(raw, self.max_columns);
         self.matches.push(MatchRecord {
             line_number: m.line_number().unwrap_or(0),
             line,
-            truncated,
             context_before: std::mem::take(&mut self.pending_before),
             context_after: Vec::new(),
         });
         Ok(true)
     }
-    fn context(&mut self, _s: &Searcher, c: &SinkContext<'_>) -> std::result::Result<bool, io::Error> {
+    fn context(
+        &mut self,
+        _s: &Searcher,
+        c: &SinkContext<'_>,
+    ) -> std::result::Result<bool, io::Error> {
         let raw = bytes_to_string(c.bytes());
         let (line, _) = truncate(raw, self.max_columns);
         let cl = ContextLine {
@@ -289,9 +380,9 @@ impl Sink for Collector {
 
 fn bytes_to_string(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
-        Ok(t) => t.trim_end_matches(|c| c == '\n' || c == '\r').to_string(),
+        Ok(t) => t.trim_end_matches(['\n', '\r']).to_string(),
         Err(_) => String::from_utf8_lossy(bytes)
-            .trim_end_matches(|c| c == '\n' || c == '\r')
+            .trim_end_matches(['\n', '\r'])
             .to_string(),
     }
 }
@@ -313,50 +404,14 @@ fn collate(
     skip: usize,
     limit: usize,
 ) -> (Vec<FileHits>, u32, BTreeMap<String, u32>, bool) {
-    // Truncate each file's matches at the per-file cap.
-    let mut total: u32 = 0;
-    let mut file_counts: BTreeMap<String, u32> = BTreeMap::new();
-    for f in &mut all {
-        let original = f.matches.len();
-        if f.matches.len() > per_file_cap {
-            f.matches.truncate(per_file_cap);
-        }
-        total += original as u32;
-        file_counts.insert(f.relative_path.clone(), original as u32);
-    }
-
-    // Skip the first `skip` matches globally, preserving file order.
-    let mut to_skip = skip;
-    for f in &mut all {
-        if to_skip == 0 {
-            break;
-        }
-        if f.matches.len() <= to_skip {
-            to_skip -= f.matches.len();
-            f.matches.clear();
-        } else {
-            f.matches.drain(..to_skip);
-            to_skip = 0;
-        }
-    }
-
-    // Round-robin until `limit`. For single-file results this is a no-op
-    // (only one file in `all`); for multi-file it spreads matches evenly.
-    let limit_reached;
-    if all.len() <= 1 {
-        let mut single = all;
-        if let Some(f) = single.first_mut() {
-            limit_reached = f.matches.len() > limit;
-            if f.matches.len() > limit {
-                f.matches.truncate(limit);
-            }
-        } else {
-            limit_reached = false;
-        }
-        return (single, total, file_counts, limit_reached);
-    }
-
-    // Multi-file round-robin.
+    // A stable round-robin sequence makes every match reachable through skip.
+    // The former per-file cap discarded later matches before pagination.
+    all.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    let total = all.iter().map(|f| f.matches.len() as u32).sum();
+    let counts = all
+        .iter()
+        .map(|f| (f.relative_path.clone(), f.matches.len() as u32))
+        .collect();
     let mut taken: Vec<FileHits> = all
         .iter()
         .map(|f| FileHits {
@@ -364,81 +419,93 @@ fn collate(
             matches: Vec::new(),
         })
         .collect();
+    let mut queues: Vec<VecDeque<_>> = all.into_iter().map(|f| f.matches.into()).collect();
+    let mut offset = 0;
     let mut emitted = 0;
-    let mut all_drained = false;
-    while emitted < limit && !all_drained {
-        all_drained = true;
-        for (i, src) in all.iter_mut().enumerate() {
-            if src.matches.is_empty() {
-                continue;
+    let batch = per_file_cap.max(1);
+    while queues.iter().any(|q| !q.is_empty()) && emitted < limit {
+        for (i, q) in queues.iter_mut().enumerate() {
+            for _ in 0..batch {
+                let Some(m) = q.pop_front() else {
+                    break;
+                };
+                if offset >= skip {
+                    taken[i].matches.push(m);
+                    emitted += 1;
+                }
+                offset += 1;
+                if emitted >= limit {
+                    break;
+                }
             }
-            all_drained = false;
-            taken[i].matches.push(src.matches.remove(0));
-            emitted += 1;
             if emitted >= limit {
                 break;
             }
         }
     }
-    limit_reached = !all_drained && emitted >= limit;
-    // Drop files with zero matches after round-robin.
-    let visible: Vec<FileHits> = taken.into_iter().filter(|f| !f.matches.is_empty()).collect();
-
-    (visible, total, file_counts, limit_reached)
-}
-
-fn format_output(groups: &[FileHits], single_file_mode: bool) -> String {
-    format_output_with_notes(groups, single_file_mode, &[])
+    let more = skip.saturating_add(emitted) < total as usize;
+    (
+        taken
+            .into_iter()
+            .filter(|f| !f.matches.is_empty())
+            .collect(),
+        total,
+        counts,
+        more,
+    )
 }
 
 fn format_output_with_notes(
     groups: &[FileHits],
     single_file_mode: bool,
     missing: &[String],
+    anchors: bool,
+    width: usize,
 ) -> String {
     if groups.is_empty() {
-        if missing.is_empty() {
-            return "No matches found".to_string();
-        }
-        return format!(
-            "No matches found. Skipped missing paths: {}",
-            missing.join(", ")
-        );
+        return if missing.is_empty() {
+            "No matches found\n".into()
+        } else {
+            format!("No matches found. Skipped paths: {}\n", missing.join(", "))
+        };
     }
     let mut out = String::new();
-    for (i, group) in groups.iter().enumerate() {
+    let mut clipped = false;
+    for group in groups {
         if !single_file_mode {
-            if i > 0 {
-                out.push('\n');
-            }
-            out.push_str("# ");
-            out.push_str(&group.relative_path);
-            out.push('\n');
+            out.push_str(&format!("# {}\n", group.relative_path));
         }
+        let mut lines: BTreeMap<u64, (bool, &str)> = BTreeMap::new();
         for m in &group.matches {
-            for c in &m.context_before {
-                out.push(' ');
-                out.push_str(&c.line_number.to_string());
-                out.push_str(compute_line_hash(&c.line));
-                out.push('|');
-                out.push_str(&c.line);
-                out.push('\n');
+            for c in m.context_before.iter().chain(&m.context_after) {
+                lines.entry(c.line_number).or_insert((false, &c.line));
             }
-            out.push('*');
-            out.push_str(&m.line_number.to_string());
-            out.push_str(compute_line_hash(&m.line));
-            out.push('|');
-            out.push_str(&m.line);
-            out.push('\n');
-            for c in &m.context_after {
-                out.push(' ');
-                out.push_str(&c.line_number.to_string());
-                out.push_str(compute_line_hash(&c.line));
-                out.push('|');
-                out.push_str(&c.line);
-                out.push('\n');
+            for (n, line) in m.line.lines().enumerate() {
+                lines.insert(m.line_number + n as u64, (true, line));
             }
         }
+        for (n, (matched, raw)) in lines {
+            let (line, truncated) = if width == 0 {
+                (raw.to_string(), false)
+            } else {
+                truncate(raw.to_string(), width)
+            };
+            clipped |= truncated;
+            if anchors {
+                out.push_str(&format!(
+                    "{}{n}{}|{line}\n",
+                    if matched { '*' } else { ' ' },
+                    compute_line_hash(raw)
+                ));
+            } else {
+                out.push_str(&format!("{n}{}{line}\n", if matched { ':' } else { '-' }));
+            }
+        }
+    }
+    if clipped {
+        out.push_str(
+            "[line widths clipped; use --max-columns 0 or read FILE --from LINE --lines 1]\n",
+        );
     }
     out
 }
@@ -452,14 +519,14 @@ fn format_output_with_notes(
 /// This is a deliberate UX upgrade over omp's `build_matcher()` brace
 /// sanitization, which only escapes braces (leaving `$` as an anchor).
 fn sanitize_braces(pattern: &str) -> String {
-    let bytes = pattern.as_bytes();
+    let bytes: Vec<char> = pattern.chars().collect();
     let mut out = String::with_capacity(pattern.len());
     let mut i = 0;
     while i < bytes.len() {
-        let c = bytes[i] as char;
+        let c = bytes[i];
         if c == '\\' && i + 1 < bytes.len() {
             out.push(c);
-            out.push(bytes[i + 1] as char);
+            out.push(bytes[i + 1]);
             i += 2;
             continue;
         }
@@ -470,13 +537,13 @@ fn sanitize_braces(pattern: &str) -> String {
             // (and the immediately-preceding `$` when present — the model is
             // searching for a template literal, not a regex anchor).
             let mut j = i + 1;
-            while j < bytes.len() && bytes[j] != b'}' {
+            while j < bytes.len() && bytes[j] != '}' {
                 j += 1;
             }
             if j < bytes.len() {
-                let body = &pattern[i + 1..j];
-                if is_repetition_body(body) {
-                    out.push_str(&pattern[i..=j]);
+                let body: String = bytes[i + 1..j].iter().collect();
+                if is_repetition_body(&body) {
+                    out.extend(&bytes[i..=j]);
                     i = j + 1;
                     continue;
                 }
@@ -486,7 +553,7 @@ fn sanitize_braces(pattern: &str) -> String {
                     out.push_str("\\$");
                 }
                 out.push_str("\\{");
-                out.push_str(body);
+                out.push_str(&body);
                 out.push_str("\\}");
                 i = j + 1;
                 continue;
@@ -523,14 +590,14 @@ fn is_repetition_body(body: &str) -> bool {
 /// Fallback for omp's "unopened/unclosed group" compile-error recovery.
 /// Escape every unescaped `(` and `)` so accidental literal parens compile.
 fn escape_unescaped_parens(pattern: &str) -> String {
-    let bytes = pattern.as_bytes();
+    let bytes: Vec<char> = pattern.chars().collect();
     let mut out = String::with_capacity(pattern.len() + 8);
     let mut i = 0;
     while i < bytes.len() {
-        let c = bytes[i] as char;
+        let c = bytes[i];
         if c == '\\' && i + 1 < bytes.len() {
             out.push(c);
-            out.push(bytes[i + 1] as char);
+            out.push(bytes[i + 1]);
             i += 2;
             continue;
         }
@@ -565,4 +632,3 @@ mod tests {
         assert_eq!(sanitize_braces("$bar"), "$bar");
     }
 }
-

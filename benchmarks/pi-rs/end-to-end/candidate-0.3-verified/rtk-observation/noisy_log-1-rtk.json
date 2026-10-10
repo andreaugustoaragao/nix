@@ -1,0 +1,80 @@
+{
+  "hook_audit": "2026-10-09T19:00:32 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T19:00:37 | rewrite | rg --files -g AGENTS.md -g service.log -g '*README*' -g '*log*' | rtk rg --files -g AGENTS.md -g service.log -g '*README*' -g '*log*'\n2026-10-09T19:00:40 | rewrite | rg -n -m 12 'error_code\\|fail\\|ERROR' logs/service.log | rtk rg -n -m 12 'error_code\\|fail\\|ERROR' logs/service.log\n2026-10-09T19:00:44 | skip:no_rewrite | sed -n '3998,4003p' logs/service.log | \n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T19:00:32",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T19:00:37",
+      "action": "rewrite",
+      "original": "rg --files -g AGENTS.md -g service.log -g '*README*' -g '*log*'",
+      "rewritten": "rtk rg --files -g AGENTS.md -g service.log -g '*README*' -g '*log*'"
+    },
+    {
+      "timestamp": "2026-10-09T19:00:40",
+      "action": "rewrite",
+      "original": "rg -n -m 12 'error_code\\|fail\\|ERROR' logs/service.log",
+      "rewritten": "rtk rg -n -m 12 'error_code\\|fail\\|ERROR' logs/service.log"
+    },
+    {
+      "timestamp": "2026-10-09T19:00:44",
+      "action": "skip:no_rewrite",
+      "original": "sed -n '3998,4003p' logs/service.log",
+      "rewritten": ""
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T01:00:33.265177283+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/noisy_log-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T01:00:37.969599582+00:00",
+          "original_cmd": "rg --files -g AGENTS.md -g service.log -g *README* -g *log*",
+          "rtk_cmd": "rtk rg --files -g AGENTS.md -g service.log -g *README* -g *log* (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 7,
+          "project_path": "<run-root>/runs/noisy_log-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T01:00:40.648792419+00:00",
+          "original_cmd": "rg -n -m 12 error_code|fail|ERROR logs/service.log",
+          "rtk_cmd": "rtk rg",
+          "input_tokens": 30,
+          "output_tokens": 26,
+          "saved_tokens": 4,
+          "savings_pct": 13.333333333333334,
+          "exec_time_ms": 3,
+          "project_path": "<run-root>/runs/noisy_log-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

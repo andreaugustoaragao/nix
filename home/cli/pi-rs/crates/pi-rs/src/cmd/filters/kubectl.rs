@@ -20,7 +20,13 @@ pub fn run(args: KubectlArgs) -> anyhow::Result<()> {
         Some(sub) => format!("kubectl_{sub}"),
         None => "kubectl".into(),
     };
-    let code = run_filtered("kubectl", &refs, &hint, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)?;
+    let code = run_filtered(
+        "kubectl",
+        &refs,
+        &hint,
+        DEFAULT_HEAD_LINES,
+        DEFAULT_TAIL_LINES,
+    )?;
     if code != 0 {
         std::process::exit(code);
     }

@@ -1,0 +1,92 @@
+{
+  "hook_audit": "2026-10-09T19:01:36 | rewrite | cat /home/aragao/.codex/RTK.md | rtk read /home/aragao/.codex/RTK.md\n2026-10-09T19:01:39 | rewrite | rg --files -g '!node_modules' -g '!vendor' -g '!\\\\.git' | rtk rg --files -g '!node_modules' -g '!vendor' -g '!\\\\.git'\n2026-10-09T19:01:42 | rewrite | rg -n 'checkout\\|timeout\\|retr\\|AGENTS' . | rtk rg -n 'checkout\\|timeout\\|retr\\|AGENTS' .\n2026-10-09T19:01:46 | rewrite | cat src/client.py | rtk read src/client.py\n",
+  "hook_decisions": [
+    {
+      "timestamp": "2026-10-09T19:01:36",
+      "action": "rewrite",
+      "original": "cat /home/aragao/.codex/RTK.md",
+      "rewritten": "rtk read /home/aragao/.codex/RTK.md"
+    },
+    {
+      "timestamp": "2026-10-09T19:01:39",
+      "action": "rewrite",
+      "original": "rg --files -g '!node_modules' -g '!vendor' -g '!\\\\.git'",
+      "rewritten": "rtk rg --files -g '!node_modules' -g '!vendor' -g '!\\\\.git'"
+    },
+    {
+      "timestamp": "2026-10-09T19:01:42",
+      "action": "rewrite",
+      "original": "rg -n 'checkout\\|timeout\\|retr\\|AGENTS' .",
+      "rewritten": "rtk rg -n 'checkout\\|timeout\\|retr\\|AGENTS' ."
+    },
+    {
+      "timestamp": "2026-10-09T19:01:46",
+      "action": "rewrite",
+      "original": "cat src/client.py",
+      "rewritten": "rtk read src/client.py"
+    }
+  ],
+  "databases": {
+    "history.db": {
+      "commands": [
+        {
+          "id": 1,
+          "timestamp": "2026-10-10T01:01:37.205871095+00:00",
+          "original_cmd": "cat /home/aragao/.codex/RTK.md",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 137,
+          "output_tokens": 137,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/source_lookup-1-rtk/fixture"
+        },
+        {
+          "id": 2,
+          "timestamp": "2026-10-10T01:01:40.025413544+00:00",
+          "original_cmd": "rg --files -g !node_modules -g !vendor -g !\\.git",
+          "rtk_cmd": "rtk rg --files -g !node_modules -g !vendor -g !\\.git (passthrough)",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 4,
+          "project_path": "<run-root>/runs/source_lookup-1-rtk/fixture"
+        },
+        {
+          "id": 3,
+          "timestamp": "2026-10-10T01:01:42.768250961+00:00",
+          "original_cmd": "rg -n checkout|timeout|retr|AGENTS .",
+          "rtk_cmd": "rtk rg",
+          "input_tokens": 648,
+          "output_tokens": 648,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 7,
+          "project_path": "<run-root>/runs/source_lookup-1-rtk/fixture"
+        },
+        {
+          "id": 4,
+          "timestamp": "2026-10-10T01:01:46.945603882+00:00",
+          "original_cmd": "cat src/client.py",
+          "rtk_cmd": "rtk read",
+          "input_tokens": 107,
+          "output_tokens": 107,
+          "saved_tokens": 0,
+          "savings_pct": 0.0,
+          "exec_time_ms": 0,
+          "project_path": "<run-root>/runs/source_lookup-1-rtk/fixture"
+        }
+      ],
+      "parse_failures": [],
+      "hook_decisions": []
+    }
+  },
+  "data_files": [
+    "rtk/.hook_warn_last",
+    "rtk/history.db",
+    "rtk/history.db-shm",
+    "rtk/history.db-wal",
+    "rtk/hook-audit.log"
+  ]
+}

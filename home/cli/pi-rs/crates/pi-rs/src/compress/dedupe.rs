@@ -30,6 +30,72 @@ pub fn collapse_repeated(input: &str) -> String {
     out
 }
 
+/// Group consecutive routine log messages, ignoring only timestamps and the
+/// sequence counter of a recognized heartbeat. Identifiers stay significant.
+pub fn collapse_logs(input: &str) -> String {
+    use std::sync::LazyLock;
+    static TIMESTAMP: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(
+            r"^\[?\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\]?\s+",
+        )
+        .unwrap()
+    });
+    static HEARTBEAT: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"^(INFO heartbeat(?: healthy)? )sequence=\d+$").unwrap()
+    });
+    static LONG_RUN: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"[^\s]{512,}").unwrap());
+    let key = |line: &str| {
+        let message = TIMESTAMP.replace(line, "");
+        HEARTBEAT.replace(&message, "${1}sequence=*").into_owned()
+    };
+    let mut out = String::new();
+    let mut lines = input.lines().peekable();
+    while let Some(line) = lines.next() {
+        let normalized = key(line);
+        let mut count = 1;
+        while lines.peek().is_some_and(|next| key(next) == normalized) {
+            lines.next();
+            count += 1;
+        }
+        // Bound repeated-character payloads without hiding surrounding fields.
+        let rendered = LONG_RUN.replace_all(line, |caps: &regex::Captures<'_>| {
+            let word = &caps[0];
+            let first = word.chars().next().unwrap();
+            if word.chars().all(|c| c == first) {
+                format!("{first}[repeated {} times]", word.chars().count())
+            } else {
+                word.to_owned()
+            }
+        });
+        let tokens: Vec<&str> = rendered.split_inclusive(char::is_whitespace).collect();
+        let mut n = 0;
+        while n < tokens.len() {
+            let start = n;
+            n += 1;
+            while n < tokens.len() && tokens[n] == tokens[start] {
+                n += 1;
+            }
+            let count = n - start;
+            if count >= 4 && tokens[start].len() * count > tokens[start].len() + 24 {
+                out.push_str(tokens[start].trim_end());
+                out.push_str(&format!(" [×{count} tokens] "));
+            } else {
+                for token in &tokens[start..n] {
+                    out.push_str(token);
+                }
+            }
+        }
+        if count > 1 {
+            out.push_str(&format!(
+                " (×{count}; timestamps/heartbeat sequence may differ)"
+            ));
+        }
+        out.push('\n');
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -29,7 +29,8 @@ pub mod pytest;
 pub mod read;
 pub mod yarn;
 
-use std::process::{Command, Stdio};
+use std::io::{IsTerminal, Read, Write};
+use std::process::{Command, ExitStatus, Stdio};
 
 use anyhow::{Context, Result};
 
@@ -55,48 +56,151 @@ pub const DEFAULT_TAIL_LINES: usize = 20;
 /// 1. [`strip_progress`] — drop progress bars, percent lines, throughput.
 /// 2. [`collapse_repeated`] — fold runs of identical adjacent lines.
 /// 3. [`truncate_with_tee`] — head + marker + tail if over budget; full
-///    payload to `~/.local/share/pi-rs/tee/{ts}_{cmd_hint}.log`.
+///    payload to content-addressed plain/gzip files under `~/.local/share/pi-rs/tee/`.
 pub fn run_filtered(
     program: &str,
     args: &[&str],
-    cmd_hint: &str,
+    _cmd_hint: &str,
     head: usize,
     tail: usize,
 ) -> Result<i32> {
-    let output = Command::new(program)
+    let kubectl_output = program == "kubectl"
+        && args
+            .iter()
+            .any(|arg| arg.starts_with("-o") || arg.starts_with("--output"));
+    if kubectl_output
+        || args.iter().any(|arg| {
+            matches!(*arg, "-z" | "--null" | "--null-data")
+                || [
+                    "--json",
+                    "--format",
+                    "--pretty",
+                    "--porcelain",
+                    "--message-format",
+                ]
+                .iter()
+                .any(|flag| {
+                    *arg == *flag || arg.strip_prefix(flag).is_some_and(|s| s.starts_with('='))
+                })
+        })
+    {
+        return run_passthrough(program, args);
+    }
+    if streaming_command(program, args) || std::io::stdin().is_terminal() {
+        return run_passthrough(program, args);
+    }
+    // Sharing one pipe preserves the kernel's stdout/stderr write order. A PTY
+    // is unnecessary and would change programs' colour/buffering behaviour.
+    let (mut reader, writer) = std::io::pipe()?;
+    let mut child = Command::new(program)
         .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::from(writer.try_clone()?))
+        .stderr(Stdio::from(writer))
+        .spawn()
         .with_context(|| format!("failed to spawn `{program}`"))?;
-
-    // Combine stdout + stderr in source order is impossible without ptys;
-    // emit stdout first then stderr. Most tools concentrate the salient
-    // signal on stdout so this is the right default.
-    let mut combined = String::new();
-    combined.push_str(&String::from_utf8_lossy(&output.stdout));
-    if !output.stderr.is_empty() {
-        if !combined.is_empty() && !combined.ends_with('\n') {
-            combined.push('\n');
-        }
-        combined.push_str(&String::from_utf8_lossy(&output.stderr));
+    let mut bytes = Vec::new();
+    if let Err(error) = reader.read_to_end(&mut bytes) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error.into());
+    }
+    let status = child.wait()?;
+    let Ok(combined) = std::str::from_utf8(&bytes) else {
+        std::io::stdout().write_all(&bytes)?;
+        return Ok(exit_code(status));
+    };
+    if combined.contains('\0') {
+        std::io::stdout().write_all(&bytes)?;
+        return Ok(exit_code(status));
     }
 
-    let stripped = strip_progress(&combined);
-    let deduped = collapse_repeated(&stripped);
+    let stripped = strip_progress(combined);
+    let specific = match program {
+        "cargo" => cargo::summarize(&stripped),
+        "pytest"
+            if !args
+                .iter()
+                .any(|a| a.starts_with("-v") || *a == "--verbose") =>
+        {
+            pytest::summarize(&stripped)
+        }
+        "git" => git::summarize(&stripped, args),
+        "docker" | "kubectl" if args.contains(&"logs") => {
+            crate::compress::dedupe::collapse_logs(&stripped)
+        }
+        _ => stripped,
+    };
+    let deduped = collapse_repeated(&specific);
     let r = truncate_with_tee(TruncateRequest {
         content: &deduped,
+        original: Some(combined),
         head_lines: head,
         tail_lines: tail,
-        cmd_hint,
+
         tee_dir: None,
+        max_bytes: None,
     })?;
     print!("{}", r.content);
 
-    Ok(output.status.code().unwrap_or(1))
+    Ok(exit_code(status))
 }
 
-/// Convenience: run with the default budget.
-pub fn run_filtered_default(program: &str, args: &[&str], cmd_hint: &str) -> Result<i32> {
-    run_filtered(program, args, cmd_hint, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES)
+pub fn streaming_command(program: &str, args: &[&str]) -> bool {
+    let has = |values: &[&str]| args.iter().any(|arg| values.contains(arg));
+    let follow = has(&["-f", "--follow", "--follow=true"]);
+    let watch = has(&["--watch", "--watch=true"]);
+    match program {
+        "docker" => {
+            has(&["attach", "exec", "run", "events", "stats"]) || (has(&["logs"]) && follow)
+        }
+        "kubectl" => {
+            has(&["attach", "exec", "port-forward", "proxy"])
+                || watch
+                || (has(&["logs"]) && follow)
+                || (has(&["get"]) && has(&["-w", "--watch-only"]))
+        }
+        "cargo" => has(&["run", "watch", "--nocapture"]),
+        "pytest" => has(&["--pdb", "--trace", "-s", "--capture=no"]),
+        "npm" | "pnpm" | "yarn" => watch || has(&["dev", "start", "serve", "watch"]),
+        _ => false,
+    }
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ProxyArgs {
+    #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+    pub command: Vec<String>,
+}
+
+pub fn proxy(args: ProxyArgs) -> Result<()> {
+    let refs: Vec<&str> = args.command.iter().skip(1).map(String::as_str).collect();
+    let code = run_passthrough(&args.command[0], &refs)?;
+    if code != 0 {
+        std::process::exit(code);
+    }
+    Ok(())
+}
+
+/// Preserve streams and arguments exactly for formats intended for other tools.
+pub fn run_passthrough(program: &str, args: &[&str]) -> Result<i32> {
+    let status = Command::new(program)
+        .args(args)
+        .status()
+        .with_context(|| format!("failed to spawn `{program}`"))?;
+    Ok(exit_code(status))
+}
+
+fn exit_code(status: ExitStatus) -> i32 {
+    if let Some(code) = status.code() {
+        return code;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(signal) = status.signal() {
+            return 128 + signal;
+        }
+    }
+    1
 }

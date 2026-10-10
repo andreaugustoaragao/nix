@@ -1,0 +1,2 @@
+2026-10-10T01:05:30.902193Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected before completion: failed to decode models response: Data at line 1 column 4115 (body: 4115 bytes)
+2026-10-10T01:05:30.902571Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected before completion: failed to decode models response: Data at line 1 column 4115 (body: 4115 bytes)

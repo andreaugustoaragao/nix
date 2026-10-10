@@ -11,7 +11,14 @@ PluginComponent {
     readonly property bool recording: phase === "recording"
     readonly property bool finalizing: phase === "finalizing" || phase === "starting" || phase === "diarizing"
     property string failureCode: ""
+    property string captureIssueSides: ""
+    property string routingWarning: ""
+    property string micSourceWarning: ""
+    property string coverageDetail: ""
+    readonly property bool activeWarning: captureIssueSides !== "" || routingWarning !== "" || micSourceWarning !== ""
     property bool retryable: false
+    property bool salvageable: false
+    property bool hasPartialTranscript: false
     property string diarizationStatus: "pending"
     property string diarizationFailureCode: ""
     property int diarizedSpeakers: 0
@@ -52,8 +59,11 @@ PluginComponent {
         if (root.phase === "incomplete") {
             if (root.failureCode === "status_unavailable") return "Recorder status is unavailable";
             if (root.failureCode === "legacy_recording_state") return "An older recording needs review before a new one can start";
-            return root.failureText() +
-                (root.retryable ? " — click to retry transcription; right-click to start another recording" : " — click to start another recording");
+            return root.failureText() + root.coverageDetail +
+                (root.salvageable ? " — click to verify and transcribe retained audio as a partial transcript; right-click to start another recording" :
+                 root.hasPartialTranscript ? " — partial transcript available; click to start another recording" :
+                 root.retryable ? " — click to retry transcription; right-click to start another recording" :
+                 " — click to start another recording");
         }
         if (root.phase === "ready") {
             if (root.diarizationStatus === "failed")
@@ -63,7 +73,12 @@ PluginComponent {
             return "Transcript ready — click to start recording";
         }
         return root.recording
-            ? "Recording " + root.elapsedText() + " — click to stop"
+            ? "Recording " + root.elapsedText() +
+                (root.captureIssueSides ? " — audio capture was interrupted on " + root.captureIssueSides + "; this transcript will need review" :
+                 root.routingWarning === "browser_stream_missing" ? " — no browser audio stream detected; call audio may be missing" :
+                 root.routingWarning ? " — browser audio routing is temporarily unavailable" : "") +
+                (root.micSourceWarning ? " — microphone source is temporarily unavailable" : "") +
+                " — click to stop"
             : "Start recording";
     }
 
@@ -122,6 +137,28 @@ PluginComponent {
                 root.outputDir = state.outputDir || "";
                 root.failureCode = state.failure ? state.failure.code : "";
                 root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
+                root.salvageable = !!(state.salvageable && root.outputDir);
+                root.hasPartialTranscript = !!(state.status === "incomplete" && state.source && state.source.transcript);
+                var issues = Array.isArray(state.captureIssues) ? state.captureIssues : [];
+                var affected = [];
+                for (var issue of issues) {
+                    if ((issue.side === "call" || issue.side === "mic") && affected.indexOf(issue.side) < 0)
+                        affected.push(issue.side);
+                }
+                root.captureIssueSides = affected.join(" and ");
+                root.routingWarning = state.routingWarning || "";
+                root.micSourceWarning = state.micSourceWarning || "";
+                var coverage = state.coverage || {};
+                var sides = coverage.sides || {};
+                var shortfalls = [];
+                for (var side of ["call", "mic"]) {
+                    var shortfall = Number((sides[side] || {}).sampleClockShortfallMs);
+                    if (Number.isFinite(shortfall) && shortfall > 0)
+                        shortfalls.push(side + " " + (shortfall / 1000).toFixed(1) + " s");
+                }
+                root.coverageDetail = shortfalls.length
+                    ? " — unverified audio time: " + shortfalls.join(", ") + "; its position in the call is unknown"
+                    : "";
                 var diarization = state.diarization || {};
                 root.diarizationStatus = diarization.status || "pending";
                 root.diarizationFailureCode = diarization.failure ? diarization.failure.code : "";
@@ -134,7 +171,13 @@ PluginComponent {
             } catch (error) {
                 root.phase = "incomplete";
                 root.failureCode = "status_unavailable";
+                root.captureIssueSides = "";
+                root.routingWarning = "";
+                root.micSourceWarning = "";
+                root.coverageDetail = "";
                 root.retryable = false;
+                root.salvageable = false;
+                root.hasPartialTranscript = false;
                 root.diarizationStatus = "pending";
                 root.diarizationFailureCode = "";
                 root.diarizedSpeakers = 0;
@@ -168,6 +211,8 @@ PluginComponent {
         if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
         if (root.phase === "ready" && root.diarizationStatus === "failed" && root.outputDir) {
             toggleProc.command = ["record-call", "retry-diarization", root.outputDir];
+        } else if (root.phase === "incomplete" && root.salvageable) {
+            toggleProc.command = ["record-call", "salvage", root.outputDir];
         } else if (root.phase === "incomplete" && root.retryable) {
             toggleProc.command = ["record-call", "retry", root.outputDir];
         } else {
@@ -248,9 +293,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
+                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
 
                 SequentialAnimation on opacity {
@@ -282,9 +327,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? "fiber_manual_record" : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
+                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? "#e74c3c" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 SequentialAnimation on opacity {

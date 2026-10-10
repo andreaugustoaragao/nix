@@ -21,9 +21,12 @@ pub struct FindArgs {
     /// Root directory (default: current working dir).
     #[arg(default_value = ".")]
     pub path: PathBuf,
-    /// Cap matches before grouping (default 1000).
+    /// Maximum matches in this page (default 1000).
     #[arg(long, default_value_t = 1000)]
     pub limit: usize,
+    /// Global match offset, in sorted path order.
+    #[arg(long, default_value_t = 0)]
+    pub skip: usize,
 }
 
 pub fn run(args: FindArgs) -> anyhow::Result<()> {
@@ -32,10 +35,8 @@ pub fn run(args: FindArgs) -> anyhow::Result<()> {
         .compile_matcher();
 
     let mut matches: Vec<PathBuf> = Vec::new();
-    for entry in WalkBuilder::new(&args.path).build().filter_map(|r| r.ok()) {
-        if matches.len() >= args.limit {
-            break;
-        }
+    for entry in WalkBuilder::new(&args.path).build() {
+        let entry = entry?;
         if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
             continue;
         }
@@ -46,6 +47,13 @@ pub fn run(args: FindArgs) -> anyhow::Result<()> {
         }
     }
 
+    matches.sort();
+    let total = matches.len();
+    let matches: Vec<_> = matches
+        .into_iter()
+        .skip(args.skip)
+        .take(args.limit)
+        .collect();
     let groups = group_by_directory(&matches);
     let mut out = String::new();
     out.push_str(&format!(
@@ -63,12 +71,22 @@ pub fn run(args: FindArgs) -> anyhow::Result<()> {
         }
     }
 
+    if args.skip + matches.len() < total {
+        out.push_str(&format!(
+            "[showing {} of {total}; continue with --skip {}]\n",
+            matches.len(),
+            args.skip + matches.len()
+        ));
+    }
+
     let r = truncate_with_tee(TruncateRequest {
         content: &out,
+        original: None,
         head_lines: DEFAULT_HEAD_LINES * 2,
         tail_lines: DEFAULT_HEAD_LINES,
-        cmd_hint: "find",
+
         tee_dir: None,
+        max_bytes: None,
     })?;
     print!("{}", r.content);
     Ok(())

@@ -2,6 +2,7 @@
 name = "pi-rs"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
@@ -44,6 +45,8 @@ dirs.workspace = true
 # Rewrite oracle (config + tokenization).
 toml.workspace = true
 shell-words.workspace = true
+flate2.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -1,0 +1,1 @@
+Work only with the files in this fixture repository. Do not edit source files. Do not spawn agents, access external services, use the network, or inspect files outside this repository. You may run local commands and the existing test suite. Return only the final JSON object matching the supplied schema.

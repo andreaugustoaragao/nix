@@ -1,0 +1,79 @@
+{
+  "tests": {
+    "ast": 27,
+    "unit": 111,
+    "cli": 22,
+    "total": 160
+  },
+  "strict_clippy": "passed",
+  "rustfmt": "passed",
+  "nixfmt": "passed",
+  "statix": "passed",
+  "deadnix": "passed",
+  "all_systems_evaluation": "passed",
+  "darwin_system_evaluation": "passed",
+  "native_flake_check_with_builds": "passed",
+  "packaged_binary": "/nix/store/jzpl9dbfi4v8m2a31vsxj5vbd1y2dxcp-pi-rs-0.3.0/bin/pi-rs",
+  "packaged_binary_sha256": "32eb2547311afd86ab4817c461eb1cac3244072ccba899d9005d67b298d386e7",
+  "packaged_version": "pi-rs 0.3.0",
+  "packaged_guidance_matches_source": true,
+  "packaged_gzip_recovery_byte_equal": true,
+  "packaged_targeted_recovery_line_correct": true,
+  "packaged_quoted_summary_hint_works": true,
+  "active_rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "active_cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+  "post_measurement_text_verification": {
+    "binary_sha256": "80cbc9820393ae810a73660209909f02ad4b367ad41a11ce4884f5e26e83d016",
+    "shell_quoted_hint_runs_verbatim": true,
+    "path_with_spaces_and_apostrophes": true,
+    "plain_and_extension_content_equal": true,
+    "legacy_colon_hint_removed": true,
+    "measured_binary_sha256": "f52998249e335c775adf45be54067b6ed0c8b929a7e15964374214fe02599745",
+    "followup_summary_checks": [
+      {
+        "case": "summary",
+        "tokens": {
+          "o200k_base": 1407,
+          "cl100k_base": 1403
+        },
+        "facts_retained": [
+          true,
+          true,
+          true
+        ],
+        "output_sha256": "24510256b793404a21f7b076a3eb69c87b957f31282161d22949793c72ae81a7"
+      },
+      {
+        "case": "signature",
+        "tokens": {
+          "o200k_base": 1407,
+          "cl100k_base": 1403
+        },
+        "facts_retained": [
+          true,
+          true,
+          true
+        ],
+        "output_sha256": "24510256b793404a21f7b076a3eb69c87b957f31282161d22949793c72ae81a7"
+      }
+    ]
+  },
+  "logs": {
+    "pi-rs-candidate-tests.log": "025924c5e15168c54a8c107e5cd7ea6b2add9c007bac22583e446cac39b94a69",
+    "pi-rs-candidate-clippy.log": "650630e0be3ab62ee66f2b9d2b3d2ce0bd9d1b862340694972f424ae009594f3",
+    "pi-rs-candidate-build.log": "5f6653a17939ec4b43f140e8d9d357baca184056555f8a0da2bccd9e82077e4d",
+    "pi-rs-candidate-nixfmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pi-rs-candidate-rustfmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pi-rs-candidate-statix.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pi-rs-candidate-deadnix.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pi-rs-candidate-flake-all.log": "e83faba970b8d0066452e8c5323ed3bc6ea8c36c62599fc9a748ede1bb4667a6",
+    "pi-rs-candidate-darwin.log": "5026f8940ffa44cb862c20ef9d2702b7b0c33ffabf16eb20a46518a95ce16222",
+    "pi-rs-verified-flake-check.log": "61eb9732aba4b28b6ef1e1e8d9df748eb5558f3260c419b66d92cc985a85db61",
+    "pi-rs-complete-package.log": "36633304f2b88c8c5b61199983a67c9bdd3023561c23bcc010dd4566000f4241",
+    "pi-rs-all-dependency-audit.log": "65ebcd5ee2a6314ee3b07245e691251a3c8e048b782cfee1e9a8d7dd545d30d7",
+    "pi-rs-platform-dependency-constraints.log": "4ea8e8a6a98f965001286973c412b86cee57116572f1ccfb16d7641b753d6b15",
+    "pi-rs-platform-dependency-constraints.json": "7fb6f98513d0ccba86152804c25fe816ec4b4e8ee571a7f1f072c25f438e0e2d",
+    "pi-rs-footer-verification.json": "dfcb45ea89ff9d10f74d623d4619d9b9884626fec727be9392b9c7d5bda08e54",
+    "pi-rs-current-stable-rust.toml": "ce6dddc886364f8d786514771212cebe9b731ba82d6b859951c6b0ccc516b6a2"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "hook_audit": "",
+  "hook_decisions": [],
+  "databases": {},
+  "data_files": [
+    "pi-rs/tee/.lock",
+    "pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz",
+    "pi-rs/tee/5a0b7c3098d2520eafae1a89.log.gz"
+  ]
+}

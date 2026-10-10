@@ -1,0 +1,394 @@
+{
+  "noisy_log-1-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-1-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-1-rtk": {
+    "matched_rewrite_executions": 2,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg -n -m 10 'fail|error|ERROR|FAIL' logs/service.log"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 2
+  },
+  "config_diff-1-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-1-rtk": {
+    "matched_rewrite_executions": 2,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk read README.md config/services/service_057.toml"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [
+      {
+        "timestamp": "2026-10-09T17:48:432026-10-09T17:48:43",
+        "action": "",
+        "original": "rewriterewrite",
+        "rewritten": " | rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'git status --short && git diff |  | rtk rg --files -g '!node_modules' -g '!vendor' -g '!*lock*' -g '!\\\\.git'rtk git status --short && rtk git diff"
+      }
+    ],
+    "rtk_history_rows": 6
+  },
+  "config_diff-1-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-1-rtk": {
+    "matched_rewrite_executions": 4,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json'",
+      "rtk rg -n 'checkout|timeout|retries' -g '!node_modules' -g '!vendor' -g '!package-lock.json' .",
+      "rtk read src/client.py"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 4
+  },
+  "source_lookup-1-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-1-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-1-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-1-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-1-rtk": {
+    "matched_rewrite_executions": 2,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk cargo test"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 2
+  },
+  "recent_history-1-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-1-rtk": {
+    "matched_rewrite_executions": 4,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg -n -i 'ttl|cache' .",
+      "rtk git log -15 --format='%h %s'",
+      "rtk git log -p --format='%h %s' -- config/cache.toml"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 4
+  },
+  "recent_history-1-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-2-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-2-rtk": {
+    "matched_rewrite_executions": 3,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg -n -m 8 'failed|error|ERROR|FAIL' logs/service.log",
+      "rtk rg -n -m 5 'request failed' logs/service.log"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 3
+  },
+  "noisy_log-2-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-2-rtk": {
+    "matched_rewrite_executions": 4,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "pwd; rtk rg --files -g 'AGENTS.md' -g '*requirements*' -g '*deploy*' -g '*config*' -g 'README*'; rtk git status --short; rtk git diff",
+      "rtk rg --files --hidden -g '!.git' -g '!config/services/*'; rtk git diff --ignore-matching-lines='^# build stamp:' --stat",
+      "rtk read README.md; rtk read config/services/service_057.toml; rtk git diff -- config/services/service_057.toml"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 9
+  },
+  "config_diff-2-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-2-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-2-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-2-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-2-rtk": {
+    "matched_rewrite_executions": 3,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g '!node_modules' -g '!vendor' -g '!package-lock.json' -g '!yarn.lock'",
+      "rtk rg -n 'checkout|timeout|retr|import|environ' src README.md"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 3
+  },
+  "cargo_failure-2-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-2-rtk": {
+    "matched_rewrite_executions": 2,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk cargo test"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 2
+  },
+  "cargo_failure-2-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-2-rtk": {
+    "matched_rewrite_executions": 4,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg -n -i 'cache|ttl' . --glob '!package-lock.json'",
+      "rtk git log -20 --format='%h %s'",
+      "rtk git log -p --format='commit %h%nsubject %s' -- config/cache.toml"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 4
+  },
+  "recent_history-2-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-2-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-3-rtk": {
+    "matched_rewrite_executions": 3,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g AGENTS.md -g 'service.log' -g '*service*'",
+      "rtk rg -n -m 12 'fail|FAIL|error|ERROR' logs/service.log"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 3
+  },
+  "noisy_log-3-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "noisy_log-3-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-3-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-3-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "config_diff-3-rtk": {
+    "matched_rewrite_executions": 3,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk read README.md config/services/service_057.toml",
+      "rtk git diff --ignore-matching-lines='^# build stamp:' -- config/services"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [
+      {
+        "timestamp": "2026-10-09T17:53:592026-10-09T17:53:59",
+        "action": "",
+        "original": "rewriterewrite",
+        "rewritten": " | rg --files -g '!node_modules' -g '!vendor' -g '!dist' -g '!build' -g '!*lock*' -g '!package-lock.json' -g '!yarn.lock'git status --short && git diff |  | rtk rg --files -g '!node_modules' -g '!vendor' -g '!dist' -g '!build' -g '!*lock*' -g '!package-lock.json' -g '!yarn.lock'rtk git status --short && rtk git diff"
+      }
+    ],
+    "rtk_history_rows": 7
+  },
+  "source_lookup-3-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "source_lookup-3-rtk": {
+    "matched_rewrite_executions": 4,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g '!node_modules' -g '!vendor' -g '!dist' -g '!build'",
+      "rtk rg -n 'checkout|timeout|retr|AGENTS' .",
+      "rtk read src/client.py README.md"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 5
+  },
+  "source_lookup-3-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-3-rtk": {
+    "matched_rewrite_executions": 3,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g AGENTS.md -g Cargo.toml -g Cargo.lock -g rust-toolchain\\* -g .cargo/config\\*",
+      "rtk cargo test --offline"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 3
+  },
+  "cargo_failure-3-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "cargo_failure-3-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-3-stock": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-3-pi": {
+    "matched_rewrite_executions": 0,
+    "matched_commands": [],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 0
+  },
+  "recent_history-3-rtk": {
+    "matched_rewrite_executions": 5,
+    "matched_commands": [
+      "rtk read /home/aragao/.codex/RTK.md",
+      "rtk rg --files -g 'AGENTS.md' -g '*cache*' -g '*config*' -g '*setting*'",
+      "rtk rg -n -i 'ttl|time.to.live' .",
+      "rtk git log -30 --oneline",
+      "rtk git log -p --format='%h %s' -- config/cache.toml"
+    ],
+    "unmatched_rewrites": [],
+    "malformed_hook_audit_records": [],
+    "rtk_history_rows": 5
+  }
+}

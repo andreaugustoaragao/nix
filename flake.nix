@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # Local-first desktop release candidate. The exact revision is pinned;
     # activation still requires its release gates. Other machines need this
     # source checkout available until a published input is separately approved.
@@ -277,6 +281,7 @@
               [
                 {
                   nixpkgs.overlays = [
+                    inputs.rust-overlay.overlays.default
                     claude-code.overlays.default
                     # See nixpkgs-gnome48 input above for the why.
                     (_final: prev: {
@@ -313,6 +318,7 @@
                 { nixpkgs.hostPlatform = host.platform; }
                 {
                   nixpkgs.overlays = [
+                    inputs.rust-overlay.overlays.default
                     claude-code.overlays.default
                     # edencommon runs its test executables during the build
                     # to discover GoogleTest cases. The upstream nixpkgs
@@ -348,10 +354,12 @@
           pkgs = import nixpkgs {
             inherit system;
             config.allowUnfree = true;
-            overlays = [ ];
+            overlays = [ inputs.rust-overlay.overlays.default ];
           };
         in
         {
+          rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
+          pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {

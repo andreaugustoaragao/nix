@@ -25,6 +25,9 @@ use crate::{hashline::compute_line_hash, proto};
 
 #[derive(ClapArgs, Debug)]
 pub struct Args {
+    /// Emit the structured Pi extension protocol instead of plain text.
+    #[arg(long)]
+    pub json: bool,
     /// File to summarize.
     pub path: PathBuf,
 
@@ -43,6 +46,16 @@ pub struct Args {
     #[arg(long)]
     pub min_comment_lines: Option<u32>,
 
+    /// Reveal nested structure until this visible-line target is reached.
+    /// Set to 0 for signatures only. Defaults to 40.
+    #[arg(long)]
+    pub unfold_until_lines: Option<u32>,
+
+    /// Unfold only while visible source lines stay within this limit.
+    /// Defaults to twice the target.
+    #[arg(long)]
+    pub unfold_limit_lines: Option<u32>,
+
     /// When the source is too large to summarize, emit a `details.error`
     /// field instead of falling back to verbatim text. Default behavior is
     /// to dump the whole file as kept content.
@@ -60,9 +73,15 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         path: Some(path_str.clone()),
         min_body_lines: args.min_body_lines,
         min_comment_lines: args.min_comment_lines,
+        unfold_until_lines: Some(args.unfold_until_lines.unwrap_or(40)),
+        unfold_limit_lines: args.unfold_limit_lines,
     })?;
 
     if args.strict && !result.parsed {
+        if !args.json {
+            println!("[summary unavailable: parse failed or unsupported language]");
+            return Ok(());
+        }
         proto::emit(
             "[summary unavailable: parse failed or unsupported language]",
             json!({
@@ -75,7 +94,21 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let rendered = render_summary(&path_str, &result);
+    let mut rendered = render_summary(&path_str, &result);
+    rendered.content =
+        crate::compress::tee::truncate_with_tee(crate::compress::tee::TruncateRequest {
+            content: &rendered.content,
+            original: None,
+            head_lines: 2,
+            tail_lines: 1,
+            tee_dir: None,
+            max_bytes: None,
+        })?
+        .content;
+    if !args.json {
+        print!("{}", rendered.content);
+        return Ok(());
+    }
     proto::emit(
         &rendered.content,
         json!({
@@ -110,14 +143,12 @@ fn render_summary(path: &str, summary: &pi_ast::summary::SummaryResult) -> Rende
         match segment.kind.as_str() {
             "kept" => {
                 if let Some(text) = &segment.text {
-                    let mut n = segment.start_line;
-                    for line in text.split('\n') {
+                    for (n, line) in (segment.start_line..).zip(text.split('\n')) {
                         out.push_str(&n.to_string());
                         out.push_str(compute_line_hash(line));
                         out.push('|');
                         out.push_str(line);
                         out.push('\n');
-                        n += 1;
                     }
                 }
             }
@@ -135,8 +166,9 @@ fn render_summary(path: &str, summary: &pi_ast::summary::SummaryResult) -> Rende
     }
 
     if elided_spans > 0 {
+        let quoted_path = shell_words::quote(path);
         out.push_str(&format!(
-            "\n[{elided_lines} lines across {elided_spans} elided regions; read {path}:raw or a line range like {path}:1-9999 for verbatim content]\n"
+            "\n[{elided_lines} lines across {elided_spans} elided regions; use pi-rs read {quoted_path} --full or --from N --lines N for verbatim source]\n"
         ));
     }
 

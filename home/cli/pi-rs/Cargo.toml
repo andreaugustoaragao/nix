@@ -1,14 +1,23 @@
 [workspace]
 members = ["crates/*"]
-resolver = "2"
+exclude = ["vendor/*"]
+resolver = "3"
+
+# These released grammars use LanguageFn, but incorrectly depend on the
+# Tree-sitter runtime outside their tests. Keep their parsers intact and
+# move that dependency to dev-dependencies so all grammars share 0.27.
+[patch.crates-io]
+tree-sitter-clojure = { path = "vendor/tree-sitter-clojure" }
+tree-sitter-just = { path = "vendor/tree-sitter-just" }
+tree-sitter-sequel = { path = "vendor/tree-sitter-sequel" }
 
 [workspace.package]
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 authors = ["aragao"]
 repository = "https://github.com/aragao/nix"
-rust-version = "1.82"
+rust-version = "1.99"
 
 [workspace.dependencies]
 # Vendored locally.
@@ -16,11 +25,13 @@ pi-ast = { path = "crates/pi-ast" }
 
 # CLI / serialization.
 anyhow = "1.0"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-toml = "0.8"
-dirs = "5"
+toml = "1.1"
+dirs = "7"
+flate2 = "1.1.10"
+sha2 = "0.11.0"
 shell-words = "1"
 
 # Dev / test helpers.
@@ -40,9 +51,9 @@ xxhash-rust = { version = "0.8", features = ["xxh32"] }
 rayon = "1"
 
 # AST.
-ast-grep-core = "0.39"
-tree-sitter = "0.25"
-phf = { version = "0.13", features = ["macros"] }
+ast-grep-core = "0.50"
+tree-sitter = "0.27"
+phf = { version = "0.14", features = ["macros"] }
 
 # Tree-sitter grammars used by the vendored pi-ast crate.
 tree-sitter-astro = { version = "0.1.1", package = "tree-sitter-astro-next" }
@@ -50,17 +61,17 @@ tree-sitter-bash = "0.25"
 tree-sitter-c = "0.24"
 tree-sitter-c-sharp = "0.23"
 tree-sitter-clojure = "0.1"
-tree-sitter-cmake = "0.7.1"
+tree-sitter-cmake = "0.7.5"
 tree-sitter-cpp = "0.23"
 tree-sitter-css = "0.25"
 tree-sitter-dart = "0.2"
 tree-sitter-diff = "0.1"
 tree-sitter-dockerfile = { version = "0.2.0", package = "tree-sitter-dockerfile-updated" }
 tree-sitter-elixir = "0.3"
-tree-sitter-erlang = "0.16.0"
+tree-sitter-erlang = "0.21"
 tree-sitter-go = "0.25"
-tree-sitter-graphql = "0.1.0"
-tree-sitter-haskell = "0.23"
+tree-sitter-graphql = "0.3"
+tree-sitter-haskell = "0.24"
 tree-sitter-hcl = "1.1"
 tree-sitter-html = "0.23"
 tree-sitter-ini = "1.4.0"
@@ -75,14 +86,14 @@ tree-sitter-make = "1.1"
 tree-sitter-md = "0.5"
 tree-sitter-nix = "0.3"
 tree-sitter-objc = "3.0"
-tree-sitter-ocaml = "0.24.2"
+tree-sitter-ocaml = "0.26"
 tree-sitter-odin = "1.3"
-tree-sitter-perl = { version = "0.1.0", package = "tree-sitter-perl-next" }
-tree-sitter-php = "0.24"
+tree-sitter-perl = { version = "2.0", package = "ts-parser-perl" }
+tree-sitter-php = "0.25"
 tree-sitter-powershell = "0.26.4"
-tree-sitter-proto = "0.4.0"
+tree-sitter-proto = "0.6"
 tree-sitter-python = "0.25"
-tree-sitter-r = "1.2.0"
+tree-sitter-r = "1.3"
 tree-sitter-regex = "0.25"
 tree-sitter-ruby = "0.23"
 tree-sitter-rust = "0.24"
@@ -102,7 +113,7 @@ tree-sitter-yaml = "0.7"
 tree-sitter-zig = "1.1"
 
 # HTML / Markdown.
-html-to-markdown-rs = { version = "2.24", default-features = false }
+html-to-markdown-rs = { version = "3.17", default-features = false }
 
 [profile.release]
 opt-level = 3

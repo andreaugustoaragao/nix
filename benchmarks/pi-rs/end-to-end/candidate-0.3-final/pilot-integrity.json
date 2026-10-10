@@ -1,0 +1,149 @@
+{
+  "noisy_log-1-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "noisy_log-1-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "noisy_log-1-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-1-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-1-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-1-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "source_lookup-1-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "after_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "source_lookup-1-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "after_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "source_lookup-1-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "after_sha256": "c3b1f2efc9e3a44e85e3349ccc4f676b4540e8d90fb7d1ee5d3bb8f53e6f1575",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "cargo_failure-1-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "after_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "cargo_failure-1-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "after_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "cargo_failure-1-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "after_sha256": "c27f69099a4686d898ef1e7065919182b3b4d48df88936afc0f3729f94bda3d1",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "recent_history-1-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "after_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "recent_history-1-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "after_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "recent_history-1-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "after_sha256": "51994bd1b17d5b3b3e6fd8b598c8eb94341224f5491fda8fdb0537ba7a078fed",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "noisy_log-2-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "noisy_log-2-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "noisy_log-2-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "after_sha256": "3baa086bd9b0fbf8a39c8b65386f20b845a0d9a65dae0c1256ab8343e4e7c7fa",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-2-rtk": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-2-stock": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  },
+  "config_diff-2-pi": {
+    "transcript_matches_manifest": true,
+    "original_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "after_sha256": "f50b48dfa74f21c3bee8dfdd0e47f395e56ca22a2557672500958dec8004a9f5",
+    "tracked_files_unchanged": true,
+    "unexpected_untracked_files": []
+  }
+}

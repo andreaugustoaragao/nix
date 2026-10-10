@@ -80,3 +80,33 @@ Adds a new host's age public key as a sops recipient. Run from a trusted machine
 ## `watch-rebuild.sh`
 
 Tails the journal and re-runs `nixos-rebuild switch` on file changes — convenient when iterating on a flake module locally. See the script header for usage.
+
+## `codex-lsp-check.py`
+
+Exercises the globally installed `codex-lsp` MCP bridge with real Go, Rust,
+TypeScript, TSX, and Nix servers. It creates separate temporary projects and
+launches below each project root. Checks cover lazy startup, symbols,
+definitions, references, hover, rename previews without writes, and diagnostics
+appearing and clearing after external edits. JSON reports include query timings.
+
+```bash
+python3 scripts/codex-lsp-check.py codex-lsp --work "$(mktemp -d)"
+# Limit to one language when investigating a failure:
+python3 scripts/codex-lsp-check.py codex-lsp --language rust --work "$(mktemp -d)"
+```
+
+Run with normal user-cache access, as Codex launches MCP servers; gopls and
+rust-analyzer need writable caches. Use a fresh work directory for each run.
+
+The Nix-managed configuration lives in `home/cli/codex.nix`, `pkgs/codex-lsp.nix`,
+and `pkgs/lspi.nix`. User-level MCP registration makes it available to local
+Codex sessions across projects. Restart an existing Codex client after activation.
+`codex-lsp doctor --json` reports installed servers without starting them.
+Project dependencies and generated files must still be installed/built normally.
+
+The bridge uses [lspi](https://github.com/Latias94/lspi) with eleven exposed tools,
+bounded output, and five-minute idle shutdown. TypeScript prefers a workspace
+installation and falls back to the Nix-managed version. Nix lookup uses
+[mcp-nixos](https://github.com/utensils/mcp-nixos); focused documentation lookup
+uses [Context7](https://context7.com/docs/clients/codex) and the
+[OpenAI Docs MCP](https://developers.openai.com/resources/docs-mcp).

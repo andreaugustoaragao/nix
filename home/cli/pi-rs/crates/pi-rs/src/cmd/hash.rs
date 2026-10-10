@@ -51,7 +51,9 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         (Some(s), end) => {
             let lines: Vec<&str> = text.split('\n').collect();
             let start_idx = s.max(1).saturating_sub(1) as usize;
-            let end_idx = end.map(|e| (e as usize).min(lines.len())).unwrap_or(lines.len());
+            let end_idx = end
+                .map(|e| (e as usize).min(lines.len()))
+                .unwrap_or(lines.len());
             if start_idx >= lines.len() {
                 (String::new(), s)
             } else {

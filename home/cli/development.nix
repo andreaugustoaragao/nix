@@ -8,6 +8,7 @@
 }:
 
 let
+  rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
 
   # Script to install qwen-code via npm
   install-qwen-code = pkgs.writeShellScriptBin "install-qwen-code" ''
@@ -122,11 +123,7 @@ in
         install-goplay # Script to install goplay (Go Playground client)
 
         # Rust Development
-        rustc # Rust compiler
-        cargo # Rust package manager
-        rustfmt # Rust code formatter
-        rust-analyzer # Rust LSP
-        clippy # Rust linter
+        rustToolchain # Pinned rustc, cargo, rustfmt, clippy, rust-src and rust-analyzer
         cargo-watch # Auto-reload for Rust projects
         cargo-edit # Cargo add/remove/upgrade commands
         cargo-expand # Show macro expansion

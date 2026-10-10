@@ -31,22 +31,14 @@ let
   # built-in dynamic workspaces — the on-screen set follows the live output
   # and grows on demand.
   #
-  # The VMs get a fixed set of 5 *named* workspaces with NO open-on-output
-  # pin: niri keeps named workspaces persistent (so the bar always shows
-  # exactly five, instead of dynamically growing to 10+ the first time a
-  # high focus-workspace index is hit), while leaving them unpinned means
-  # they migrate to whatever outputs are live as the Mac docks/undocks —
-  # avoiding the fixed landscape+portrait grid that, on a single screen,
-  # piled the portrait half onto the one output.
+  # Each VM display gets six persistent workspaces. Distinct names keep
+  # the sets independent; Mod+1..6 selects by index on the focused output.
   mkPinnedWorkspaces =
     output: prefix: count:
     lib.concatMapStringsSep "\n" (n: ''
       workspace "${prefix}${toString n}" {
           open-on-output "${output}"
       }'') (lib.range 1 count);
-
-  mkNamedWorkspaces =
-    count: lib.concatMapStringsSep "\n" (n: ''workspace "${toString n}"'') (lib.range 1 count);
 
   workspaceBlock =
     if isWorkstation then
@@ -55,7 +47,11 @@ let
         ${mkPinnedWorkspaces displays.dp2 "p" 9}
       ''
     else if isVm then
-      mkNamedWorkspaces 5
+      ''
+        ${mkPinnedWorkspaces displays.dp1 "" 6}
+        ${mkPinnedWorkspaces displays.dp2 "p" 6}
+        ${mkPinnedWorkspaces "Virtual-3" "v" 6}
+      ''
     else
       "";
 

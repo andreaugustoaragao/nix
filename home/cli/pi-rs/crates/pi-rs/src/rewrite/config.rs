@@ -99,13 +99,12 @@ mod tests {
     fn parses_exclude_list() {
         let tmp = TempDir::new().unwrap();
         let p = tmp.path().join("rewrite.toml");
-        std::fs::write(
-            &p,
-            "[rewrite]\nexclude = [\"curl\", \"playwright\"]\n",
-        )
-        .unwrap();
+        std::fs::write(&p, "[rewrite]\nexclude = [\"curl\", \"playwright\"]\n").unwrap();
         let c = Config::load_from_path(Some(&p)).unwrap();
-        assert_eq!(c.exclude, vec!["curl".to_string(), "playwright".to_string()]);
+        assert_eq!(
+            c.exclude,
+            vec!["curl".to_string(), "playwright".to_string()]
+        );
     }
 
     #[test]

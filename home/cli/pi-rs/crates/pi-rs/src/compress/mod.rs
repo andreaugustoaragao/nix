@@ -8,7 +8,7 @@
 //! Strategies (one per submodule):
 //!
 //! - [`tee`]: truncate to head+tail, save the full raw payload to
-//!   `~/.local/share/pi-rs/tee/{ts}_{cmd}.log`, return a pointer the LLM
+//!   a private content-addressed plain/gzip cache, return a pointer the LLM
 //!   can read on demand.
 //! - [`dedupe`]: collapse N identical adjacent lines into a single line
 //!   tagged with a count.
@@ -25,4 +25,5 @@ pub mod dedupe;
 pub mod failures;
 pub mod group;
 pub mod progress;
+pub mod recovery;
 pub mod tee;

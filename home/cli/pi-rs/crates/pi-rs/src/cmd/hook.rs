@@ -183,7 +183,9 @@ mod tests {
         let parsed: Value = serde_json::from_str(&out).unwrap();
 
         // Top-level shape: must have hookSpecificOutput.
-        let hso = parsed.get("hookSpecificOutput").expect("hookSpecificOutput");
+        let hso = parsed
+            .get("hookSpecificOutput")
+            .expect("hookSpecificOutput");
         assert_eq!(hso.get("hookEventName"), Some(&json!("PreToolUse")));
         assert_eq!(hso.get("permissionDecision"), Some(&json!("allow")));
         assert!(

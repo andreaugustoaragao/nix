@@ -1,0 +1,22 @@
+{
+  "status": "formative_pilot_excluded_from_final_comparison",
+  "labelled_utc": "2026-10-10T00:53:35.647804+00:00",
+  "completed_sessions": 27,
+  "correct_answers": 27,
+  "planned_sessions": 45,
+  "manifest_sha256": "bd77e8907f9022ce5f1761f484443f0c256ce32e4b8bf51ea91f06d69ed0c670",
+  "preservation": "Original manifest, all transcripts, usage, guidance, preflights, and RTK observations retained; no completed observations dropped or overwritten.",
+  "reason": "Repeated pi-rs --grep plus --lines 40 limited inspection to the first 40 source lines. Two noisy_log sessions returned no match before recovering with native rg. Parent requested clarified guidance and a completely fresh final matrix.",
+  "observed_runs": [
+    "noisy_log-1-pi",
+    "noisy_log-2-pi"
+  ],
+  "stop_boundary": {
+    "stop_before_run_id": "recent_history-2-rtk",
+    "reason": "Parent requested guidance correction after repeated source-window misuse; finish in-flight session, preserve all results, then launch fresh final matrix."
+  },
+  "stop_mechanism": "In-flight cargo_failure-2-stock completed and was archived. A pre-created empty fixture at the next planned session caused copytree to stop the harness before another model session began. Harness exit 1 is the intentional between-session stop, not a task failure.",
+  "final_run_tag": "candidate-0.3-verified",
+  "pool_with_final": false,
+  "original_intended_successor_tag": "candidate-0.3-final"
+}

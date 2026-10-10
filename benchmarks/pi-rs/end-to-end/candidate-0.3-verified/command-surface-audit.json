@@ -1,0 +1,174 @@
+{
+  "scope": "Audit of all completed command events in the definitive 45-session transcript set. Formative snapshots are excluded. Gzip files are read from the original isolated session data mounts; no model command or expensive build is rerun.",
+  "sessions": 45,
+  "command_events": 135,
+  "measured_pi_binary_sha256": "f52998249e335c775adf45be54067b6ed0c8b929a7e15964374214fe02599745",
+  "summary_command_events": 0,
+  "signature_read_command_events": 0,
+  "summary_events": [],
+  "signature_events": [],
+  "broad_summary_or_signature_keyword_matches": [],
+  "footer_correction_scope": "No definitive session invoked pi-rs summary or read --level signature; a later text-only summary recovery-hint correction therefore changes an unexercised command surface. The measured snapshot hash remains unchanged in the original manifest.",
+  "cargo_executions": [
+    {
+      "run_id": "cargo_failure-1-stock",
+      "command": "cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-1-pi",
+      "command": "pi-rs cargo test",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-1-rtk",
+      "command": "rtk cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-2-pi",
+      "command": "pi-rs cargo test",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-2-rtk",
+      "command": "rtk cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-2-stock",
+      "command": "cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-3-rtk",
+      "command": "rtk cargo test",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-3-stock",
+      "command": "cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    },
+    {
+      "run_id": "cargo_failure-3-pi",
+      "command": "pi-rs cargo test --offline",
+      "exit_code": 101,
+      "checks": {
+        "exit_101": true,
+        "failing_test_visible": true,
+        "actual_27_visible": true,
+        "expected_25_visible": true,
+        "counts_240_passed_1_failed_visible": true
+      }
+    }
+  ],
+  "all_nine_cargo_executions_preserve_failure_evidence": true,
+  "pi_saved_output_recovery_events": [
+    {
+      "run_id": "config_diff-1-pi",
+      "command": "pi-rs read /home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz --grep '^[+-][^+#-]' -C 5",
+      "exit_code": 0,
+      "output_bytes": 366,
+      "saved_files": [
+        {
+          "path": "/home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz",
+          "gzip_decoded": true,
+          "gzip_bytes": 4355,
+          "decoded_bytes": 41064,
+          "gzip_sha256": "9854eda91a1996143eeb8755fa4dd33afed2b520b4f3b572f624d287cbf68caf",
+          "decoded_sha256": "451a3e53bcbe23323465c9ce5f9ac0f094c28fcf559b5a1a0748d30b0c505c7e"
+        }
+      ]
+    },
+    {
+      "run_id": "config_diff-3-pi",
+      "command": "pi-rs read /home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz --grep '^[+-][^#-+]' -C 5",
+      "exit_code": 0,
+      "output_bytes": 31942,
+      "saved_files": [
+        {
+          "path": "/home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz",
+          "gzip_decoded": true,
+          "gzip_bytes": 4355,
+          "decoded_bytes": 41064,
+          "gzip_sha256": "9854eda91a1996143eeb8755fa4dd33afed2b520b4f3b572f624d287cbf68caf",
+          "decoded_sha256": "451a3e53bcbe23323465c9ce5f9ac0f094c28fcf559b5a1a0748d30b0c505c7e"
+        }
+      ]
+    },
+    {
+      "run_id": "config_diff-3-pi",
+      "command": "pi-rs read /home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz --grep '^[+-]auth_required' -C 6",
+      "exit_code": 0,
+      "output_bytes": 435,
+      "saved_files": [
+        {
+          "path": "/home/aragao/.local/share/pi-rs/tee/451a3e53bcbe23323465c9ce.log.gz",
+          "gzip_decoded": true,
+          "gzip_bytes": 4355,
+          "decoded_bytes": 41064,
+          "gzip_sha256": "9854eda91a1996143eeb8755fa4dd33afed2b520b4f3b572f624d287cbf68caf",
+          "decoded_sha256": "451a3e53bcbe23323465c9ce5f9ac0f094c28fcf559b5a1a0748d30b0c505c7e"
+        }
+      ]
+    }
+  ],
+  "all_three_pi_recoveries_successful_gzip_reads": true
+}

@@ -1,0 +1,3 @@
+2026-10-09T23:27:08.775714Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected before completion: failed to decode models response: Data at line 1 column 4115 (body: 4115 bytes)
+2026-10-09T23:27:08.778275Z ERROR codex_models_manager::manager: failed to refresh available models: stream disconnected before completion: failed to decode models response: Data at line 1 column 4115 (body: 4115 bytes)
+2026-10-09T23:27:08.783148Z ERROR codex_core::session::session: failed to load skill /home/aragao/.agents/skills/canvas/SKILL.md: missing field `description`

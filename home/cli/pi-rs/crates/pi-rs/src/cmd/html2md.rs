@@ -7,9 +7,7 @@
 use std::io::{self, Read, Write};
 
 use clap::Args as ClapArgs;
-use html_to_markdown_rs::{
-    convert, ConversionOptions, PreprocessingOptions, PreprocessingPreset,
-};
+use html_to_markdown_rs::{ConversionOptions, PreprocessingOptions, PreprocessingPreset, convert};
 
 use crate::compress::tee::{TruncateRequest, truncate_with_tee};
 
@@ -40,8 +38,11 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let md = convert(&html, Some(opts))
+    let converted = convert(&html, Some(opts))
         .map_err(|e| anyhow::anyhow!("html-to-markdown conversion failed: {e}"))?;
+    let md = converted
+        .content
+        .ok_or_else(|| anyhow::anyhow!("conversion returned no Markdown content"))?;
 
     // Tee fallback: huge pages (multi-thousand-line markdown) get
     // head+tail truncated with the full markdown saved to disk. The LLM
@@ -50,10 +51,12 @@ pub fn run(args: Args) -> anyhow::Result<()> {
     // markdown are the intended payload of this command.
     let r = truncate_with_tee(TruncateRequest {
         content: &md,
+        original: None,
         head_lines: 700,
         tail_lines: 300,
-        cmd_hint: "html2md",
+
         tee_dir: None,
+        max_bytes: None,
     })?;
 
     let stdout = io::stdout();

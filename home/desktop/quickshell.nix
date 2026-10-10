@@ -19,6 +19,16 @@ let
   # widgets (cava) to the dp2 bottom edge.
   inherit (config.my) displays;
   inherit (config.my.displays) dp2Dimensions;
+  portraitWallpapers = {
+    dark = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
+    light = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
+  };
+  wallpapersForMode =
+    landscape: portrait:
+    lib.recursiveUpdate {
+      ${displays.dp1} = landscape;
+      ${displays.dp2} = portrait;
+    } (lib.optionalAttrs isVm { "Virtual-3" = portrait; });
 
   # DMS currently ignores `useFahrenheit` for CPU temperature widgets and
   # process popouts, so patch the packaged QML to keep hardware temps aligned
@@ -48,6 +58,11 @@ let
         --replace-fail 'spacing: Theme.spacingS' 'spacing: Theme.spacingS; layoutDirection: Qt.RightToLeft'
 
       ${lib.optionalString isVm ''
+        # Niri always keeps a trailing unnamed workspace. Show the six
+        # configured persistent workspaces on each VM display in the bar.
+        substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/WorkspaceSwitcher.qml \
+          --replace-fail 'workspaces = workspaces.slice().sort((a, b) => a.idx - b.idx);' 'workspaces = workspaces.filter(ws => ws.name).sort((a, b) => a.idx - b.idx);'
+
         # Keep the desktop's font scale, but render clipboard history at the
         # unscaled DMS sizes so its rows do not crowd the compact modal.
         substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardHeader.qml \
@@ -248,7 +263,8 @@ let
           leftWidgets = [
             "clock"
             "workspaceSwitcher"
-          ];
+          ]
+          ++ lib.optional isVm "focusedWindow";
           centerWidgets = [ ];
           rightWidgets = [
             {
@@ -322,9 +338,9 @@ let
   desiredSession = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./dms-session.json)) {
     perModeWallpaper = true;
     perMonitorWallpaper = true;
-    # DP-1: 32M2V landscape (3840x2160). DP-2: Dell S2725QS portrait
-    # (2160x3840 after niri's transform=270). Per-monitor wallpapers
-    # let each display use a print sized for its orientation.
+    # Use the same image on both portrait displays in each mode. On VMs,
+    # Virtual-3 is leftmost and Virtual-2 is rightmost; the landscape
+    # Virtual-1 in the middle keeps its own image.
     wallpaperPath = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathDark = "${wallpapers}/share/wallpapers/fuji-pagoda-sunset.jpg";
     wallpaperPathLight = "${wallpapers}/share/wallpapers/blue-jays.png";
@@ -332,26 +348,17 @@ let
     # active per-mode copy), not from monitorWallpapersDark/Light directly.
     # That map is only populated by syncWallpaperForCurrentMode(), which
     # runs on mode *change* — not on first load — so a cold boot in dark
-    # mode leaves the map empty and DP-2 silently falls back to
+    # mode leaves the map empty and portrait displays fall back to
     # wallpaperPath. Seed it with the dark mapping so the boot state
     # renders correctly without a mode toggle; the first setLightMode(true)
     # of the day overwrites it from monitorWallpapersLight.
-    monitorWallpapers = {
-      ${displays.dp1} = dp1Wallpapers.dark;
-      ${displays.dp2} = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
-    };
-    monitorWallpapersDark = {
-      ${displays.dp1} = dp1Wallpapers.dark;
-      ${displays.dp2} = "${wallpapers}/share/wallpapers/atake-sudden-shower.jpg";
-    };
-    monitorWallpapersLight = {
-      ${displays.dp1} = dp1Wallpapers.light;
-      ${displays.dp2} = "${wallpapers}/share/wallpapers/kameido-plum-park.jpg";
-    };
-    monitorWallpaperFillModes = {
+    monitorWallpapers = wallpapersForMode dp1Wallpapers.dark portraitWallpapers.dark;
+    monitorWallpapersDark = wallpapersForMode dp1Wallpapers.dark portraitWallpapers.dark;
+    monitorWallpapersLight = wallpapersForMode dp1Wallpapers.light portraitWallpapers.light;
+    monitorWallpaperFillModes = lib.recursiveUpdate {
       ${displays.dp1} = "Fill";
       ${displays.dp2} = "Fit";
-    };
+    } (lib.optionalAttrs isVm { "Virtual-3" = "Fit"; });
   };
 
   settingsSource = pkgs.writeText "dms-settings.json" (builtins.toJSON desiredSettings);

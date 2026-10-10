@@ -7,15 +7,14 @@
 //!
 //! Behavior (aggressive, but pipeline-safe):
 //!
-//! 1. If the raw command contains any unquoted shell operator (`|`, `&`,
+//! 1. Preserve shell expansion, comments, newlines, and unquoted operators (`|`, `&`,
 //!    `;`, `<`, `>`, `` ` ``, `$(`, `(`, `)`), passthrough. Rewriting
 //!    `argv[0]` would feed the rest of the pipeline into the wrong tool —
 //!    e.g. `git ls-files | grep foo` should not become
 //!    `pi-rs git ls-files '|' grep foo`.
 //! 2. Tokenize the command string via [`shell_words::split`]. Malformed
 //!    quoting → [`Decision::Passthrough`] (never crash a hook on bad input).
-//! 3. Take the basename of `argv[0]`. `/usr/bin/git` and `git` resolve the
-//!    same way.
+//! 3. Preserve commands that name an executable by path; wrappers use PATH.
 //! 4. If the basename is in [`config::Config::exclude`], passthrough.
 //! 5. Look up the basename in [`rules::RULES`]. If no entry, passthrough.
 //! 6. If the rule has an [`rules::Rule::argv_compatible`] predicate and it
@@ -74,6 +73,13 @@ pub fn rewrite_with_rules(command: &str, rules: &[Rule], config: &Config) -> Dec
         _ => return Decision::Passthrough,
     };
 
+    // The caller selected a particular executable. The wrappers resolve
+    // their child through PATH, so replacing an explicit path could run a
+    // different program (including a different toolchain or local script).
+    if argv[0].contains('/') {
+        return Decision::Passthrough;
+    }
+
     let bin = basename(&argv[0]);
 
     // Exclude list wins over rule lookup.
@@ -117,7 +123,7 @@ fn basename(s: &str) -> &str {
 /// a composition bash needs to parse".
 ///
 /// Tracks single-quote and double-quote state so `grep 'a|b' file` is not
-/// treated as a pipeline. Inside double quotes, only `$(` and `` ` ``
+/// treated as a pipeline. Inside double quotes, `$` and `` ` ``
 /// trigger (variable / command substitution) — bare `|` `>` etc. are
 /// literal inside `"..."`. Backslash escapes one byte in unquoted /
 /// double-quoted regions; single quotes do not honour escapes (matches
@@ -149,7 +155,7 @@ pub fn contains_shell_operator(command: &str) -> bool {
             if c == b'`' {
                 return true;
             }
-            if c == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'(' {
+            if c == b'$' {
                 return true;
             }
             i += 1;
@@ -163,8 +169,8 @@ pub fn contains_shell_operator(command: &str) -> bool {
             }
             b'\'' => in_single = true,
             b'"' => in_double = true,
-            b'|' | b'&' | b';' | b'<' | b'>' | b'`' | b'(' | b')' => return true,
-            b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'(' => return true,
+            b'|' | b'&' | b';' | b'<' | b'>' | b'`' | b'(' | b')' | b'$' | b'*' | b'?' | b'['
+            | b']' | b'{' | b'}' | b'~' | b'#' | b'\n' | b'\r' => return true,
             _ => {}
         }
         i += 1;
@@ -252,11 +258,34 @@ mod tests {
     }
 
     #[test]
-    fn strips_leading_path_from_argv0() {
-        // /usr/bin/git matches the `git` rule.
+    fn preserves_explicit_executable_paths() {
         assert_eq!(
             rewrite_with_rules("/usr/bin/git status", TEST_RULES, &cfg_empty()),
-            Decision::Rewrite("pi-rs git status".into())
+            Decision::Passthrough
+        );
+    }
+
+    #[test]
+    fn leaves_shell_expansion_to_the_shell() {
+        for command in [
+            "git diff $BASE",
+            "git diff \"$BASE\"",
+            "git diff ${BASE}",
+            "git add *.rs",
+            "cat ~/notes",
+            "git show HEAD # note",
+            "git status\ngit diff",
+            "git add file{1,2}",
+        ] {
+            assert_eq!(
+                rewrite(command, &cfg_empty()),
+                Decision::Passthrough,
+                "{command}"
+            );
+        }
+        assert_eq!(
+            rewrite("git commit -m '$literal'", &cfg_empty()),
+            Decision::Rewrite("pi-rs git commit -m '$literal'".into())
         );
     }
 
@@ -335,11 +364,7 @@ mod tests {
             Decision::Passthrough
         );
         assert_eq!(
-            rewrite_with_rules(
-                "git diff 2>/dev/null > /tmp/d",
-                TEST_RULES,
-                &cfg_empty()
-            ),
+            rewrite_with_rules("git diff 2>/dev/null > /tmp/d", TEST_RULES, &cfg_empty()),
             Decision::Passthrough
         );
     }

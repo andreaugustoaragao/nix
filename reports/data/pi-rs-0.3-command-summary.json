@@ -1,0 +1,383 @@
+{
+  "primary": {
+    "cases": 29,
+    "facts": 45,
+    "native": {
+      "initial_tokens": 125633,
+      "retained": 41,
+      "recovery_calls": 4,
+      "retained_after_recovery": 45,
+      "response_command_recovery_tokens": 128782
+    },
+    "pi": {
+      "initial_tokens": 40710,
+      "retained": 44,
+      "recovery_calls": 1,
+      "retained_after_recovery": 45,
+      "response_command_recovery_tokens": 41071,
+      "initial_saving_percent": 67.59609338310794
+    },
+    "rtk": {
+      "initial_tokens": 31415,
+      "retained": 40,
+      "recovery_calls": 5,
+      "retained_after_recovery": 45,
+      "response_command_recovery_tokens": 34649,
+      "initial_saving_percent": 74.9946272078196
+    }
+  },
+  "all": {
+    "cases": 34,
+    "facts": 50,
+    "native": {
+      "initial_tokens": 172157,
+      "retained": 43,
+      "recovery_calls": 7,
+      "retained_after_recovery": 50,
+      "response_command_recovery_tokens": 175550
+    },
+    "pi": {
+      "initial_tokens": 58075,
+      "retained": 48,
+      "recovery_calls": 2,
+      "retained_after_recovery": 50,
+      "response_command_recovery_tokens": 58525,
+      "initial_saving_percent": 66.26625696312087
+    },
+    "rtk": {
+      "initial_tokens": 55054,
+      "retained": 44,
+      "recovery_calls": 6,
+      "retained_after_recovery": 50,
+      "response_command_recovery_tokens": 58372,
+      "initial_saving_percent": 68.02105055269318
+    }
+  },
+  "groups": {
+    "git": {
+      "cases": 10,
+      "facts": 15,
+      "native": {
+        "initial_tokens": 25074,
+        "retained": 15,
+        "recovery_calls": 0,
+        "retained_after_recovery": 15,
+        "response_command_recovery_tokens": 25123
+      },
+      "pi": {
+        "initial_tokens": 20693,
+        "retained": 15,
+        "recovery_calls": 0,
+        "retained_after_recovery": 15,
+        "response_command_recovery_tokens": 20772,
+        "initial_saving_percent": 17.472282045146372
+      },
+      "rtk": {
+        "initial_tokens": 10294,
+        "retained": 12,
+        "recovery_calls": 3,
+        "retained_after_recovery": 15,
+        "response_command_recovery_tokens": 10536,
+        "initial_saving_percent": 58.94552125707905
+      }
+    },
+    "files": {
+      "cases": 12,
+      "facts": 21,
+      "native": {
+        "initial_tokens": 65384,
+        "retained": 20,
+        "recovery_calls": 1,
+        "retained_after_recovery": 21,
+        "response_command_recovery_tokens": 65529
+      },
+      "pi": {
+        "initial_tokens": 17344,
+        "retained": 20,
+        "recovery_calls": 1,
+        "retained_after_recovery": 21,
+        "response_command_recovery_tokens": 17563,
+        "initial_saving_percent": 73.47363269301358
+      },
+      "rtk": {
+        "initial_tokens": 20301,
+        "retained": 20,
+        "recovery_calls": 1,
+        "retained_after_recovery": 21,
+        "response_command_recovery_tokens": 20480,
+        "initial_saving_percent": 68.9511195399486
+      }
+    },
+    "logs": {
+      "cases": 4,
+      "facts": 4,
+      "native": {
+        "initial_tokens": 30223,
+        "retained": 1,
+        "recovery_calls": 3,
+        "retained_after_recovery": 4,
+        "response_command_recovery_tokens": 33158
+      },
+      "pi": {
+        "initial_tokens": 494,
+        "retained": 4,
+        "recovery_calls": 0,
+        "retained_after_recovery": 4,
+        "response_command_recovery_tokens": 528,
+        "initial_saving_percent": 98.36548324124011
+      },
+      "rtk": {
+        "initial_tokens": 267,
+        "retained": 3,
+        "recovery_calls": 1,
+        "retained_after_recovery": 4,
+        "response_command_recovery_tokens": 3054,
+        "initial_saving_percent": 99.11656685305893
+      }
+    },
+    "tests": {
+      "cases": 3,
+      "facts": 5,
+      "native": {
+        "initial_tokens": 4952,
+        "retained": 5,
+        "recovery_calls": 0,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 4972
+      },
+      "pi": {
+        "initial_tokens": 2179,
+        "retained": 5,
+        "recovery_calls": 0,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 2208,
+        "initial_saving_percent": 55.99757673667205
+      },
+      "rtk": {
+        "initial_tokens": 553,
+        "retained": 5,
+        "recovery_calls": 0,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 579,
+        "initial_saving_percent": 88.83279483037157
+      }
+    },
+    "replays": {
+      "cases": 5,
+      "facts": 5,
+      "native": {
+        "initial_tokens": 46524,
+        "retained": 2,
+        "recovery_calls": 3,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 46768
+      },
+      "pi": {
+        "initial_tokens": 17365,
+        "retained": 4,
+        "recovery_calls": 1,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 17454,
+        "initial_saving_percent": 62.67517840254493
+      },
+      "rtk": {
+        "initial_tokens": 23639,
+        "retained": 4,
+        "recovery_calls": 1,
+        "retained_after_recovery": 5,
+        "response_command_recovery_tokens": 23723,
+        "initial_saving_percent": 49.18966554896398
+      }
+    }
+  },
+  "budgets": {
+    "1000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 23875,
+        "retained": 30
+      },
+      "pi": {
+        "initial_tokens": 18025,
+        "retained": 38,
+        "initial_saving_percent": 24.502617801047123
+      },
+      "rtk": {
+        "initial_tokens": 12930,
+        "retained": 33,
+        "initial_saving_percent": 45.84293193717277
+      }
+    },
+    "4000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 62614,
+        "retained": 35
+      },
+      "pi": {
+        "initial_tokens": 30679,
+        "retained": 43,
+        "initial_saving_percent": 51.002970581659056
+      },
+      "rtk": {
+        "initial_tokens": 24341,
+        "retained": 39,
+        "initial_saving_percent": 61.12530743923084
+      }
+    },
+    "10000": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125633,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 128782
+      },
+      "pi": {
+        "initial_tokens": 40710,
+        "retained": 44,
+        "recovery_calls": 1,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 41071,
+        "initial_saving_percent": 67.59609338310794
+      },
+      "rtk": {
+        "initial_tokens": 31415,
+        "retained": 40,
+        "recovery_calls": 5,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 34649,
+        "initial_saving_percent": 74.9946272078196
+      }
+    }
+  },
+  "encoders": {
+    "o200k_base": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125633,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 128782
+      },
+      "pi": {
+        "initial_tokens": 40710,
+        "retained": 44,
+        "recovery_calls": 1,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 41071,
+        "initial_saving_percent": 67.59609338310794
+      },
+      "rtk": {
+        "initial_tokens": 31415,
+        "retained": 40,
+        "recovery_calls": 5,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 34649,
+        "initial_saving_percent": 74.9946272078196
+      }
+    },
+    "cl100k_base": {
+      "cases": 29,
+      "facts": 45,
+      "native": {
+        "initial_tokens": 125154,
+        "retained": 41,
+        "recovery_calls": 4,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 128302
+      },
+      "pi": {
+        "initial_tokens": 40506,
+        "retained": 44,
+        "recovery_calls": 1,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 40866,
+        "initial_saving_percent": 67.63507358933794
+      },
+      "rtk": {
+        "initial_tokens": 31218,
+        "retained": 40,
+        "recovery_calls": 5,
+        "retained_after_recovery": 45,
+        "response_command_recovery_tokens": 34452,
+        "initial_saving_percent": 75.05633060069994
+      }
+    }
+  },
+  "median_case_overhead_ms": {
+    "pi": 3.0109489999999823,
+    "rtk": 9.428268
+  },
+  "storage": {
+    "pi_tee_files": 44,
+    "pi_tee_bytes": 153939,
+    "rtk_files": {
+      "rtk-state/history.db": 245760,
+      "rtk-state/recall.db": 36864,
+      "rtk-state/recall.db-wal": 0,
+      "rtk-state/recall.db-shm": 32768
+    },
+    "rtk_recall_entries": 7,
+    "rtk_recalled_raw_bytes": 14900,
+    "rtk_compressed_blob_bytes": 2662
+  },
+  "streaming": {
+    "native": {
+      "first_byte_ms": 11.153576999276993,
+      "total_ms": 615.3427170011128
+    },
+    "pi": {
+      "first_byte_ms": 617.6929089997429,
+      "total_ms": 618.6787099995854
+    },
+    "rtk": {
+      "first_byte_ms": null,
+      "total_ms": 625.5094919997646
+    }
+  },
+  "validation": {
+    "initial_outputs_verified": 121,
+    "exit_mismatches": [],
+    "rtk_recall_payloads_verified": 4,
+    "incomplete_recovery": []
+  },
+  "streaming_cargo_shaped": {
+    "native": {
+      "first_byte_ms": 10.984950000420213,
+      "total_ms": 614.4649970010505
+    },
+    "pi": {
+      "first_byte_ms": 617.3630279990903,
+      "total_ms": 618.049576998601
+    },
+    "rtk": {
+      "first_byte_ms": 617.221567001252,
+      "total_ms": 628.0301410006359
+    }
+  },
+  "focused": {
+    "cases": 19,
+    "facts": 32,
+    "variants": {
+      "focused": {
+        "tokens": 6030,
+        "retained": 32
+      },
+      "pi": {
+        "tokens": 23775,
+        "retained": 31
+      },
+      "rtk": {
+        "tokens": 21596,
+        "retained": 28
+      }
+    }
+  }
+}

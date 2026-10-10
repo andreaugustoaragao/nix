@@ -24,7 +24,7 @@ fn progress_patterns() -> &'static [Regex] {
             // ASCII progress bars: leading optional whitespace + [<progress chars>]
             // Char class includes #=>.*| and whitespace; permissive on purpose
             // since trackers vary across tools (cargo, npm, pip, apt, etc.).
-            Regex::new(r"^\s*\[[#=>.*|\s]+\]").unwrap(),
+            Regex::new(r"^\s*\[[#=>.*|\s]+\]\s*\d{1,3}%(?:\s+\([^)]*\))?\s*$").unwrap(),
             // Git pack-protocol progress messages, with or without `remote: ` prefix.
             Regex::new(
                 r"^(remote: )?(Counting|Compressing|Resolving|Receiving|Writing|Enumerating|Updating) (objects|files):",
@@ -32,8 +32,9 @@ fn progress_patterns() -> &'static [Regex] {
             .unwrap(),
             // Bare percent line: optional fraction in parens, surrounded by whitespace only.
             Regex::new(r"^\s*\d{1,3}%\s*(\(\d+/\d+\))?\s*$").unwrap(),
-            // Throughput suffix anywhere in the line.
-            Regex::new(r"\b\d+(\.\d+)?\s*[KMG]i?B/s\b").unwrap(),
+            // Only a standalone throughput update, never an error or a
+            // measurement embedded in diagnostic text.
+            Regex::new(r"^\s*\d+(\.\d+)?\s*[KMG]i?B/s\s+\d{1,3}%\s+complete\s*$").unwrap(),
         ]
     })
 }
@@ -42,24 +43,30 @@ fn progress_patterns() -> &'static [Regex] {
 /// overwrites collapse first so streamed progress bars resolve to their
 /// final state before pattern matching.
 pub fn strip_progress(input: &str) -> String {
+    static ANSI: OnceLock<Regex> = OnceLock::new();
+    let ansi = ANSI.get_or_init(|| {
+        Regex::new(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))").unwrap()
+    });
+    let input = ansi.replace_all(input, "");
     let patterns = progress_patterns();
     let mut out = String::with_capacity(input.len());
     for raw_line in input.split_inclusive('\n') {
         let trailing_newline = raw_line.ends_with('\n');
-        // Collapse CR overwrites: keep only the final \r-segment.
-        let logical = raw_line
+        // Only recognized progress is disposable. Preserve diagnostics even
+        // when a subsequent carriage-return update overwrites the terminal.
+        let parts: Vec<_> = raw_line
             .trim_end_matches('\n')
             .trim_end_matches('\r')
-            .rsplit('\r')
-            .next()
-            .unwrap_or("");
-
-        if patterns.iter().any(|p| p.is_match(logical)) {
-            continue;
-        }
-        out.push_str(logical);
-        if trailing_newline {
-            out.push('\n');
+            .split('\r')
+            .collect();
+        for (i, logical) in parts.iter().enumerate() {
+            if patterns.iter().any(|p| p.is_match(logical)) {
+                continue;
+            }
+            out.push_str(logical);
+            if trailing_newline || i + 1 < parts.len() {
+                out.push('\n');
+            }
         }
     }
     out
@@ -147,5 +154,21 @@ mod tests {
     #[test]
     fn empty_input() {
         assert_eq!(strip_progress(""), "");
+    }
+
+    #[test]
+    fn keeps_diagnostics_containing_transfer_rates() {
+        let input = "ERROR: download stalled at 2 MB/s\nMeasured 5 MB/s\n";
+        assert_eq!(strip_progress(input), input);
+    }
+
+    #[test]
+    fn terminal_styles_do_not_hide_progress_or_error_text() {
+        let input = "\x1b[32m47%\x1b[0m\n\x1b[31merror: failed\x1b[0m\n";
+        assert_eq!(strip_progress(input), "error: failed\n");
+        assert_eq!(
+            strip_progress("\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\\n"),
+            "link\n"
+        );
     }
 }

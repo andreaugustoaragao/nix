@@ -7,6 +7,7 @@ import argparse
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -135,7 +136,8 @@ def diarized_ready_fixture(evidence):
         with patch.dict(recorder.os.environ, {"INVOCATION_ID": "synthetic-diarized-ready"}):
             assert session.run() == 0
         assert session.manifest["status"] == "ready"
-        assert session.manifest["source"]["transcript"]["path"] == "transcript.diarized.turns.txt"
+        assert re.fullmatch(r"transcript\.diarized\.[0-9a-f]{32}\.turns\.txt",
+                            session.manifest["source"]["transcript"]["path"])
         assert session.state["diarization"]["status"] == "ready"
         shutil.copytree(session.directory, evidence / "diarized_ready")
     finally:

@@ -1,0 +1,24 @@
+{
+  "stock": {
+    "exit_code": 0,
+    "pi_guidance_copies": 0,
+    "rtk_reference_copies": 0,
+    "rtk_awareness_automatically_inlined": false,
+    "skills_catalog_present": false
+  },
+  "pi": {
+    "exit_code": 0,
+    "pi_guidance_copies": 1,
+    "rtk_reference_copies": 0,
+    "rtk_awareness_automatically_inlined": false,
+    "skills_catalog_present": false
+  },
+  "rtk": {
+    "exit_code": 0,
+    "pi_guidance_copies": 0,
+    "rtk_reference_copies": 1,
+    "rtk_awareness_automatically_inlined": false,
+    "skills_catalog_present": false
+  },
+  "scope": "Debug prompt-input verifies instruction loading with matching mounts/settings. It is not the full executed API request. RTK default awareness is supplied through the official AGENTS reference; actual model reads and hook rewrites are audited separately in command events, hook-audit logs and RTK SQLite history."
+}

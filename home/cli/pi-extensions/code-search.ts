@@ -61,7 +61,7 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       pattern: Type.String({ description: "Regex pattern." }),
       paths: Type.Array(Type.String(), {
-        description: "Files, directories, or globs to search (1+).",
+        description: "Files or directories to search (1+).",
         minItems: 1,
       }),
       ignore_case: Type.Optional(
@@ -99,14 +99,12 @@ export default function (pi: ExtensionAPI) {
       ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-      const args: string[] = ["grep", "-e", params.pattern];
+      const args: string[] = ["grep", "--json", "-e", params.pattern];
       for (const p of params.paths) args.push("-p", p);
       if (params.ignore_case) args.push("-i");
       if (params.no_gitignore) args.push("--no-gitignore");
-      if (params.context_before !== undefined)
-        args.push("-B", String(params.context_before));
-      if (params.context_after !== undefined)
-        args.push("-A", String(params.context_after));
+      args.push("-B", String(params.context_before ?? 1));
+      args.push("-A", String(params.context_after ?? 3));
       if (params.limit !== undefined) args.push("--limit", String(params.limit));
       if (params.skip !== undefined) args.push("--skip", String(params.skip));
 

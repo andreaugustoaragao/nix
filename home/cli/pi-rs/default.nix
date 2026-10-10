@@ -9,23 +9,28 @@
 # extension layer.
 {
   lib,
-  rustPlatform,
+  makeRustPlatform,
   callPackage,
-  cargo,
+  git,
   ...
 }:
 
 let
+  rustToolchain = callPackage ../../../pkgs/rust-toolchain.nix { };
+  rustPlatform = makeRustPlatform {
+    cargo = rustToolchain;
+    rustc = rustToolchain;
+  };
   # Local copy of nixpkgs's importCargoLock with the default crates.io
   # URL swapped for static.crates.io — crates.io/api/v1 now 403s under
   # curl's default user-agent. See overlays/import-cargo-lock.nix.
   importCargoLockStatic = callPackage ../../../overlays/import-cargo-lock.nix {
-    inherit cargo;
+    cargo = rustToolchain;
   };
 in
 rustPlatform.buildRustPackage {
   pname = "pi-rs";
-  version = "0.1.0";
+  version = "0.3.0";
 
   src = builtins.path {
     name = "pi-rs-source";
@@ -45,10 +50,9 @@ rustPlatform.buildRustPackage {
     lockFile = ./Cargo.lock;
   };
 
-  # No build-time tools needed beyond what buildRustPackage provides; all
-  # native deps (tree-sitter grammars, ripgrep crates) build pure-Rust.
-
-  doCheck = false; # Hashline unit tests are pure-logic; covered out-of-band.
+  nativeCheckInputs = [ git ];
+  doCheck = true;
+  cargoTestFlags = [ "--workspace" ];
 
   # Materialize the per-agent hook shims under $out/share/pi-rs/agent-hooks/
   # with the absolute /nix/store path of the pi-rs binary substituted in.
@@ -75,7 +79,10 @@ rustPlatform.buildRustPackage {
   meta = {
     description = "High-performance primitives for pi-coding-agent extensions";
     homepage = "https://github.com/aragao/nix";
-    license = lib.licenses.mit;
+    license = [
+      lib.licenses.mit
+      lib.licenses.asl20
+    ];
     platforms = lib.platforms.unix;
     mainProgram = "pi-rs";
   };

@@ -52,11 +52,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791572319,
-        "narHash": "sha256-uz9BNOCk04J/m60YZTNoT4Ofw5EqJtPkBuvs/Haxzgk=",
+        "lastModified": 1791590916,
+        "narHash": "sha256-IFaMupD69xUuzAXGX0Rxw2kLTh62rjTrDK+BVQZLIbI=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "280acf7fc479cacdf992d1788a1a79fd064cc247",
+        "rev": "e0be48188d974d54b7a5ce3803b87788dc98b125",
         "type": "github"
       },
       "original": {
@@ -392,9 +392,30 @@
         "nixpkgs-llama": "nixpkgs-llama",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "prism-llama": "prism-llama",
+        "rust-overlay": "rust-overlay",
         "sops-nix": "sops-nix",
         "strata-package-src": "strata-package-src",
         "strata-src": "strata-src"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791535654,
+        "narHash": "sha256-QFgGi6Wgh7AgqPFdAXEmkTgnR0B5M0omheIHvo/02dU=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "4ca2963243427cb86bd6b4d9ca6010db0162a619",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
       }
     },
     "sops-nix": {

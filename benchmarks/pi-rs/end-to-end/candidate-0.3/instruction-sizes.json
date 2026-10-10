@@ -1,0 +1,31 @@
+{
+  "tiktoken_version": "0.14.0",
+  "scope": "Exact counts under these two reference encodings for standalone payloads; not a claim about the private model tokenizer or provider billing. Excludes Codex message framing and repeated-context effects.",
+  "payloads": {
+    "native_compression_instructions": {
+      "bytes": 0,
+      "o200k_base": 0,
+      "cl100k_base": 0
+    },
+    "pi_inline_AGENTS": {
+      "bytes": 999,
+      "o200k_base": 274,
+      "cl100k_base": 271
+    },
+    "rtk_initial_AGENTS_reference": {
+      "bytes": 28,
+      "o200k_base": 14,
+      "cl100k_base": 14
+    },
+    "rtk_installed_RTK_document": {
+      "bytes": 546,
+      "o200k_base": 127,
+      "cl100k_base": 127
+    },
+    "rtk_default_awareness_without_header": {
+      "bytes": 452,
+      "o200k_base": 98,
+      "cl100k_base": 98
+    }
+  }
+}
