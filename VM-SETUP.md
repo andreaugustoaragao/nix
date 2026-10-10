@@ -4,6 +4,8 @@ End-to-end guide for setting up a NixOS dev VM on Apple Silicon mac-work, under 
 
 The flake already ships a one-shot installer at [`scripts/install-nixos.sh`](scripts/install-nixos.sh). It partitions, formats, copies the flake onto the target, and runs `nixos-install --flake .#<host>`. You only do the bits before and after.
 
+For **`prl-k8s-vm`**, use [Dedicated Kubernetes VM](#dedicated-kubernetes-vm) below. Its installation deliberately skips the desktop and shared SOPS bootstrap.
+
 ## Prerequisites
 
 - mac-work (or any Apple Silicon Mac) with Parallels Desktop **or** VMware Fusion 13+
@@ -13,7 +15,7 @@ The flake already ships a one-shot installer at [`scripts/install-nixos.sh`](scr
   - `hardware/<host>/hardware-configuration.nix` exists and points its filesystems at `/dev/disk/by-label/nixos` (plus `nixos-boot` for EFI)
   - The flake has been pushed to GitHub so the installer can `git clone` it
 
-  Currently satisfied hosts: **`prl-dev-vm`** (Parallels), **`vmw-dev-vm`** (VMware Fusion). If you want a different name, see [Adding a brand-new host](#adding-a-brand-new-host) at the bottom.
+  Currently satisfied hosts: **`prl-dev-vm`** (Parallels desktop), **`vmw-dev-vm`** (VMware Fusion desktop), and **`prl-k8s-vm`** (Parallels Kubernetes). If you want a different name, see [Adding a brand-new host](#adding-a-brand-new-host) at the bottom.
 
 ## Phase 1: Create the VM
 
@@ -225,3 +227,148 @@ If the host you want doesn't exist in `machines.toml`, the installer's menu won'
 3. If the new VM should host the same dev services (fulcrum, caddy reverse proxy, /etc/hosts entries), extend the conditions in `system/networking.nix:230` and `system/caddy.nix:22`.
 4. Add an SSH alias in `home/cli/ssh-config.nix`.
 5. Commit and push, then proceed from Phase 1 above.
+
+## Dedicated Kubernetes VM
+
+`prl-k8s-vm` is a separate ARM64 Parallels VM on the same Mac. Its
+`kubernetes` profile imports only `system/kubernetes/` and its hardware
+configuration. Agents retain full Kubernetes administration, including
+privileged workloads, operators, CRDs, networking, and storage. Treat those
+credentials as root access to this VM.
+
+### Provision the VM
+
+1. Create a new **Other Linux / ARM64** VM from the NixOS minimal ISO.
+   Start with **8 vCPUs, 16–32 GiB RAM, and a 200 GiB expanding virtual disk**;
+   size RAM and disk for the workloads being migrated and the Mac's capacity.
+2. Use **Shared Network / NAT**. Reserve or exclude **`10.211.55.5`** from the
+   DHCP pool and confirm it is unused. The guest statically uses this address
+   with gateway/DNS `10.211.55.1`. Change `machines.toml` if a different address
+   within this subnet is needed. A different subnet also requires updating
+   `system/kubernetes/networking.nix`.
+   Shared/NAT networking still permits connections to services exposed by the
+   Mac and desktop VM, including Mac inference/transcription services on
+   `10.211.55.2:8080–8082`. Disabling file sharing does not block this traffic.
+   Any additional network restriction must be enforced outside the
+   administrator-controlled cluster VM, such as by the host or hypervisor.
+3. In Parallels, disable **shared folders, Mac home/iCloud sharing, shared
+   clipboard, drag-and-drop, and shared applications** for this VM. Leave
+   those integrations on the desktop VM according to your preferences.
+   The cluster profile omits Parallels Tools; host settings must also prevent
+   an administrator inside the cluster from enabling access to Mac files.
+4. Boot the ISO and establish installer SSH access using Phase 2 above.
+   This installer IP may differ from the final static address.
+
+### Install the configuration
+
+Use the reviewed local checkout so installation includes changes that have
+not been published. From the desktop checkout, archive tracked files at their
+current working-tree contents (new Nix files must already be staged):
+
+```bash
+cd /home/aragao/projects/personal/nix
+git ls-files -z | tar --null -T - -czf /tmp/prl-k8s-config.tar.gz
+scp /tmp/prl-k8s-config.tar.gz nixos@<installer-ip>:/tmp/
+```
+
+In the installer, as the `nixos` user:
+
+```bash
+mkdir /tmp/prl-k8s-flake
+tar -xzf /tmp/prl-k8s-config.tar.gz -C /tmp/prl-k8s-flake
+lsblk -o NAME,SIZE,TYPE,MOUNTPOINTS
+env LOCAL_FLAKE=/tmp/prl-k8s-flake TARGET_HOSTNAME=prl-k8s-vm DISK=/dev/sda \
+  bash /tmp/prl-k8s-flake/scripts/install-nixos.sh
+sudo nixos-enter --root /mnt -c 'passwd aragao'
+sudo reboot
+```
+
+Verify that `/dev/sda` is the **new VM's disk** before accepting the installer's
+erase confirmation. The installer sets the root password; `passwd aragao`
+sets a separate local password for authenticated sudo. SSH accepts keys only.
+The profile preauthorizes the existing desktop personal public key and the
+Mac's `id_ed25519_peers` public key. No private keys are copied to the VM.
+
+The disk uses the installer's Btrfs subvolume layout. K3s data, container
+images, and default local-path volumes live under `/var/lib/rancher/k3s` on
+this disk. Swap is disabled. This layout relies on the Mac/VM storage and
+backup encryption for protection while powered off.
+
+**Skip Phase 5's SOPS bootstrap.** Do not add this VM as a recipient of the
+shared secrets file or run `peers-bootstrap` here: the latter authorizes an
+outbound identity on other machines. Supply only workload-specific registry
+or cloud credentials when installing those workloads.
+
+### Connect agents from the desktop
+
+First verify the new SSH host key. In the VM console, after logging in:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+From the desktop, make the first connection and compare the displayed
+fingerprint against the console before accepting it:
+
+```bash
+ssh -o HostKeyAlgorithms=ssh-ed25519 \
+  -o HostKeyAlias=prl-k8s-vm \
+  -o UserKnownHostsFile=~/.ssh/known_hosts_k8s \
+  -o StrictHostKeyChecking=ask -o ForwardAgent=no -o IdentitiesOnly=yes \
+  -i ~/.ssh/id_rsa_personal aragao@10.211.55.5
+```
+
+On the Mac, use `-i ~/.ssh/id_ed25519_peers` instead. Once the client
+configuration is rebuilt, the same settings are available as `ssh prl-k8s-vm`.
+The kubeconfig helper already supplies the connection settings, so it works
+before rebuilding the desktop:
+
+```bash
+nix run .#peers-kube-fetch -- prl-k8s-vm
+env KUBECONFIG="$HOME/.kube/config-prl-k8s-vm" kubectl get nodes
+env KUBECONFIG="$HOME/.kube/config-prl-k8s-vm" kubectl auth can-i '*' '*'
+```
+
+The helper imports embedded certificates and keys into a fresh kubeconfig,
+fixes the API address locally, and rejects executable credential plugins or
+local credential paths. This prevents a cluster-controlled kubeconfig from
+executing a credential helper on the desktop. It writes atomically with mode
+`0600` and selects this file through `~/.kube/config`.
+Use the explicit `KUBECONFIG` above while migrating: existing desktop shells
+may still export `/etc/rancher/k3s/k3s.yaml`, which takes precedence over that
+symlink. The downloaded certificate grants full control of this new cluster;
+refresh it with the helper when K3s renews it.
+
+### Cluster operation and migration
+
+- K3s starts at boot with embedded etcd, secrets encryption, and its default
+  twice-daily snapshots, retaining 14 compressed snapshots. A single node
+  remains a single point of failure.
+- Traefik is disabled for compatibility with your Istio deployment. K3s
+  supplies Flannel, CoreDNS, metrics-server, local-path storage, and ServiceLB.
+  Application charts and Istio are installed separately by your agents.
+- Host firewall rules admit SSH, HTTPS Kubernetes API, and HTTP/HTTPS ingress
+  from the Parallels `10.211.55.0/24` subnet. Kubernetes service forwarding
+  follows kube-proxy/CNI rules; a cluster administrator can change it. No
+  multi-node etcd, kubelet, or VXLAN ports are opened to the external network.
+- Back up etcd snapshots **and** `/var/lib/rancher/k3s/server/token` securely.
+  Persistent-volume contents need separate application-consistent backups;
+  etcd snapshots do not contain them. Keep backups outside this VM's disk.
+- Recreate the existing cluster's operators/CRDs and applications from their
+  manifests or Helm releases, then migrate databases and PVC data with their
+  supported backup/restore workflows. Verify stateful applications before
+  switching agents and browser endpoints. Do not copy a running K3s data
+  directory into the new cluster.
+- The original desktop cluster remains available during migration. After
+  cutover, remove its K3s administrator access and finish the desktop sudo and
+  Docker changes; creating this host alone does not remove those old paths.
+
+On `prl-k8s-vm`, subsequent configuration changes use:
+
+```bash
+sudo nixos-rebuild switch --flake /home/aragao/projects/personal/nix#$(hostname)
+```
+
+If the installation used the archive above, its checkout has no Git metadata;
+transfer an updated source archive or install a reviewed checkout for later
+updates. Do not copy the desktop's `.ssh`, vault, or SOPS decryption keys.

@@ -34,6 +34,15 @@ lockScreen = false
 autoLogin = true
 useDms = true
 
+# Dedicated cluster VM. This profile uses system/kubernetes, with its
+# own credentials and no desktop/Home Manager or shared SOPS imports.
+[machines.prl-k8s-vm]
+hostName = "prl-k8s-vm"
+platform = "aarch64-linux"
+profile = "kubernetes"
+stateVersion = "26.05"
+address = "10.211.55.5"
+
 # Same shape as prl-dev-vm, but runs under VMware Fusion on Apple
 # Silicon (mac-work). The hypervisor split lives entirely in
 # hardware/<host>/hardware-configuration.nix — vmw_pvscsi/vmxnet3 and

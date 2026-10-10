@@ -150,8 +150,17 @@
         };
         isWorkstation = host.profile == "workstation";
         isLaptop = host.profile == "laptop";
-        isVm = host.profile == "vm";
-        isServer = host.profile == "server";
+        isVm = builtins.elem host.profile [
+          "vm"
+          "kubernetes"
+        ];
+        isServer = builtins.elem host.profile [
+          "server"
+          "kubernetes"
+        ];
+        # The dedicated cluster uses its own module set below.
+        hostAddress = host.address or null;
+        kubernetesVmAddress = metadata.machines.prl-k8s-vm.address;
         isDarwinHost = isDarwinPlatform host.platform;
         homePrefix = homePrefixFor host.platform;
         owner = metadata.user // {
@@ -259,28 +268,34 @@
           specialArgs = setSpecialArgs host;
           modules = [
             { nixpkgs.hostPlatform = host.platform; }
-            {
-              nixpkgs.overlays = [
-                claude-code.overlays.default
-                # See nixpkgs-gnome48 input above for the why.
-                (_final: prev: {
-                  inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
-                  grok-bot = prev.callPackage ./pkgs/grok-bot.nix { };
-                })
-              ];
-            }
-            # Hardware configuration
             (./hardware + "/${machineName}" + /hardware-configuration.nix)
-            # System configuration
-            ./system
-            # Prebuilt nix-index database for command-not-found lookup.
-            inputs.nix-index-database.nixosModules.nix-index
-            # Secrets management
-            sops-nix.nixosModules.sops
-            # Home Manager configuration
-            home-manager.nixosModules.home-manager
-            (setHomeManagerTemplate host)
-          ];
+          ]
+          ++ (
+            if host.profile == "kubernetes" then
+              [ ./system/kubernetes ]
+            else
+              [
+                {
+                  nixpkgs.overlays = [
+                    claude-code.overlays.default
+                    # See nixpkgs-gnome48 input above for the why.
+                    (_final: prev: {
+                      inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
+                      grok-bot = prev.callPackage ./pkgs/grok-bot.nix { };
+                    })
+                  ];
+                }
+                # System configuration
+                ./system
+                # Prebuilt nix-index database for command-not-found lookup.
+                inputs.nix-index-database.nixosModules.nix-index
+                # Secrets management
+                sops-nix.nixosModules.sops
+                # Home Manager configuration
+                home-manager.nixosModules.home-manager
+                (setHomeManagerTemplate host)
+              ]
+          );
         }
       ) linuxMachines;
 
@@ -490,12 +505,11 @@
             '';
           };
 
-          # Pulls /etc/rancher/k3s/k3s.yaml from a peer host over SSH,
-          # rewrites the loopback server URL to the host's .local mDNS
-          # name, renames k3s's generic `default` cluster/context/user
-          # to the host name (so future multi-cluster merges don't
-          # collide), and drops it at ~/.kube/config-<host> with mode
-          # 0600. Also symlinks ~/.kube/config to point at the most
+          # Imports embedded certificates from a peer's kubeconfig over SSH.
+          # The remote host is untrusted: construct a minimal kubeconfig with
+          # a locally chosen server and no executable plugins or local paths.
+          # Writes ~/.kube/config-<host> atomically with mode 0600.
+          # Also symlinks ~/.kube/config to point at the most
           # recently fetched cluster, making it kubectl's default with
           # no KUBECONFIG env var needed. Idempotent: re-run after k3s
           # reinstalls to refresh the cert.
@@ -504,7 +518,7 @@
             runtimeInputs = with pkgs; [
               openssh
               coreutils
-              gnused
+              (python3.withPackages (ps: [ ps.pyyaml ]))
             ];
             text = ''
               set -euo pipefail
@@ -512,29 +526,41 @@
               log() { printf '[peers-kube-fetch] %s\n' "$*" >&2; }
 
               host="''${1:-prl-dev-vm}"
+              if [[ ! "$host" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+                log "expected an SSH host name or alias"
+                exit 1
+              fi
               kube_host="$host.local"
+              ssh_args=()
+              if [ "$host" = "prl-k8s-vm" ]; then
+                kube_host="${metadata.machines.prl-k8s-vm.address}"
+                # Also works before the desktop's SSH config is rebuilt.
+                # Bootstrap known_hosts_k8s against the new VM's console.
+                ssh_args=(
+                  -o "HostName=$kube_host"
+                  -o "HostKeyAlias=$host"
+                  -o "User=${metadata.user.name}"
+                  -o ForwardAgent=no
+                  -o IdentitiesOnly=yes
+                  -o StrictHostKeyChecking=yes
+                  -o "UserKnownHostsFile=$HOME/.ssh/known_hosts_k8s"
+                  -i "$HOME/.ssh/id_ed25519_peers"
+                  -i "$HOME/.ssh/id_rsa_personal"
+                )
+              fi
 
+              umask 077
               mkdir -p "$HOME/.kube"
               dest="$HOME/.kube/config-$host"
               default_link="$HOME/.kube/config"
 
-              log "fetching kubeconfig from $host"
-              raw="$(ssh -o BatchMode=yes "$host" 'cat /etc/rancher/k3s/k3s.yaml')"
-
-              log "rewriting server URL and renaming default -> $host"
-              # Anchor each substitution to the YAML's structural
-              # indentation so the literal word "default" appearing
-              # inside a cert or comment can't accidentally match.
-              rewritten="$(printf '%s' "$raw" | sed \
-                -e "s|server: https://127.0.0.1:6443|server: https://$kube_host:6443|" \
-                -e "s/^  name: default\$/  name: $host/" \
-                -e "s/^    cluster: default\$/    cluster: $host/" \
-                -e "s/^    user: default\$/    user: $host/" \
-                -e "s/^current-context: default\$/current-context: $host/" \
-                -e "s/^- name: default\$/- name: $host/")"
-
-              umask 077
-              printf '%s\n' "$rewritten" > "$dest"
+              log "fetching and validating kubeconfig from $host"
+              tmp="$(mktemp "$dest.tmp.XXXXXX")"
+              trap 'rm -f "$tmp"' EXIT
+              ssh -o BatchMode=yes "''${ssh_args[@]}" "$host" 'cat /etc/rancher/k3s/k3s.yaml' \
+                | python3 ${./scripts/peers-kubeconfig.py} "$host" "https://$kube_host:6443" > "$tmp"
+              mv -fT "$tmp" "$dest"
+              trap - EXIT
               log "wrote $dest (mode 0600)"
 
               # Make this the kubectl default. Honor any existing
@@ -674,6 +700,17 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
+          kubernetes-vm = import ./system/kubernetes/check.nix {
+            inherit pkgs;
+            hostConfig = self.nixosConfigurations.prl-k8s-vm.config;
+          };
+          kubeconfig-import =
+            pkgs.runCommand "check-kubeconfig-import"
+              { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.pyyaml ])) ]; }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/scripts/peers-kubeconfig.test.py
+                touch "$out"
+              '';
           format =
             pkgs.runCommand "check-nixfmt"
               {

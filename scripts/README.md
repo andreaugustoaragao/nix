@@ -6,6 +6,8 @@ One-shot installer that runs from a NixOS minimal ISO. Picks a target machine fr
 
 For the end-to-end Parallels / VMware Fusion VM walkthrough (boot the ISO, SSH in, run this script, bootstrap sops), see [`../VM-SETUP.md`](../VM-SETUP.md).
 
+The dedicated **`prl-k8s-vm`** profile is also supported. Follow its [Kubernetes installation guide](../VM-SETUP.md#dedicated-kubernetes-vm): it uses its own credentials and skips shared SOPS and Home Manager setup.
+
 ### What it does
 
 1. **Discover candidates.** Clones the flake to `/tmp/nix-installer-flake` and lists every host whose `hardware/<host>/hardware-configuration.nix`:

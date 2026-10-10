@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, kubernetesVmAddress, ... }:
 
 # Cross-platform SSH client config — same shape on Linux and macOS.
 #
@@ -107,6 +107,22 @@ in
         IdentitiesOnly = true;
         StrictHostKeyChecking = "yes";
         UserKnownHostsFile = "~/.ssh/known_hosts_peers";
+      };
+
+      # Dedicated cluster: bootstrap its host key against the VM console.
+      # Its own known_hosts file allows installation before a desktop rebuild.
+      "prl-k8s-vm" = {
+        HostName = kubernetesVmAddress;
+        HostKeyAlias = "prl-k8s-vm";
+        User = "aragao";
+        IdentityFile = [
+          "~/.ssh/id_ed25519_peers"
+          "~/.ssh/id_rsa_personal"
+        ];
+        IdentitiesOnly = true;
+        ForwardAgent = false;
+        StrictHostKeyChecking = "yes";
+        UserKnownHostsFile = "~/.ssh/known_hosts_k8s";
       };
 
       # VMware Fusion sibling of prl-dev-vm — same flake profile, just a
