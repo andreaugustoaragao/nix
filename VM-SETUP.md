@@ -341,6 +341,27 @@ refresh it with the helper when K3s renews it.
 
 ### Cluster operation and migration
 
+- The development image registry is a separate NixOS `docker-registry`
+  service on `prl-k8s-vm:5000`, with persistent data at
+  `/var/lib/docker-registry`. It does not depend on Kubernetes or Docker.
+  It retains the existing unauthenticated HTTP registry model, restricted
+  by the VM firewall to the Parallels subnet; use it for local development
+  images, not as a public registry or a destination for registry passwords.
+  Back up this directory separately from Kubernetes data.
+- On `prl-dev-vm`, the `registry-forward.socket` user unit keeps
+  `localhost:5000` working for existing Docker build/push commands. It
+  forwards to `10.211.55.5:5000`; stop the old `local-registry` Docker
+  container after copying its data before enabling the socket. K3s on the
+  new VM maps existing `localhost:5000/...` image references to its own
+  registry. Other clients using `10.211.55.5:5000` directly must explicitly
+  configure that address as an HTTP registry.
+- Local K3s and its delayed startup are disabled declaratively on
+  `prl-dev-vm`. Its Fish sessions select
+  `~/.kube/config-prl-k8s-vm`; existing shells may need
+  `set -gx KUBECONFIG ~/.kube/config-prl-k8s-vm` (Fish) or
+  `export KUBECONFIG=~/.kube/config-prl-k8s-vm` (Bash/Zsh).
+  Stopping the old cluster preserves `/var/lib/rancher/k3s` and its volumes;
+  it does not migrate workloads or cached container images.
 - K3s starts at boot with embedded etcd, secrets encryption, and its default
   twice-daily snapshots, retaining 14 compressed snapshots. A single node
   remains a single point of failure.
@@ -359,9 +380,8 @@ refresh it with the helper when K3s renews it.
   supported backup/restore workflows. Verify stateful applications before
   switching agents and browser endpoints. Do not copy a running K3s data
   directory into the new cluster.
-- The original desktop cluster remains available during migration. After
-  cutover, remove its K3s administrator access and finish the desktop sudo and
-  Docker changes; creating this host alone does not remove those old paths.
+- Finish any remaining desktop sudo and Docker access changes separately;
+  creating this host alone does not remove those old privilege paths.
 
 On `prl-k8s-vm`, subsequent configuration changes use:
 

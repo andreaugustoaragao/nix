@@ -5,6 +5,13 @@
   ...
 }:
 
+let
+  enableLocalK3s =
+    !(builtins.elem hostName [
+      "hp-laptop"
+      "prl-dev-vm"
+    ]);
+in
 {
   virtualisation.docker = {
     enable = true;
@@ -72,7 +79,7 @@
       };
 
       # Lazy-load K3s: Remove from critical boot path and start after graphical session
-      k3s = lib.mkIf (hostName != "hp-laptop") {
+      k3s = lib.mkIf enableLocalK3s {
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
         after = [ "graphical-session.target" ]; # Start after graphical session
         # network-online requisite dropped: the upstream k3s module already
@@ -108,7 +115,7 @@
       };
 
       # Create a delayed K3s startup service
-      k3s-lazy = lib.mkIf (hostName != "hp-laptop") {
+      k3s-lazy = lib.mkIf enableLocalK3s {
         description = "Lazy-load K3s after graphical session";
         after = [ "graphical.target" ];
         wantedBy = [ "graphical.target" ];
@@ -131,8 +138,8 @@
     };
   };
 
-  # K3s configuration - disabled for hp-laptop
-  services.k3s = lib.mkIf (hostName != "hp-laptop") (
+  # prl-dev-vm uses the separate prl-k8s-vm; hp-laptop has no local cluster.
+  services.k3s = lib.mkIf enableLocalK3s (
     let
       nodeIp =
         if hostName == "prl-dev-vm" then

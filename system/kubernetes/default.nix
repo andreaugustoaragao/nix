@@ -10,6 +10,7 @@
     ./access.nix
     ./networking.nix
     ./k3s.nix
+    ./registry.nix
   ];
 
   networking.hostName = hostName;

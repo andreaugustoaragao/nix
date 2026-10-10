@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  hostName,
   ...
 }:
 
@@ -126,10 +127,21 @@ in
       set -g fish_color_redirection f9e2af
       set -g fish_color_valid_path --underline
 
-      # Use local k3s kubeconfig when no KUBECONFIG is set
-      if test -r /etc/rancher/k3s/k3s.yaml; and not set -q KUBECONFIG
-        set -gx KUBECONFIG /etc/rancher/k3s/k3s.yaml
-      end
+      ${
+        if hostName == "prl-dev-vm" then
+          ''
+            # This desktop uses the separate cluster VM, including when an
+            # old parent shell still exports its retired local kubeconfig.
+            set -gx KUBECONFIG $HOME/.kube/config-prl-k8s-vm
+          ''
+        else
+          ''
+            # Use local k3s kubeconfig when no KUBECONFIG is set.
+            if test -r /etc/rancher/k3s/k3s.yaml; and not set -q KUBECONFIG
+              set -gx KUBECONFIG /etc/rancher/k3s/k3s.yaml
+            end
+          ''
+      }
 
       # Puppeteer / Chrome DevTools MCP
       set -gx PUPPETEER_EXECUTABLE_PATH /etc/profiles/per-user/aragao/bin/brave

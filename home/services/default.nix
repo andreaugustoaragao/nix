@@ -39,6 +39,9 @@
   ++ lib.optionals (!isDarwinHost && !isServer) [
     ./fulcrum.nix
   ]
+  ++ lib.optionals (hostName == "prl-dev-vm") [
+    ./registry-forward.nix
+  ]
   ++ lib.optionals isDarwinHost [
     ./notes-sync-darwin.nix
   ]
