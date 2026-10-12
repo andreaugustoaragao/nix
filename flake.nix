@@ -2,7 +2,9 @@
   description = "NixOS + nix-darwin configuration for a handful of personal hosts ";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # This nixos-26.05 revision has a cached Darwin mcp-nixos closure.
+    # Newer revisions build Thrift 0.24 locally, whose tests fail on macOS.
+    nixpkgs.url = "github:NixOS/nixpkgs/b25309931cfda5f0b8805f462a29897eeae50168";
     # Local ttfx fork, pinned to the upstream starting point. This checkout
     # must exist on machines evaluating the flake until the fork is published.
     ttfx-src = {
@@ -11,13 +13,6 @@
     };
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # Local-first desktop release candidate. The exact revision is pinned;
-    # activation still requires its release gates. Other machines need this
-    # source checkout available until a published input is separately approved.
-    fulcrumDesktop = {
-      url = "git+file:///home/aragao/projects/work/fulcrum?rev=aea9a5e8b86ef12ff49ff16c1a1a630245091c19&dir=desktop&allRefs=1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # Tracks nixpkgs-unstable for packages we want fresher than 26.05

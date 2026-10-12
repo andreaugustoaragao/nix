@@ -95,7 +95,12 @@ in
   launchd.daemons.caffeinate-ac = {
     serviceConfig = {
       Label = "net.faragao.caffeinate-ac";
-      ProgramArguments = [ "${officeHours}" ];
+      # The Nix volume can mount after launchd loads system daemons.
+      ProgramArguments = [
+        "/bin/sh"
+        "-c"
+        "/bin/wait4path /nix/store && exec ${officeHours}"
+      ];
       StartCalendarInterval = [
         {
           Hour = startHour;
