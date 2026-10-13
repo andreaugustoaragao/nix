@@ -9,8 +9,9 @@ in
     enable = true;
 
     # Kitty (and Ghostty) forward their native TERM over SSH. Remote hosts
-    # often lack that terminfo — set-environment/tput fail and zsh line
-    # editing duplicates characters. .zshenv runs before profile.d hooks.
+    # often lack that terminfo, so use a common fallback for SSH shells.
+    # On Darwin, the system environment and Home Manager session variables run
+    # before this hook; their TERM resets need the terminfo installed already.
     envExtra = ''
       if [[ -n "''${SSH_CONNECTION:-}" ]]; then
         case "''${TERM:-}" in

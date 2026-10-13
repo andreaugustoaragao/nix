@@ -1,6 +1,7 @@
 {
   stateVersion,
   owner,
+  lib,
   ...
 }:
 
@@ -38,6 +39,12 @@
 
   # Common locale + timezone, matching system/default.nix.
   time.timeZone = "America/Denver";
+
+  # The Homebrew kitty cask ships xterm-kitty terminfo outside Nix profiles.
+  # Make it available before zsh resets TERM during SSH shell startup.
+  environment.variables.TERMINFO_DIRS = lib.mkAfter [
+    "/Applications/kitty.app/Contents/Resources/terminfo"
+  ];
 
   # Auto-rename any plain /etc file we're about to take over so
   # nix-darwin's etcChecks safety net can proceed without an operator
