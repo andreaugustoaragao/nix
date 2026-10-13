@@ -1,6 +1,12 @@
-{ pkgs, inputs, ... }:
+{
+  pkgs,
+  inputs,
+  isWorkMachine ? false,
+  ...
+}:
 
 let
+  screensaverText = if isWorkMachine then "AVAYA Architecture" else "Aragao";
   ttfx = pkgs.callPackage ../../pkgs/ttfx.nix { src = inputs.ttfx-src; };
   # Mirrors default-terminal.nix selection. Kept private to this file —
   # consumers should reference the resulting derivation, not termBin.
@@ -18,7 +24,6 @@ let
   binPath = pkgs.lib.makeBinPath [
     pkgs.coreutils
     pkgs.figlet
-    pkgs.inetutils
     ttfx
     pkgs.util-linux
     terminal
@@ -44,7 +49,7 @@ let
       sleep 0.02
     done
     read -r _ columns < <(stty size)
-    figlet -f small -w "$columns" "$(hostname -s)" > "$text"
+    figlet -f big -w "$columns" ${pkgs.lib.escapeShellArg screensaverText} > "$text"
     printf '\033]11;rgb:00/00/00\007\033[2J\033[H\033[?25l\033[?1003h\033[?1006h'
 
     while true; do
@@ -65,7 +70,7 @@ let
 
 in
 
-# Omarchy-style animated hostname on every connected output. Any keyboard
+# Omarchy-style animated branding on every connected output. Any keyboard
 # or mouse input closes the focused terminal and the launcher sweeps the rest.
 pkgs.writeShellScript "screensaver" ''
   #!/usr/bin/env bash

@@ -1,6 +1,7 @@
 {
   pkgs,
   inputs,
+  isWorkMachine,
   lib,
   lockScreen ? false,
   useDms ? false,
@@ -11,7 +12,7 @@ let
   # Same derivation as home/scripts/default.nix installs to
   # ~/.local/bin/screensaver — referenced here by store path so swayidle
   # doesn't depend on the user PATH inside its systemd unit.
-  screensaver = import ../scripts/_screensaver.nix { inherit pkgs inputs; };
+  screensaver = import ../scripts/_screensaver.nix { inherit pkgs inputs isWorkMachine; };
 
   # Lock wrapper: the animation is a foreground TTY app, so it stays running
   # under swaylock unless killed first. (The screensaver script's EXIT

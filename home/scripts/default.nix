@@ -1,9 +1,14 @@
-{ pkgs, inputs, ... }:
+{
+  pkgs,
+  inputs,
+  isWorkMachine,
+  ...
+}:
 
 let
   # Shared with home/desktop/lockscreen.nix so the swayidle timeout and
   # the Mod+Ctrl+S keybinding both resolve to the same store path.
-  screensaver = import ./_screensaver.nix { inherit pkgs inputs; };
+  screensaver = import ./_screensaver.nix { inherit pkgs inputs isWorkMachine; };
 
   lockscreen = pkgs.writeShellScript "lockscreen" ''
     #!/usr/bin/env bash
@@ -38,7 +43,7 @@ in
     ./record-call.nix
   ];
 
-  # Screensaver — terminal-based animated hostname display.
+  # Screensaver — terminal-based animated branding display.
   # On non-DMS hosts (hp-laptop) this is wired into swayidle timeouts.
   # On DMS hosts (workstation) it's available as a manual keybinding.
   home.packages = [

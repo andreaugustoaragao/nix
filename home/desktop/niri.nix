@@ -207,6 +207,7 @@ in
         
         mouse {
             // natural-scroll
+            accel-speed 0.5
             scroll-factor 0.4
         }
     }
@@ -365,7 +366,7 @@ in
         }
     }
 
-    // Fullscreen animated hostname screensaver — opens the terminal maximized.
+    // Fullscreen animated branding screensaver — opens the terminal maximized.
     window-rule {
         match app-id="^Screensaver$"
         open-fullscreen true
@@ -537,7 +538,7 @@ in
             ''
         )}
 
-        // Screensaver toggle — runs hostname text effects in a fullscreen terminal.
+        // Screensaver toggle — runs branding text effects in a fullscreen terminal.
         Mod+Ctrl+S { spawn "screensaver"; }
 
         // Notification control

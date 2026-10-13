@@ -1,5 +1,7 @@
 {
+  config,
   lib,
+  pkgs,
   unstable-pkgs,
   hostName,
   isVm ? false,
@@ -7,6 +9,64 @@
 }:
 
 let
+  trackerBrowserTrust = pkgs.writeShellApplication {
+    name = "tracker-browser-trust";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
+      pkgs.nssTools
+      pkgs.openssl
+    ];
+    text = ''
+      database=''${1:?Expected NSS database directory}
+      certificate=${../../certs/tracker-local-ca.pem}
+      nickname=tracker-local-vm-ca
+      expected_fingerprint=16666DC0116CEB3FFA0C56B2A4D1D4AFF7378F36938AD44817097C847C9F6EE1
+      if [[ "$database" != /* || "$database" == / ]]; then
+        echo 'Expected an absolute NSS database directory' >&2
+        exit 1
+      fi
+      fingerprint() {
+        openssl x509 -noout -fingerprint -sha256 | cut -d= -f2 | tr -d ':'
+      }
+      if [[ "$(fingerprint < "$certificate")" != "$expected_fingerprint" ]]; then
+        echo 'Tracker CA changed; review the public certificate before updating trust' >&2
+        exit 1
+      fi
+      openssl verify -CAfile "$certificate" "$certificate" >/dev/null
+      umask 077
+      if [[ ! -d "$database" ]]; then
+        install -d -m 700 "$database"
+      fi
+      if [[ ! -f "$database/cert9.db" ]]; then
+        if [[ -e "$database/key4.db" || -e "$database/cert8.db" || -e "$database/key3.db" ]]; then
+          echo 'Existing NSS database needs explicit migration; leaving it unchanged' >&2
+          exit 1
+        fi
+        certutil -N --empty-password -d "sql:$database"
+      fi
+      current_trust=$(certutil -L -d "sql:$database" | awk -v name="$nickname" '$1 == name {print $2}')
+      if [[ -n "$current_trust" ]]; then
+        current_fingerprint=$(certutil -L -d "sql:$database" -n "$nickname" -a | fingerprint)
+        if [[ "$current_fingerprint" != "$expected_fingerprint" ]]; then
+          echo 'Managed Tracker NSS nickname contains another certificate; leaving it unchanged' >&2
+          exit 1
+        fi
+        if [[ "$current_trust" == 'C,,' ]]; then
+          exit 0
+        fi
+        certutil -M -d "sql:$database" -n "$nickname" -t 'C,,'
+      else
+        certutil -A -d "sql:$database" -n "$nickname" -t 'C,,' -i "$certificate"
+      fi
+      actual_fingerprint=$(certutil -L -d "sql:$database" -n "$nickname" -a | fingerprint)
+      actual_trust=$(certutil -L -d "sql:$database" | awk -v name="$nickname" '$1 == name {print $2}')
+      if [[ "$actual_fingerprint" != "$expected_fingerprint" || "$actual_trust" != 'C,,' ]]; then
+        echo 'Tracker CA trust verification failed' >&2
+        exit 1
+      fi
+    '';
+  };
 
   # IMPORTANT: Chromium's command-line parser stores switches in a map
   # keyed by switch name, so passing --enable-features= (or
@@ -117,6 +177,17 @@ let
   });
 in
 {
+  home.activation.trackerBrowserTrust = lib.mkIf (hostName == "prl-dev-vm") (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      # Chromium uses the legacy NSS directory when present, otherwise XDG.
+      tracker_nss_database=${lib.escapeShellArg "${config.xdg.dataHome}/pki/nssdb"}
+      if [ -d ${lib.escapeShellArg "${config.home.homeDirectory}/.pki/nssdb"} ]; then
+        tracker_nss_database=${lib.escapeShellArg "${config.home.homeDirectory}/.pki/nssdb"}
+      fi
+      run ${trackerBrowserTrust}/bin/tracker-browser-trust "$tracker_nss_database"
+    ''
+  );
+
   # Brave Browser configuration using unstable version
   programs.brave = {
     enable = true;

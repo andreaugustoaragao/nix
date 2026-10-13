@@ -25,6 +25,7 @@ autoLogin = false
 useDms = false
 
 [machines.prl-dev-vm]
+isWorkMachine = true
 hostName = "prl-dev-vm"
 platform = "aarch64-linux"
 profile = "vm"
@@ -48,6 +49,7 @@ address = "10.211.55.5"
 # hardware/<host>/hardware-configuration.nix — vmw_pvscsi/vmxnet3 and
 # virtualisation.vmware.guest replace the Parallels guest agent.
 [machines.vmw-dev-vm]
+isWorkMachine = true
 hostName = "vmw-dev-vm"
 platform = "aarch64-linux"
 profile = "vm"
@@ -73,6 +75,7 @@ useDms = false
 # a sentinel: system/ modules are not imported, so the legacy
 # isWorkstation/isLaptop/isVm/isServer booleans all stay false.
 [machines.mac-work]
+isWorkMachine = true
 hostName = "mac-work"
 platform = "aarch64-darwin"
 profile = "darwin"

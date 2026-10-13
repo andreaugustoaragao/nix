@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  hostName,
   osConfig,
   pkgs,
   unstable-pkgs,
@@ -215,6 +216,7 @@ in
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"
     mkdir -p "$(dirname "$target")"
+    codex_config_tmp="$(mktemp "$target.XXXXXX")"
 
     base_url=""
     if [[ -f "${baseUrlSecretPath}" ]]; then
@@ -231,16 +233,51 @@ in
       # Substitute via sed -- the placeholder token is distinctive so
       # no false positives on real config syntax.
       ${pkgs.gnused}/bin/sed "s|@@LITELLM_BASE_URL@@|$base_url|g" \
-        "${configTomlTemplateFile}" > "$target.tmp"
-      mv "$target.tmp" "$target"
+        "${configTomlTemplateFile}" > "$codex_config_tmp"
     else
       # No secret yet: copy the template verbatim so the file still
       # exists and codex can be configured later by hand. The
       # placeholder will cause codex requests to fail loudly, which
       # is the desired behavior on an unprovisioned host.
-      cp "${configTomlTemplateFile}" "$target.tmp"
-      mv "$target.tmp" "$target"
+      cp "${configTomlTemplateFile}" "$codex_config_tmp"
     fi
+    ${lib.optionalString (hostName == "prl-dev-vm") ''
+      # The installer owns this private fragment; keys stay outside the Nix store.
+      if ! ${pkgs.python3}/bin/python3 - "$codex_config_tmp" \
+        ${lib.escapeShellArg "${config.xdg.dataHome}/tracker-capture/codex.toml"} \
+        ${lib.escapeShellArg "${config.xdg.dataHome}/tracker-capture/connection.json"} <<'PY'
+      import os, stat, sys, tomllib
+      from pathlib import Path
+
+      target, fragment, marker = map(Path, sys.argv[1:])
+      try:
+          content = target.read_bytes()
+          if fragment.exists() or fragment.is_symlink():
+              descriptor = os.open(fragment, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+              with os.fdopen(descriptor, "rb") as stream:
+                  info = os.fstat(stream.fileno())
+                  if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+                      raise ValueError("Unsafe Tracker fragment")
+                  block = stream.read()
+              settings = tomllib.loads(block.decode())
+              if (set(settings) != {"mcp_servers", "otel"}
+                  or not isinstance(settings["mcp_servers"], dict)
+                  or set(settings["mcp_servers"]) != {"tracker_capture"}):
+                  raise ValueError("Unexpected Tracker settings")
+              content += b"\n" + block
+          elif marker.exists() or marker.is_symlink():
+              raise ValueError("Missing installed Tracker fragment")
+          tomllib.loads(content.decode())
+          target.write_bytes(content)
+      except (OSError, ValueError):
+          sys.exit("Codex configuration was preserved: Tracker fragment is missing, unsafe, or invalid.")
+      PY
+      then
+        rm -f "$codex_config_tmp"
+        exit 1
+      fi
+    ''}
+    mv "$codex_config_tmp" "$target"
     chmod 0600 "$target"
   '';
 }

@@ -154,6 +154,8 @@
           overlays = [ ];
         };
         isWorkstation = host.profile == "workstation";
+        # Branding follows ownership, independently of the hardware profile.
+        isWorkMachine = host.isWorkMachine or false;
         isLaptop = host.profile == "laptop";
         isVm = builtins.elem host.profile [
           "vm"

@@ -167,21 +167,32 @@ let
   '';
 
   concatCallPy = pkgs.writeText "record-call-concat.py" ''
-    import pathlib, sys, wave
+    import hashlib, json, math, pathlib, re, stat, sys, wave
 
     source_dir = pathlib.Path(sys.argv[1]).resolve()
     destination = pathlib.Path(sys.argv[2])
-    sources = sorted(source_dir.glob("call_*.wav"))
-    if not sources:
+    with open(source_dir.parent / ".record-call/state.json") as handle:
+        fragments = json.load(handle)["fragments"]["call"]
+    if not isinstance(fragments, list) or not fragments:
         sys.stderr.write("No call fragments found\n")
         raise SystemExit(1)
 
     expected = (1, 2, 16000, "NONE")
     with wave.open(str(destination), "wb") as output:
         output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
-        for path in sources:
-            if path.is_symlink() or path.parent.resolve() != source_dir:
-                raise SystemExit(f"Invalid call fragment: {path}")
+        cursor = 0
+        for fragment in sorted(fragments, key=lambda item: item["startMs"]):
+            path = pathlib.Path(fragment["path"])
+            start, end = fragment["startMs"], fragment["endMs"]
+            if (path.is_symlink() or path.parent.resolve() != source_dir
+                    or not re.fullmatch(r"call_\d{6}\.wav", path.name)
+                    or not all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                               and math.isfinite(value) for value in (start, end))
+                    or start < 0 or end <= start or not stat.S_ISREG(path.stat().st_mode)):
+                raise SystemExit("Invalid call fragment")
+            with path.open("rb") as content:
+                if hashlib.file_digest(content, "sha256").hexdigest() != fragment["sha256"]:
+                    raise SystemExit("Call fragment changed")
             with wave.open(str(path), "rb") as source:
                 actual = (
                     source.getnchannels(),
@@ -189,9 +200,18 @@ let
                     source.getframerate(),
                     source.getcomptype(),
                 )
-                if actual != expected:
-                    raise SystemExit(f"Invalid call fragment format: {path}")
-                output.writeframes(source.readframes(source.getnframes()))
+                if actual != expected or abs(source.getnframes() / 16 - (end - start)) > 1:
+                    raise SystemExit("Invalid call fragment format")
+                position = round(start * 16)
+                while cursor < position:
+                    padding = min(position - cursor, 65536)
+                    output.writeframes(b"\0\0" * padding)
+                    cursor += padding
+                skip = max(0, cursor - position)
+                if skip < source.getnframes():
+                    source.setpos(skip)
+                    output.writeframes(source.readframes(source.getnframes() - skip))
+                    cursor = position + source.getnframes()
   '';
 
   # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
@@ -615,7 +635,7 @@ in
             # Capture and finalization share one owned user-unit lifecycle.
             # Public status is structured; legacy session.env is never sourced.
             case "''${1:-help}" in
-              start|stop|status|retry|salvage|retry-diarization|diarize|route|tail)
+              start|stop|status|retry|salvage|retry-diarization|diarize|organize|mark-processed|clear-processed|route|tail)
                 exec python3 ${./record-call-session.py} --config ${sessionConfig} "$@"
                 ;;
             esac
@@ -819,6 +839,7 @@ in
         record-call retry <dir>          Resume failed retained transcription
         record-call salvage <dir>        Transcribe verified audio after an unknown capture end
         record-call retry-diarization <dir> Retry participant labeling only
+        record-call organize <dir>       Refresh transcript/diarization folder labels
         record-call transcribe <wav>     Offline: transcribe an existing audio file
         record-call dedupe <dir|txt>     Collapse near-duplicate lines within ~6s
         record-call turns <dir|txt> [gap]   Group lines into speaker turns (default gap=8s)
@@ -841,8 +862,10 @@ in
           into "you" / "Thanks for watching." lines. The user's mic is
           prefixed "Me:"; the call side is unlabeled.
         * At stop, capture ends immediately and final partial audio is retained.
-          Only verified complete transcripts publish a ready recording.json.
-          Failed work remains incomplete and can be retried without duplicate text.
+          Verified transcripts with complete coverage or only brief, located
+          audio gaps publish a ready recording.json. Gap details remain in
+          coverage; failed work remains incomplete and can be retried without
+          duplicate text.
 
       If a stream isn't auto-routed, move it to Record-Call-Sink via
       pavucontrol (Playback tab) or by running 'record-call route'.

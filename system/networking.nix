@@ -3,6 +3,7 @@
   lib,
   wirelessInterface,
   hostName,
+  kubernetesVmAddress,
   isVm,
   isServer,
   ...
@@ -232,11 +233,8 @@
     ]
     ++ lib.optionals (hostName == "workstation") [ "llm.local" ];
 
-  # `infinity.local` — k3s istio-ingress lives on the host's LAN interface,
-  # because svclb's PREROUTING DNAT only fires on routed packets, not on
-  # loopback. Point at the VM's own LAN IP (matches the workstation pattern
-  # at 192.168.10.75 above).
-  networking.hosts."10.211.55.4" = lib.mkIf (hostName == "prl-dev-vm") [
+  # The Parallels desktop uses ingress on the dedicated Kubernetes VM.
+  networking.hosts.${kubernetesVmAddress} = lib.mkIf (hostName == "prl-dev-vm") [
     "infinity.local"
   ];
   networking.hosts."192.168.150.5" = lib.mkIf (hostName == "vmw-dev-vm") [

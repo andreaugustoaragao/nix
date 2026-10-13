@@ -181,6 +181,7 @@ in
       ]
       ++ lib.optionals (hostName == "prl-dev-vm") [
         "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
+        "FULCRUM_RECORD_CALL_BIN=/etc/profiles/per-user/${config.home.username}/bin/record-call"
         "FULCRUM_RECORDING_GOG_BIN=${pkgs.gogcli}/bin/gog"
         "FULCRUM_RECORDING_GOOGLE_ACCOUNT=aragao@avaya.com"
         "FULCRUM_RECORDING_BROWSER_BIN=${pkgs.callPackage ../../pkgs/dev-browser.nix { }}/bin/dev-browser"

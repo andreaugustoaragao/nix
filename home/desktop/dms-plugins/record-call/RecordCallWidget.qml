@@ -19,6 +19,7 @@ PluginComponent {
     property bool retryable: false
     property bool salvageable: false
     property bool hasPartialTranscript: false
+    property bool minorGaps: false
     property string diarizationStatus: "pending"
     property string diarizationFailureCode: ""
     property int diarizedSpeakers: 0
@@ -66,11 +67,12 @@ PluginComponent {
                  " — click to start another recording");
         }
         if (root.phase === "ready") {
+            var gapWarning = root.minorGaps ? " Brief audio gaps were recorded; some speech may be missing." : "";
             if (root.diarizationStatus === "failed")
-                return "Transcript ready; participant labeling failed — click to retry diarization; right-click to start another recording";
+                return "Transcript ready; participant labeling failed — click to retry diarization; right-click to start another recording." + gapWarning;
             if (root.diarizationStatus === "ready")
-                return "Speaker-labeled transcript ready — click to start recording";
-            return "Transcript ready — click to start recording";
+                return "Speaker-labeled transcript ready — click to start recording." + gapWarning;
+            return "Transcript ready — click to start recording." + gapWarning;
         }
         return root.recording
             ? "Recording " + root.elapsedText() +
@@ -139,6 +141,7 @@ PluginComponent {
                 root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
                 root.salvageable = !!(state.salvageable && root.outputDir);
                 root.hasPartialTranscript = !!(state.status === "incomplete" && state.source && state.source.transcript);
+                root.minorGaps = !!(state.coverage && state.coverage.acceptedMinorGaps);
                 var issues = Array.isArray(state.captureIssues) ? state.captureIssues : [];
                 var affected = [];
                 for (var issue of issues) {

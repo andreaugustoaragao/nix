@@ -5,8 +5,9 @@ window receipts live under .record-call. No shell state file is ever evaluated.
 """
 import argparse
 import array
+import ctypes
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import csv
 from datetime import datetime, timezone
 import fcntl
@@ -19,6 +20,7 @@ from pathlib import Path
 import re
 import shlex
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,6 +33,13 @@ from zoneinfo import ZoneInfo
 SIDES = ("call", "mic")
 ACTIVE = ("starting", "recording", "finalizing", "diarizing")
 EDGE_TOLERANCE_MS = 1000
+MIN_MINOR_GAP_DURATION_MS = 5 * 60 * 1000
+MAX_MINOR_GAP_MS = 2000
+MAX_MINOR_GAPS_PER_SIDE_MS = 5000
+MAX_MINOR_GAP_FRACTION = 0.005
+MINOR_GAP_REASONS = frozenset((
+    "capture_gap", "capture_restarted", "routing_uncertain", "microphone_source_uncertain",
+))
 MAX_CAPTURE_CLOCK_DRIFT_PPM = 1500
 MAX_CAPTURE_END_TOLERANCE_MS = 30000
 CAPTURE_STALL_SECONDS = 8
@@ -235,20 +244,71 @@ def uncovered(captured, covered):
 
 
 def bounded_missing(items, duration_ms):
-    """The public contract uses an ordered union inside the capture interval."""
-    result = []
-    for item in sorted(items, key=lambda value: value["startMs"]):
+    """Return disjoint ranges without hiding an overlapping failure reason."""
+    clipped = []
+    for item in items:
         start, end = max(0, item["startMs"]), min(duration_ms, item["endMs"])
-        if start >= end:
+        if start < end:
+            clipped.append({"startMs": start, "endMs": end, "reason": item["reason"]})
+    points = sorted({point for item in clipped for point in (item["startMs"], item["endMs"])})
+    result = []
+    for start, end in zip(points, points[1:]):
+        active = [item["reason"] for item in clipped if item["startMs"] <= start and item["endMs"] >= end]
+        if not active:
             continue
-        if result and start < result[-1]["endMs"]:
-            previous = result[-1]
-            previous["endMs"] = max(previous["endMs"], end)
-            if previous["reason"] == "not_transcribed":
-                previous["reason"] = item["reason"]
+        # Missing ASR and process faults take precedence over capture gaps;
+        # capture gaps keep their exact measured span when routing uncertainty
+        # or a brief restart overlaps them.
+        reason = min(active, key=lambda value: (
+            0 if value == "not_transcribed" else
+            1 if value not in MINOR_GAP_REASONS else
+            2 if value == "capture_gap" else 3, value))
+        if result and result[-1]["endMs"] == start and result[-1]["reason"] == reason:
+            result[-1]["endMs"] = end
         else:
-            result.append({"startMs": start, "endMs": end, "reason": item["reason"]})
+            result.append({"startMs": start, "endMs": end, "reason": reason})
     return result
+
+
+def accepts_minor_gaps(coverage, gaps, captured, transcribed):
+    """Accept short, located capture interruptions without calling them complete."""
+    duration = coverage["durationMs"]
+    if coverage["complete"] or duration < MIN_MINOR_GAP_DURATION_MS:
+        return False
+    if not any(coverage["sides"][side]["missing"] for side in SIDES):
+        return False
+    # A stop/process fault outside the published interval must not disappear
+    # when public missing ranges are clipped to the recording duration.
+    if any(gap["side"] not in SIDES or gap["reason"] not in MINOR_GAP_REASONS
+           or not 0 <= gap["startMs"] < gap["endMs"] <= duration
+           for gap in gaps):
+        return False
+    budget = min(MAX_MINOR_GAPS_PER_SIDE_MS, duration * MAX_MINOR_GAP_FRACTION)
+    for side in SIDES:
+        value = coverage["sides"][side]
+        start, end = value["captureStartMs"], value["captureEndMs"]
+        missing = value["missing"]
+        capture_gap_ms = sum(gap["endMs"] - gap["startMs"] for gap in missing
+                             if gap["reason"] == "capture_gap")
+        if (start is None or end is None or start < 0 or start > EDGE_TOLERANCE_MS
+                or abs(end - duration) > capture_end_tolerance(duration)
+                or value["capturedMs"] != value["transcribedMs"]
+                or uncovered(captured[side], transcribed[side])
+                or value.get("sampleClockShortfallMs") is not None
+                or abs(end - start - value["capturedMs"] - capture_gap_ms) > 1
+                or sum(gap["endMs"] - gap["startMs"] for gap in missing) > budget):
+            return False
+        continuous_start = None
+        previous_end = None
+        for gap in missing:
+            if gap["reason"] not in MINOR_GAP_REASONS:
+                return False
+            if previous_end != gap["startMs"]:
+                continuous_start = gap["startMs"]
+            if gap["endMs"] - continuous_start > MAX_MINOR_GAP_MS:
+                return False
+            previous_end = gap["endMs"]
+    return True
 
 
 def calculate_coverage(captured, transcribed, duration_ms, gaps):
@@ -291,6 +351,7 @@ def calculate_coverage(captured, transcribed, duration_ms, gaps):
         # Clipping a stop failure outside the timestamp interval must not erase
         # its effect on readiness, even when no positive public range remains.
         result["complete"] &= bool(spans) and not has_missing and not side_gaps and side_result["capturedMs"] == side_result["transcribedMs"]
+    result["acceptedMinorGaps"] = accepts_minor_gaps(result, gaps, captured, transcribed)
     return result
 
 
@@ -385,9 +446,16 @@ class Session:
     def __init__(self, directory, config):
         self.directory = Path(directory).resolve()
         self.private = self.directory / ".record-call"
+        directory_stat = os.stat(self.directory, follow_symlinks=False)
+        if not stat.S_ISDIR(directory_stat.st_mode):
+            raise Failure("recovery", "recording_directory_changed", False)
+        self.directory_identity = (directory_stat.st_dev, directory_stat.st_ino)
         self.config = config
         self.manifest = read_json(self.directory / "recording.json")
         self.state = read_json(self.private / "state.json")
+        prior_directory = self.state.get("directoryPath")
+        if prior_directory and Path(prior_directory) != self.directory:
+            rebase_state_paths(self.state, Path(prior_directory), self.directory)
         self.captures = {}
         self.capture_activity = {}
         self.capture_stop_requested = set()
@@ -398,12 +466,40 @@ class Session:
         return subprocess.run([self.config[name], *map(str, arguments)], check=True, **kwargs)
 
     def persist(self):
+        self.verify_directory_identity()
         self.manifest["revision"] += 1
         atomic_json(self.private / "state.json", self.state)
         atomic_json(self.directory / "recording.json", self.manifest)
 
     def persist_state(self):
+        self.verify_directory_identity()
         atomic_json(self.private / "state.json", self.state)
+
+    def verify_directory_identity(self):
+        try:
+            current = os.stat(self.directory, follow_symlinks=False)
+        except FileNotFoundError:
+            raise Failure("recovery", "recording_directory_changed", False) from None
+        if not stat.S_ISDIR(current.st_mode) or (current.st_dev, current.st_ino) != self.directory_identity:
+            raise Failure("recovery", "recording_directory_changed", False)
+
+    def adopt_renamed_directory(self, original):
+        base = recording_base_name(original, self.state)
+        for suffix in ("-transcribed", "-transcribed-diarized", "-transcribed-processed",
+                       "-transcribed-diarized-processed"):
+            target = original.with_name(base + suffix)
+            try:
+                current = os.stat(target, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISDIR(current.st_mode) and (current.st_dev, current.st_ino) == self.directory_identity:
+                # The kernel rename committed. Follow the same inode before a
+                # metadata/fsync failure can cause a write at the stale path.
+                self.directory = target
+                self.private = target / ".record-call"
+                rebase_state_paths(self.state, original, target)
+                return True
+        return False
 
     def elapsed(self):
         return round((time.monotonic() - self.started_monotonic) * 1000)
@@ -624,7 +720,9 @@ class Session:
     def validate_diarization(self, transcript, segments):
         if not transcript.is_file() or transcript.is_symlink() or not isinstance(segments, list) or not segments or len(segments) > 100000:
             raise ValueError("invalid diarization artifacts")
-        call_seconds = sum(item["endMs"] - item["startMs"] for item in self.state["fragments"]["call"]) / 1000
+        # Diarization audio preserves the session timeline, including brief
+        # capture gaps as silence, so segment offsets use the final end time.
+        call_seconds = max((item["endMs"] for item in self.state["fragments"]["call"]), default=0) / 1000
         speakers = set()
         previous_start = -1
         for segment in segments:
@@ -920,8 +1018,12 @@ class Session:
             last_growth = self.capture_activity.get(side, {}).get("changedAt")
             if last_growth is not None:
                 gap_start = max(0, observed_at - max(0, round((time.monotonic() - last_growth) * 1000)))
+        # A child exit or stalled reader is a capture fault, even when the
+        # restart is quick. Keep that cause in public coverage so a later
+        # long recording cannot admit it as an ordinary minor interruption.
+        reason = code if code in ("capture_stalled", "capture_process_exited") else "capture_restarted"
         gap = {"side": side, "startMs": gap_start,
-               "endMs": max(gap_start + 1, observed_at), "reason": "capture_restarted"}
+               "endMs": max(gap_start + 1, observed_at), "reason": reason}
         self.state["gaps"].append(gap)
         journal_event({"event": "record_call_capture_fault", "level": "warning", **issue})
         self.persist_state()
@@ -1305,7 +1407,26 @@ class Session:
         self.verify_retained_audio()
         self.transcribe_retained_audio()
         self.refresh_coverage()
-        if not self.manifest["coverage"]["complete"]:
+        if initial_status != "ready":
+            self.state["finalizationStage"] = "transcribed"
+            self.persist()
+            # The worker already owns writer.lock. Its rename does not take
+            # command.lock: other commands can resolve the atomic current
+            # pointer or its same-ID rename recovery while finalization runs.
+            if self.state.get("invocationId") and os.environ.get("INVOCATION_ID") == self.state["invocationId"]:
+                original = self.directory
+                try:
+                    organized = organize_recording(original, self.config, active_owner=True)
+                    if organized != original and not self.adopt_renamed_directory(original):
+                        raise Failure("organization", "rename_recovery_failed", False)
+                except (Failure, OSError) as error:
+                    if not self.adopt_renamed_directory(original):
+                        # An unchanged source may be organized after cleanup.
+                        # A lost source must never be recreated by persistence.
+                        self.verify_directory_identity()
+                    journal_event({"event": "record_call_directory_organization", "level": "warning",
+                                   "code": error.code if isinstance(error, Failure) else "rename_failed"})
+        if not (self.manifest["coverage"]["complete"] or self.manifest["coverage"]["acceptedMinorGaps"]):
             raise Failure("capture", "incomplete_audio_coverage", False)
         if initial_status != "ready":
             self.attempt_diarization()
@@ -1382,7 +1503,292 @@ def state_root():
 
 def current_directory():
     pointer = state_root() / "current.json"
-    return Path(read_json(pointer)["directory"]) if pointer.exists() else None
+    if not pointer.exists():
+        return None
+    value = read_json(pointer)
+    directory = Path(value["directory"])
+    if not directory.exists():
+        candidates = []
+        bases = {directory.name, re.sub(r"-transcribed(?:-diarized)?(?:-processed)?$", "", directory.name)}
+        for base in bases:
+            for suffix in ("", "-transcribed", "-transcribed-diarized", "-transcribed-processed",
+                           "-transcribed-diarized-processed"):
+                candidate = directory.with_name(base + suffix)
+                manifest = candidate / "recording.json"
+                if (candidate.is_dir() and not candidate.is_symlink() and manifest.is_file()
+                        and not manifest.is_symlink()
+                        and read_json(manifest).get("recordingId") == value.get("recordingId")
+                        and candidate not in candidates):
+                    candidates.append(candidate)
+        if len(candidates) == 1:
+            return candidates[0]
+    return directory
+
+
+def rename_noreplace(directory, target, parent=None, source_stat=None):
+    owned_parent = parent is None
+    if owned_parent:
+        parent = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if source_stat is not None:
+            current = os.stat(directory.name, dir_fd=parent, follow_symlinks=False)
+            if ((current.st_dev, current.st_ino) != (source_stat.st_dev, source_stat.st_ino)
+                    or not stat.S_ISDIR(current.st_mode)):
+                raise Failure("organization", "recording_changed", False)
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = libc.renameat2
+        renameat2.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+                              ctypes.c_uint)
+        renameat2.restype = ctypes.c_int
+        if renameat2(parent, os.fsencode(directory.name), parent, os.fsencode(target.name), 1) != 0:
+            code = ctypes.get_errno()
+            raise OSError(code, os.strerror(code), str(target))
+        os.fsync(parent)
+    finally:
+        if owned_parent:
+            os.close(parent)
+
+
+def read_json_at(directory, name):
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    with os.fdopen(descriptor) as source:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise Failure("organization", "recording_state_missing", False)
+        return json.load(source)
+
+
+def atomic_json_at(directory, name, value):
+    temporary = f".{name}.{uuid.uuid4().hex}"
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                         0o600, dir_fd=directory)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write((json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n").encode())
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+        os.fsync(directory)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+
+
+@contextmanager
+def locked_existing_at(directory, name):
+    descriptor = os.open(name, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    with os.fdopen(descriptor) as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise Failure("organization", "recording_state_missing", False)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Failure("recovery", "recording_busy") from None
+        yield
+
+
+@contextmanager
+def opened_directory(path, parent=None):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+    try:
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def recording_base_name(path, state):
+    base = state.get("directoryBaseName") or re.sub(
+        r"-transcribed(?:-diarized)?(?:-processed)?$", "", path.name)
+    if not isinstance(base, str) or not base or base in (".", "..") or Path(base).name != base:
+        raise Failure("organization", "invalid_directory_name", False)
+    return base
+
+
+def rebase_state_paths(state, old, new):
+    for side in SIDES:
+        for fragment in state["fragments"][side]:
+            path = Path(fragment["path"]) if isinstance(fragment.get("path"), str) else None
+            if path is not None and path.is_relative_to(old):
+                fragment["path"] = str(new / path.relative_to(old))
+        for run in state["runs"][side]:
+            path = Path(run["list"]) if isinstance(run.get("list"), str) else None
+            if path is not None and path.is_relative_to(old):
+                run["list"] = str(new / path.relative_to(old))
+    state["directoryPath"] = str(new)
+
+
+def organize_recording(directory, config, expected_id=None, expected_revision=None,
+                       expected_sha=None, processed=False, active_owner=False,
+                       invalidate_processed=False, expected_path=None):
+    if processed and invalidate_processed:
+        raise Failure("organization", "invalid_milestone_request", False)
+    if (processed or invalidate_processed) and (not expected_id or expected_revision is None
+                                              or not expected_sha or (invalidate_processed and not expected_path)):
+        raise Failure("organization", "expected_recording_required", False)
+    with (nullcontext() if active_owner else locked(state_root() / "command.lock")):
+        path = Path(os.path.abspath(directory))
+        with opened_directory(path.parent) as parent, \
+             opened_directory(path.name, parent) as recording, \
+             opened_directory(".record-call", recording) as private, \
+             (nullcontext() if active_owner else locked_existing_at(private, "writer.lock")):
+            recording_stat = os.fstat(recording)
+            manifest, state = read_json_at(recording, "recording.json"), read_json_at(private, "state.json")
+            if manifest.get("recordingId") != state.get("recordingId"):
+                raise Failure("organization", "recording_state_mismatch", False)
+            base = recording_base_name(path, state)
+            if path.name not in (base, base + "-transcribed", base + "-transcribed-diarized",
+                                 base + "-transcribed-processed", base + "-transcribed-diarized-processed"):
+                raise Failure("organization", "invalid_directory_name", False)
+            prior_directory = state.get("directoryPath")
+            if prior_directory and Path(prior_directory) != path:
+                rebase_state_paths(state, Path(prior_directory), path)
+            if expected_id is not None and (manifest["recordingId"] != expected_id
+                    or manifest["revision"] != expected_revision):
+                raise Failure("organization", "recording_changed", False)
+            revocation_pending = bool(state.get("processedRevocationPending"))
+            transcript = manifest["source"]["transcript"]
+            revoking = invalidate_processed or revocation_pending
+            receipt_matches = (state.get("processedTranscriptSha") == expected_sha
+                               and state.get("processedTranscriptPath") == expected_path)
+            source_matches = (isinstance(transcript, dict) and transcript.get("sha256") == expected_sha
+                              and (expected_path is None or transcript.get("path") == expected_path))
+            missing_published_source = (revoking and transcript is None and (
+                receipt_matches if invalidate_processed else
+                revocation_pending and isinstance(state.get("processedTranscriptSha"), str)
+                and isinstance(state.get("processedTranscriptPath"), str)))
+            if ((processed or invalidate_processed) and not source_matches
+                    and not (invalidate_processed and receipt_matches)):
+                raise Failure("organization", "recording_changed", False)
+            coverage = manifest.get("coverage")
+            sides = coverage.get("sides") if isinstance(coverage, dict) else None
+            retained_transcribed = (isinstance(sides, dict) and all(
+                isinstance(sides.get(side), dict)
+                and isinstance(sides[side].get("capturedMs"), (int, float))
+                and not isinstance(sides[side]["capturedMs"], bool)
+                and math.isfinite(sides[side]["capturedMs"])
+                and sides[side]["capturedMs"] >= 0
+                and sides[side]["capturedMs"] == sides[side].get("transcribedMs")
+                for side in SIDES))
+            capture_failure = manifest.get("failure")
+            legacy_transcribed = (manifest["status"] == "incomplete"
+                                  and state.get("finalizationStage") == "transcribing"
+                                  and manifest.get("finalizedAt") is not None
+                                  and isinstance(capture_failure, dict)
+                                  and capture_failure.get("stage") == "capture"
+                                  and capture_failure.get("code") == "incomplete_audio_coverage"
+                                  and retained_transcribed)
+            transcribed_stage = (manifest["status"] in ("finalizing", "incomplete")
+                                 and (state.get("finalizationStage") == "transcribed" or legacy_transcribed)
+                                 and manifest.get("endedAt") is not None
+                                 and isinstance(transcript, dict) and transcript.get("path") == "transcript.turns.txt")
+            if ((manifest["status"] != "ready" and not transcribed_stage and not revoking)
+                    or not isinstance(transcript, dict) and not missing_published_source):
+                if processed:
+                    raise Failure("organization", "transcript_not_ready", False)
+                return path
+            source_name = (transcript.get("path", "") if isinstance(transcript, dict)
+                           else expected_path or state.get("processedTranscriptPath"))
+            if (not isinstance(source_name, str) or Path(source_name).name != source_name
+                    or source_name in ("", ".", "..")):
+                raise Failure("organization", "invalid_transcript", False)
+            source_verified = False
+            if isinstance(transcript, dict):
+                try:
+                    source = os.open(source_name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                     dir_fd=recording)
+                    with os.fdopen(source, "rb") as content:
+                        source_stat = os.fstat(content.fileno())
+                        source_verified = (stat.S_ISREG(source_stat.st_mode)
+                                           and source_stat.st_size == transcript.get("bytes")
+                                           and hashlib.file_digest(content, "sha256").hexdigest() == transcript.get("sha256"))
+                except OSError:
+                    if not revoking:
+                        raise
+            if not source_verified and not revoking:
+                raise Failure("organization", "transcript_changed", False)
+            invocation = state.get("invocationId")
+            if active_owner:
+                # Called only by the worker while it holds this writer lock.
+                # Its systemd invocation and boot identity are the same owned
+                # handoff that run() records before starting finalization.
+                if (not invocation or os.environ.get("INVOCATION_ID") != invocation
+                        or state.get("bootId") != boot_id()):
+                    raise Failure("organization", "recording_busy", False)
+            elif not invocation:
+                raise Failure("organization", "recording_busy", False)
+            elif state.get("cleanupCompletedInvocationId") != invocation:
+                # A worker may have persisted READY and then crashed before
+                # ExecStopPost wrote its private cleanup receipt. The command
+                # and writer locks are held here; only a stopped systemd owner
+                # can be recovered without changing the public revision.
+                if not state.get("bootId") or not state.get("unit"):
+                    raise Failure("organization", "recording_busy", False)
+                properties = owner_properties(state, config)
+                if properties.get("ActiveState") not in ("inactive", "failed"):
+                    raise Failure("organization", "recording_busy", False)
+                if state["bootId"] == boot_id():
+                    recovered = Session(path, config)
+                    recovered.cleanup_modules()
+                    if recovered.state.get("cleanupWarning"):
+                        state["cleanupWarning"] = recovered.state["cleanupWarning"]
+                state["cleanupCompletedInvocationId"] = invocation
+                atomic_json_at(private, "state.json", state)
+            publishable_incomplete = (manifest["status"] == "incomplete" and transcribed_stage
+                                      and manifest.get("finalizedAt") is not None
+                                      and isinstance(capture_failure, dict)
+                                      and capture_failure.get("stage") == "capture"
+                                      and capture_failure.get("code") == "incomplete_audio_coverage"
+                                      and transcript.get("speechTurns", 0) > 0)
+            if processed and manifest["status"] != "ready" and not publishable_incomplete:
+                raise Failure("organization", "transcript_not_ready", False)
+            if processed and state.get("processedRevocationPending"):
+                raise Failure("organization", "revocation_pending", False)
+            if invalidate_processed:
+                # Keep the prior receipt until the no-replace rename commits.
+                # A collision or crash before that point must remain retryable.
+                state["processedRevocationPending"] = True
+            elif processed:
+                state["processedTranscriptSha"] = expected_sha
+                state["processedTranscriptPath"] = source_name
+            # The READY manifest pins this immutable, hash-checked artifact.
+            # A later failed diarization attempt must not erase an achieved label.
+            diarized = source_verified and bool(re.fullmatch(
+                r"transcript\.diarized\.(?:[0-9a-f]{32}\.)?turns\.txt", source_name))
+            marked_processed = (not state.get("processedRevocationPending") and source_verified
+                                and state.get("processedTranscriptSha") == transcript["sha256"]
+                                and state.get("processedTranscriptPath") == source_name)
+            if not marked_processed and not state.get("processedRevocationPending"):
+                if (state.get("processedTranscriptSha") is not None
+                        or state.get("processedTranscriptPath") is not None):
+                    # A verified replacement also revokes the old publication.
+                    # Keep its receipt until the directory loses -processed.
+                    state["processedRevocationPending"] = True
+            state["directoryBaseName"] = base
+            state.setdefault("directoryPath", str(path))
+            atomic_json_at(private, "state.json", state)
+            suffix = ("-transcribed" + ("-diarized" if diarized else "")
+                      + ("-processed" if marked_processed else "")) if source_verified else ""
+            target = path.with_name(base + suffix)
+            if target != path:
+                try:
+                    rename_noreplace(path, target, parent, recording_stat)
+                except FileExistsError:
+                    raise Failure("organization", "milestone_name_exists", False) from None
+            rebase_state_paths(state, Path(state["directoryPath"]), target)
+            if state.get("processedRevocationPending"):
+                state.pop("processedTranscriptSha", None)
+                state.pop("processedTranscriptPath", None)
+                state.pop("processedRevocationPending", None)
+            atomic_json_at(private, "state.json", state)
+            pointer = state_root() / "current.json"
+            if pointer.exists():
+                current = read_json(pointer)
+                prior = Path(current["directory"])
+                if (current.get("recordingId") == manifest["recordingId"] and prior.parent == path.parent
+                        and recording_base_name(prior, state) == base):
+                    atomic_json(pointer, {**current, "directory": str(target)})
+            return target
 
 
 def status(directory, config):
@@ -1469,7 +1875,7 @@ def launch_unit(session, config_path, mode):
         session.manifest["status"] = "finalizing" if mode in ("retry", "salvage") else "starting"
         session.persist()
     cleanup = [session.config["python"], str(Path(__file__).resolve()), "--config", str(config_path),
-               "_cleanup", str(session.directory)]
+               "_cleanup", str(session.directory), "--expected-id", session.manifest["recordingId"]]
     # systemd-run parses the transient ExecStopPost arguments (no shell).
     # Disable $ expansion with ':'. Transient D-Bus argv does not perform unit
     # specifier expansion; '%' must remain literal, unlike a unit-file value.
@@ -1490,8 +1896,39 @@ def systemd_argument(value):
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r") + '"'
 
 
-def cleanup_after_owner(directory, config):
+def cleanup_after_owner(directory, config, expected_id=None):
+    original = Path(os.path.abspath(directory))
+    if not original.exists():
+        if not expected_id:
+            raise Failure("recovery", "cleanup_directory_missing", False)
+        bases = {original.name, re.sub(r"-transcribed(?:-diarized)?(?:-processed)?$", "", original.name)}
+        suffixes = ("-transcribed", "-transcribed-diarized", "-transcribed-processed",
+                    "-transcribed-diarized-processed")
+        matches = []
+        with opened_directory(original.parent) as parent:
+            for base in bases:
+                for suffix in suffixes:
+                    candidate = original.with_name(base + suffix)
+                    try:
+                        with opened_directory(candidate.name, parent) as recording, \
+                             opened_directory(".record-call", recording) as private:
+                            manifest = read_json_at(recording, "recording.json")
+                            state = read_json_at(private, "state.json")
+                            actual_base = recording_base_name(candidate, state)
+                            prior_names = (actual_base,) + tuple(actual_base + item for item in suffixes)
+                            if (manifest.get("recordingId") == expected_id == state.get("recordingId")
+                                    and state.get("invocationId") == os.environ.get("INVOCATION_ID")
+                                    and original.name in prior_names
+                                    and candidate not in matches):
+                                matches.append(candidate)
+                    except (Failure, OSError, ValueError, KeyError, TypeError):
+                        continue
+        if len(matches) != 1:
+            raise Failure("recovery", "cleanup_directory_missing", False)
+        directory = matches[0]
     session = Session(directory, config)
+    if expected_id is not None and session.manifest.get("recordingId") != expected_id:
+        raise Failure("recovery", "cleanup_owner_mismatch", False)
     invocation = os.environ.get("INVOCATION_ID")
     properties = owner_properties(session.state, config)
     if not invocation or session.state["bootId"] != boot_id() or properties.get("InvocationID") != invocation:
@@ -1520,6 +1957,12 @@ def cleanup_after_owner(directory, config):
             # READY may already be reserved by Fulcrum. Ownership cleanup must
             # not change that public descriptor or its revision after release.
             atomic_json(session.private / "state.json", session.state)
+    if session.manifest["status"] == "ready":
+        try:
+            organize_recording(session.directory, config)
+        except (Failure, OSError) as error:
+            journal_event({"event": "record_call_directory_organization", "level": "warning",
+                           "code": error.code if isinstance(error, Failure) else "rename_failed"})
 
 
 def start(directory, config, config_path):
@@ -1542,7 +1985,9 @@ def start(directory, config, config_path):
         advance = int(os.environ.get("RECORD_CALL_ADVANCE_SEC", "30")) * 1000
         if not 1000 <= fragment <= advance <= window <= 300000 or window % fragment or advance % fragment:
             raise Failure("startup", "invalid_window_configuration", False)
-        state = {"recordingId": recording_id, "unit": "", "invocationId": None, "bootId": boot_id(),
+        state = {"recordingId": recording_id, "directoryBaseName": directory.name,
+                 "directoryPath": str(directory),
+                 "unit": "", "invocationId": None, "bootId": boot_id(),
                  "sink": "record-call-" + recording_id, "modules": {}, "runs": {side: [] for side in SIDES},
                  "fragments": {side: [] for side in SIDES}, "gaps": [], "fragmentMs": fragment,
                  "windowMs": window, "advanceMs": advance, "turnGap": int(os.environ.get("RECORD_CALL_TURN_GAP_SEC", "8")),
@@ -1652,10 +2097,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("command", choices=(
-        "start", "stop", "status", "retry", "salvage", "retry-diarization", "diarize",
+        "start", "stop", "status", "retry", "salvage", "retry-diarization", "diarize", "organize", "mark-processed", "clear-processed",
         "route", "tail", "_run", "_retry", "_salvage", "_diarize", "_cleanup"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--expected-id")
+    parser.add_argument("--expected-revision", type=int)
+    parser.add_argument("--expected-sha")
+    parser.add_argument("--expected-path")
     arguments = parser.parse_args()
     config = read_json(arguments.config)
     try:
@@ -1684,7 +2133,16 @@ def main():
             mode = {"_run": "capture", "_retry": "retry", "_salvage": "salvage", "_diarize": "diarize"}[arguments.command]
             return Session(arguments.directory, config).run(mode)
         elif arguments.command == "_cleanup":
-            cleanup_after_owner(arguments.directory, config)
+            cleanup_after_owner(arguments.directory, config, arguments.expected_id)
+        elif arguments.command in ("organize", "mark-processed", "clear-processed"):
+            if not arguments.directory:
+                raise Failure("organization", "recording_directory_required", False)
+            target = organize_recording(arguments.directory, config, arguments.expected_id,
+                                        arguments.expected_revision, arguments.expected_sha,
+                                        processed=arguments.command == "mark-processed",
+                                        invalidate_processed=arguments.command == "clear-processed",
+                                        expected_path=arguments.expected_path)
+            print(json.dumps({"outputDir": str(target)}))
         elif arguments.command == "status":
             value = status(Path(arguments.directory) if arguments.directory else current_directory(), config)
             print(json.dumps(value) if arguments.json else "Recording " + value["status"] + (" — " + value["failure"]["code"] if value.get("failure") else ""))

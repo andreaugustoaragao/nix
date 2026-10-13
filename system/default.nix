@@ -70,6 +70,7 @@
     ../certs/internal-intermediate.pem
     ../certs/proxy-root.pem
     ../certs/netskope-root.pem
-  ];
+  ]
+  ++ lib.optionals (hostName == "prl-dev-vm") [ ../certs/tracker-local-ca.pem ];
 
 }

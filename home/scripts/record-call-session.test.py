@@ -199,6 +199,90 @@ class RecorderTests(unittest.TestCase):
         self.assertFalse(recorder.calculate_coverage({"call": [], "mic": []},
                                                     {"call": [], "mic": []}, 0, [])["complete"])
 
+    def test_brief_located_gaps_in_long_call_are_accepted_but_remain_visible(self):
+        # A real 29-minute call had a short routing uncertainty and capture
+        # clock restart during its first seven seconds. Every retained sample
+        # was transcribed; the missing audio must remain visible in coverage.
+        duration = 1750804
+        spans = {
+            "call": [{"startMs": 16, "endMs": 5220.375},
+                     {"startMs": 6877, "endMs": 1750851.6875}],
+            "mic": [{"startMs": 31, "endMs": 5406.0625},
+                    {"startMs": 7141, "endMs": 1750026.6875}],
+        }
+        gaps = [
+            {"side": "call", "startMs": 1651, "endMs": 2704, "reason": "routing_uncertain"},
+            {"side": "call", "startMs": 6857, "endMs": 6877, "reason": "capture_restarted"},
+            {"side": "mic", "startMs": 7126, "endMs": 7141, "reason": "capture_restarted"},
+        ]
+        coverage = recorder.calculate_coverage(spans, spans, duration, gaps)
+        self.assertFalse(coverage["complete"])
+        self.assertTrue(coverage["acceptedMinorGaps"])
+        self.assertEqual([gap["reason"] for gap in coverage["sides"]["call"]["missing"]],
+                         ["routing_uncertain", "capture_gap"])
+        self.assertEqual(coverage["sides"]["mic"]["missing"][0]["reason"], "capture_gap")
+
+    def test_minor_gap_budget_does_not_accept_substantive_or_uncertain_loss(self):
+        duration = 600000
+        whole = {side: [{"startMs": 0, "endMs": duration}] for side in recorder.SIDES}
+        for start, end, reason in ((10000, 12001, "routing_uncertain"),
+                                   (10000, 12000, "not_transcribed"),
+                                   (10000, 11000, "reader_failed"),
+                                   (duration + 1, duration + 2, "capture_restarted")):
+            with self.subTest(start=start, end=end, reason=reason):
+                coverage = recorder.calculate_coverage(whole, whole, duration, [
+                    {"side": "call", "startMs": start, "endMs": end, "reason": reason}
+                ])
+                self.assertFalse(coverage["acceptedMinorGaps"])
+        short = recorder.calculate_coverage(whole, {
+            "call": whole["call"], "mic": [{"startMs": 0, "endMs": duration - 1}]
+        }, duration, [{"side": "call", "startMs": 10000,
+                       "endMs": 11000, "reason": "routing_uncertain"}])
+        self.assertFalse(short["acceptedMinorGaps"])
+        self.assertFalse(recorder.calculate_coverage(whole, whole, 60000, [
+            {"side": "call", "startMs": 10000, "endMs": 11000, "reason": "routing_uncertain"}
+        ])["acceptedMinorGaps"])
+
+    def test_overlapped_fault_and_untranscribed_audio_cannot_become_minor_gaps(self):
+        duration = 600000
+        whole = {side: [{"startMs": 0, "endMs": duration}] for side in recorder.SIDES}
+        overlapped_fault = recorder.calculate_coverage(whole, whole, duration, [
+            {"side": "call", "startMs": 10000, "endMs": 11000, "reason": "routing_uncertain"},
+            {"side": "call", "startMs": 10500, "endMs": 10600, "reason": "reader_failed"},
+        ])
+        self.assertFalse(overlapped_fault["acceptedMinorGaps"])
+        shifted = {"call": [{"startMs": 500, "endMs": duration + 500}], "mic": whole["mic"]}
+        overlapped_asr = recorder.calculate_coverage(whole, shifted, duration, [
+            {"side": "call", "startMs": 0, "endMs": 1000, "reason": "routing_uncertain"}
+        ])
+        self.assertFalse(overlapped_asr["acceptedMinorGaps"])
+
+    def test_overlapping_restart_preserves_the_measured_capture_gap(self):
+        duration = 600000
+        spans = {"call": [{"startMs": 0, "endMs": 10000},
+                          {"startMs": 11000, "endMs": duration}],
+                 "mic": [{"startMs": 0, "endMs": duration}]}
+        coverage = recorder.calculate_coverage(spans, spans, duration, [
+            {"side": "call", "startMs": 10900, "endMs": 11003,
+             "reason": "capture_restarted"}
+        ])
+        self.assertTrue(coverage["acceptedMinorGaps"])
+        self.assertEqual(coverage["sides"]["call"]["missing"], [
+            {"startMs": 10000, "endMs": 11000, "reason": "capture_gap"},
+            {"startMs": 11000, "endMs": 11003, "reason": "capture_restarted"},
+        ])
+
+    def test_adjacent_minor_gaps_cannot_hide_one_long_interruption(self):
+        duration = 600000
+        whole = {side: [{"startMs": 0, "endMs": duration}] for side in recorder.SIDES}
+        coverage = recorder.calculate_coverage(whole, whole, duration, [
+            {"side": "call", "startMs": 10000, "endMs": 11500,
+             "reason": "routing_uncertain"},
+            {"side": "call", "startMs": 11500, "endMs": 13000,
+             "reason": "capture_restarted"},
+        ])
+        self.assertFalse(coverage["acceptedMinorGaps"])
+
     def test_missing_ranges_are_ordered_disjoint_and_bounded(self):
         spans = {side: [{"startMs": 0, "endMs": 1000}] for side in recorder.SIDES}
         done = {side: [{"startMs": 0, "endMs": 400}] for side in recorder.SIDES}
@@ -207,7 +291,7 @@ class RecorderTests(unittest.TestCase):
             {"side": "call", "startMs": 600, "endMs": 800, "reason": "capture_restarted"},
         ])
         self.assertEqual(coverage["sides"]["call"]["missing"], [
-            {"startMs": 400, "endMs": 1000, "reason": "capture_restarted"}])
+            {"startMs": 400, "endMs": 1000, "reason": "not_transcribed"}])
         self.assertFalse(coverage["complete"])
         outside = recorder.calculate_coverage(spans, spans, 1000, [
             {"side": "call", "startMs": 1400, "endMs": 1500, "reason": "segmenter_failed"}])
@@ -300,7 +384,14 @@ class RecorderTests(unittest.TestCase):
 
     def test_call_fragment_concatenation_handles_quoted_paths(self):
         session = self.session()
-        wav(session.directory / "chunks/call_000001.wav", 750)
+        second = session.directory / "chunks/call_000001.wav"
+        wav(second, 750)
+        start = session.state["fragments"]["call"][0]["endMs"]
+        session.state["fragments"]["call"].append({
+            "path": str(second), "startMs": start, "endMs": start + 750,
+            "sha256": recorder.file_hash(second),
+        })
+        session.persist_state()
         output = self.root / "joined ' call.wav"
         result = subprocess.run(
             [
@@ -435,7 +526,7 @@ class RecorderTests(unittest.TestCase):
             wav(path, duration)
             fragments[side].append({"path": str(path), "startMs": 0, "endMs": duration,
                                     "sha256": recorder.file_hash(path)})
-        state = {"fragments": fragments, "gaps": [], "advanceMs": 30000, "windowMs": 45000,
+        state = {"recordingId": "test-id", "fragments": fragments, "gaps": [], "advanceMs": 30000, "windowMs": 45000,
                  "fragmentMs": 5000, "turnGap": 8, "whisperServerUrl": "http://synthetic.invalid" if remote else "",
                  "diarizationServerUrl": "http://synthetic.invalid",
                  "diarizationModel": "synthetic-diarization", "finalizationStage": "capturing",
@@ -498,6 +589,42 @@ class RecorderTests(unittest.TestCase):
         text = (session.directory / published).read_text()
         self.assertIn("Speaker 1:\n  call window", text)
         self.assertIn("Me:\n  Please schedule the follow up", text)
+
+    def test_diarization_audio_preserves_capture_gap_for_speaker_alignment(self):
+        session = self.session(duration=1000)
+        second = session.directory / "chunks/call_000001.wav"
+        wav(second, 1000)
+        session.state["fragments"]["call"].append({
+            "path": str(second), "startMs": 2500, "endMs": 3500,
+            "sha256": recorder.file_hash(second),
+        })
+        session.persist_state()
+        audio = self.root / "diarization-input.wav"
+        subprocess.run([sys.executable, session.config["concatCall"],
+                        str(session.directory / "chunks"), str(audio)], check=True)
+        with wave.open(str(audio), "rb") as source:
+            self.assertEqual(source.getnframes(), 56000)
+            self.assertNotEqual(source.readframes(16000), b"\0" * 32000)
+            self.assertEqual(source.readframes(24000), b"\0" * 48000)
+            self.assertNotEqual(source.readframes(16000), b"\0" * 32000)
+
+        segments = [{"start": 0, "end": 1, "speaker": "SPEAKER_00"},
+                    {"start": 2.5, "end": 3.5, "speaker": "SPEAKER_01"}]
+        (session.directory / "transcript.txt").write_text("[15:00:00] Before gap\n[15:00:03] After gap\n")
+        offsets = session.directory / "transcript.offsets.json"
+        recorder.atomic_json(offsets, [500, 3000])
+        diarization = self.root / "segments.json"
+        recorder.atomic_json(diarization, segments)
+        aligned = session.directory / "transcript.diarized.txt"
+        subprocess.run([sys.executable, session.config["align"], str(session.directory / "transcript.txt"),
+                        str(diarization), str(int(recorder.timestamp(session.manifest["startedAt"]))),
+                        str(aligned), str(offsets)], check=True, env={**os.environ, "TZ": "UTC"})
+        self.assertEqual(aligned.read_text(),
+                         "[15:00:00] Speaker 1: Before gap\n[15:00:03] Speaker 2: After gap\n")
+        turns = session.directory / "transcript.diarized.turns.txt"
+        subprocess.run([sys.executable, session.config["turns"], str(aligned), str(turns), "8", str(offsets)],
+                       check=True, stdout=subprocess.DEVNULL)
+        self.assertEqual(session.validate_diarization(turns, segments), 2)
 
     def assert_multiline_speech_retained(self, salvage):
         session = self.session()
@@ -824,6 +951,7 @@ class RecorderTests(unittest.TestCase):
         before = {path.name: path.read_bytes() for path in paths}
         output = io.StringIO()
         with patch.object(recorder, "owner_properties", return_value={"InvocationID": "cleanup-warning"}), \
+             patch.object(recorder, "organize_recording", return_value=session.directory), \
              patch.object(recorder.Session, "command", side_effect=OSError("private account path must not be logged")), \
              patch.dict(os.environ, {"INVOCATION_ID": "cleanup-warning"}), redirect_stdout(output):
             recorder.cleanup_after_owner(session.directory, session.config)
@@ -990,10 +1118,11 @@ class RecorderTests(unittest.TestCase):
                     child.wait(timeout=0.15)
             output, error = child.communicate(timeout=10)
             self.assertEqual(child.returncode, 0, error.decode())
-            self.assertEqual(recorder.read_json(session.directory / "recording.json")["status"], "ready")
+            completed = session.directory.with_name(session.directory.name + "-transcribed")
+            self.assertEqual(recorder.read_json(completed / "recording.json")["status"], "ready")
             self.assertEqual((self.root / "call-attempts").read_text(), "1")
             self.assertEqual((self.root / "mic-attempts").read_text(), "1")
-            self.assertEqual(len(list((session.private / "windows").glob("*/done.json"))), 1)
+            self.assertEqual(len(list((completed / ".record-call/windows").glob("*/done.json"))), 1)
         finally:
             if child is not None:
                 if child.poll() is None:
@@ -1314,7 +1443,7 @@ class RecorderTests(unittest.TestCase):
             with patch.object(session, "collect_fragments", side_effect=stop_after_restarted_audio):
                 session.capture()
             self.assertEqual(len(session.state["runs"]["call"]), 2)
-            self.assertTrue(any(gap["reason"] == "capture_restarted" for gap in session.state["gaps"]))
+            self.assertTrue(any(gap["reason"] == "capture_process_exited" for gap in session.state["gaps"]))
             with self.assertRaises(recorder.Failure) as error:
                 session.finalize()
             self.assertEqual(error.exception.code, "incomplete_audio_coverage")
@@ -1323,6 +1452,752 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual((self.root / "mic-attempts").read_text(), "1")
         finally:
             timer.cancel()
+
+    def test_unexpected_reader_exit_cannot_be_accepted_as_a_minor_gap(self):
+        session = self.session()
+        duration = 600000
+        session.manifest["endedAt"] = recorder.datetime.fromtimestamp(
+            recorder.timestamp(session.manifest["startedAt"]) + duration / 1000,
+            recorder.timezone.utc,
+        ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        spans = {
+            "call": [{"startMs": 0, "endMs": 9800},
+                     {"startMs": 10050, "endMs": duration}],
+            "mic": [{"startMs": 0, "endMs": duration}],
+        }
+        session.state["fragments"] = spans
+        done = session.private / "windows" / "000000"
+        done.mkdir(parents=True)
+        recorder.atomic_json(done / "done.json", {"coverage": spans})
+        with patch.object(session, "elapsed", side_effect=[10000, 10050]), \
+             patch.object(session, "stop_capture"), \
+             patch.object(session, "collect_fragments"), \
+             patch.object(session, "launch_capture"):
+            session.restart_capture("call", "capture_process_exited")
+        self.assertEqual(session.state["gaps"][0]["reason"], "capture_process_exited")
+        self.assertFalse(session.manifest["coverage"]["acceptedMinorGaps"])
+        with patch.object(session, "verify_retained_audio"), \
+             patch.object(session, "transcribe_retained_audio"), \
+             patch.object(session, "attempt_diarization"):
+            with self.assertRaises(recorder.Failure) as error:
+                session.finalize()
+        self.assertEqual(error.exception.code, "incomplete_audio_coverage")
+
+    def test_retained_transcription_is_labeled_even_when_capture_coverage_fails(self):
+        session = self.session()
+        original = session.directory
+        session.state.update({"bootId": recorder.boot_id(), "invocationId": "gap-owner",
+                              "unit": "record-call-gap-owner.service", "directoryBaseName": original.name,
+                              "directoryPath": str(original)})
+        session.state["gaps"].append({"side": "call", "startMs": 200, "endMs": 300,
+                                      "reason": "capture_process_exited"})
+        session.persist_state()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        recorder.atomic_json(runtime / "current.json", {"recordingId": "test-id", "directory": str(original)})
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(session, "collect_fragments"), \
+             patch.object(session, "cleanup_modules"), \
+             patch.object(session, "attempt_diarization") as diarize, \
+             patch.dict(os.environ, {"INVOCATION_ID": "gap-owner"}):
+            self.assertEqual(session.run("retry"), 1)
+            self.assertEqual(recorder.current_directory(), session.directory)
+        diarize.assert_not_called()
+        self.assertEqual(session.directory.name, original.name + "-transcribed")
+        self.assertEqual(session.manifest["status"], "incomplete")
+        self.assertEqual(session.manifest["failure"]["code"], "incomplete_audio_coverage")
+        self.assertEqual(session.manifest["source"]["transcript"]["path"], "transcript.turns.txt")
+        self.assertFalse(session.manifest["coverage"]["complete"])
+
+    def test_stopped_owner_recovers_ready_cleanup_without_changing_public_revision(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] A call.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 9})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"bootId": "previous-boot", "invocationId": "crashed-owner",
+                              "unit": "record-call-crashed-owner.service", "directoryBaseName": original.name,
+                              "directoryPath": str(original)})
+        session.persist_state()
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        public_before = (original / "recording.json").read_bytes()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "boot_id", return_value="current-boot"), \
+             patch.object(recorder, "owner_properties", return_value={"ActiveState": "inactive"}), \
+             patch.object(recorder.Session, "cleanup_modules") as cleanup:
+            transcribed = recorder.organize_recording(original, session.config)
+            self.assertEqual((transcribed / "recording.json").read_bytes(), public_before)
+            self.assertEqual(recorder.read_json(transcribed / ".record-call/state.json")
+                             ["cleanupCompletedInvocationId"], "crashed-owner")
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 9,
+                                                    descriptor["sha256"], processed=True)
+        cleanup.assert_not_called()
+        self.assertEqual(processed.name, original.name + "-transcribed-processed")
+
+    def test_approved_incomplete_publication_keeps_failure_and_adds_processed(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] Retained speech.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "incomplete", "revision": 9,
+                                 "finalizedAt": "2026-10-12T19:07:19Z",
+                                 "failure": {"stage": "capture", "code": "incomplete_audio_coverage",
+                                             "retryable": False}})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"finalizationStage": "transcribed", "invocationId": "finished",
+                              "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 9,
+                                                    descriptor["sha256"], processed=True,
+                                                    expected_path=descriptor["path"])
+        self.assertEqual(processed.name, original.name + "-transcribed-processed")
+        self.assertEqual(recorder.read_json(processed / "recording.json")["status"], "incomplete")
+        self.assertEqual(recorder.read_json(processed / "recording.json")["failure"]["code"],
+                         "incomplete_audio_coverage")
+
+    def test_legacy_incomplete_transcription_receipts_allow_a_published_milestone(self):
+        session = self.session()
+        original = session.directory
+        mic = session.state["fragments"]["mic"][0]
+        wav(Path(mic["path"]), 1000)
+        mic.update({"endMs": 1000, "sha256": recorder.file_hash(mic["path"])})
+        session.persist_state()
+        session.transcribe_retained_audio()
+        session.refresh_coverage()
+        self.assertEqual(session.state["finalizationStage"], "transcribing")
+        self.assertEqual(session.manifest["coverage"]["sides"]["mic"]["capturedMs"], 1000)
+        self.assertEqual(session.manifest["coverage"]["sides"]["mic"]["transcribedMs"], 1000)
+        descriptor = session.manifest["source"]["transcript"]
+        session.manifest.update({"status": "incomplete", "finalizedAt": "2026-10-12T19:07:19Z",
+                                 "failure": {"stage": "capture", "code": "incomplete_audio_coverage",
+                                             "retryable": False}})
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        session.persist()
+        revision = session.manifest["revision"]
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            session.manifest["coverage"]["sides"]["mic"]["transcribedMs"] -= 1
+            recorder.atomic_json(original / "recording.json", session.manifest)
+            self.assertEqual(recorder.organize_recording(original, session.config), original)
+            with self.assertRaises(recorder.Failure) as failure:
+                recorder.organize_recording(original, session.config, "test-id", revision,
+                                            descriptor["sha256"], processed=True)
+            self.assertEqual(failure.exception.code, "transcript_not_ready")
+            session.manifest["coverage"]["sides"]["mic"]["transcribedMs"] = 1000
+            recorder.atomic_json(original / "recording.json", session.manifest)
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", revision,
+                                                    descriptor["sha256"], processed=True,
+                                                    expected_path=descriptor["path"])
+        self.assertEqual(processed.name, original.name + "-transcribed-processed")
+        self.assertEqual(recorder.read_json(processed / "recording.json")["revision"], revision)
+
+    def test_identical_text_in_a_new_diarized_artifact_revokes_processed(self):
+        session = self.session()
+        original = session.directory
+        first = original / "transcript.diarized.0123456789abcdef0123456789abcdef.turns.txt"
+        first.write_text("[15:00:00] Speaker 1: Same words.\n")
+        descriptor = {"path": first.name, "sha256": recorder.file_hash(first),
+                      "bytes": first.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            diarized = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(diarized, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            second = processed / "transcript.diarized.abcdef0123456789abcdef0123456789.turns.txt"
+            second.write_bytes((processed / first.name).read_bytes())
+            replacement = {**descriptor, "path": second.name}
+            manifest = recorder.read_json(processed / "recording.json")
+            manifest["revision"] += 1
+            manifest["source"]["transcript"] = replacement
+            recorder.atomic_json(processed / "recording.json", manifest)
+            revised = recorder.organize_recording(processed, session.config)
+        self.assertEqual(revised, diarized)
+        state = recorder.read_json(revised / ".record-call/state.json")
+        self.assertNotIn("processedTranscriptSha", state)
+        self.assertNotIn("processedTranscriptPath", state)
+
+    def test_replacement_collision_retains_receipt_for_later_descriptor_removal(self):
+        session = self.session()
+        original = session.directory
+        first = original / "transcript.diarized.0123456789abcdef0123456789abcdef.turns.txt"
+        first.write_text("[15:00:00] Speaker 1: Same words.\n")
+        descriptor = {"path": first.name, "sha256": recorder.file_hash(first),
+                      "bytes": first.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            diarized = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(diarized, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            second = processed / "transcript.diarized.abcdef0123456789abcdef0123456789.turns.txt"
+            second.write_bytes((processed / first.name).read_bytes())
+            changed = recorder.read_json(processed / "recording.json")
+            changed["revision"] = 6
+            changed["source"]["transcript"] = {**descriptor, "path": second.name}
+            recorder.atomic_json(processed / "recording.json", changed)
+            diarized.mkdir()
+            with self.assertRaises(recorder.Failure) as collision:
+                recorder.organize_recording(processed, session.config)
+            self.assertEqual(collision.exception.code, "milestone_name_exists")
+            pending = recorder.read_json(processed / ".record-call/state.json")
+            self.assertTrue(pending["processedRevocationPending"])
+            self.assertEqual(pending["processedTranscriptSha"], descriptor["sha256"])
+            self.assertEqual(pending["processedTranscriptPath"], descriptor["path"])
+            changed["revision"] = 7
+            changed["status"] = "incomplete"
+            changed["source"]["transcript"] = None
+            recorder.atomic_json(processed / "recording.json", changed)
+            diarized.rmdir()
+            cleared = recorder.organize_recording(processed, session.config, "test-id", 7,
+                                                  descriptor["sha256"], invalidate_processed=True,
+                                                  expected_path=descriptor["path"])
+        self.assertEqual(cleared, original)
+        self.assertFalse(processed.exists())
+        state = recorder.read_json(original / ".record-call/state.json")
+        self.assertNotIn("processedRevocationPending", state)
+        self.assertNotIn("processedTranscriptSha", state)
+        self.assertNotIn("processedTranscriptPath", state)
+
+    def test_clearing_a_changed_transcript_removes_unverified_milestones(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] Original.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        config_path = self.root / "config.json"
+        recorder.atomic_json(config_path, session.config)
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            (processed / transcript.name).write_text("[15:00:00] Changed without a manifest update.\n")
+            output = io.StringIO()
+            with patch.object(sys, "argv", ["record-call", "--config", str(config_path), "clear-processed",
+                                            str(processed), "--expected-id", "test-id", "--expected-revision", "5",
+                                            "--expected-sha", descriptor["sha256"],
+                                            "--expected-path", descriptor["path"]]), \
+                 redirect_stdout(output):
+                self.assertEqual(recorder.main(), 0)
+            cleared = Path(json.loads(output.getvalue())["outputDir"])
+        self.assertEqual(cleared, original)
+        self.assertEqual(recorder.read_json(cleared / "recording.json")["revision"], 5)
+        self.assertNotIn("processedTranscriptSha", recorder.read_json(cleared / ".record-call/state.json"))
+
+    def test_stale_pointer_finds_base_after_committed_processed_revocation(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] Original.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            recorder.atomic_json(runtime / "current.json", {"recordingId": "test-id",
+                                                         "directory": str(processed)})
+            changed = recorder.read_json(processed / "recording.json")
+            changed.update({"status": "incomplete", "revision": 6,
+                            "finalizedAt": "2026-10-12T19:07:19Z",
+                            "failure": {"stage": "recovery", "code": "transcript_missing", "retryable": False}})
+            changed["coverage"]["complete"] = False
+            changed["source"]["transcript"] = None
+            recorder.atomic_json(processed / "recording.json", changed)
+            with self.assertRaises(recorder.Failure) as mismatch:
+                recorder.organize_recording(processed, session.config, "test-id", 6,
+                                            "0" * 64, invalidate_processed=True,
+                                            expected_path=descriptor["path"])
+            self.assertEqual(mismatch.exception.code, "recording_changed")
+            real_rename = recorder.rename_noreplace
+
+            def renamed_then_failed(*args):
+                real_rename(*args)
+                raise OSError("synthetic error after kernel rename")
+
+            with patch.object(recorder, "rename_noreplace", side_effect=renamed_then_failed):
+                with self.assertRaises(OSError):
+                    recorder.organize_recording(processed, session.config, "test-id", 6,
+                                                descriptor["sha256"], invalidate_processed=True,
+                                                expected_path=descriptor["path"])
+            self.assertFalse(processed.exists())
+            self.assertTrue(original.is_dir())
+            self.assertEqual(recorder.read_json(runtime / "current.json")["directory"], str(processed))
+            self.assertEqual(recorder.current_directory(), original)
+            self.assertEqual(recorder.status(recorder.current_directory(), session.config)["recordingId"], "test-id")
+
+    def test_missing_descriptor_revocation_retries_after_target_collision(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] Original.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            changed = recorder.read_json(processed / "recording.json")
+            changed.update({"status": "incomplete", "revision": 6})
+            changed["source"]["transcript"] = None
+            recorder.atomic_json(processed / "recording.json", changed)
+            original.mkdir()
+            with self.assertRaises(recorder.Failure) as collision:
+                recorder.organize_recording(processed, session.config, "test-id", 6,
+                                            descriptor["sha256"], invalidate_processed=True,
+                                            expected_path=descriptor["path"])
+            self.assertEqual(collision.exception.code, "milestone_name_exists")
+            pending = recorder.read_json(processed / ".record-call/state.json")
+            self.assertTrue(pending["processedRevocationPending"])
+            self.assertEqual(pending["processedTranscriptSha"], descriptor["sha256"])
+            self.assertEqual(pending["processedTranscriptPath"], descriptor["path"])
+            with self.assertRaises(recorder.Failure) as collision:
+                recorder.organize_recording(processed, session.config)
+            self.assertEqual(collision.exception.code, "milestone_name_exists")
+            original.rmdir()
+            cleared = recorder.organize_recording(processed, session.config, "test-id", 6,
+                                                  descriptor["sha256"], invalidate_processed=True,
+                                                  expected_path=descriptor["path"])
+        self.assertEqual(cleared, original)
+        self.assertFalse(processed.exists())
+        state = recorder.read_json(original / ".record-call/state.json")
+        self.assertNotIn("processedRevocationPending", state)
+        self.assertNotIn("processedTranscriptSha", state)
+        self.assertNotIn("processedTranscriptPath", state)
+
+    def test_committed_descriptor_revocation_recovers_failed_final_state_write(self):
+        session = self.session()
+        original = session.directory
+        transcript = original / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] Original.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 5})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(original / "recording.json", session.manifest)
+        session.persist_state()
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(original, session.config)
+            processed = recorder.organize_recording(transcribed, session.config, "test-id", 5,
+                                                    descriptor["sha256"], processed=True)
+            changed = recorder.read_json(processed / "recording.json")
+            changed.update({"status": "incomplete", "revision": 6})
+            changed["source"]["transcript"] = None
+            recorder.atomic_json(processed / "recording.json", changed)
+            real_write = recorder.atomic_json_at
+
+            def fail_final_write(directory, name, value):
+                if (name == "state.json" and value.get("directoryPath") == str(original)
+                        and not value.get("processedRevocationPending")):
+                    raise OSError("synthetic final state write failure")
+                return real_write(directory, name, value)
+
+            with patch.object(recorder, "atomic_json_at", side_effect=fail_final_write):
+                with self.assertRaises(OSError):
+                    recorder.organize_recording(processed, session.config, "test-id", 6,
+                                                descriptor["sha256"], invalidate_processed=True,
+                                                expected_path=descriptor["path"])
+            self.assertFalse(processed.exists())
+            self.assertTrue(original.exists())
+            pending = recorder.read_json(original / ".record-call/state.json")
+            self.assertTrue(pending["processedRevocationPending"])
+            self.assertEqual(pending["processedTranscriptSha"], descriptor["sha256"])
+            cleared = recorder.organize_recording(original, session.config, "test-id", 6,
+                                                  descriptor["sha256"], invalidate_processed=True,
+                                                  expected_path=descriptor["path"])
+        self.assertEqual(cleared, original)
+        state = recorder.read_json(original / ".record-call/state.json")
+        self.assertEqual(state["directoryPath"], str(original))
+        self.assertNotIn("processedRevocationPending", state)
+        self.assertNotIn("processedTranscriptSha", state)
+        self.assertNotIn("processedTranscriptPath", state)
+
+    def test_milestone_renames_wait_for_cleanup_and_preserve_current_pointer(self):
+        session = self.session()
+        transcript = session.directory / "transcript.diarized.0123456789abcdef0123456789abcdef.turns.txt"
+        transcript.write_text("[15:00:00] Speaker 1: Finished.\n")
+        descriptor = {"path": transcript.name, "sha256": recorder.file_hash(transcript),
+                      "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.manifest.update({"status": "ready", "revision": 7})
+        session.manifest["source"]["transcript"] = descriptor
+        session.state["diarization"] = {"status": "ready", "transcript": descriptor}
+        session.state["finalizationStage"] = "complete"
+        session.state["invocationId"] = "owned-invocation"
+        listing = session.private / "call-0000.csv"
+        listing.write_text("")
+        session.state["runs"]["call"] = [{"list": str(listing)}]
+        recorder.atomic_json(session.directory / "recording.json", session.manifest)
+        recorder.atomic_json(session.private / "state.json", session.state)
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        recorder.atomic_json(runtime / "current.json", {
+            "recordingId": "test-id", "directory": str(session.directory)})
+        target = session.directory.with_name(session.directory.name + "-transcribed-diarized")
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "owner_properties", return_value={"ActiveState": "inactive"}), \
+             redirect_stdout(io.StringIO()):
+            with self.assertRaises(recorder.Failure) as error:
+                recorder.organize_recording(session.directory, session.config)
+            self.assertEqual(error.exception.code, "recording_busy")
+            session.state["cleanupCompletedInvocationId"] = "owned-invocation"
+            recorder.atomic_json(session.private / "state.json", session.state)
+            target.mkdir()
+            with self.assertRaises(recorder.Failure) as error:
+                recorder.organize_recording(session.directory, session.config)
+            self.assertEqual(error.exception.code, "milestone_name_exists")
+            self.assertTrue(session.directory.exists())
+            target.rmdir()
+            recorder.organize_recording(session.directory, session.config)
+            self.assertFalse(session.directory.exists())
+            self.assertTrue(target.exists())
+            self.assertEqual(recorder.current_directory(), target)
+
+            moved_state = recorder.read_json(target / ".record-call/state.json")
+            self.assertEqual(moved_state["directoryPath"], str(target))
+            self.assertTrue(all(Path(fragment["path"]).is_file()
+                                for side in recorder.SIDES for fragment in moved_state["fragments"][side]))
+            self.assertEqual(moved_state["runs"]["call"][0]["list"], str(target / ".record-call/call-0000.csv"))
+            recorder.atomic_json(runtime / "current.json", {
+                "recordingId": "test-id", "directory": str(session.directory)})
+            self.assertEqual(recorder.current_directory(), target)
+            processed = recorder.organize_recording(target, session.config, "test-id", 7,
+                                                    descriptor["sha256"], processed=True)
+            self.assertEqual(processed.name, "recording-transcribed-diarized-processed")
+            self.assertTrue(processed.exists())
+            self.assertFalse(target.exists())
+            self.assertEqual(recorder.current_directory(), processed)
+            self.assertEqual(recorder.read_json(processed / ".record-call/state.json")["processedTranscriptSha"],
+                             descriptor["sha256"])
+            recorder.organize_recording(processed, session.config, "test-id", 7,
+                                        descriptor["sha256"], processed=True)
+            self.assertTrue(processed.exists())
+            self.assertEqual(recorder.read_json(runtime / "current.json")["directory"], str(processed))
+            self.assertFalse(recorder.Session(processed, session.config).attempt_diarization())
+            self.assertEqual(recorder.organize_recording(processed, session.config), processed)
+            self.assertTrue(processed.exists())
+            self.assertEqual(recorder.read_json(processed / "recording.json")["source"]["transcript"], descriptor)
+            updated = processed / "transcript.diarized.abcdef0123456789abcdef0123456789.turns.txt"
+            updated.write_text("[15:00:00] Speaker 2: Updated labels.\n")
+            replacement = {"path": updated.name, "sha256": recorder.file_hash(updated),
+                           "bytes": updated.stat().st_size, "speechTurns": 1}
+            manifest = recorder.read_json(processed / "recording.json")
+            manifest["revision"] += 1
+            manifest["source"]["transcript"] = replacement
+            recorder.atomic_json(processed / "recording.json", manifest)
+            state = recorder.read_json(processed / ".record-call/state.json")
+            state["diarization"] = {"status": "ready", "transcript": replacement}
+            recorder.atomic_json(processed / ".record-call/state.json", state)
+            revised = recorder.organize_recording(processed, session.config)
+            self.assertEqual(revised, target)
+            self.assertFalse(processed.exists())
+            self.assertEqual(recorder.current_directory(), target)
+
+    def test_transcribed_folder_is_visible_while_initial_diarization_runs(self):
+        session = self.session()
+        original = session.directory
+        target = original.with_name(original.name + "-transcribed")
+        session.state.update({"bootId": recorder.boot_id(), "invocationId": "initial-owner",
+                              "unit": "record-call-initial.service", "directoryBaseName": original.name,
+                              "directoryPath": str(original)})
+        session.persist_state()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        recorder.atomic_json(runtime / "current.json", {"recordingId": "test-id", "directory": str(original)})
+        real_diarization = session.attempt_diarization
+
+        def paused_diarization():
+            self.assertFalse(original.exists())
+            self.assertTrue(target.is_dir())
+            self.assertEqual(session.directory, target)
+            self.assertEqual(recorder.current_directory(), target)
+            self.assertEqual(session.manifest["status"], "finalizing")
+            self.assertEqual(recorder.read_json(target / "recording.json")["status"], "finalizing")
+            self.assertTrue(all(Path(fragment["path"]).is_file()
+                                for side in recorder.SIDES for fragment in session.state["fragments"][side]))
+            return real_diarization()
+
+        owner = {"ActiveState": "active", "InvocationID": "initial-owner"}
+        original_organizer = recorder.organize_recording
+
+        def checked_organization(*args, **kwargs):
+            stored = recorder.read_json(original / ".record-call/state.json")
+            manifest = recorder.read_json(original / "recording.json")
+            self.assertEqual(stored["invocationId"], "initial-owner")
+            self.assertEqual(os.environ.get("INVOCATION_ID"), "initial-owner")
+            self.assertTrue(recorder.owner_matches(stored, recorder.boot_id(), owner))
+            self.assertEqual(stored["finalizationStage"], "transcribed")
+            self.assertEqual(manifest["status"], "finalizing")
+            self.assertTrue(manifest["coverage"]["complete"] or manifest["coverage"].get("acceptedMinorGaps"))
+            self.assertEqual(manifest["source"]["transcript"]["path"], "transcript.turns.txt")
+            return original_organizer(*args, **kwargs)
+
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "owner_properties", return_value=owner), \
+             patch.object(recorder, "organize_recording", side_effect=checked_organization), \
+             patch.object(session, "attempt_diarization", side_effect=paused_diarization), \
+             patch.dict(os.environ, {"INVOCATION_ID": "initial-owner"}), \
+             recorder.locked(session.private / "writer.lock"):
+            session.finalize()
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertEqual(session.state["diarization"]["status"], "ready")
+        diarized = target.with_name(target.name + "-diarized")
+        # A new call may take the global pointer before ExecStopPost runs.
+        recorder.atomic_json(runtime / "current.json", {"recordingId": "later", "directory": str(self.root / "later")})
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "owner_properties", return_value=owner), \
+             patch.object(recorder.Session, "cleanup_modules"), \
+             patch.dict(os.environ, {"INVOCATION_ID": "initial-owner"}):
+            recorder.cleanup_after_owner(original, session.config, "test-id")
+        self.assertFalse(target.exists())
+        self.assertEqual(recorder.read_json(runtime / "current.json")["recordingId"], "later")
+        self.assertEqual(recorder.read_json(diarized / ".record-call/state.json")["cleanupCompletedInvocationId"],
+                         "initial-owner")
+
+    def test_post_rename_failure_keeps_one_owned_directory_and_finishes_diarization(self):
+        session = self.session()
+        original = session.directory
+        transcribed = original.with_name(original.name + "-transcribed")
+        diarized = original.with_name(original.name + "-transcribed-diarized")
+        session.state.update({"bootId": recorder.boot_id(), "invocationId": "rename-owner",
+                              "unit": "record-call-rename.service", "directoryBaseName": original.name,
+                              "directoryPath": str(original)})
+        session.persist_state()
+        (self.root / "control.json").write_text('{"diarization_success":true}')
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        recorder.atomic_json(runtime / "current.json", {"recordingId": "test-id", "directory": str(original)})
+        real_rename = recorder.rename_noreplace
+
+        def renamed_then_failed(*args):
+            real_rename(*args)
+            raise OSError("synthetic error after kernel rename")
+
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "rename_noreplace", side_effect=renamed_then_failed), \
+             patch.dict(os.environ, {"INVOCATION_ID": "rename-owner"}), \
+             recorder.locked(session.private / "writer.lock"):
+            session.finalize()
+        self.assertFalse(original.exists())
+        self.assertEqual(session.directory, transcribed)
+        self.assertEqual(session.manifest["status"], "ready")
+        self.assertEqual(session.state["diarization"]["status"], "ready")
+        self.assertTrue((transcribed / session.manifest["source"]["transcript"]["path"]).is_file())
+        with patch.object(recorder, "state_root", return_value=runtime), \
+             patch.object(recorder, "owner_properties", return_value={"InvocationID": "rename-owner"}), \
+             patch.object(recorder.Session, "cleanup_modules"), \
+             patch.dict(os.environ, {"INVOCATION_ID": "rename-owner"}):
+            recorder.cleanup_after_owner(original, session.config, "test-id")
+        self.assertFalse(transcribed.exists())
+        self.assertTrue(diarized.is_dir())
+        self.assertEqual(recorder.read_json(runtime / "current.json")["directory"], str(diarized))
+        self.assertEqual([path.name for path in self.root.iterdir() if (path / "recording.json").exists()],
+                         [diarized.name])
+
+    def test_stale_session_persistence_cannot_recreate_a_renamed_directory(self):
+        session = self.session()
+        original = session.directory
+        target = original.with_name(original.name + "-transcribed")
+        original.rename(target)
+        for persist in (session.persist_state, session.persist):
+            with self.assertRaises(recorder.Failure) as error:
+                persist()
+            self.assertEqual(error.exception.code, "recording_directory_changed")
+        self.assertFalse(original.exists())
+        self.assertTrue(target.is_dir())
+
+    def test_transcription_and_later_diarization_have_distinct_directory_labels(self):
+        session = self.session()
+        text = session.directory / "transcript.turns.txt"
+        text.write_text("[15:00:00] A call.\n")
+        transcript = {"path": text.name, "sha256": recorder.file_hash(text),
+                      "bytes": text.stat().st_size, "speechTurns": 1}
+        session.manifest["status"] = "ready"
+        session.manifest["source"]["transcript"] = transcript
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(session.directory / "recording.json", session.manifest)
+        recorder.atomic_json(session.private / "state.json", session.state)
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        with patch.object(recorder, "state_root", return_value=runtime):
+            transcribed = recorder.organize_recording(session.directory, session.config)
+            self.assertEqual(transcribed.name, "recording-transcribed")
+            updated = transcribed / "transcript.diarized.0123456789abcdef0123456789abcdef.turns.txt"
+            updated.write_text("[15:00:00] Speaker 1: A call.\n")
+            labeled = {"path": updated.name, "sha256": recorder.file_hash(updated),
+                       "bytes": updated.stat().st_size, "speechTurns": 1}
+            manifest = recorder.read_json(transcribed / "recording.json")
+            manifest["source"]["transcript"] = labeled
+            recorder.atomic_json(transcribed / "recording.json", manifest)
+            state = recorder.read_json(transcribed / ".record-call/state.json")
+            state["diarization"] = {"status": "ready", "transcript": labeled}
+            recorder.atomic_json(transcribed / ".record-call/state.json", state)
+            diarized = recorder.organize_recording(transcribed, session.config)
+            self.assertEqual(diarized.name, "recording-transcribed-diarized")
+            self.assertFalse(transcribed.exists())
+
+    def test_organization_rejects_linked_directories_and_mismatched_private_state(self):
+        session = self.session()
+        transcript = session.directory / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] A call.\n")
+        session.manifest["status"] = "ready"
+        session.manifest["source"]["transcript"] = {
+            "path": transcript.name, "sha256": recorder.file_hash(transcript),
+            "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(session.directory / "recording.json", session.manifest)
+        recorder.atomic_json(session.private / "state.json", session.state)
+        (session.private / "writer.lock").touch()
+        runtime = self.root / "runtime"
+        with patch.object(recorder, "state_root", return_value=runtime):
+            state = recorder.read_json(session.private / "state.json")
+            state["recordingId"] = "another-id"
+            recorder.atomic_json(session.private / "state.json", state)
+            with self.assertRaises(recorder.Failure) as error:
+                recorder.organize_recording(session.directory, session.config)
+            self.assertEqual(error.exception.code, "recording_state_mismatch")
+            recorder.atomic_json(session.private / "state.json", session.state)
+            external_private = self.root / "external-private"
+            session.private.rename(external_private)
+            session.private.symlink_to(external_private, target_is_directory=True)
+            before = (external_private / "state.json").read_bytes()
+            with self.assertRaises(OSError):
+                recorder.organize_recording(session.directory, session.config)
+            self.assertEqual((external_private / "state.json").read_bytes(), before)
+            session.private.unlink()
+            external_private.rename(session.private)
+            external_recording = self.root / "external-recording"
+            session.directory.rename(external_recording)
+            session.directory.symlink_to(external_recording, target_is_directory=True)
+            with self.assertRaises(OSError):
+                recorder.organize_recording(session.directory, session.config)
+            self.assertTrue(external_recording.exists())
+
+    def test_explicit_base_ending_in_a_milestone_word_recovers_a_stale_pointer(self):
+        runtime = self.root / "runtime"
+        for ending in ("-transcribed", "-transcribed-diarized", "-transcribed-processed",
+                       "-transcribed-diarized-processed"):
+            with self.subTest(ending=ending):
+                session = self.session()
+                original = session.directory
+                base = original.with_name(original.name + ending)
+                original.rename(base)
+                state = recorder.read_json(base / ".record-call/state.json")
+                recorder.rebase_state_paths(state, original, base)
+                state.update({"directoryBaseName": base.name, "invocationId": "finished",
+                              "cleanupCompletedInvocationId": "finished"})
+                recorder.atomic_json(base / ".record-call/state.json", state)
+                transcript = base / "transcript.turns.txt"
+                transcript.write_text("[15:00:00] A call.\n")
+                manifest = recorder.read_json(base / "recording.json")
+                manifest["status"] = "ready"
+                manifest["source"]["transcript"] = {
+                    "path": transcript.name, "sha256": recorder.file_hash(transcript),
+                    "bytes": transcript.stat().st_size, "speechTurns": 1}
+                recorder.atomic_json(base / "recording.json", manifest)
+                (base / ".record-call/writer.lock").touch()
+                recorder.atomic_json(runtime / "record-call/current.json", {
+                    "recordingId": "test-id", "directory": str(base)})
+                with patch.object(recorder, "state_root", return_value=runtime / "record-call"):
+                    target = recorder.organize_recording(base, session.config)
+                    self.assertEqual(target.name, base.name + "-transcribed")
+                    recorder.atomic_json(runtime / "record-call/current.json", {
+                        "recordingId": "test-id", "directory": str(base)})
+                    self.assertEqual(recorder.current_directory(), target)
+                shutil.rmtree(target)
+
+    def test_organization_rejects_fifo_leaves_without_waiting_for_a_writer(self):
+        session = self.session()
+        transcript = session.directory / "transcript.turns.txt"
+        transcript.write_text("[15:00:00] A call.\n")
+        session.manifest["status"] = "ready"
+        session.manifest["source"]["transcript"] = {
+            "path": transcript.name, "sha256": recorder.file_hash(transcript),
+            "bytes": transcript.stat().st_size, "speechTurns": 1}
+        session.state.update({"invocationId": "finished", "cleanupCompletedInvocationId": "finished"})
+        recorder.atomic_json(session.directory / "recording.json", session.manifest)
+        recorder.atomic_json(session.private / "state.json", session.state)
+        (session.private / "writer.lock").touch()
+        code = ("import importlib.util,sys; "
+                "s=importlib.util.spec_from_file_location('recorder',sys.argv[1]); "
+                "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+                "m.organize_recording(sys.argv[2],{})")
+        for leaf in (session.directory / "recording.json", session.private / "state.json",
+                     session.private / "writer.lock", transcript):
+            with self.subTest(leaf=leaf.name):
+                saved = leaf.with_name(leaf.name + ".saved")
+                leaf.rename(saved)
+                os.mkfifo(leaf)
+                try:
+                    result = subprocess.run([sys.executable, "-c", code, str(Path(recorder.__file__)),
+                                             str(session.directory)],
+                                            env={**os.environ, "XDG_STATE_HOME": str(self.root / "state")},
+                                            capture_output=True, timeout=2)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertTrue(session.directory.exists())
+                finally:
+                    leaf.unlink()
+                    saved.rename(leaf)
 
     def test_live_reader_stall_is_restarted_and_never_becomes_ready(self):
         session = self.session()
@@ -1672,16 +2547,23 @@ class RecorderTests(unittest.TestCase):
         recorder.atomic_json(session.private / "state.json", session.state)
         public_files = [session.directory / "recording.json", *session.directory.glob("transcript*.txt")]
         before = {path.name: path.read_bytes() for path in public_files}
+        runtime = self.root / "runtime"
+        runtime.mkdir()
+        recorder.atomic_json(runtime / "current.json", {
+            "recordingId": "test-id", "directory": str(session.directory)})
+        organized = session.directory.with_name(session.directory.name + "-transcribed-diarized")
         owner = {"ActiveState": "deactivating", "InvocationID": "owned-ready-cleanup"}
         with patch.object(recorder, "owner_properties", return_value=owner), \
+             patch.object(recorder, "state_root", return_value=runtime), \
              patch.object(recorder.Session, "cleanup_modules") as cleanup, \
              patch.dict(os.environ, {"INVOCATION_ID": "owned-ready-cleanup"}):
             for attempt in range(2):
                 with self.subTest(attempt=attempt):
-                    recorder.cleanup_after_owner(session.directory, session.config)
-                    self.assertEqual({path.name: path.read_bytes() for path in public_files}, before)
-                    state = recorder.read_json(session.private / "state.json")
+                    recorder.cleanup_after_owner(session.directory if attempt == 0 else organized, session.config)
+                    self.assertEqual({name: (organized / name).read_bytes() for name in before}, before)
+                    state = recorder.read_json(organized / ".record-call/state.json")
                     self.assertEqual(state["cleanupCompletedInvocationId"], "owned-ready-cleanup")
+                    self.assertEqual(recorder.current_directory(), organized)
         self.assertEqual(cleanup.call_count, 2)
 
     def test_status_reports_finalization_progress_from_durable_receipts(self):
@@ -1930,6 +2812,13 @@ class RecorderTests(unittest.TestCase):
             root._pollOut = JSON.stringify({status:'ready'});
             status(root, 0, 0);
             root.recording = false;
+            root._pollOut = JSON.stringify({status:'ready',coverage:{acceptedMinorGaps:true}});
+            status(root, 0, 0);
+            assert.strictEqual(root.minorGaps, true);
+            assert.ok(tooltip(root).includes('Brief audio gaps were recorded'));
+            root._pollOut = JSON.stringify({status:'ready'});
+            status(root, 0, 0);
+            assert.strictEqual(root.minorGaps, false);
             toggle(root, toggleProcess);
             assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
             root.recording = true;
