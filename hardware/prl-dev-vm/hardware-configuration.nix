@@ -144,7 +144,18 @@
   };
   hardware.parallels = {
     enable = true;
-    package = unstable-pkgs.prl-tools;
+    # Match Parallels Desktop on mac-work until nixpkgs-unstable packages 27.0.3.
+    package =
+      let
+        version = "27.0.3-58680";
+      in
+      unstable-pkgs.prl-tools.overrideAttrs {
+        inherit version;
+        src = unstable-pkgs.fetchurl {
+          url = "https://download.parallels.com/desktop/v27/${version}/ParallelsDesktop-${version}.dmg";
+          hash = "sha256-MBF1rZS8hXWts/TO0k6XB6MowOQiAzDMTpK9Habaa+o=";
+        };
+      };
   };
 
   # Disable the Parallels Shared Printing bridge. This VM never prints,

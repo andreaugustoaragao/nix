@@ -59,7 +59,8 @@
     ./do-not-disturb.nix
     ./quickshell.nix
     ./matugen.nix
-  ];
+  ]
+  ++ lib.optional (hostName == "prl-dev-vm") ./parallels-displays.nix;
 
   # Install extensions for Cursor (not managed by programs.vscode)
   home.activation.installCursorExtensions = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

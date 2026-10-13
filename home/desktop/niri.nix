@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  hostName,
   isVm ? false,
   isWorkstation ? false,
   lockScreen ? false,
@@ -16,6 +17,12 @@ let
   # output's x-offset so dp1 sits flush to the right of dp2.
   inherit (config.my) displays;
   inherit (config.my.displays) dp2Dimensions;
+  useStaticVirtualPositions = hostName != "prl-dev-vm";
+  startGraphicalSession = pkgs.writeShellScript "start-niri-graphical-session" ''
+    set -e
+    ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY
+    ${pkgs.systemd}/bin/systemctl --user start niri-graphical-session.service
+  '';
 
   # Daily-driver terminal (see ./default-terminal.nix for selection
   # logic and per-consumer string forms).
@@ -100,20 +107,20 @@ in
     // Monitor/Output configuration. Parallels Virtual-* outputs run on
     // a retina host display so scale=2.0 gives 1:1 logical pixels;
     // bare-metal DP-* outputs use per-monitor scale below. niri silently
-    // skips output blocks for absent connectors, so leaving all four
-    // here is harmless on either host.
+    // skips output blocks for absent connectors, so these blocks are
+    // harmless on hosts without the matching displays.
     //
-    // Parallels' Virtual-3 is the physical left portrait display.
-    // Keep the landscape Virtual-1 beside it and let niri place the
-    // remaining portrait Virtual-2 after Virtual-1's live width.
+    // Parallels can swap its portrait scanout numbers between sessions.
+    // prl-display-layout positions these outputs from the host layout;
+    // other hosts retain their static positions.
     output "Virtual-3" {
         scale 2.0
-        position x=0 y=0
+        ${lib.optionalString useStaticVirtualPositions "position x=0 y=0"}
     }
 
     output "Virtual-1" {
         scale 2.0
-        position x=${toString dp2Dimensions.width} y=0
+        ${lib.optionalString useStaticVirtualPositions "position x=${toString dp2Dimensions.width} y=0"}
     }
 
     output "Virtual-2" {
@@ -157,9 +164,9 @@ in
     // can't pull it up directly; instead we start niri-graphical-session
     // (defined in system/desktop.nix) which BindsTo+Before the target
     // and pulls it active for the duration of the niri session.
-    spawn-at-startup "${pkgs.dbus}/bin/dbus-update-activation-environment" "--systemd" "WAYLAND_DISPLAY" "XDG_CURRENT_DESKTOP" "XDG_SESSION_TYPE" "DISPLAY"
-    spawn-at-startup "systemctl" "--user" "start" "niri-graphical-session.service"
-    spawn-at-startup "prlcc"
+    // Import the Niri socket before starting services that use its IPC.
+    spawn-at-startup "${startGraphicalSession}"
+    // hardware.parallels starts prlcc.service; another copy would hold its session lock.
 
 
     // Environment variables
