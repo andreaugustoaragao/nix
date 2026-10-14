@@ -120,6 +120,14 @@ stdenv.mkDerivation {
     install -Dm644 LICENSE "$out/share/licenses/dev-browser/LICENSE"
     ${lib.concatMapStringsSep "\n" installRuntimePackage runtimePackages}
 
+    # Playwright's ordinary newPage also activates external attached browsers.
+    # Keep the pinned Chromium target creation in the background, preserving
+    # normal Page objects, context bookkeeping, and explicit bringToFront.
+    substituteInPlace "$runtime/node_modules/playwright-core/lib/server/chromium/crBrowser.js" \
+      --replace-fail \
+      '{ url: "about:blank", browserContextId: this._browserContextId }' \
+      '{ url: "about:blank", browserContextId: this._browserContextId, background: true, focus: false }'
+
     # The native CLI otherwise extracts to ~/.dev-browser and expects an
     # imperative npm install there. Point it directly at the immutable bundle.
     # Existing-browser access uses --connect; no browser downloads are needed.
@@ -149,6 +157,28 @@ stdenv.mkDerivation {
     assert.equal(context.dump(result.value), 42);
     result.value.dispose();
     context.dispose();
+    JS
+    ${nodejs_22}/bin/node --input-type=module - "$out/libexec/dev-browser/node_modules/playwright-core/lib/server/chromium/crBrowser.js" <<'JS'
+    import assert from 'node:assert/strict';
+    import { createRequire } from 'node:module';
+    const require = createRequire(import.meta.url);
+    const { CRBrowserContext } = require(process.argv[2]);
+    const page = { marker: 'expected Playwright page' };
+    const commands = [];
+    const context = {
+      _browserContextId: 'isolated-check',
+      _browser: {
+        _crPages: new Map([['target', { _page: page }]]),
+        _session: { send: async (method, params) => {
+          commands.push({ method, params });
+          return { targetId: 'target' };
+        } },
+      },
+    };
+    assert.equal(await CRBrowserContext.prototype.doCreateNewPage.call(context), page);
+    assert.deepEqual(commands, [{ method: 'Target.createTarget', params: {
+      url: 'about:blank', browserContextId: 'isolated-check', background: true, focus: false,
+    } }]);
     JS
     runHook postInstallCheck
   '';

@@ -1,0 +1,274 @@
+--- a/src/commands.rs
++++ b/src/commands.rs
+@@ -1270,6 +1270,9 @@
+             }
+         }
+ 
++        // Explicit desktop activation; normal tab selection stays in the background.
++        "bringtofront" => Ok(json!({ "id": id, "action": "bringtofront" })),
++
+         // === Window ===
+         "window" => {
+             const VALID: &[&str] = &["new"];
+@@ -3378,6 +3381,12 @@
+     // === Tabs ===
+ 
+     #[test]
++    fn test_explicit_bringtofront_command() {
++        let cmd = parse_command(&args("bringtofront"), &default_flags()).unwrap();
++        assert_eq!(cmd["action"], "bringtofront");
++    }
++
++    #[test]
+     fn test_tab_new() {
+         let cmd = parse_command(&args("tab new"), &default_flags()).unwrap();
+         assert_eq!(cmd["action"], "tab_new");
+--- a/src/native/actions.rs
++++ b/src/native/actions.rs
+@@ -1504,11 +1504,6 @@
+ async fn connect_auto_with_fresh_tab() -> Result<BrowserManager, String> {
+     let mut mgr = BrowserManager::connect_auto().await?;
+     mgr.tab_new(None, None).await?;
+-    let session_id = mgr.active_session_id()?.to_string();
+-    let _ = mgr
+-        .client
+-        .send_command("Page.bringToFront", None, Some(&session_id))
+-        .await;
+     Ok(mgr)
+ }
+ 
+@@ -4075,7 +4070,7 @@
+             .client
+             .send_command_typed(
+                 "Target.createTarget",
+-                &json!({ "url": "about:blank", "browserContextId": context_id }),
++                &json!({ "url": "about:blank", "browserContextId": context_id, "background": true, "focus": false }),
+                 None,
+             )
+             .await?;
+@@ -6315,7 +6310,7 @@
+         .client
+         .send_command_typed(
+             "Target.createTarget",
+-            &json!({ "url": "about:blank", "browserContextId": context_id }),
++            &json!({ "url": "about:blank", "browserContextId": context_id, "background": true, "focus": false }),
+             None,
+         )
+         .await?;
+--- a/src/native/browser.rs
++++ b/src/native/browser.rs
+@@ -518,9 +518,7 @@
+                 .client
+                 .send_command_typed(
+                     "Target.createTarget",
+-                    &CreateTargetParams {
+-                        url: "about:blank".to_string(),
+-                    },
++                    &CreateTargetParams::background("about:blank".to_string()),
+                     None,
+                 )
+                 .await?;
+@@ -894,9 +892,7 @@
+             .client
+             .send_command_typed(
+                 "Target.createTarget",
+-                &CreateTargetParams {
+-                    url: "about:blank".to_string(),
+-                },
++                &CreateTargetParams::background("about:blank".to_string()),
+                 None,
+             )
+             .await?;
+@@ -1032,9 +1028,7 @@
+             .client
+             .send_command_typed(
+                 "Target.createTarget",
+-                &CreateTargetParams {
+-                    url: target_url.to_string(),
+-                },
++                &CreateTargetParams::background(target_url.to_string()),
+                 None,
+             )
+             .await?;
+@@ -1089,11 +1083,7 @@
+         let session_id = self.pages[index].session_id.clone();
+         self.enable_domains(&session_id).await?;
+ 
+-        // Bring tab to front
+-        let _ = self
+-            .client
+-            .send_command("Page.bringToFront", None, Some(&session_id))
+-            .await;
++        // Selecting the automation target does not activate the desktop window.
+ 
+         let url = self.get_url().await.unwrap_or_default();
+         let title = self.get_title().await.unwrap_or_default();
+@@ -1722,6 +1712,93 @@
+     use super::*;
+     use tokio::time::sleep;
+ 
++    #[tokio::test]
++    async fn test_background_tab_commands_require_explicit_activation() {
++        use futures_util::{SinkExt, StreamExt};
++        use std::sync::Mutex;
++        use tokio_tungstenite::{accept_async, tungstenite::Message};
++
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let url = format!("ws://{}", listener.local_addr().unwrap());
++        let recorded = Arc::new(Mutex::new(Vec::<Value>::new()));
++        let server_recorded = recorded.clone();
++        let server = tokio::spawn(async move {
++            let (stream, _) = listener.accept().await.unwrap();
++            let mut socket = accept_async(stream).await.unwrap();
++            while let Some(Ok(message)) = socket.next().await {
++                let Message::Text(text) = message else {
++                    continue;
++                };
++                let command: Value = serde_json::from_str(&text).unwrap();
++                server_recorded.lock().unwrap().push(command.clone());
++                let result = match command["method"].as_str().unwrap() {
++                    "Target.createTarget" => json!({ "targetId": "new-target" }),
++                    "Target.attachToTarget" => json!({ "sessionId": "new-session" }),
++                    "Runtime.evaluate" => {
++                        json!({ "result": { "type": "string", "value": "test" } })
++                    }
++                    _ => json!({}),
++                };
++                socket
++                    .send(Message::Text(
++                        json!({ "id": command["id"], "result": result }).to_string(),
++                    ))
++                    .await
++                    .unwrap();
++            }
++        });
++        let client = Arc::new(CdpClient::connect(&url).await.unwrap());
++        let mut manager = BrowserManager {
++            client,
++            browser_process: None,
++            ws_url: url,
++            pages: vec![PageInfo {
++                tab_id: 1,
++                label: None,
++                target_id: "existing-target".into(),
++                session_id: "existing-session".into(),
++                url: "about:blank".into(),
++                title: "Existing".into(),
++                target_type: "page".into(),
++            }],
++            active_page_index: 0,
++            default_timeout_ms: 25_000,
++            download_path: None,
++            ignore_https_errors: false,
++            visited_origins: HashSet::new(),
++            next_tab_id: 2,
++        };
++        let new_tab = manager
++            .tab_new(Some("https://example.test"), Some("check"))
++            .await
++            .unwrap();
++        assert_eq!(new_tab["tabId"], "t2");
++        manager.tab_switch_by_id(1).await.unwrap();
++        manager.tab_switch_by_id(2).await.unwrap();
++        assert_eq!(manager.active_tab_id(), Some(2));
++        {
++            let commands = recorded.lock().unwrap();
++            let creation = commands
++                .iter()
++                .find(|c| c["method"] == "Target.createTarget")
++                .unwrap();
++            assert_eq!(creation["params"]["background"], true);
++            assert_eq!(creation["params"]["focus"], false);
++            assert!(!commands.iter().any(|c| c["method"] == "Page.bringToFront"));
++        }
++        manager.bring_to_front().await.unwrap();
++        assert_eq!(
++            recorded
++                .lock()
++                .unwrap()
++                .iter()
++                .filter(|c| c["method"] == "Page.bringToFront")
++                .count(),
++            1
++        );
++        server.abort();
++    }
++
+     #[test]
+     fn test_format_tab_id() {
+         assert_eq!(format_tab_id(1), "t1");
+--- a/src/native/cdp/types.rs
++++ b/src/native/cdp/types.rs
+@@ -141,6 +141,18 @@
+ #[serde(rename_all = "camelCase")]
+ pub struct CreateTargetParams {
+     pub url: String,
++    pub background: bool,
++    pub focus: bool,
++}
++
++impl CreateTargetParams {
++    pub fn background(url: impl Into<String>) -> Self {
++        Self {
++            url: url.into(),
++            background: true,
++            focus: false,
++        }
++    }
+ }
+ 
+ #[derive(Debug, Deserialize)]
+--- a/src/native/state.rs
++++ b/src/native/state.rs
+@@ -117,9 +117,7 @@
+     let create_result: CreateTargetResult = client
+         .send_command_typed(
+             "Target.createTarget",
+-            &CreateTargetParams {
+-                url: "about:blank".to_string(),
+-            },
++            &CreateTargetParams::background("about:blank".to_string()),
+             None,
+         )
+         .await?;
+--- a/src/output.rs
++++ b/src/output.rs
+@@ -2043,7 +2043,9 @@
+ 
+ Usage: agent-browser tab [operation] [args]
+ 
+-Manage browser tabs in the current window. Stable tab ids look like `t1`,
++Select automation targets without activating the desktop window. New tabs
++open in the background. Use `agent-browser bringtofront` to activate the
++selected tab explicitly. Stable tab ids look like `t1`,
+ `t2`, `t3`. An id is never reused within a session, so scripts can keep
+ referring to the same tab across commands. Optional user-assigned labels
+ (e.g. `docs`, `app`) are interchangeable with ids everywhere a tab ref is
+@@ -2071,6 +2073,17 @@
+   agent-browser tab close
+   agent-browser tab close t1
+   agent-browser tab close docs
++"##
++        }
++
++        "bringtofront" => {
++            r##"
++agent-browser bringtofront - Activate the selected tab and browser window
++
++Usage: agent-browser bringtofront
++
++Normal tab selection and creation preserve desktop focus. Run this command
++when you explicitly want to display the automation target.
+ "##
+         }
+ 
+@@ -2981,7 +2994,8 @@
+   storage <local|session>    Manage web storage
+ 
+ Tabs:
+-  tab [new|list|close|<n>]   Manage tabs
++  tab [new|list|close|<n>]   Select or create background tabs
++  bringtofront              Activate the selected browser tab and window
+ 
+ Diff:
+   diff snapshot              Compare current vs last snapshot

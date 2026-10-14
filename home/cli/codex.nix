@@ -15,6 +15,7 @@ let
   codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
     inherit (unstable-pkgs) go gopls;
   };
+  agentBrowser = pkgs.callPackage ../../pkgs/agent-browser-background.nix { };
   devBrowser = pkgs.callPackage ../../pkgs/dev-browser.nix { };
   browserMcp = pkgs.callPackage ../../pkgs/dev-browser-mcp.nix { };
 
@@ -178,10 +179,12 @@ in
     # Browser control
 
     Use agent-browser for routine browser navigation, reading, clicking, filling,
-    and screenshots. Invoke `${lib.getExe pkgs.agent-browser}` through the terminal;
+    and screenshots. Invoke `${lib.getExe agentBrowser}` through the terminal;
     use `--help` for the installed command syntax. Attach to the existing browser
     with `--cdp 9222` on every invocation. List tabs with `tab`, select the relevant
-    tab with `tab <id>`, then inspect it with `snapshot -i`. Use the returned
+    tab with `tab <id>`, then inspect it with `snapshot -i`. Tab selection and
+    creation preserve desktop focus. Use `bringtofront` only when the user
+    explicitly requests showing the tab. Use the returned
     element refs for actions and take a fresh snapshot after navigation or page
     changes. Use screenshots to verify visual layout and styling.
 
