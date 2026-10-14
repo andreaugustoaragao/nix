@@ -1857,7 +1857,8 @@ def transcript_ready_without_coverage_warning(session):
     uncertainty = 0
     for name in SIDES:
         side = sides.get(name)
-        if not isinstance(side, dict):
+        if (not isinstance(side, dict)
+                or "captureEndUnknown" in side and side["captureEndUnknown"] is not False):
             return False
         start, end = side.get("captureStartMs"), side.get("captureEndMs")
         captured, transcribed = side.get("capturedMs"), side.get("transcribedMs")
