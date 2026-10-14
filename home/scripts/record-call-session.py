@@ -61,6 +61,12 @@ class Failure(Exception):
         return result
 
 
+class DiarizationCoverageError(ValueError):
+    def __init__(self, unlabeled, total):
+        super().__init__(f"{unlabeled} of {total} remote speech lines have no speaker label")
+        self.unlabeled, self.total = unlabeled, total
+
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -740,6 +746,7 @@ class Session:
         if len(aligned) != len(raw):
             raise ValueError("diarization dropped transcript lines")
         labeled_remote = 0
+        unlabeled_remote = 0
         for before, after in zip(raw, aligned):
             prefix = re.match(r"^\[\d\d:\d\d:\d\d\] ", before)
             if not prefix:
@@ -750,10 +757,15 @@ class Session:
                 if after != before:
                     raise ValueError("diarization changed microphone speech")
                 continue
+            if after == before:
+                unlabeled_remote += 1
+                continue
             expected = re.escape(prefix.group()) + r"Speaker \d+: " + re.escape(before[len(prefix.group()):])
             if not re.fullmatch(expected, after):
-                raise ValueError("remote speech is not labeled")
+                raise ValueError("diarization changed remote speech")
             labeled_remote += 1
+        if unlabeled_remote:
+            raise DiarizationCoverageError(unlabeled_remote, labeled_remote + unlabeled_remote)
         if not labeled_remote:
             raise ValueError("no labeled remote speech")
         # The published artifact groups speech below multiline turn headers.
@@ -849,6 +861,9 @@ class Session:
             return True
         except subprocess.TimeoutExpired:
             failure = {"code": "diarization_timeout", "retryable": True}
+        except DiarizationCoverageError as error:
+            failure = {"code": "diarization_incomplete_coverage", "retryable": True,
+                       "unlabeledRemoteLines": error.unlabeled, "totalRemoteLines": error.total}
         except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError):
             failure = {"code": "diarization_failed", "retryable": True}
 
@@ -866,6 +881,26 @@ class Session:
         else:
             self.persist()
         return False
+
+    def notify_diarization_failure(self):
+        notifier = self.config.get("notifySend")
+        failure = (self.state.get("diarization") or {}).get("failure") or {}
+        if not notifier or not isinstance(failure, dict) or not failure or self.manifest["status"] != "ready":
+            return
+        if failure.get("code") == "diarization_incomplete_coverage" and all(
+                isinstance(failure.get(key), int) for key in ("unlabeledRemoteLines", "totalRemoteLines")):
+            detail = (f"Could not label {failure['unlabeledRemoteLines']} of "
+                      f"{failure['totalRemoteLines']} call speech lines. ")
+        elif failure.get("code") == "diarization_timeout":
+            detail = "Participant labeling timed out. "
+        else:
+            detail = "Participant labeling failed. "
+        try:
+            subprocess.run([notifier, "--app-name=Record Call", "--urgency=normal",
+                            "Record Call", detail + "Transcript is ready. You can start another recording."],
+                           check=False, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
 
     def setup_audio(self):
         sink = self.state["sink"]
@@ -1428,13 +1463,14 @@ class Session:
                                    "code": error.code if isinstance(error, Failure) else "rename_failed"})
         if not (self.manifest["coverage"]["complete"] or self.manifest["coverage"]["acceptedMinorGaps"]):
             raise Failure("capture", "incomplete_audio_coverage", False)
-        if initial_status != "ready":
-            self.attempt_diarization()
+        diarization_failed = initial_status != "ready" and not self.attempt_diarization()
         self.state["finalizationStage"] = "complete"
         self.manifest["status"] = "ready"
         self.manifest["failure"] = None
         self.manifest["finalizedAt"] = utc_now()
         self.persist()
+        if diarization_failed:
+            self.notify_diarization_failure()
 
     def run(self, mode="capture"):
         invocation = os.environ.get("INVOCATION_ID")
@@ -1453,7 +1489,10 @@ class Session:
             signal.signal(signal.SIGTERM, lambda *_: self.stop_event.set())
             signal.signal(signal.SIGINT, lambda *_: self.stop_event.set())
             if mode == "diarize":
-                return 0 if self.attempt_diarization() else 1
+                succeeded = self.attempt_diarization()
+                if not succeeded:
+                    self.notify_diarization_failure()
+                return 0 if succeeded else 1
             try:
                 if mode == "capture":
                     self.capture()

@@ -558,14 +558,43 @@ class RecorderTests(unittest.TestCase):
 
     def test_diarization_failure_is_best_effort_and_base_transcript_stays_ready(self):
         session = self.session()
-        session.finalize()
+        with patch.object(session, "notify_diarization_failure") as notify:
+            session.finalize()
+            self.assertEqual(notify.call_count, 1)
+            session.finalize()
+            self.assertEqual(notify.call_count, 1)
         self.assertEqual(session.manifest["status"], "ready")
         self.assertEqual(session.manifest["source"]["transcript"]["path"], "transcript.turns.txt")
         self.assertEqual(session.state["diarization"]["status"], "failed")
         self.assertEqual(session.state["diarization"]["attempts"], 1)
         self.assertTrue(session.state["diarization"]["failure"]["retryable"])
-        session.finalize()
         self.assertEqual((self.root / "diarization-attempts").read_text(), "1")
+
+    def test_diarization_failure_notification_is_bounded_and_does_not_change_readiness(self):
+        session = self.session()
+        session.config["notifySend"] = "/fake/notify-send"
+        session.finalize()
+        with patch.object(recorder.subprocess, "run", side_effect=OSError("notification service unavailable")):
+            session.notify_diarization_failure()
+        self.assertEqual(session.manifest["status"], "ready")
+        with patch.object(recorder.subprocess, "run") as command:
+            session.notify_diarization_failure()
+        arguments = command.call_args.args[0]
+        self.assertEqual(arguments[0], "/fake/notify-send")
+        self.assertIn("Participant labeling failed", arguments[-1])
+        self.assertIn("Transcript is ready", arguments[-1])
+        self.assertEqual(command.call_args.kwargs["timeout"], 5)
+
+    def test_diarization_only_retry_notifies_on_failure(self):
+        session = self.session()
+        session.manifest["status"] = "ready"
+        session.persist()
+        with patch.dict(os.environ, {"INVOCATION_ID": "retry-owner"}), \
+             patch.object(recorder, "boot_id", return_value="test-boot"), \
+             patch.object(session, "attempt_diarization", return_value=False), \
+             patch.object(session, "notify_diarization_failure") as notify:
+            self.assertEqual(session.run("diarize"), 1)
+        notify.assert_called_once_with()
 
     def test_diarization_is_skipped_when_server_is_disabled(self):
         session = self.session()
@@ -748,6 +777,14 @@ class RecorderTests(unittest.TestCase):
         (self.root / "control.json").write_text('{"diarization_success":true,"diarization_partial_labels":true}')
         self.assertFalse(session.attempt_diarization())
         self.assertEqual(session.state["diarization"]["status"], "failed")
+        self.assertEqual(session.state["diarization"]["failure"], {
+            "code": "diarization_incomplete_coverage", "retryable": True,
+            "unlabeledRemoteLines": 1, "totalRemoteLines": 2,
+        })
+        session.config["notifySend"] = "/fake/notify-send"
+        with patch.object(recorder.subprocess, "run") as command:
+            session.notify_diarization_failure()
+        self.assertIn("Could not label 1 of 2 call speech lines", command.call_args.args[0][-1])
 
     def test_diarization_only_retry_never_replays_asr(self):
         session = self.session()
@@ -1331,6 +1368,25 @@ class RecorderTests(unittest.TestCase):
         )
         self.assertEqual(marker, "1791298800")
         self.assertEqual(session.manifest["startedAt"], "2026-10-06T15:00:00.123Z")
+
+    def test_diarization_alignment_uses_nearest_boundary_for_short_gaps(self):
+        session = self.session()
+        source = self.root / "near-boundary.txt"
+        source.write_text("[15:00:10] Near the end of a long segment\n")
+        segments = self.root / "near-boundary.json"
+        recorder.atomic_json(segments, [
+            {"start": 0, "end": 10, "speaker": "first"},
+            {"start": 12, "end": 13, "speaker": "second"},
+        ])
+        offsets = self.root / "near-boundary.offsets.json"
+        recorder.atomic_json(offsets, [10500])
+        output = self.root / "near-boundary.aligned.txt"
+        result = subprocess.run([sys.executable, session.config["align"], str(source), str(segments),
+                                 str(int(recorder.timestamp(session.manifest["startedAt"]))),
+                                 str(output), str(offsets)],
+                                env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output.read_text(), "[15:00:10] Speaker 1: Near the end of a long segment\n")
 
     def test_diarization_alignment_survives_midnight_and_dst_fallback(self):
         session = self.session()
@@ -2804,8 +2860,9 @@ class RecorderTests(unittest.TestCase):
             root.finalizing = false;
             toggleProcess = {running:false};
             toggle(root, toggleProcess);
-            assert.deepStrictEqual(toggleProcess.command, ['record-call','retry-diarization',"/a call '; $ignored"]);
-            assert.ok(tooltip(root).includes('participant labeling failed'));
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            assert.strictEqual(tooltip(root), 'Transcript ready — click to start recording.');
+            assert.strictEqual(text.includes('root.phase === "ready" && root.diarizationStatus === "failed"'), false);
             root.startNew = () => startNew(root, toggleProcess);
             rightClick(root)();
             assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);

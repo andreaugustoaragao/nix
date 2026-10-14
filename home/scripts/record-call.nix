@@ -237,15 +237,18 @@ let
 
     def speaker_at(t):
         # Pick the diarization segment whose [start, end] contains t,
-        # or the closest one within 1s either side (whisper and
+        # or the closest boundary within 1s either side (whisper and
         # pyannote timestamps disagree at sub-second level).
         hit = None
+        distance = float("inf")
         for s in segs:
             if s["start"] <= t <= s["end"]:
                 return s["speaker"]
-            if hit is None or abs(t - (s["start"] + s["end"]) / 2) < abs(t - (hit["start"] + hit["end"]) / 2):
+            boundary_distance = min(abs(t - s["start"]), abs(t - s["end"]))
+            if boundary_distance < distance:
                 hit = s
-        if hit and min(abs(t - hit["start"]), abs(t - hit["end"])) <= 1.0:
+                distance = boundary_distance
+        if hit and distance <= 1.0:
             return hit["speaker"]
         return None
 
@@ -616,6 +619,7 @@ let
       curl = "${pkgs.curl}/bin/curl";
       systemdRun = "${pkgs.systemd}/bin/systemd-run";
       systemctl = "${pkgs.systemd}/bin/systemctl";
+      notifySend = "${pkgs.libnotify}/bin/notify-send";
       tail = "${pkgs.coreutils}/bin/tail";
       merge = mergePy;
       dedupe = dedupePy;

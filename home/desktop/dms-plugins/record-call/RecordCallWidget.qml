@@ -68,8 +68,6 @@ PluginComponent {
         }
         if (root.phase === "ready") {
             var gapWarning = root.minorGaps ? " Brief audio gaps were recorded; some speech may be missing." : "";
-            if (root.diarizationStatus === "failed")
-                return "Transcript ready; participant labeling failed — click to retry diarization; right-click to start another recording." + gapWarning;
             if (root.diarizationStatus === "ready")
                 return "Speaker-labeled transcript ready — click to start recording." + gapWarning;
             return "Transcript ready — click to start recording." + gapWarning;
@@ -212,9 +210,7 @@ PluginComponent {
     // competing command while capture startup or transcript finalization runs.
     function toggle() {
         if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
-        if (root.phase === "ready" && root.diarizationStatus === "failed" && root.outputDir) {
-            toggleProc.command = ["record-call", "retry-diarization", root.outputDir];
-        } else if (root.phase === "incomplete" && root.salvageable) {
+        if (root.phase === "incomplete" && root.salvageable) {
             toggleProc.command = ["record-call", "salvage", root.outputDir];
         } else if (root.phase === "incomplete" && root.retryable) {
             toggleProc.command = ["record-call", "retry", root.outputDir];
@@ -296,9 +292,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
+                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
 
                 SequentialAnimation on opacity {
@@ -330,9 +326,9 @@ PluginComponent {
             }
 
             DankIcon {
-                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "error_outline" : "mic"
+                name: root.recording ? (root.activeWarning ? "error_outline" : "fiber_manual_record") : root.finalizing ? "hourglass_top" : root.phase === "incomplete" ? "error_outline" : "mic"
                 size: Theme.iconSize
-                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" || (root.phase === "ready" && root.diarizationStatus === "failed") ? "#e6a23c" : Theme.surfaceText
+                color: root.recording ? (root.activeWarning ? "#e6a23c" : "#e74c3c") : root.phase === "incomplete" ? "#e6a23c" : Theme.surfaceText
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 SequentialAnimation on opacity {
