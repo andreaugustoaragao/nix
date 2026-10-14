@@ -5,10 +5,9 @@
     # This nixos-26.05 revision has a cached Darwin mcp-nixos closure.
     # Newer revisions build Thrift 0.24 locally, whose tests fail on macOS.
     nixpkgs.url = "github:NixOS/nixpkgs/b25309931cfda5f0b8805f462a29897eeae50168";
-    # Local ttfx fork, pinned to the upstream starting point. This checkout
-    # must exist on machines evaluating the flake until the fork is published.
+    # Pin ttfx to the upstream revision used by the screensaver.
     ttfx-src = {
-      url = "git+file:///home/aragao/projects/personal/ttfx?rev=921bd551c308c235e01c5867f0199efe0691c271";
+      url = "github:omacom/ttfx/921bd551c308c235e01c5867f0199efe0691c271";
       flake = false;
     };
     rust-overlay = {

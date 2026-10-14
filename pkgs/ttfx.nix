@@ -23,7 +23,7 @@ rustPlatform.buildRustPackage {
       --zsh <($out/bin/ttfx --print-completion zsh)
   '';
   meta = {
-    description = "Omarchy terminal text effects, built from the local Rust fork";
+    description = "Omarchy terminal text effects";
     homepage = "https://github.com/omacom/ttfx";
     license = lib.licenses.mit;
     mainProgram = "ttfx";
