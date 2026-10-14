@@ -117,9 +117,10 @@ in
       StandardOutPath = "/tmp/whisper-server.out";
       StandardErrorPath = "/tmp/whisper-server.err";
       ThrottleInterval = 30;
-      # Adaptive changes priority on XPC activity, but this server receives
-      # HTTP requests. Standard lets launchd start it at load as intended.
-      ProcessType = "Standard";
+      # Adaptive throttles when idle; HTTP clients do not signal XPC activity.
+      # Startup is forced below because launchd can defer RunAtLoad on remote
+      # nix-darwin activation, regardless of ProcessType.
+      ProcessType = "Adaptive";
       # See local-llm.nix for the full rationale — launchd's bare env
       # breaks curl behind the corporate MITM proxy. Re-use the
       # combined corporate + system bundle from darwin/certs.nix so
@@ -130,4 +131,16 @@ in
       };
     };
   };
+
+  # Remote nix-darwin activation can register this user agent without
+  # starting it, despite RunAtLoad and KeepAlive. Kick it once after user
+  # LaunchAgents are loaded, leaving a running server alone.
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    uid=$(/usr/bin/id -u ${lib.escapeShellArg owner.name})
+    agent="gui/$uid/net.faragao.whisper-server"
+    if agent_state=$(/bin/launchctl print "$agent" 2>/dev/null) &&
+       ! printf '%s\n' "$agent_state" | /usr/bin/grep '^[[:space:]]*state = running$' >/dev/null; then
+      /bin/launchctl kickstart "$agent"
+    fi
+  '';
 }
