@@ -136,6 +136,12 @@ pub fn resolve_tee_dir(override_dir: Option<&Path>) -> io::Result<PathBuf> {
     if let Some(path) = override_dir {
         return Ok(path.to_path_buf());
     }
+    if let Some(path) = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+    {
+        return Ok(path.join("pi-rs/tee"));
+    }
     dirs::data_local_dir()
         .map(|p| p.join("pi-rs/tee"))
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no user data directory"))
