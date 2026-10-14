@@ -2624,6 +2624,7 @@ class RecorderTests(unittest.TestCase):
 
     def coverage_status_session(self):
         session = self.session()
+        session.manifest["recordingId"] = session.state["recordingId"] = "5714a2d1-a565-4d16-b7fd-d51fa5ac2017"
         published = session.directory / "transcript.turns.txt"
         published.write_text("[15:00:00] Participant: Published speech\n")
         session.manifest.update({
@@ -2719,6 +2720,88 @@ class RecorderTests(unittest.TestCase):
                 session.manifest = json.loads(base)
                 change(session.manifest)
                 self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+
+    def test_neutral_status_rejects_malformed_public_manifest_matrix(self):
+        session = self.coverage_status_session()
+        base = json.dumps(session.manifest)
+        transcript_path = session.directory / "transcript.turns.txt"
+        original_bytes = transcript_path.read_bytes()
+        changes = (
+            ("unsupported schema", lambda value: value.update({"schemaVersion": 99})),
+            ("boolean schema", lambda value: value.update({"schemaVersion": True})),
+            ("invalid UUID", lambda value: value.update({"recordingId": "test-id"})),
+            ("uppercase UUID", lambda value: value.update({"recordingId": value["recordingId"].upper()})),
+            ("fractional revision", lambda value: value.update({"revision": 0.5})),
+            ("boolean revision", lambda value: value.update({"revision": False})),
+            ("invalid ended instant", lambda value: value.update({"endedAt": "invalid"})),
+            ("normalized invalid date", lambda value: value.update({"startedAt": "2026-02-30T15:00:00.000Z"})),
+            ("offset instant", lambda value: value.update({"startedAt": "2026-10-06T15:00:00+00:00"})),
+            ("duration mismatch", lambda value: value.update({"endedAt": "2026-10-06T15:04:59.000Z"})),
+            ("finalized before ended", lambda value: value.update({"finalizedAt": "2026-10-06T15:04:59.000Z"})),
+            ("invalid timezone", lambda value: value.update({"timeZone": "Invalid/Timezone"})),
+            ("wrong source kind", lambda value: value["source"].update({"kind": "other"})),
+            ("boolean transcript bytes", lambda value: value["source"]["transcript"].update({"bytes": True})),
+            ("fractional turns", lambda value: value["source"]["transcript"].update({"speechTurns": 1.5})),
+            ("excess turns", lambda value: value["source"]["transcript"].update({"speechTurns": 1000001})),
+            ("reserved transcript leaf", lambda value: value["source"]["transcript"].update({"path": "recording.json"})),
+            ("backslash transcript leaf", lambda value: value["source"]["transcript"].update({"path": "a\\b.txt"})),
+            ("invalid failure side", lambda value: value["failure"].update({"side": "other"})),
+            ("fractional failure window", lambda value: value["failure"].update({"windowIndex": 1.5})),
+            ("string complete", lambda value: value["coverage"].update({"complete": "false"})),
+            ("complete with deficit", lambda value: value["coverage"].update({"complete": True})),
+            ("fractional duration", lambda value: value["coverage"].update({"durationMs": 300000.5})),
+            ("string minor flag", lambda value: value["coverage"].update({"acceptedMinorGaps": "false"})),
+            ("contradictory minor gap claim", lambda value: value["coverage"].update({"acceptedMinorGaps": True})),
+        )
+        for label, change in changes:
+            with self.subTest(label=label):
+                session.manifest = json.loads(base)
+                change(session.manifest)
+                before = json.dumps(session.manifest)
+                self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+                self.assertEqual(json.dumps(session.manifest), before)
+                self.assertEqual(transcript_path.read_bytes(), original_bytes)
+        for label, content in (("invalid UTF8", b"\xff"), ("whitespace-only", b" \n\t"), ("BOM-only", b"\xef\xbb\xbf")):
+            with self.subTest(label=label):
+                session.manifest = json.loads(base)
+                transcript_path.write_bytes(content)
+                session.manifest["source"]["transcript"].update({"bytes": len(content), "speechTurns": 1,
+                                                               "sha256": recorder.hashlib.sha256(content).hexdigest()})
+                self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+                self.assertEqual(transcript_path.read_bytes(), content)
+        transcript_path.write_bytes(original_bytes)
+
+    def test_neutral_status_validates_ready_minor_gap_contract(self):
+        session = self.coverage_status_session()
+        retained = {"call": [{"startMs": 0, "endMs": 300000}],
+                    "mic": [{"startMs": 0, "endMs": 100000}, {"startMs": 101000, "endMs": 300000}]}
+        session.manifest.update({"status": "ready", "failure": None,
+                                 "coverage": recorder.calculate_coverage(retained, retained, 300000, [])})
+        self.assertTrue(recorder.transcript_ready_without_coverage_warning(session))
+        base = json.dumps(session.manifest)
+        session.manifest.pop("failure")
+        self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+        session.manifest = json.loads(base)
+        changes = (
+            ("no located gaps", {"missing": [], "capturedMs": 300000, "transcribedMs": 300000}),
+            ("disallowed reason", {"missing": [{"startMs": 100000, "endMs": 101000, "reason": "capture_exit"}]}),
+            ("continuous gap too long", {"missing": [{"startMs": 100000, "endMs": 103000, "reason": "capture_gap"}],
+                                          "capturedMs": 297000, "transcribedMs": 297000}),
+            ("total gap budget exceeded", {"missing": [{"startMs": 100000, "endMs": 101000, "reason": "routing_uncertain"},
+                                                        {"startMs": 102000, "endMs": 103000, "reason": "routing_uncertain"}],
+                                           "capturedMs": 300000, "transcribedMs": 300000}),
+            ("unknown sample deficit", {"capturedMs": 298000, "transcribedMs": 298000}),
+            ("shortfall field", {"sampleClockShortfallMs": 0}),
+            ("late capture start", {"captureStartMs": 1001, "capturedMs": 297999, "transcribedMs": 297999}),
+            ("late capture end", {"captureEndMs": 301001, "capturedMs": 300001, "transcribedMs": 300001}),
+        )
+        for label, change in changes:
+            with self.subTest(label=label):
+                session.manifest = json.loads(base)
+                session.manifest["coverage"]["sides"]["mic"].update(change)
+                before = json.dumps(session.manifest)
+                self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+                self.assertEqual(json.dumps(session.manifest), before)
 
     def test_status_reports_finalization_progress_from_durable_receipts(self):
         session = self.session(duration=90000)
