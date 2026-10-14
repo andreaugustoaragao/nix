@@ -190,7 +190,7 @@ in
         cloudflared # Cloudflare Tunnel client for exposing local services
 
         # Browser Automation & Testing
-        agent-browser # Browser automation CLI for AI agents
+        (pkgs.callPackage ../../pkgs/agent-browser-background.nix { }) # Background browser automation
         playwright-driver.browsers # Playwright with bundled browsers
 
         # Audio/Video Processing & Speech-to-Text

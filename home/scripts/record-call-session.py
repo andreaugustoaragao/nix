@@ -28,7 +28,7 @@ import threading
 import time
 import uuid
 import wave
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, available_timezones
 
 SIDES = ("call", "mic")
 ACTIVE = ("starting", "recording", "finalizing", "diarizing")
@@ -1830,6 +1830,159 @@ def organize_recording(directory, config, expected_id=None, expected_revision=No
             return target
 
 
+def neutral_manifest_metadata(manifest, coverage):
+    """Validate the public metadata needed for this read-only display decision."""
+    def integer(value, maximum=9007199254740991):
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and 0 <= value <= maximum and math.isfinite(value) and value == int(value))
+
+    def instant(value):
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z", value):
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    if (not isinstance(manifest, dict) or not integer(manifest.get("schemaVersion"))
+            or manifest["schemaVersion"] != 1 or not isinstance(manifest.get("recordingId"), str)
+            or not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", manifest["recordingId"])
+            or not integer(manifest.get("revision")) or not isinstance(coverage, dict)
+            or coverage.get("complete") is not False
+            or "acceptedMinorGaps" in coverage and type(coverage["acceptedMinorGaps"]) is not bool
+            or not integer(coverage.get("durationMs")) or coverage["durationMs"] <= 0):
+        return False
+    started, ended, finalized = (instant(manifest.get(name)) for name in ("startedAt", "endedAt", "finalizedAt"))
+    if started is None or ended is None or finalized is None or ended < started or finalized < ended:
+        return False
+    elapsed = ended - started
+    if elapsed.days * 86400000 + elapsed.seconds * 1000 + elapsed.microseconds // 1000 != coverage["durationMs"]:
+        return False
+    zone = manifest.get("timeZone")
+    # ZoneInfo also opens private posix/right trees; they are not public IANA IDs.
+    if (not isinstance(zone, str) or not zone or len(zone) > 100
+            or zone == "Factory" or zone not in available_timezones()):
+        return False
+    try:
+        ZoneInfo(zone)
+    except (KeyError, ValueError):
+        return False
+    source = manifest.get("source")
+    transcript = source.get("transcript") if isinstance(source, dict) and source.get("kind") == "record-call" else None
+    if not isinstance(transcript, dict):
+        return False
+    name = transcript.get("path")
+    if (not isinstance(name, str) or not name or len(name.encode("utf-16-le", "surrogatepass")) > 510
+            or name in (".", "..", "recording.json") or re.search(r"[\\/\x00-\x1f\x7f]", name)
+            or not integer(transcript.get("bytes"), 8388608) or transcript["bytes"] == 0
+            or not integer(transcript.get("speechTurns"), 1000000) or transcript["speechTurns"] == 0
+            or not isinstance(transcript.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", transcript["sha256"])):
+        return False
+    if "failure" not in manifest:
+        return False
+    failure = manifest["failure"]
+    if manifest.get("status") == "ready":
+        return failure is None and coverage.get("acceptedMinorGaps") is True
+    return (manifest.get("status") == "incomplete" and isinstance(failure, dict)
+            and failure.get("stage") == "capture" and failure.get("code") == "incomplete_audio_coverage"
+            and failure.get("retryable") is False
+            and ("side" not in failure or failure["side"] in SIDES)
+            and ("windowIndex" not in failure or integer(failure["windowIndex"])))
+
+
+def transcript_ready_without_coverage_warning(session):
+    """Derive display policy without changing the producer's capture evidence."""
+    manifest = session.manifest
+    if not isinstance(manifest, dict):
+        return False
+    coverage = manifest.get("coverage")
+    if (not neutral_manifest_metadata(manifest, coverage)
+            or "captureEndUnknown" in coverage and coverage["captureEndUnknown"] is not False):
+        return False
+
+    def milliseconds(value):
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and 0 <= value <= 9007199254740991 and math.isfinite(value))
+
+    duration = coverage.get("durationMs")
+    sides = coverage.get("sides")
+    if not milliseconds(duration) or duration <= 0 or not isinstance(sides, dict):
+        return False
+    uncertainty = 0
+    minor = coverage.get("acceptedMinorGaps") is True
+    minor_budget = min(MAX_MINOR_GAPS_PER_SIDE_MS, duration * MAX_MINOR_GAP_FRACTION)
+    if minor and duration < MIN_MINOR_GAP_DURATION_MS:
+        return False
+    minor_count = 0
+    for name in SIDES:
+        side = sides.get(name)
+        if (not isinstance(side, dict)
+                or "captureEndUnknown" in side and side["captureEndUnknown"] is not False):
+            return False
+        start, end = side.get("captureStartMs"), side.get("captureEndMs")
+        captured, transcribed = side.get("capturedMs"), side.get("transcribedMs")
+        if (not all(milliseconds(value) for value in (start, end, captured, transcribed))
+                or end < start or captured > end - start + 1 or transcribed != captured
+                or manifest["status"] == "incomplete" and end > duration):
+            return False
+        shortfall = side.get("sampleClockShortfallMs", 0)
+        if not milliseconds(shortfall) or shortfall > duration:
+            return False
+        missing = side.get("missing")
+        if not isinstance(missing, list) or len(missing) > 1000:
+            return False
+        gaps = [(0, min(duration, start)), (min(duration, end), duration)]
+        previous_end, located_capture, minor_ms, known_capture_ms, continuous_start = 0, 0, 0, 0, 0
+        for gap in missing:
+            if not isinstance(gap, dict):
+                return False
+            gap_start, gap_end = gap.get("startMs"), gap.get("endMs")
+            reason = gap.get("reason")
+            if (not milliseconds(gap_start) or not milliseconds(gap_end)
+                    or gap_start >= gap_end or gap_start < previous_end
+                    or not isinstance(reason, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", reason)
+                    or reason == "not_transcribed"):
+                return False
+            if minor:
+                if gap_start > previous_end:
+                    continuous_start = gap_start
+                if (reason not in MINOR_GAP_REASONS or gap_end > duration
+                        or gap_end - continuous_start > MAX_MINOR_GAP_MS):
+                    return False
+                minor_ms += gap_end - gap_start
+                minor_count += 1
+                if reason == "capture_gap":
+                    known_capture_ms += gap_end - gap_start
+            gaps.append((min(duration, gap_start), min(duration, gap_end)))
+            if reason == "capture_gap":
+                located_capture += max(0, min(end, gap_end) - max(start, gap_start))
+            previous_end = gap_end
+        if minor and (minor_ms > minor_budget or start > EDGE_TOLERANCE_MS
+                      or abs(end - duration) > EDGE_TOLERANCE_MS or "sampleClockShortfallMs" in side
+                      or abs(end - start - captured - known_capture_ms) > 1):
+            return False
+        union, through = 0, 0
+        for gap_start, gap_end in sorted(gaps):
+            union += max(0, gap_end - max(through, gap_start))
+            through = max(through, gap_end)
+        uncertainty += min(duration, union + max(0, end - start - captured - located_capture))
+    if uncertainty >= 30000 or minor and minor_count == 0 or manifest["status"] == "incomplete" and uncertainty <= 0:
+        return False
+    transcript = manifest["source"]["transcript"]
+    name = transcript["path"]
+    try:
+        descriptor = os.open(session.directory / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as content:
+            metadata = os.fstat(content.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != transcript["bytes"]:
+                return False
+            data = content.read(int(transcript["bytes"]) + 1)
+            return (len(data) == transcript["bytes"] and hashlib.sha256(data).hexdigest() == transcript["sha256"]
+                    and re.search(r"[^\s\ufeff]", data.decode("utf-8")) is not None)
+    except (OSError, ValueError):
+        return False
+
+
 def status(directory, config):
     if directory is None:
         legacy = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "record-call/session.env"
@@ -1837,6 +1990,7 @@ def status(directory, config):
             "stage": "recovery", "code": "legacy_recording_state", "retryable": False} if legacy.exists() else None}
     session = Session(directory, config)
     result = dict(session.manifest)
+    result["transcriptReadyWithoutCoverageWarning"] = transcript_ready_without_coverage_warning(session)
     result["outputDir"] = str(session.directory)
     result["sinkName"] = session.state["sink"]
     result["captureIssues"] = session.state.get("captureIssues", [])
