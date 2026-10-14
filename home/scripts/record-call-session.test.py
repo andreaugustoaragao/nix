@@ -2622,6 +2622,100 @@ class RecorderTests(unittest.TestCase):
                     self.assertEqual(recorder.current_directory(), organized)
         self.assertEqual(cleanup.call_count, 2)
 
+    def coverage_status_session(self):
+        session = self.session()
+        published = session.directory / "transcript.turns.txt"
+        published.write_text("[15:00:00] Participant: Published speech\n")
+        session.manifest.update({
+            "status": "incomplete", "endedAt": "2026-10-06T15:05:00.000Z",
+            "finalizedAt": "2026-10-06T15:05:01.000Z",
+            "failure": {"stage": "capture", "code": "incomplete_audio_coverage", "retryable": False},
+            "coverage": recorder.calculate_coverage({
+                "call": [{"startMs": 10, "endMs": 299900}],
+                "mic": [{"startMs": 20, "endMs": 298000}],
+            }, {
+                "call": [{"startMs": 10, "endMs": 299900}],
+                "mic": [{"startMs": 20, "endMs": 298000}],
+            }, 300000, []),
+        })
+        session.manifest["source"]["transcript"] = session.transcript_descriptor(published)
+        return session
+
+    def test_status_derives_neutral_transcript_policy_without_rewriting_evidence(self):
+        session = self.coverage_status_session()
+        base = json.dumps(session.manifest)
+        for label, missing_ms, gap_reason, expected in (
+                ("small aggregate deficit", 2020, None, True),
+                ("strictly below threshold", 29889, None, True),
+                ("exact threshold", 29890, None, False),
+                ("over threshold", 30000, None, False),
+                ("located internal capture gap", 40000, "capture_gap", False),
+                ("located uncertainty despite samples", 40000, "routing_uncertain", False),
+                ("short located uncertainty", 2000, "routing_uncertain", True)):
+            with self.subTest(label=label):
+                session.manifest = json.loads(base)
+                mic = session.manifest["coverage"]["sides"]["mic"]
+                if gap_reason:
+                    mic.update({"captureStartMs": 0, "captureEndMs": 300000,
+                                "capturedMs": 300000 - (missing_ms if gap_reason == "capture_gap" else 0),
+                                "missing": [{"startMs": 100000, "endMs": 100000 + missing_ms,
+                                             "reason": gap_reason}]})
+                    mic.pop("sampleClockShortfallMs", None)
+                else:
+                    mic["captureEndMs"] = 300000 - missing_ms + mic["captureStartMs"]
+                    mic["capturedMs"] = 300000 - missing_ms
+                    mic["sampleClockShortfallMs"] = 300000 - mic["captureEndMs"]
+                mic["transcribedMs"] = mic["capturedMs"]
+                session.persist()
+                before = {str(path.relative_to(session.directory)): path.read_bytes()
+                          for path in session.directory.rglob("*") if path.is_file()}
+                for _ in range(2):
+                    value = recorder.status(session.directory, session.config)
+                    self.assertEqual(value["transcriptReadyWithoutCoverageWarning"], expected)
+                    self.assertEqual(value["status"], "incomplete")
+                    self.assertEqual(value["coverage"], session.manifest["coverage"])
+                self.assertEqual({str(path.relative_to(session.directory)): path.read_bytes()
+                                  for path in session.directory.rglob("*") if path.is_file()}, before)
+        session.manifest = json.loads(base)
+        session.manifest.update({"status": "ready", "failure": None})
+        retained = {"call": [{"startMs": 0, "endMs": 300000}],
+                    "mic": [{"startMs": 0, "endMs": 100000}, {"startMs": 101000, "endMs": 300000}]}
+        session.manifest["coverage"] = recorder.calculate_coverage(retained, retained, 300000, [])
+        self.assertTrue(session.manifest["coverage"]["acceptedMinorGaps"])
+        session.persist()
+        self.assertTrue(recorder.status(session.directory, session.config)["transcriptReadyWithoutCoverageWarning"])
+
+    def test_status_keeps_untranscribed_unknown_invalid_and_real_failures_visible(self):
+        session = self.coverage_status_session()
+        base = json.dumps(session.manifest)
+        changes = (
+            ("untranscribed", lambda value: value["coverage"]["sides"]["mic"].update({"transcribedMs": 0})),
+            ("unknown capture end", lambda value: value["coverage"].update({"captureEndUnknown": True})),
+            ("invalid unknown flag", lambda value: value["coverage"].update({"captureEndUnknown": "false"})),
+            ("missing capture edge", lambda value: value["coverage"]["sides"]["mic"].update({"captureEndMs": None})),
+            ("nonfinite duration", lambda value: value["coverage"].update({"durationMs": float("inf")})),
+            ("oversized integer", lambda value: value["coverage"].update({"durationMs": 10 ** 400})),
+            ("negative capture", lambda value: value["coverage"]["sides"]["mic"].update({"capturedMs": -1})),
+            ("inverted capture", lambda value: value["coverage"]["sides"]["mic"].update({"captureEndMs": 0})),
+            ("invalid gap", lambda value: value["coverage"]["sides"]["mic"].update({"missing": [
+                {"startMs": 100, "endMs": 99, "reason": "capture_gap"}]})),
+            ("overlapping gaps", lambda value: value["coverage"]["sides"]["mic"].update({"missing": [
+                {"startMs": 100, "endMs": 300, "reason": "routing_uncertain"},
+                {"startMs": 200, "endMs": 400, "reason": "routing_uncertain"}]})),
+            ("retryable capture", lambda value: value["failure"].update({"retryable": True})),
+            ("ASR failure", lambda value: value["failure"].update({"stage": "transcription", "code": "asr_exit"})),
+            ("not finalized", lambda value: value.update({"finalizedAt": None})),
+            ("no transcript", lambda value: value["source"].update({"transcript": None})),
+            ("empty transcript", lambda value: value["source"]["transcript"].update({"bytes": 0})),
+            ("changed transcript", lambda value: value["source"]["transcript"].update({"sha256": "0" * 64})),
+            ("transcript path escape", lambda value: value["source"]["transcript"].update({"path": "../transcript.txt"})),
+        )
+        for label, change in changes:
+            with self.subTest(label=label):
+                session.manifest = json.loads(base)
+                change(session.manifest)
+                self.assertFalse(recorder.transcript_ready_without_coverage_warning(session))
+
     def test_status_reports_finalization_progress_from_durable_receipts(self):
         session = self.session(duration=90000)
         session.process_window(0, 45000, 30000)
@@ -2778,6 +2872,8 @@ class RecorderTests(unittest.TestCase):
             const rightClick = new Function('root', 'return ' + text.match(/pillRightClickAction: (.*)/)[1]);
             const tooltip = new Function('root', text.match(/function tooltipText\(\) \{([\s\S]*?)\n    \}/)[1]);
             const statusText = new Function('root', text.match(/function statusText\(\) \{([\s\S]*?)\n    \}/)[1]);
+            const iconName = new Function('root', 'return ' + text.match(/name: (root.recording.*)/)[1]);
+            const iconColor = new Function('root', 'Theme', 'return ' + text.match(/color: (root.recording.*)/)[1]);
             let root = {_pollOut: JSON.stringify({status:'recording',startedAt:'2026-10-06T15:00:00Z',outputDir:'/a call'})};
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'recording');
@@ -2831,6 +2927,23 @@ class RecorderTests(unittest.TestCase):
             status(root, 0, 0);
             assert.ok(tooltip(root).includes('call 9.4 s, mic 6.3 s'));
             assert.ok(tooltip(root).includes('position in the call is unknown'));
+            assert.strictEqual(root.phase, 'incomplete');
+            assert.strictEqual(iconName(root), 'error_outline');
+            assert.strictEqual(iconColor(root, {surfaceText:'neutral'}), '#e6a23c');
+            root._pollOut = JSON.stringify({status:'incomplete',transcriptReadyWithoutCoverageWarning:true,
+                failure:{stage:'capture',code:'incomplete_audio_coverage',retryable:false},
+                source:{transcript:{path:'transcript.turns.txt'}},coverage:{acceptedMinorGaps:false}});
+            status(root, 0, 0);
+            assert.strictEqual(root.phase, 'ready');
+            assert.strictEqual(root.minorGaps, false);
+            assert.strictEqual(iconName(root), 'mic');
+            assert.strictEqual(iconColor(root, {surfaceText:'neutral'}), 'neutral');
+            assert.strictEqual(tooltip(root), 'Transcript ready — click to start recording.');
+            root._pollOut = JSON.stringify({status:'incomplete',transcriptReadyWithoutCoverageWarning:false,
+                failure:{stage:'capture',code:'incomplete_audio_coverage',retryable:false}});
+            status(root, 0, 0);
+            assert.strictEqual(root.phase, 'incomplete');
+            assert.ok(tooltip(root).includes('Speech recognition failed'));
             rightClick(root)();
             assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
             root._pollOut = '{';
@@ -2873,6 +2986,11 @@ class RecorderTests(unittest.TestCase):
             status(root, 0, 0);
             assert.strictEqual(root.minorGaps, true);
             assert.ok(tooltip(root).includes('Brief audio gaps were recorded'));
+            root._pollOut = JSON.stringify({status:'ready',transcriptReadyWithoutCoverageWarning:true,
+                coverage:{acceptedMinorGaps:true}});
+            status(root, 0, 0);
+            assert.strictEqual(root.minorGaps, false);
+            assert.strictEqual(tooltip(root), 'Transcript ready — click to start recording.');
             root._pollOut = JSON.stringify({status:'ready'});
             status(root, 0, 0);
             assert.strictEqual(root.minorGaps, false);

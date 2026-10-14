@@ -1830,6 +1830,88 @@ def organize_recording(directory, config, expected_id=None, expected_revision=No
             return target
 
 
+def transcript_ready_without_coverage_warning(session):
+    """Derive display policy without changing the producer's capture evidence."""
+    manifest = session.manifest
+    coverage = manifest.get("coverage")
+    failure = manifest.get("failure")
+    eligible = (manifest.get("status") == "ready" and failure is None and isinstance(coverage, dict)
+                and coverage.get("acceptedMinorGaps") is True
+                or manifest.get("status") == "incomplete" and isinstance(failure, dict)
+                and failure.get("stage") == "capture"
+                and failure.get("code") == "incomplete_audio_coverage"
+                and failure.get("retryable") is False)
+    if (not eligible or not manifest.get("endedAt") or not manifest.get("finalizedAt")
+            or not isinstance(coverage, dict)
+            or "captureEndUnknown" in coverage and coverage["captureEndUnknown"] is not False):
+        return False
+
+    def milliseconds(value):
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and 0 <= value <= 9007199254740991 and math.isfinite(value))
+
+    duration = coverage.get("durationMs")
+    sides = coverage.get("sides")
+    if not milliseconds(duration) or duration <= 0 or not isinstance(sides, dict):
+        return False
+    uncertainty = 0
+    for name in SIDES:
+        side = sides.get(name)
+        if not isinstance(side, dict):
+            return False
+        start, end = side.get("captureStartMs"), side.get("captureEndMs")
+        captured, transcribed = side.get("capturedMs"), side.get("transcribedMs")
+        if (not all(milliseconds(value) for value in (start, end, captured, transcribed))
+                or end < start or captured > end - start + 1 or transcribed != captured):
+            return False
+        shortfall = side.get("sampleClockShortfallMs", 0)
+        if not milliseconds(shortfall) or shortfall > duration:
+            return False
+        missing = side.get("missing")
+        if not isinstance(missing, list) or len(missing) > 1000:
+            return False
+        gaps = [(0, min(duration, start)), (min(duration, end), duration)]
+        previous_end, located_capture = 0, 0
+        for gap in missing:
+            if not isinstance(gap, dict):
+                return False
+            gap_start, gap_end = gap.get("startMs"), gap.get("endMs")
+            reason = gap.get("reason")
+            if (not milliseconds(gap_start) or not milliseconds(gap_end)
+                    or gap_start >= gap_end or gap_start < previous_end
+                    or not isinstance(reason, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", reason)
+                    or reason == "not_transcribed"):
+                return False
+            gaps.append((min(duration, gap_start), min(duration, gap_end)))
+            if reason == "capture_gap":
+                located_capture += max(0, min(end, gap_end) - max(start, gap_start))
+            previous_end = gap_end
+        union, through = 0, 0
+        for gap_start, gap_end in sorted(gaps):
+            union += max(0, gap_end - max(through, gap_start))
+            through = max(through, gap_end)
+        uncertainty += min(duration, union + max(0, end - start - captured - located_capture))
+    if uncertainty >= 30000:
+        return False
+    source = manifest.get("source")
+    transcript = source.get("transcript") if isinstance(source, dict) else None
+    if not isinstance(transcript, dict):
+        return False
+    name = transcript.get("path")
+    if (not isinstance(name, str) or Path(name).name != name or name in ("", ".", "..")
+            or not milliseconds(transcript.get("bytes")) or transcript["bytes"] <= 0
+            or not milliseconds(transcript.get("speechTurns")) or transcript["speechTurns"] <= 0):
+        return False
+    try:
+        descriptor = os.open(session.directory / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as content:
+            metadata = os.fstat(content.fileno())
+            return (stat.S_ISREG(metadata.st_mode) and metadata.st_size == transcript["bytes"]
+                    and hashlib.file_digest(content, "sha256").hexdigest() == transcript.get("sha256"))
+    except (OSError, ValueError):
+        return False
+
+
 def status(directory, config):
     if directory is None:
         legacy = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "record-call/session.env"
@@ -1837,6 +1919,7 @@ def status(directory, config):
             "stage": "recovery", "code": "legacy_recording_state", "retryable": False} if legacy.exists() else None}
     session = Session(directory, config)
     result = dict(session.manifest)
+    result["transcriptReadyWithoutCoverageWarning"] = transcript_ready_without_coverage_warning(session)
     result["outputDir"] = str(session.directory)
     result["sinkName"] = session.state["sink"]
     result["captureIssues"] = session.state.get("captureIssues", [])

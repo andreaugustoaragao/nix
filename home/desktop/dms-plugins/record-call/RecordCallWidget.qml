@@ -130,7 +130,10 @@ PluginComponent {
                 if (["idle", "starting", "recording", "finalizing", "diarizing", "ready", "incomplete"].indexOf(state.status) < 0)
                     throw new Error("invalid_status");
                 var progress = state.finalization || {};
-                root.phase = state.status === "finalizing" && progress.stage === "diarizing"
+                var transcriptReady = state.transcriptReadyWithoutCoverageWarning === true;
+                root.phase = transcriptReady && state.status === "incomplete"
+                    ? "ready"
+                    : state.status === "finalizing" && progress.stage === "diarizing"
                     ? "diarizing"
                     : state.status;
                 root.startedAt = state.startedAt ? Math.floor(Date.parse(state.startedAt) / 1000) : 0;
@@ -139,7 +142,7 @@ PluginComponent {
                 root.retryable = !!(state.failure && state.failure.retryable && root.outputDir);
                 root.salvageable = !!(state.salvageable && root.outputDir);
                 root.hasPartialTranscript = !!(state.status === "incomplete" && state.source && state.source.transcript);
-                root.minorGaps = !!(state.coverage && state.coverage.acceptedMinorGaps);
+                root.minorGaps = !transcriptReady && !!(state.coverage && state.coverage.acceptedMinorGaps);
                 var issues = Array.isArray(state.captureIssues) ? state.captureIssues : [];
                 var affected = [];
                 for (var issue of issues) {
