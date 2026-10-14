@@ -28,7 +28,7 @@ import threading
 import time
 import uuid
 import wave
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, available_timezones
 
 SIDES = ("call", "mic")
 ACTIVE = ("starting", "recording", "finalizing", "diarizing")
@@ -1859,7 +1859,9 @@ def neutral_manifest_metadata(manifest, coverage):
     if elapsed.days * 86400000 + elapsed.seconds * 1000 + elapsed.microseconds // 1000 != coverage["durationMs"]:
         return False
     zone = manifest.get("timeZone")
-    if not isinstance(zone, str) or not zone or len(zone) > 100:
+    # ZoneInfo also opens private posix/right trees; they are not public IANA IDs.
+    if (not isinstance(zone, str) or not zone or len(zone) > 100
+            or zone == "Factory" or zone not in available_timezones()):
         return False
     try:
         ZoneInfo(zone)
