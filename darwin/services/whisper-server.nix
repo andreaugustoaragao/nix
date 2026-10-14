@@ -117,10 +117,9 @@ in
       StandardOutPath = "/tmp/whisper-server.out";
       StandardErrorPath = "/tmp/whisper-server.err";
       ThrottleInterval = 30;
-      # Adaptive: throttle when idle, full priority while a request is
-      # being served. Whisper requests are bursty (per voice message
-      # or per record-call window) — Interactive is wasteful here.
-      ProcessType = "Adaptive";
+      # Adaptive changes priority on XPC activity, but this server receives
+      # HTTP requests. Standard lets launchd start it at load as intended.
+      ProcessType = "Standard";
       # See local-llm.nix for the full rationale — launchd's bare env
       # breaks curl behind the corporate MITM proxy. Re-use the
       # combined corporate + system bundle from darwin/certs.nix so
