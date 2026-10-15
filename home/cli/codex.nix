@@ -102,7 +102,7 @@ let
     args = ["/run/secrets/litellm_api_key"]
 
     ${lib.optionalString (osConfig.sops.secrets ? open_ai_key) ''
-      # Direct API access selected by the codex-openai launcher.
+      # Optional direct API access selected with model_provider="openai-sops".
       [model_providers.openai-sops]
       name = "OpenAI (SOPS)"
       base_url = "https://api.openai.com/v1"
@@ -210,11 +210,10 @@ in
     exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="litellm"' "$@"
   '';
 
-  home.file.".local/bin/codex-openai" = lib.mkIf (osConfig.sops.secrets ? open_ai_key) {
-    source = pkgs.writeShellScript "codex-openai" ''
-      exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="openai-sops"' "$@"
-    '';
-  };
+  # Use Codex's saved OpenAI login, independently of optional API-key secrets.
+  home.file.".local/bin/codex-openai".source = pkgs.writeShellScript "codex-openai" ''
+    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="openai"' "$@"
+  '';
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.codex/config.toml"

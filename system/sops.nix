@@ -170,7 +170,7 @@
         mode = "0400";
       };
 
-      # Direct OpenAI API access for the codex-openai launcher.
+      # Optional direct OpenAI API credentials for Codex.
       "open_ai_key" = {
         owner = owner.name;
         group = "users";
