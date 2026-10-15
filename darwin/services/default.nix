@@ -21,6 +21,7 @@
 {
   imports = [
     ./diarization-server.nix
+    ./record-call-diarizer.nix
     ./local-llm.nix
     ./whisper-server.nix
   ];

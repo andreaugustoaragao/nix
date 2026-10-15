@@ -1388,6 +1388,114 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(output.read_text(), "[15:00:10] Speaker 1: Near the end of a long segment\n")
 
+    def test_diarization_uses_verified_intervals_without_guessing_across_speakers(self):
+        session = self.session(duration=45000)
+        source = session.directory / "transcript.txt"
+        source.write_text("[15:00:05] First reply\n[15:00:15] Second reply\n"
+                          "[15:00:25] Two people in one segment\n"
+                          "[15:00:35] Uncovered reply\n[15:00:36] Me: My reply\n")
+        offsets = source.with_suffix(".offsets.json")
+        recorder.atomic_json(offsets, [5000, 15000, 25000, 35000, 36000])
+        segments = self.root / "speakers.json"
+        recorder.atomic_json(segments, [
+            {"start": 8, "end": 10, "speaker": "a"},
+            {"start": 18, "end": 20, "speaker": "b"},
+            {"start": 25, "end": 26, "speaker": "a"},
+            {"start": 28, "end": 30, "speaker": "b"},
+        ])
+        window = session.private / "windows/000000"
+        window.mkdir(parents=True)
+        data = [{"start": start, "end": end, "text": text} for start, end, text in (
+            (5, 10, "First reply"), (15, 20, "Second reply"),
+            (25, 30, "Two people in one segment"), (35, 35.5, "Uncovered reply"))]
+        output = self.root / "aligned.txt"
+        command = [sys.executable, session.config["align"], str(source), str(segments),
+                   str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output), str(offsets)]
+        for payload in ({"segments": data}, {"transcription": [
+                {"offsets": {"from": s["start"] * 1000, "to": s["end"] * 1000}, "text": s["text"]}
+                for s in data]}):
+            recorder.atomic_json(window / "call.json", payload)
+            recorder.atomic_json(window / "call.ok.json", {
+                "parameters": {"startMs": 0, "endMs": 45000, "emitEndMs": 30000},
+                "outputHash": recorder.file_hash(window / "call.json"),
+            })
+            result = subprocess.run(command, env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text(),
+                             "[15:00:05] Speaker 1: First reply\n"
+                             "[15:00:15] Speaker 2: Second reply\n"
+                             "[15:00:25] Two people in one segment\n"
+                             "[15:00:35] Uncovered reply\n[15:00:36] Me: My reply\n")
+        (window / "call.json").write_text('{"segments":[]}')
+        result = subprocess.run(command, env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("call ASR receipt changed", result.stderr)
+
+    def test_diarization_rejects_overlapping_speakers_and_tied_boundary_guesses(self):
+        session = self.session()
+        source = self.root / "ambiguous.txt"
+        source.write_text("[15:00:02] Overlap\n[15:00:04] Equal distance\n")
+        offsets = self.root / "ambiguous.offsets.json"
+        recorder.atomic_json(offsets, [2000, 4500])
+        segments = self.root / "ambiguous.json"
+        recorder.atomic_json(segments, [
+            {"start": 1, "end": 3, "speaker": "a"},
+            {"start": 1.5, "end": 4, "speaker": "b"},
+            {"start": 5, "end": 6, "speaker": "a"},
+        ])
+        output = self.root / "ambiguous.out.txt"
+        result = subprocess.run([
+            sys.executable, session.config["align"], str(source), str(segments),
+            str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output), str(offsets)
+        ], env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output.read_text(), source.read_text())
+
+    def test_diarization_shell_uses_raw_audio_and_retains_legacy_override(self):
+        session = self.session(duration=5000)
+        (session.directory / "transcript.txt").write_text(
+            "[15:00:00] First voice\n[15:00:02] Second voice\n[15:00:04] Me: Local voice\n")
+        recorder.atomic_json(session.directory / "transcript.offsets.json", [100, 2100, 4000])
+        (session.directory / ".started-at").write_text(str(int(recorder.timestamp(session.manifest["startedAt"]))))
+        fake_curl = self.root / "curl"
+        fake_curl.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
+            import json, pathlib, sys
+            args = sys.argv[1:]
+            pathlib.Path({str(self.root / 'curl-arguments.json')!r}).write_text(json.dumps(args))
+            if args[-1].endswith('/v1/audio/diarizations'):
+                assert '-F' not in args
+                assert args[args.index('-H') + 1] == 'Content-Type: audio/wav'
+                audio = pathlib.Path(args[args.index('--data-binary') + 1][1:])
+            else:
+                assert '--data-binary' not in args
+                assert 'diarize=true' in args
+                audio = pathlib.Path(next(a[6:] for a in args if a.startswith('file=@')))
+            assert audio.read_bytes().startswith(b'RIFF')
+            print(json.dumps({{'speaker_segments': [
+                {{'start': 0, 'end': 1, 'speaker': 'a'}},
+                {{'start': 2, 'end': 3, 'speaker': 'b'}}]}}))
+        '''))
+        fake_curl.chmod(0o700)
+        source = Path(__file__).with_name("record-call.nix").read_text()
+        body = source.split('  diarizeScript = pkgs.writeShellScript "record-call-diarize" \'\'\n', 1)[1]
+        body = textwrap.dedent(body.split("\n  '';", 1)[0])
+        body = body.replace('${binPath}', str(self.root)).replace("''${", "${")
+        for name in ("concatCall", "diarizationResponse", "align", "turns"):
+            body = body.replace('${' + name + 'Py}', shlex.quote(session.config[name]))
+        script = self.root / "diarize.sh"
+        script.write_text(body)
+        for suffix in ("diarizations", "transcriptions"):
+            with self.subTest(endpoint=suffix):
+                result = subprocess.run([
+                    "bash", str(script), str(session.directory), f"http://synthetic.invalid/v1/audio/{suffix}"
+                ], env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((session.directory / "transcript.diarized.txt").read_text(),
+                                 "[15:00:00] Speaker 1: First voice\n"
+                                 "[15:00:02] Speaker 2: Second voice\n[15:00:04] Me: Local voice\n")
+                self.assertEqual(json.loads((session.directory / "transcript.diarized.offsets.json").read_text()),
+                                 [100, 2100, 4000])
+
     def test_diarization_alignment_survives_midnight_and_dst_fallback(self):
         session = self.session()
         zone = ZoneInfo("America/Denver")

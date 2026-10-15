@@ -25,14 +25,14 @@ let
   defaultWhisperServerUrl =
     if isWorkstation then "" else "http://mac-work.local:8081/v1/audio/transcriptions";
 
-  # Global post-recording diarization runs through the FluidAudio sidecar.
-  # mac-work reaches the app directly on loopback; other hosts use the
-  # bridge-only proxy from darwin/services/diarization-server.nix.
+  # Offline FluidAudio clusters the complete call and returns raw acoustic
+  # speaker segments. It does not run another transcription or discard
+  # speaker evidence when a second ASR model misses a brief reply.
   defaultDiarizationServerUrl =
     if isDarwinHost then
-      "http://localhost:12017/v1/audio/transcriptions"
+      "http://127.0.0.1:12018/v1/audio/diarizations"
     else
-      "http://mac-work.local:8082/v1/audio/transcriptions";
+      "http://mac-work.local:8083/v1/audio/diarizations";
 
   binPath = pkgs.lib.makeBinPath [
     pkgs.pipewire # pw-record; its PipeWire-native capture path avoids the
@@ -218,7 +218,8 @@ let
   # diarization JSON by prepending the active speaker to each line.
   # Args: transcript_path diar_json started_at_epoch out_path [elapsed_offsets_json]
   alignPy = pkgs.writeText "record-call-align.py" ''
-    import json, os, re, sys
+    import hashlib, json, math, os, re, sys
+    from pathlib import Path
     from datetime import datetime, timedelta, time as clock_time
     from zoneinfo import ZoneInfo
     tpath, dpath, epoch_s, outpath = sys.argv[1:5]
@@ -235,20 +236,65 @@ let
         if not isinstance(offsets, list):
             raise ValueError("invalid transcript offsets")
 
-    def speaker_at(t):
-        # Pick the diarization segment whose [start, end] contains t,
-        # or the closest boundary within 1s either side (whisper and
-        # pyannote timestamps disagree at sub-second level).
+    def finite(value):
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+    # Keep the original ASR interval: a segment can start in silence long
+    # before its words. The retained, hash-checked ASR receipts also let old
+    # recordings benefit without retranscription or changing their text.
+    intervals = {}
+    windows = Path(tpath).parent / ".record-call/windows"
+    for receipt_path in sorted(windows.glob("*/call.ok.json")):
+        receipt = json.loads(receipt_path.read_text())
+        payload = receipt_path.with_name("call.json").read_bytes()
+        if hashlib.sha256(payload).hexdigest() != receipt["outputHash"]:
+            raise ValueError("call ASR receipt changed")
+        parameters = receipt["parameters"]
+        origin, limit = parameters["startMs"], parameters["endMs"]
+        if not finite(origin) or not finite(limit) or origin < 0 or limit <= origin:
+            raise ValueError("invalid call ASR interval")
+        data = json.loads(payload)
+        if "segments" in data:
+            spans = [(s["start"] * 1000, s["end"] * 1000, s["text"]) for s in data["segments"]]
+        else:
+            spans = [(s["offsets"]["from"], s["offsets"]["to"], s["text"]) for s in data["transcription"]]
+        for start, end, text in spans:
+            if not finite(start) or not finite(end) or start < 0 or end < start or origin + end > limit + 1000:
+                raise ValueError("invalid call ASR segment")
+            key = (round(origin + start), " ".join(text.split()))
+            bounded_end = min(origin + end, limit) / 1000
+            # Duplicate windows must never stretch the segment into a later
+            # participant's turn. Use the shortest verified matching interval.
+            intervals[key] = min(intervals.get(key, bounded_end), bounded_end)
+
+    def speaker_at(t, end=None):
+        if end is not None and end > t:
+            overlaps = {s["speaker"] for s in segs if min(end, s["end"]) > max(t, s["start"])}
+            if len(overlaps) == 1:
+                return next(iter(overlaps))
+            if len(overlaps) > 1:
+                # A sentence spanning a speaker change needs word alignment;
+                # picking the first or longest speaker silently misattributes it.
+                return None
+        # Legacy transcripts without retained ASR still support point timing.
+        # Reject overlapping speakers and equidistant conflicting boundaries.
+        active = {s["speaker"] for s in segs if s["start"] <= t < s["end"]}
+        if len(active) == 1:
+            return next(iter(active))
+        if active:
+            return None
         hit = None
         distance = float("inf")
+        tied = False
         for s in segs:
-            if s["start"] <= t <= s["end"]:
-                return s["speaker"]
             boundary_distance = min(abs(t - s["start"]), abs(t - s["end"]))
-            if boundary_distance < distance:
+            if abs(boundary_distance - distance) < 1e-9:
+                tied = tied or hit["speaker"] != s["speaker"]
+            elif boundary_distance < distance:
                 hit = s
                 distance = boundary_distance
-        if hit and distance <= 1.0:
+                tied = False
+        if hit and distance <= 1.0 and not tied:
             return hit["speaker"]
         return None
 
@@ -290,7 +336,7 @@ let
                 continue
             h, mi, s, rest = m.groups()
             if offsets is not None:
-                if line_count >= len(offsets) or not isinstance(offsets[line_count], (int, float)) or offsets[line_count] < 0:
+                if line_count >= len(offsets) or not finite(offsets[line_count]) or offsets[line_count] < 0:
                     raise ValueError("invalid transcript offset")
                 rel = offsets[line_count] / 1000
             else:
@@ -304,7 +350,7 @@ let
             if rest.startswith("Me: "):
                 out.write(f"[{h}:{mi}:{s}] {rest}\n")
                 continue
-            spk = label(speaker_at(rel))
+            spk = label(speaker_at(rel, intervals.get((round(rel * 1000), rest))))
             prefix = f"[{h}:{mi}:{s}] "
             if spk:
                 out.write(f"{prefix}{spk}: {rest}\n")
@@ -568,13 +614,23 @@ let
     python3 ${concatCallPy} "$SRC/chunks" "$WORK/session.wav"
 
     echo "Running global speaker diarization on mac-work..."
-    curl -fsS --max-time 7200 \
-      -F "file=@$WORK/session.wav" \
-      -F "model=$MODEL" \
-      -F "language=en" \
-      -F "response_format=verbose_json" \
-      -F "diarize=true" \
-      "$SERVER_URL" > "$WORK/diarization.response.json"
+    case "$SERVER_URL" in
+      */v1/audio/diarizations)
+        curl -fsS --max-time 7200 \
+          -H "Content-Type: audio/wav" --data-binary "@$WORK/session.wav" \
+          "$SERVER_URL" > "$WORK/diarization.response.json"
+        ;;
+      *)
+        # Explicit legacy/provider overrides keep their existing API contract.
+        curl -fsS --max-time 7200 \
+          -F "file=@$WORK/session.wav" \
+          -F "model=$MODEL" \
+          -F "language=en" \
+          -F "response_format=verbose_json" \
+          -F "diarize=true" \
+          "$SERVER_URL" > "$WORK/diarization.response.json"
+        ;;
+    esac
 
     python3 ${diarizationResponsePy} \
       "$WORK/diarization.response.json" > "$WORK/diarization.json"
