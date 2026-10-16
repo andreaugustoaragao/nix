@@ -90,7 +90,8 @@ in
         nodejs_22 # Node.js runtime (includes npm)
         pnpm # Fast package manager
         yarn # Alternative package manager
-        bun # Ultra-fast JS runtime & package manager
+        # Bun pinned ahead of nixpkgs (unstable still 1.4.2); see pkgs/bun-ahead.nix.
+        (pkgs.callPackage ../../pkgs/bun-ahead.nix { })
         typescript # TypeScript compiler
         nodemon # Development server with auto-restart
 
