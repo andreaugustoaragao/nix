@@ -42,6 +42,9 @@ let
       package: (package.pname or "") == name
     ) (throw "Missing runtime package ${name}") packages;
   azureCore = named "azure-cli-core" runtime.azure-cli.basePackage.propagatedBuildInputs;
+  azureFabric = named "fabric" runtime.azure-cli.basePackage.propagatedBuildInputs;
+  azureInvoke = named "invoke" azureFabric.propagatedBuildInputs;
+  azureParamiko = named "paramiko" runtime.azure-cli.basePackage.propagatedBuildInputs;
   tokenPackage = named "pyjwt" azureCore.propagatedBuildInputs;
   cryptoPackage = named "cryptography" azureCore.propagatedBuildInputs;
   identityPackage = named "msal" azureCore.propagatedBuildInputs;
@@ -72,17 +75,23 @@ let
     Environment="PATH=${expectedEffectivePath}"
   '';
 in
-assert runtime.azure-cli.version == "2.89.1";
-assert runtime.azure-cli.basePackage == unstable-pkgs.azure-cli;
-assert runtime.azure-cli.python == unstable-pkgs.python3;
+assert pkgs.lib.versionAtLeast runtime.azure-cli.version "2.89.1";
+assert runtime.azure-cli.version == unstable-pkgs.azure-cli.version;
+assert runtime.azure-cli.python.interpreter == unstable-pkgs.python3.interpreter;
 assert (named "urllib3" runtime.azure-cli.basePackage.propagatedBuildInputs).version == "2.7.0";
+assert !azureFabric.meta.broken;
+assert azureInvoke.version == pkgs.python3Packages.invoke.version;
+assert pkgs.lib.versionOlder azureInvoke.version "3";
+assert (named "invoke" azureParamiko.propagatedBuildInputs) == azureInvoke;
+assert (named "paramiko" azureFabric.propagatedBuildInputs) == azureParamiko;
 assert azureCore.version == runtime.azure-cli.version;
 assert pkgs.lib.versionAtLeast tokenPackage.version "2.14.0";
 assert pkgs.lib.versionAtLeast cryptoPackage.version "50.0.0";
-assert identityPackage.version == "1.37.0";
+assert pkgs.lib.versionAtLeast identityPackage.version "1.37.0";
 assert httpPackage.version == "2.8.0";
 assert httpPackage.meta.changelog == "https://github.com/urllib3/urllib3/blob/2.8.0/CHANGES.rst";
-assert runtime.ffmpeg.version == "9.0.1";
+assert pkgs.lib.versionAtLeast runtime.ffmpeg.version "9.0.1";
+assert runtime.ffmpeg == unstable-pkgs.ffmpeg_9;
 assert runtime.npm.node.version == "22.23.3";
 assert runtime.npm.braceVersion == "2.1.7";
 assert runtime.npm.node == pkgs.nodejs-slim_22;
@@ -115,7 +124,8 @@ assert !(builtins.tryEval (builtins.deepSeq wrongHost.home.packages true)).succe
   hostScopedPrivateBootstrap = true;
   scopedRuntimeTools = true;
   fixedAzureHttpRuntime = true;
-  supportedAzureBasePreserved = true;
+  supportedAzureVersionPreserved = true;
+  compatibleFabricInvoke = true;
   privateNpmReplacement = true;
   effectiveRuntimePath = true;
   browserListenerUnchanged = true;

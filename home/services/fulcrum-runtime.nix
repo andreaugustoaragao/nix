@@ -4,8 +4,21 @@
   unstable-pkgs,
 }:
 let
-  azureBase = unstable-pkgs.azure-cli;
-  azurePython = unstable-pkgs.python3;
+  # Fabric 3.x does not support Invoke 3.x. Keep the compatible Invoke source
+  # from our stable pin, rebuilt for Azure's Python, scoped to this package set.
+  azurePkgs = unstable-pkgs.extend (
+    _final: prev: {
+      pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+        (_pyFinal: pyPrev: {
+          invoke = pyPrev.invoke.overridePythonAttrs (_: {
+            inherit (pkgs.python3Packages.invoke) version src;
+          });
+        })
+      ];
+    }
+  );
+  azureBase = azurePkgs.azure-cli;
+  azurePython = azurePkgs.python3;
   originalHttp = lib.findFirst (
     package: (package.pname or "") == "urllib3"
   ) (throw "Azure CLI has no direct urllib3 dependency") azureBase.propagatedBuildInputs;
@@ -68,7 +81,9 @@ let
         raise AssertionError('Azure Python entrypoint not found')
 
     probe = (
-        "import importlib.metadata, json, sys, urllib3, requests\n"
+        "import fabric, importlib.metadata, invoke, json, sys, urllib3, requests\n"
+        "assert invoke.__version__ == '${pkgs.python3Packages.invoke.version}'\n"
+        "assert fabric.Connection('localhost').host == 'localhost'\n"
         "assert requests.packages.urllib3 is urllib3\n"
         "assert urllib3.__version__ == importlib.metadata.version('urllib3')\n"
         "print(json.dumps({'python': sys.executable, 'version': urllib3.__version__, "
