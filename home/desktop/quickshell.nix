@@ -35,8 +35,8 @@ let
   # with the rest of the shell's unit setting.
   dmsPackage = inputs.dms.packages.${pkgs.stdenv.hostPlatform.system}.default.overrideAttrs (old: {
     postInstall = (old.postInstall or "") + ''
-      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/ProcessListPopout.qml \
-        --replace-fail 'detail: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°") : ""' 'detail: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
+      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/ProcessSummary.qml \
+        --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? DgopService.cpuTemperature.toFixed(0) + "°C" : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
 
       substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/PerformanceView.qml \
         --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°C") : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
@@ -50,23 +50,20 @@ let
       substituteInPlace $out/share/quickshell/dms/Services/PortalService.qml \
         --replace-fail 'const targetScheme = isLightMode ? (preferLight ? "prefer-light" : "default") : "prefer-dark";' 'const targetScheme = isLightMode ? "prefer-light" : "prefer-dark";'
 
-      # DMS bar clock renders children in source order: time, dot, date.
-      # Flip the Row to RightToLeft so it visually reads "date • time"
-      # without touching the inner time/date StyledTexts (text content
-      # within each child still flows LTR).
-      substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/Clock.qml \
-        --replace-fail 'spacing: Theme.spacingS' 'spacing: Theme.spacingS; layoutDirection: Qt.RightToLeft'
+      # Keep the bar clock in date-before-time order.
+      substituteInPlace $out/share/quickshell/dms/Modules/DBar/Widgets/Clock.qml \
+        --replace-fail 'dateFirst: root.widgetData?.clockDateOrder === "dateFirst"' 'dateFirst: true'
 
       ${lib.optionalString isVm ''
         # Niri always keeps a trailing unnamed workspace. Show the six
         # configured persistent workspaces on each VM display in the bar.
-        substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/WorkspaceSwitcher.qml \
-          --replace-fail 'workspaces = workspaces.slice().sort((a, b) => a.idx - b.idx);' 'workspaces = workspaces.filter(ws => ws.name).sort((a, b) => a.idx - b.idx);'
+        substituteInPlace $out/share/quickshell/dms/Common/WorkspaceModel.js \
+          --replace-fail 'const sorted = (onScreen.length > 0 ? onScreen : niriFallback()).slice().sort((a, b) => a.idx - b.idx);' 'const sorted = (onScreen.length > 0 ? onScreen : niriFallback()).filter(ws => ws.name).sort((a, b) => a.idx - b.idx);'
 
         # Keep the desktop's font scale, but render clipboard history at the
         # unscaled DMS sizes so its rows do not crowd the compact modal.
         substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardHeader.qml \
-          --replace-fail 'font.pixelSize: Theme.fontSizeLarge' 'font.pixelSize: Math.round(Theme.fontSizeLarge / Theme.fontScale)'
+          --replace-fail 'font.pixelSize: Theme.fontSizeMedium' 'font.pixelSize: Math.round(Theme.fontSizeMedium / Theme.fontScale)'
         substituteInPlace $out/share/quickshell/dms/Modals/Clipboard/ClipboardEntry.qml \
           --replace-fail 'font.pixelSize: Theme.fontSizeSmall' 'font.pixelSize: Math.round(Theme.fontSizeSmall / Theme.fontScale)' \
           --replace-fail 'font.pixelSize: Theme.fontSizeMedium' 'font.pixelSize: Math.round(Theme.fontSizeMedium / Theme.fontScale)'
@@ -74,7 +71,7 @@ let
           --replace-fail 'font.pixelSize: Theme.fontSizeMedium' 'font.pixelSize: Math.round(Theme.fontSizeMedium / Theme.fontScale)'
 
         # VM traffic uses a virtual Ethernet interface, not Wi-Fi.
-        substituteInPlace $out/share/quickshell/dms/Modules/DankBar/Widgets/NetworkMonitor.qml \
+        substituteInPlace $out/share/quickshell/dms/Modules/DBar/Widgets/NetworkMonitor.qml \
           --replace-fail 'name: "network_check"' 'name: "lan"'
       ''}
     '';
