@@ -18,6 +18,9 @@ let
   inherit (config.my) displays;
   inherit (config.my.displays) dp2Dimensions;
   useStaticVirtualPositions = hostName != "prl-dev-vm";
+  # prl-dev-vm renders at twice the Mac's logical resolution (Retina).
+  # Use 150% scaling on the work VM with Retina enabled.
+  virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   startGraphicalSession = pkgs.writeShellScript "start-niri-graphical-session" ''
     set -e
     ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY
@@ -104,8 +107,8 @@ in
   xdg.configFile."niri/config.kdl".text = ''
     ${workspaceBlock}
 
-    // Monitor/Output configuration. Parallels Virtual-* outputs run on
-    // a retina host display so scale=2.0 gives 1:1 logical pixels;
+    // Monitor/Output configuration. Virtual-* scaling accounts for both
+    // the hypervisor's Retina rendering and the desired on-screen size;
     // bare-metal DP-* outputs use per-monitor scale below. niri silently
     // skips output blocks for absent connectors, so these blocks are
     // harmless on hosts without the matching displays.
@@ -114,17 +117,17 @@ in
     // prl-display-layout positions these outputs from the host layout;
     // other hosts retain their static positions.
     output "Virtual-3" {
-        scale 2.0
+        scale ${virtualOutputScale}
         ${lib.optionalString useStaticVirtualPositions "position x=0 y=0"}
     }
 
     output "Virtual-1" {
-        scale 2.0
+        scale ${virtualOutputScale}
         ${lib.optionalString useStaticVirtualPositions "position x=${toString dp2Dimensions.width} y=0"}
     }
 
     output "Virtual-2" {
-        scale 2.0
+        scale ${virtualOutputScale}
     }
 
     // DP-2: Dell S2725QS, 27" 4K, mounted in portrait to the left of DP-1.
