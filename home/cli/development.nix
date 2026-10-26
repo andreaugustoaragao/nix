@@ -208,7 +208,6 @@ in
         install-pi-coding-agent # Script to install Pi coding agent
         update-npm-ai-tools # Daily/manual updater for Codex + Pi + Grok Build
         (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
-        (pkgs.callPackage ../../pkgs/herdr.nix { }) # Terminal workspace for AI coding agents
       ]
       ++ [
         # Static analysis / SAST — pinned to stable (1.161.0). Unstable's 1.164.0

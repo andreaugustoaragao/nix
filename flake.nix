@@ -721,6 +721,21 @@
         in
         {
           dev-browser-mcp = (pkgs.callPackage ./pkgs/dev-browser-mcp.nix { }).tests.protocol;
+          herdr-integrations =
+            pkgs.runCommand "check-herdr-integrations"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  (pkgs.python3.withPackages (ps: [ ps.json5 ]))
+                ];
+              }
+              ''
+                cp ${./home/cli/herdr-configure.py} herdr-configure.py
+                cp ${./home/cli/herdr-configure.test.py} herdr-configure.test.py
+                PYTHONDONTWRITEBYTECODE=1 python3 herdr-configure.test.py \
+                  --assets ${self.packages.${system}.herdr}/share/herdr/integrations
+                touch "$out"
+              '';
           kubernetes-vm = import ./system/kubernetes/check.nix {
             inherit pkgs;
             hostConfig = self.nixosConfigurations.prl-k8s-vm.config;

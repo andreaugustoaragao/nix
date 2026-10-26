@@ -36,6 +36,7 @@ in
     ./claude.nix
     ./codex.nix
     ./opencode.nix
+    ./herdr.nix
     ./pstack.nix
     ./graphify.nix
     ./cursor.nix

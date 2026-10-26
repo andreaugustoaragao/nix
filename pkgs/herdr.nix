@@ -2,6 +2,11 @@
   lib,
   stdenvNoCC,
   fetchurl,
+  fetchFromGitHub,
+  makeWrapper,
+  bash,
+  coreutils,
+  python3,
 }:
 
 let
@@ -25,6 +30,12 @@ let
     };
   };
   source = sources.${stdenvNoCC.hostPlatform.system};
+  integrationSource = fetchFromGitHub {
+    owner = "herdrdev";
+    repo = "herdr";
+    rev = "v${version}";
+    hash = "sha256-N7e7oCKxeCoxek6UT8Lweq16rSsQQi34QMb7C2iNpm8=";
+  };
 in
 stdenvNoCC.mkDerivation {
   pname = "herdr";
@@ -39,10 +50,21 @@ stdenvNoCC.mkDerivation {
   dontConfigure = true;
   dontBuild = true;
   dontStrip = true;
+  nativeBuildInputs = [ makeWrapper ];
 
   installPhase = ''
     runHook preInstall
     install -Dm755 "$src" "$out/bin/herdr"
+    mkdir -p "$out/share/herdr"
+    cp -r ${integrationSource}/src/integration/assets "$out/share/herdr/integrations"
+    cp -r ${integrationSource}/skills/herdr "$out/share/herdr/skill"
+    wrapProgram "$out/bin/herdr" --suffix PATH : ${
+      lib.makeBinPath [
+        bash
+        coreutils
+        python3
+      ]
+    }
     runHook postInstall
   '';
 

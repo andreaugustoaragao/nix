@@ -59,6 +59,8 @@ let
     approval_policy = "on-request"
     approvals_reviewer = "auto_review"
 
+    features.hooks = true
+
     # Reuse the user's saved MCP OAuth credentials across Codex instances.
     # Keep tokens in Codex's credential store, outside this generated config.
     mcp_oauth_credentials_store = "auto"

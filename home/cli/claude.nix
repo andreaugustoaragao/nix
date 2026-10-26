@@ -109,6 +109,18 @@ in
         # MAX_THINKING_TOKENS = "31999";
       };
       hooks = {
+        SessionStart = [
+          {
+            matcher = "^(startup|resume|clear|compact|fork)$";
+            hooks = [
+              {
+                type = "command";
+                command = "bash '${config.home.homeDirectory}/.claude/hooks/herdr-agent-state.sh' session";
+                timeout = 10;
+              }
+            ];
+          }
+        ];
         Notification = [
           {
             matcher = "";

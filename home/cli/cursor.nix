@@ -25,7 +25,12 @@ in
   home.file.".cursor/hooks.json".text = builtins.toJSON {
     version = 1;
     hooks = {
-      sessionStart = [ agentHubHook ];
+      sessionStart = [
+        agentHubHook
+        {
+          command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
+        }
+      ];
       sessionEnd = [ agentHubHook ];
       beforeSubmitPrompt = [ agentHubHook ];
       afterAgentResponse = [ agentHubHook ];

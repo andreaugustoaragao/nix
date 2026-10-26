@@ -60,6 +60,8 @@ stdenv.mkDerivation {
         lib.makeBinPath ([ ripgrep ] ++ lib.optionals stdenv.hostPlatform.isDarwin [ sysctl ])
       } \
       --set OPENCODE_DISABLE_AUTOUPDATE true
+    # Herdr's native session restore invokes the canonical command name.
+    ln -s "$out/bin/opencode2" "$out/bin/opencode"
     runHook postInstall
   '';
 
