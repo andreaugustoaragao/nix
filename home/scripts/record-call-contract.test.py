@@ -146,6 +146,28 @@ def diarized_ready_fixture(evidence):
         fixture.tearDown()
 
 
+def partially_attributed_fixture(evidence):
+    fixture = fixtures.RecorderTests()
+    fixture.setUp()
+    try:
+        session = fixture.session(duration=10000)
+        session.manifest["recordingId"] = str(uuid.uuid4())
+        session.finalize()
+        fixture.word_alignment(session, "one two three", [
+            {"word": " one", "start": 0, "end": 0.8},
+            {"word": " two", "start": 1, "end": 1.8},
+            {"word": " three", "start": 2, "end": 2.8},
+        ], [{"start": 0, "end": 3, "speaker": "a"},
+            {"start": 1, "end": 1.8, "speaker": "b"}])
+        session.config["diarize"] = "true"
+        assert session.attempt_diarization()
+        assert session.manifest["status"] == "ready"
+        assert session.state["diarization"]["status"] == "partial"
+        shutil.copytree(session.directory, evidence / "partially_attributed")
+    finally:
+        fixture.tearDown()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", required=True, type=Path)
@@ -158,6 +180,7 @@ def main():
         producer_fixture(name, evidence)
     ready_cleanup_fixture(backend, evidence)
     diarized_ready_fixture(evidence)
+    partially_attributed_fixture(evidence)
     script = evidence / "verify-consumer.ts"
     script.write_text("\n".join([
         "import assert from 'node:assert/strict';",
@@ -177,7 +200,7 @@ def main():
         "assert.equal(result.available,true);",
         "if (!result.available) throw Error(result.reason);",
         "assert.deepEqual(result.issues,[]);",
-        "assert.equal(result.recordings.length,7);",
+        "assert.equal(result.recordings.length,8);",
         "for (const recording of result.recordings) {",
         "  const snapshot = await catalog.snapshot(recording);",
         "  if (recording.status==='ready') assert.equal(snapshot.ok,true);",

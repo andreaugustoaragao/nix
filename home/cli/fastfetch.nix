@@ -1,6 +1,8 @@
 {
   pkgs,
   unstable-pkgs,
+  lib,
+  personalOnly,
   # wallpapers is exposed via _module.args by home/desktop/wallpapers.nix,
   # which is only loaded on graphical hosts. On tala (server) and mac-work
   # (darwin), the desktop module is skipped, so wallpapers is absent —
@@ -22,6 +24,8 @@ let
       width = 38;
       height = 28;
     }
+  ]
+  ++ lib.optionals (!personalOnly) [
     {
       # Avaya HQ — landscape photo (1168×880).
       path = "${wallpapers}/share/wallpapers/avaya-hq.png";

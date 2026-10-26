@@ -2,6 +2,8 @@
   pkgs,
   inputs,
   isWorkMachine,
+  lib,
+  personalOnly,
   ...
 }:
 
@@ -34,11 +36,13 @@ let
 in
 {
   imports = [
-    ./bw-query.nix
-    ./bookmarks.nix
     ./browser-app.nix
     ./browser-default.nix
     ./eww.nix
+  ]
+  ++ lib.optionals (!personalOnly) [
+    ./bw-query.nix
+    ./bookmarks.nix
     ./fulcrum-logs.nix
     ./record-call.nix
   ];

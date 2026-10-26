@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  personalOnly,
   ...
 }:
 # Reproducible Brave profile bring-up. Used on both Linux and macOS.
@@ -52,8 +53,8 @@ let
   # value passed as `profile = ...` in home/desktop/web-apps-data.nix.
   profileNames = [
     "Personal"
-    "Work"
-  ];
+  ]
+  ++ lib.optional (!personalOnly) "Work";
 
   # Seed Preferences. Brave rewrites this file constantly while
   # running, but it reads what's on disk at startup, so a fresh profile

@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  personalOnly,
   isServer ? false,
   ...
 }:
@@ -40,38 +41,41 @@ in
   config = lib.mkIf (!isServer) {
     xdg.configFile."opencode/opencode.jsonc".text = builtins.toJSON {
       "$schema" = "https://opencode.ai/config.json";
-      model = "litellm/gpt-6-astra";
+      model = if personalOnly then "openai/gpt-6-sol" else "litellm/gpt-6-astra";
       update = "disable"; # The executable is managed by Nix.
-      mcp.servers.atlassian = {
-        type = "remote";
-        url = "https://mcp.atlassian.com/v2/mcp";
-      };
-      providers = {
-        litellm = {
-          name = "LiteLLM";
-          package = compatiblePackage;
-          settings = {
-            baseURL = "{file:/run/secrets/litellm_base_url}";
-            apiKey = "{file:/run/secrets/litellm_api_key}";
-          };
-          models = piModels piProviders.litellm // gatewayModels;
+      mcp.servers = lib.optionalAttrs (!personalOnly) {
+        atlassian = {
+          type = "remote";
+          url = "https://mcp.atlassian.com/v2/mcp";
         };
+      };
+      providers =
+        lib.optionalAttrs (!personalOnly) {
+          litellm = {
+            name = "LiteLLM";
+            package = compatiblePackage;
+            settings = {
+              baseURL = "{file:/run/secrets/litellm_base_url}";
+              apiKey = "{file:/run/secrets/litellm_api_key}";
+            };
+            models = piModels piProviders.litellm // gatewayModels;
+          };
 
-        # Pi routes Claude directly to Anthropic, rather than LiteLLM.
-        # Keep the built-in catalog so new Claude models remain available.
-        anthropic.settings.apiKey = "{file:/run/secrets/anthropic_api_key}";
-      }
-      // lib.optionalAttrs (piProviders ? llama-cpp) {
-        llama-cpp = {
-          name = "llama.cpp (local)";
-          package = compatiblePackage;
-          settings = {
-            baseURL = piProviders.llama-cpp.baseUrl;
-            apiKey = piProviders.llama-cpp.apiKey;
+          # Pi routes Claude directly to Anthropic, rather than LiteLLM.
+          # Keep the built-in catalog so new Claude models remain available.
+          anthropic.settings.apiKey = "{file:/run/secrets/anthropic_api_key}";
+        }
+        // lib.optionalAttrs (piProviders ? llama-cpp) {
+          llama-cpp = {
+            name = "llama.cpp (local)";
+            package = compatiblePackage;
+            settings = {
+              baseURL = piProviders.llama-cpp.baseUrl;
+              apiKey = piProviders.llama-cpp.apiKey;
+            };
+            models = piModels piProviders.llama-cpp;
           };
-          models = piModels piProviders.llama-cpp;
         };
-      };
     };
   };
 }

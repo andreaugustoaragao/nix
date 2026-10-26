@@ -2,6 +2,8 @@
   config,
   pkgs,
   lib,
+  hostName,
+  personalOnly,
   inputs,
   unstable-pkgs,
   wallpapers,
@@ -13,6 +15,7 @@
 }:
 
 let
+  readableVm = hostName == "prl-dev-vm";
   # Canonical landscape (dp1) / portrait (dp2) display slots — typed
   # my.displays.* options declared in ./display-options.nix, values
   # resolved per-host in flake.nix. dp2Dimensions anchors desktop
@@ -109,7 +112,6 @@ let
     };
     # In-tree DankBar pill: toggles `record-call` and reflects state
     # changes made from the CLI by polling its session.env state file.
-    recordCall = ./dms-plugins/record-call;
     # Custom bar pill: memory usage in x/y (%) format.
     memoryUsageBar = ./dms-plugins/memory-usage;
     # Custom bar pill: disk usage in x/y (%) format.
@@ -119,7 +121,8 @@ let
     # Inline volume slider: drags the default PipeWire sink, wheel-scrolls,
     # icon-click toggles mute. Sits next to the control-center button.
     volumeSlider = ./dms-plugins/volume-slider;
-  };
+  }
+  // lib.optionalAttrs (!personalOnly) { recordCall = ./dms-plugins/record-call; };
 
   # `danksearch` is the indexed filesystem search backend DMS's launcher
   # uses. Not in nixpkgs, so we build from upstream against a pinned rev.
@@ -177,7 +180,9 @@ let
     };
     fontFamily = "Cantarell";
     fontWeight = 600;
-    fontScale = 1.25;
+    # Output scaling provides the readable application size. Keep shell
+    # text at its base size, as on the personal VM, without another 25% boost.
+    fontScale = if readableVm then 1.0 else 1.25;
     useFahrenheit = false;
     # VMs (and any host with lockScreen = false) skip DMS locking so the
     # hypervisor's lock screen is the only one you need to dismiss.
@@ -236,7 +241,16 @@ let
     # desktop-irrelevant ones (battery, idleInhibitor).
     barConfigs =
       let
-        baseRaw = builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0;
+        baseRaw =
+          builtins.elemAt (builtins.fromJSON (builtins.readFile ./dms-settings.json)).barConfigs 0
+          // lib.optionalAttrs readableVm {
+            # DMS's smallest supported bar is 36 logical pixels. At this
+            # height the base font and factor 1 render 11px bar labels,
+            # close to the personal VM's compact Noctalia bar.
+            innerPadding = 0;
+            fontScale = 1.0;
+            iconScale = 0.9;
+          };
         # VMs have no real temperature sensors, so drop CPU/GPU temp widgets.
         base =
           if isVm then
@@ -244,7 +258,8 @@ let
             // {
               rightWidgets = builtins.filter (
                 w:
-                !(builtins.elem w.id [
+                !(personalOnly && w.id == "recordCall")
+                && !(builtins.elem w.id [
                   "thermalMonitor"
                   "gpuTemp"
                 ])
@@ -286,7 +301,7 @@ let
               trayUseInlineExpansion = false;
             }
           ];
-          fontScale = 0.85;
+          fontScale = if readableVm then 1.0 else 0.85;
           iconScale = 0.9;
         };
       in
@@ -313,7 +328,7 @@ let
 
   desiredPluginSettings = {
     recordCall = {
-      enabled = true;
+      enabled = !personalOnly;
     };
     memoryUsageBar = {
       enabled = true;

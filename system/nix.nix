@@ -1,6 +1,8 @@
 {
   owner,
   hostName,
+  lib,
+  personalOnly,
   ...
 }:
 
@@ -14,8 +16,8 @@
 
       # Leave room for the graphical session on the Parallels VM, where
       # rebuilds run alongside Kubernetes and browser calls.
-      cores = if hostName == "prl-dev-vm" then 4 else 0;
-      max-jobs = if hostName == "prl-dev-vm" then 2 else "auto";
+      cores = if hostName == "prl-dev-vm" || personalOnly then 4 else 0;
+      max-jobs = if hostName == "prl-dev-vm" || personalOnly then 2 else "auto";
 
       # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
       auto-optimise-store = true;
@@ -36,7 +38,7 @@
   # Bubble GC failures (lock contention, ENOSPC, /nix store inconsistency)
   # into the alert room. Without this you only learn the weekly GC bailed
   # by reading journalctl after disks fill.
-  systemd.services.nix-gc.onFailure = [ "matrix-alert@nix-gc.service" ];
+  systemd.services.nix-gc.onFailure = lib.optionals (!personalOnly) [ "matrix-alert@nix-gc.service" ];
 
   nixpkgs.config.allowUnfree = true;
   # bitwarden-desktop bundles an EOL Electron upstream; there's no version we

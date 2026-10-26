@@ -2,11 +2,15 @@
   config,
   pkgs,
   lib,
+  hostName,
   useDms ? false,
   ...
 }:
 
 let
+  readableVm = hostName == "prl-dev-vm";
+  generalFont = if readableVm then "Noto Sans,10" else "DejaVu Sans,12";
+  fixedFont = if readableVm then "CaskaydiaMono Nerd Font,11" else "DejaVu Sans,12";
   qt6ctConf = pkgs.writeText "qt6ct.conf" ''
     [Appearance]
     color_scheme_path=${config.home.homeDirectory}/.config/qt6ct/colors/matugen.conf
@@ -15,8 +19,8 @@ let
     style=Fusion
 
     [Fonts]
-    fixed="DejaVu Sans,12,-1,5,50,0,0,0,0,0"
-    general="DejaVu Sans,12,-1,5,50,0,0,0,0,0"
+    fixed="${fixedFont},-1,5,50,0,0,0,0,0"
+    general="${generalFont},-1,5,50,0,0,0,0,0"
 
     [Interface]
     activate_item_on_single_click=1

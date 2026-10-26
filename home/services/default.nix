@@ -1,6 +1,7 @@
 {
   lib,
   hostName,
+  personalOnly,
   isDarwinHost ? false,
   isServer ? false,
   ...
@@ -30,20 +31,20 @@
     # provider — see home/cli/pi.nix for the cycle composition
     # rationale. Degrades gracefully if /run/secrets/litellm_*
     # is missing.
-    ./litellm.nix
   ]
+  ++ lib.optionals (!personalOnly) [ ./litellm.nix ]
   ++ lib.optionals (!isDarwinHost) [
-    ./notes-sync.nix
     ./darkman.nix
   ]
-  ++ lib.optionals (!isDarwinHost && !isServer) [
+  ++ lib.optionals (!personalOnly && !isDarwinHost) [ ./notes-sync.nix ]
+  ++ lib.optionals (!personalOnly && !isDarwinHost && !isServer) [
     ./fulcrum.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./registry-forward.nix
     ./chroma.nix
   ]
-  ++ lib.optionals isDarwinHost [
+  ++ lib.optionals (!personalOnly && isDarwinHost) [
     ./notes-sync-darwin.nix
   ]
   # local-llm.nix runs in three modes: workstation server (llama.cpp +

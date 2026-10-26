@@ -1,4 +1,9 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  lib,
+  personalOnly,
+  ...
+}:
 
 {
   programs.tmux = {
@@ -167,7 +172,9 @@
         selected=$1
       else
        #find ~/projects/personal ~/projects/work -mindepth 1 -maxdepth 1 -type d|awk -F/ '{print $(NF-1)"/"$NF}'
-       selected=$(find -L ~/projects/work ~/projects/personal -mindepth 1 -maxdepth 1 -type d |awk -F/ '{print $(NF-1)"/"$NF}'| fzf --preview 'bat --color=always ~/projects/{}/README.md 2>/dev/null||bat --color=always ~/projects/{}/readme.md 2>/dev/null||tree -C ~/projects/{}' )
+       selected=$(find -L ${
+         lib.optionalString (!personalOnly) "~/projects/work "
+       }~/projects/personal -mindepth 1 -maxdepth 1 -type d |awk -F/ '{print $(NF-1)"/"$NF}'| fzf --preview 'bat --color=always ~/projects/{}/README.md 2>/dev/null||bat --color=always ~/projects/{}/readme.md 2>/dev/null||tree -C ~/projects/{}' )
       fi
 
       if [[ -z $selected ]]; then    

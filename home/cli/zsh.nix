@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  personalOnly,
+  ...
+}:
 
 let
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
@@ -155,9 +160,11 @@ in
       # zsh sessions too. This is the default shell on mac-work, so pi
       # would otherwise miss the built-in Anthropic provider even though
       # /run/secrets/anthropic_api_key exists.
-      if [[ -z "''${LITELLM_API_KEY:-}" && -r /run/secrets/litellm_api_key ]]; then
-        export LITELLM_API_KEY="$(cat /run/secrets/litellm_api_key)"
-      fi
+      ${lib.optionalString (!personalOnly) ''
+        if [[ -z "''${LITELLM_API_KEY:-}" && -r /run/secrets/litellm_api_key ]]; then
+          export LITELLM_API_KEY="$(cat /run/secrets/litellm_api_key)"
+        fi
+      ''}
       if [[ -z "''${ANTHROPIC_API_KEY:-}" && -r /run/secrets/anthropic_api_key ]]; then
         anthropic_key_raw="$(cat /run/secrets/anthropic_api_key)"
         export ANTHROPIC_API_KEY="''${anthropic_key_raw#ANTHROPIC_API_KEY=}"

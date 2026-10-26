@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  personalOnly,
   useDms ? false,
   lockScreen ? false,
   isVm ? false,
@@ -43,7 +44,10 @@ let
       "$mainMod, Escape, exec, wlogout";
 
   notepadBind =
-    if useDms then "$mainMod, N, exec, dms ipc call notepad toggle" else "$mainMod, N, exec, notes";
+    if useDms || personalOnly then
+      "$mainMod, N, exec, dms ipc call notepad toggle"
+    else
+      "$mainMod, N, exec, notes";
 
   # Lock binding (only when lockScreen is enabled).
   lockBind = lib.optionals lockScreen [
@@ -414,8 +418,6 @@ in
         "$mainMod, Return, exec, ${term.command}"
         "$mainMod SHIFT, T, exec, thunar"
         "$mainMod SHIFT, B, exec, browser-default"
-        "$mainMod SHIFT, M, exec, bookmarks"
-        "$mainMod SHIFT, N, exec, notes"
         "$mainMod, backslash, exec, bitwarden"
         "$mainMod SHIFT, A, exec, browser-app https://grok.com"
         "$mainMod SHIFT, X, exec, browser-app https://x.com"
@@ -530,6 +532,10 @@ in
         # Power menu / notepad — swap targets when DMS owns the shell.
         powerMenuBind
         notepadBind
+      ]
+      ++ lib.optionals (!personalOnly) [
+        "$mainMod SHIFT, M, exec, bookmarks"
+        "$mainMod SHIFT, N, exec, notes"
       ]
       ++ lockBind
       ++ dmsSurfaceBinds;

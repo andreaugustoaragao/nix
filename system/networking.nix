@@ -6,6 +6,7 @@
   kubernetesVmAddress,
   isVm,
   isServer,
+  personalOnly,
   ...
 }:
 
@@ -223,7 +224,7 @@
   '';
 
   networking.hosts."127.0.0.1" =
-    lib.optionals (hostName != "workstation") [
+    lib.optionals (!personalOnly && hostName != "workstation") [
       "grafana.local"
       "loki.local"
       "prometheus.local"
@@ -267,27 +268,28 @@
     enable = true;
 
     # Allowed TCP ports
-    allowedTCPPorts = [
-      22 # SSH
-      6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
-    ]
-    ++ lib.optionals (hostName == "workstation") [
-      80 # K3s ingress (istio-ingress via klipper-lb)
-      443
-    ]
-    ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
-      80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
-      443
-      # Fulcrum HTTPS — source-run unit binds to 0.0.0.0:3100 so the
-      # Parallels/VMware host (mac-work) can reach it at
-      # https://<hostname>.local:3100.
-      3100
-    ]
-    ++ lib.optionals isServer [
-      80 # Caddy (ACME HTTP-01 fallback / redirect to 443)
-      443 # Caddy reverse proxy for auth.faragao.net + lldap.faragao.net
-      3890 # LLDAP — exposed on LAN so other hosts can bind clients
-    ];
+    allowedTCPPorts =
+      lib.optionals (!personalOnly) [
+        22 # SSH
+        6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
+      ]
+      ++ lib.optionals (hostName == "workstation") [
+        80 # K3s ingress (istio-ingress via klipper-lb)
+        443
+      ]
+      ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
+        80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
+        443
+        # Fulcrum HTTPS — source-run unit binds to 0.0.0.0:3100 so the
+        # Parallels/VMware host (mac-work) can reach it at
+        # https://<hostname>.local:3100.
+        3100
+      ]
+      ++ lib.optionals isServer [
+        80 # Caddy (ACME HTTP-01 fallback / redirect to 443)
+        443 # Caddy reverse proxy for auth.faragao.net + lldap.faragao.net
+        3890 # LLDAP — exposed on LAN so other hosts can bind clients
+      ];
 
     # Allowed UDP ports
     allowedUDPPorts = [
@@ -305,7 +307,7 @@
     ];
 
     # Trust local interfaces for Docker and K3s
-    trustedInterfaces = [
+    trustedInterfaces = lib.optionals (!personalOnly) [
       "docker0" # Docker bridge
       "cni0" # K3s CNI bridge
       "flannel.1" # K3s Flannel

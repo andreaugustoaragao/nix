@@ -3,6 +3,7 @@
   pkgs,
   lib,
   hostName,
+  personalOnly,
   isVm ? false,
   isWorkstation ? false,
   lockScreen ? false,
@@ -30,6 +31,26 @@ let
   # Daily-driver terminal (see ./default-terminal.nix for selection
   # logic and per-consumer string forms).
   term = import ./default-terminal.nix { inherit isVm; };
+
+  quakeTerminal = pkgs.writeShellApplication {
+    name = "quake-terminal";
+    runtimeInputs = [ pkgs.kitty ];
+    text = ''
+      cd "$HOME"
+      exec kitten panel \
+        --edge=top \
+        --layer=top \
+        --lines=28 \
+        --focus-policy=exclusive \
+        --override-exclusive-zone \
+        --exclusive-zone=0 \
+        --app-id=quake-terminal \
+        --single-instance \
+        --instance-group=quake-terminal \
+        --detach \
+        --toggle-visibility
+    '';
+  };
 
   # Per-output workspaces. Only the workstation has a fixed dual-monitor
   # layout (landscape dp1 + portrait dp2) worth pinning workspaces to, so it
@@ -101,7 +122,10 @@ in
   # against polkit. Until Quickshell exposes polkit primitives, we run
   # hyprpolkitagent on DMS hosts too. Drop this once DMS's PolkitService
   # actually owns the auth-agent slot.
-  home.packages = [ pkgs.hyprpolkitagent ];
+  home.packages = [
+    pkgs.hyprpolkitagent
+    quakeTerminal
+  ];
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
@@ -192,12 +216,10 @@ in
     // Input configuration (similar to Hyprland input)
     input {
         focus-follows-mouse
-        // Warp the cursor to the focused window's center on cross-window
-        // focus changes — gives a visible "which monitor am I on" cue when
-        // switching outputs via Mod+Ctrl+Arrow. center-xy only warps when
-        // the cursor is outside the newly focused window, so intra-monitor
-        // column moves stay calm.
-        warp-mouse-to-focus mode="center-xy"
+        ${lib.optionalString (hostName != "prl-dev-vm") ''
+          // Keep the cursor cue for keyboard-driven monitor focus on other hosts.
+          warp-mouse-to-focus mode="center-xy"
+        ''}
         keyboard {
             xkb {
                 layout "us"
@@ -412,10 +434,13 @@ in
         // configured single-instance so repeated Mod+Return reuses
         // the running process.
         Mod+Return { spawn ${term.spawnArgs}; }
+        F8 repeat=false hotkey-overlay-title="Toggle drop-down terminal" { spawn "${quakeTerminal}/bin/quake-terminal"; }
         Mod+Shift+T { spawn "thunar"; }
         Mod+Shift+B { spawn "browser-default"; }
-        Mod+Shift+M { spawn "bookmarks"; }
-        Mod+Shift+N { spawn "notes"; }
+        ${lib.optionalString (!personalOnly) ''
+          Mod+Shift+M { spawn "bookmarks"; }
+          Mod+Shift+N { spawn "notes"; }
+        ''}
         Mod+Backslash { spawn "bitwarden"; }
         Mod+Shift+A { spawn "browser-app" "--class=brave-grok" "https://grok.com"; }
         Mod+Shift+X { spawn "browser-app" "--class=brave-x-twitter" "https://x.com"; }

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  personalOnly,
   ...
 }:
 
@@ -93,10 +94,16 @@ in
             user = {
               name = "andreaugustoaragao";
               email = "andrearag@gmail.com";
-              signingkey = "E42EDF7958831F08";
+              signingkey =
+                if personalOnly then
+                  "${config.home.homeDirectory}/.ssh/id_ed25519_personal.pub"
+                else
+                  "E42EDF7958831F08";
             };
           };
         }
+      ]
+      ++ lib.optionals (!personalOnly) [
         # Work scope: point at a file written by the activation
         # script below (NOT a `contents = { ... }` inline block).
         # That's what keeps the work email out of /nix/store. Git
@@ -116,31 +123,33 @@ in
   # email. The signing key ID is a public hex blob (not
   # employer-revealing) so it stays inlined. The name is constant.
   # Only the email comes from sops.
-  home.activation.gitWorkInclude = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    target="${workConfigPath}"
-    mkdir -p "$(dirname "$target")"
+  home.activation.gitWorkInclude = lib.mkIf (!personalOnly) (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      target="${workConfigPath}"
+      mkdir -p "$(dirname "$target")"
 
-    if [[ -f "${workEmailSecret}" ]]; then
-      email="$(cat "${workEmailSecret}")"
-      if [[ -n "$email" && "$email" != "placeholder" ]]; then
-        cat > "$target.tmp" <<EOF
-    [user]
-    	name = andrearagao
-    	email = $email
-    	signingkey = D8BAA25EFB1D5C5F
-    EOF
-        mv "$target.tmp" "$target"
-        chmod 0600 "$target"
+      if [[ -f "${workEmailSecret}" ]]; then
+        email="$(cat "${workEmailSecret}")"
+        if [[ -n "$email" && "$email" != "placeholder" ]]; then
+          cat > "$target.tmp" <<EOF
+      [user]
+        name = andrearagao
+        email = $email
+        signingkey = D8BAA25EFB1D5C5F
+      EOF
+          mv "$target.tmp" "$target"
+          chmod 0600 "$target"
+        else
+          # Secret present but empty / placeholder — wipe any stale
+          # rendering rather than leave a half-baked file in place.
+          rm -f "$target"
+        fi
       else
-        # Secret present but empty / placeholder — wipe any stale
-        # rendering rather than leave a half-baked file in place.
+        # Sops hasn't deployed the secret yet (first install, age key
+        # not provisioned, etc.). Leave no work.gitconfig at all so
+        # the includeIf is a clean no-op.
         rm -f "$target"
       fi
-    else
-      # Sops hasn't deployed the secret yet (first install, age key
-      # not provisioned, etc.). Leave no work.gitconfig at all so
-      # the includeIf is a clean no-op.
-      rm -f "$target"
-    fi
-  '';
+    ''
+  );
 }

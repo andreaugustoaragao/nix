@@ -155,6 +155,9 @@
         isWorkstation = host.profile == "workstation";
         # Branding follows ownership, independently of the hardware profile.
         isWorkMachine = host.isWorkMachine or false;
+        # Opt-in isolation for fresh personal installations. Existing hosts
+        # retain their mixed environment until explicitly migrated.
+        personalOnly = host.personalOnly or false;
         isLaptop = host.profile == "laptop";
         isVm = builtins.elem host.profile [
           "vm"
@@ -364,10 +367,16 @@
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
+          herdr = pkgs.callPackage ./pkgs/herdr.nix { };
+        }
+        // nixpkgs.lib.optionalAttrs (system != "x86_64-darwin") {
+          graphify = inputs.nixpkgs-unstable.legacyPackages.${system}.callPackage ./pkgs/graphify.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
           chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
+          pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
         }
+
       );
 
       # Cross-host SSH bootstrap apps. Exposed on every system in appSystems

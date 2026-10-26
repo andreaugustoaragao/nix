@@ -81,15 +81,15 @@ pkgs.writeShellScript "screensaver" ''
   export PATH="${binPath}:/run/current-system/sw/bin:''${PATH:-}"
 
   pids=()
-  lockdir="''${XDG_RUNTIME_DIR:-/tmp}/screensaver.lock"
-  if ! mkdir "$lockdir" 2>/dev/null; then
+  lockfile="''${XDG_RUNTIME_DIR:-/tmp}/screensaver.flock"
+  exec {lock_fd}>"$lockfile"
+  if ! ${pkgs.util-linux}/bin/flock -n "$lock_fd"; then
     exit 0
   fi
   cleanup() {
     for pid in "''${pids[@]}"; do
       kill -- "-$pid" 2>/dev/null || true
     done
-    rm -rf "$lockdir"
   }
   trap cleanup EXIT
   trap 'exit 0' TERM INT
@@ -129,12 +129,15 @@ pkgs.writeShellScript "screensaver" ''
       focus_output "$out"
       sleep 0.1
     fi
-    ${pkgs.util-linux}/bin/setsid ${termBin} --class Screensaver ${
-      if isVm then
-        "--override background_opacity=1 --override window_padding_width=0"
-      else
-        "--background-opacity=1 --window-padding-x=0 --window-padding-y=0 -e"
-    } ${effect} &
+    (
+      exec {lock_fd}>&-
+      exec ${pkgs.util-linux}/bin/setsid ${termBin} --class Screensaver ${
+        if isVm then
+          "--override background_opacity=1 --override window_padding_width=0"
+        else
+          "--background-opacity=1 --window-padding-x=0 --window-padding-y=0 -e"
+      } ${effect}
+    ) &
     pids+=("$!")
     # Terminal creation is asynchronous. Keep focus on this output until
     # its window maps; a fixed delay lets slow windows land on the next one.

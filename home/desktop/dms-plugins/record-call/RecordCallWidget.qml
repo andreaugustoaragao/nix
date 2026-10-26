@@ -10,6 +10,7 @@ PluginComponent {
     property string phase: "idle"
     readonly property bool recording: phase === "recording"
     readonly property bool finalizing: phase === "finalizing" || phase === "starting" || phase === "diarizing"
+    property bool canStartRecording: false
     property string failureCode: ""
     property string captureIssueSides: ""
     property string routingWarning: ""
@@ -50,7 +51,7 @@ PluginComponent {
     function tooltipText() {
         if (root.toggleBusy) return "Updating recording...";
         if (root.phase === "starting") return "Starting recording...";
-        if (root.phase === "diarizing") return "Identifying call participants...";
+        if (root.phase === "diarizing") return "Identifying call participants — click to start another recording";
         if (root.phase === "finalizing") {
             return root.totalWindows > 0
                 ? "Finalizing transcript — " + root.completedWindows + " of " + root.totalWindows +
@@ -68,6 +69,8 @@ PluginComponent {
         }
         if (root.phase === "ready") {
             var gapWarning = root.minorGaps ? " Brief audio gaps were recorded; some speech may be missing." : "";
+            if (root.diarizationStatus === "partial")
+                return "Transcript ready with speaker labels; uncertain passages are marked Unknown speaker — click to start recording." + gapWarning;
             if (root.diarizationStatus === "ready")
                 return "Speaker-labeled transcript ready — click to start recording." + gapWarning;
             return "Transcript ready — click to start recording." + gapWarning;
@@ -136,6 +139,7 @@ PluginComponent {
                     : state.status === "finalizing" && progress.stage === "diarizing"
                     ? "diarizing"
                     : state.status;
+                root.canStartRecording = state.canStartRecording === true;
                 root.startedAt = state.startedAt ? Math.floor(Date.parse(state.startedAt) / 1000) : 0;
                 root.outputDir = state.outputDir || "";
                 root.failureCode = state.failure ? state.failure.code : "";
@@ -174,6 +178,7 @@ PluginComponent {
                     : 0;
             } catch (error) {
                 root.phase = "incomplete";
+                root.canStartRecording = false;
                 root.failureCode = "status_unavailable";
                 root.captureIssueSides = "";
                 root.routingWarning = "";
@@ -209,10 +214,10 @@ PluginComponent {
         }
     }
 
-    // The owner continues finalization after stop returns. Do not start a
-    // competing command while capture startup or transcript finalization runs.
+    // The owner continues finalization after stop returns. Its capability
+    // allows another capture once only background diarization remains.
     function toggle() {
-        if (root.toggleBusy || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
+        if (root.toggleBusy || (!root.recording && !root.canStartRecording) || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
         if (root.phase === "incomplete" && root.salvageable) {
             toggleProc.command = ["record-call", "salvage", root.outputDir];
         } else if (root.phase === "incomplete" && root.retryable) {
@@ -226,7 +231,7 @@ PluginComponent {
     // A failed transcription must not prevent recording the next meeting.
     // Starting a new session leaves the previous audio and retry receipts intact.
     function startNew() {
-        if (root.toggleBusy || root.recording || root.finalizing || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
+        if (root.toggleBusy || root.recording || !root.canStartRecording || root.failureCode === "status_unavailable" || root.failureCode === "legacy_recording_state") return;
         toggleProc.command = ["record-call", "start"];
         toggleProc.running = true;
     }

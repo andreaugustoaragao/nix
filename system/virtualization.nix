@@ -3,14 +3,16 @@
   lib,
   hostName,
   owner,
+  personalOnly,
   ...
 }:
 
 let
-  rootlessDocker = hostName == "prl-dev-vm";
+  rootlessDocker = hostName == "prl-dev-vm" || personalOnly;
   rootlessRunc = pkgs.callPackage ../pkgs/rootless-runc.nix { };
   enableLocalK3s =
-    !(builtins.elem hostName [
+    !personalOnly
+    && !(builtins.elem hostName [
       "hp-laptop"
       "prl-dev-vm"
     ]);

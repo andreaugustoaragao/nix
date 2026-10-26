@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  personalOnly,
   ...
 }:
 
@@ -692,6 +693,8 @@ in
   # Qwen3.6 on the workstation and Bonsai 2 on VM hosts that use mac-work.
   services.piModels.enabledModels = [
     "anthropic/claude-opus-4-7"
+  ]
+  ++ lib.optionals (!personalOnly) [
     "litellm/gpt-5.5"
     "litellm/gpt-5.4"
     "litellm/gemini-2.5-pro"

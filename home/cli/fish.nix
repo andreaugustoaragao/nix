@@ -2,6 +2,7 @@
   pkgs,
   lib,
   hostName,
+  personalOnly,
   ...
 }:
 
@@ -151,9 +152,11 @@ in
       # the decrypted token from sops if it has been deployed on this
       # host. Guarded on `set -q` so only the first shell in a session
       # pays the file-read cost; child shells inherit the exported value.
-      if not set -q LITELLM_API_KEY; and test -r /run/secrets/litellm_api_key
-        set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
-      end
+      ${lib.optionalString (!personalOnly) ''
+        if not set -q LITELLM_API_KEY; and test -r /run/secrets/litellm_api_key
+          set -gx LITELLM_API_KEY (cat /run/secrets/litellm_api_key)
+        end
+      ''}
 
       # Anthropic API key consumed by `pi` / `pi-opus` and any other tool
       # that reads ANTHROPIC_API_KEY from the environment. The secret file

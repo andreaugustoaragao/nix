@@ -217,148 +217,8 @@ let
   # Align transcript.txt (with wall-clock [HH:MM:SS] stamps) against a
   # diarization JSON by prepending the active speaker to each line.
   # Args: transcript_path diar_json started_at_epoch out_path [elapsed_offsets_json]
-  alignPy = pkgs.writeText "record-call-align.py" ''
-    import hashlib, json, math, os, re, sys
-    from pathlib import Path
-    from datetime import datetime, timedelta, time as clock_time
-    from zoneinfo import ZoneInfo
-    tpath, dpath, epoch_s, outpath = sys.argv[1:5]
-    epoch = int(epoch_s)
-    zone = ZoneInfo(os.environ["TZ"])
-    first_day = datetime.fromtimestamp(epoch, zone).date()
-    previous = epoch
-    with open(dpath) as f:
-        segs = json.load(f)
-    offsets = None
-    if len(sys.argv) > 5 and os.path.isfile(sys.argv[5]):
-        with open(sys.argv[5]) as f:
-            offsets = json.load(f)
-        if not isinstance(offsets, list):
-            raise ValueError("invalid transcript offsets")
-
-    def finite(value):
-        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
-
-    # Keep the original ASR interval: a segment can start in silence long
-    # before its words. The retained, hash-checked ASR receipts also let old
-    # recordings benefit without retranscription or changing their text.
-    intervals = {}
-    windows = Path(tpath).parent / ".record-call/windows"
-    for receipt_path in sorted(windows.glob("*/call.ok.json")):
-        receipt = json.loads(receipt_path.read_text())
-        payload = receipt_path.with_name("call.json").read_bytes()
-        if hashlib.sha256(payload).hexdigest() != receipt["outputHash"]:
-            raise ValueError("call ASR receipt changed")
-        parameters = receipt["parameters"]
-        origin, limit = parameters["startMs"], parameters["endMs"]
-        if not finite(origin) or not finite(limit) or origin < 0 or limit <= origin:
-            raise ValueError("invalid call ASR interval")
-        data = json.loads(payload)
-        if "segments" in data:
-            spans = [(s["start"] * 1000, s["end"] * 1000, s["text"]) for s in data["segments"]]
-        else:
-            spans = [(s["offsets"]["from"], s["offsets"]["to"], s["text"]) for s in data["transcription"]]
-        for start, end, text in spans:
-            if not finite(start) or not finite(end) or start < 0 or end < start or origin + end > limit + 1000:
-                raise ValueError("invalid call ASR segment")
-            key = (round(origin + start), " ".join(text.split()))
-            bounded_end = min(origin + end, limit) / 1000
-            # Duplicate windows must never stretch the segment into a later
-            # participant's turn. Use the shortest verified matching interval.
-            intervals[key] = min(intervals.get(key, bounded_end), bounded_end)
-
-    def speaker_at(t, end=None):
-        if end is not None and end > t:
-            overlaps = {s["speaker"] for s in segs if min(end, s["end"]) > max(t, s["start"])}
-            if len(overlaps) == 1:
-                return next(iter(overlaps))
-            if len(overlaps) > 1:
-                # A sentence spanning a speaker change needs word alignment;
-                # picking the first or longest speaker silently misattributes it.
-                return None
-        # Legacy transcripts without retained ASR still support point timing.
-        # Reject overlapping speakers and equidistant conflicting boundaries.
-        active = {s["speaker"] for s in segs if s["start"] <= t < s["end"]}
-        if len(active) == 1:
-            return next(iter(active))
-        if active:
-            return None
-        hit = None
-        distance = float("inf")
-        tied = False
-        for s in segs:
-            boundary_distance = min(abs(t - s["start"]), abs(t - s["end"]))
-            if abs(boundary_distance - distance) < 1e-9:
-                tied = tied or hit["speaker"] != s["speaker"]
-            elif boundary_distance < distance:
-                hit = s
-                distance = boundary_distance
-                tied = False
-        if hit and distance <= 1.0 and not tied:
-            return hit["speaker"]
-        return None
-
-    # Canonical speaker id mapping: SPEAKER_00 -> Speaker 1, etc.
-    # Preserves first-seen order for nicer reading.
-    canonical = {}
-    def label(raw):
-        if raw is None:
-            return None
-        if raw not in canonical:
-            canonical[raw] = f"Speaker {len(canonical) + 1}"
-        return canonical[raw]
-
-    def wall_epoch(h, mi, s):
-        # A transcript displays only local HH:MM:SS. Resolve each stamp in
-        # chronological order across midnight and both sides of a DST fold.
-        # Round-to-second text may precede the precise start by < 1 second.
-        for day_offset in range(3):
-            day = first_day + timedelta(days=day_offset)
-            naive = datetime.combine(day, clock_time(int(h), int(mi), int(s)))
-            candidates = []
-            for fold in (0, 1):
-                instant = naive.replace(tzinfo=zone, fold=fold).timestamp()
-                if datetime.fromtimestamp(instant, zone).replace(tzinfo=None) != naive:
-                    continue  # nonexistent local time during a spring jump
-                if instant >= epoch - 1 and instant >= previous - 5:
-                    candidates.append(instant)
-            if candidates:
-                return min(candidates)
-        raise ValueError("transcript time cannot be aligned")
-
-    pat = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.*)$")
-    with open(tpath) as f, open(outpath, "w") as out:
-        line_count = 0
-        for ln in f:
-            m = pat.match(ln.rstrip("\n"))
-            if not m:
-                out.write(ln)
-                continue
-            h, mi, s, rest = m.groups()
-            if offsets is not None:
-                if line_count >= len(offsets) or not finite(offsets[line_count]) or offsets[line_count] < 0:
-                    raise ValueError("invalid transcript offset")
-                rel = offsets[line_count] / 1000
-            else:
-                wall = wall_epoch(h, mi, s)
-                previous = max(previous, wall)
-                rel = wall - epoch
-            line_count += 1
-            # The microphone channel is already an authoritative source label.
-            # Diarization runs only against mixed call audio, so never replace
-            # `Me` with whichever remote participant happened to overlap.
-            if rest.startswith("Me: "):
-                out.write(f"[{h}:{mi}:{s}] {rest}\n")
-                continue
-            spk = label(speaker_at(rel, intervals.get((round(rel * 1000), rest))))
-            prefix = f"[{h}:{mi}:{s}] "
-            if spk:
-                out.write(f"{prefix}{spk}: {rest}\n")
-            else:
-                out.write(f"{prefix}{rest}\n")
-        if offsets is not None and line_count != len(offsets):
-            raise ValueError("transcript offset count mismatch")
-  '';
+  alignPy = pkgs.writeText "record-call-align.py" (builtins.readFile ./record-call-align.py);
+  refinePy = pkgs.writeText "record-call-refine.py" (builtins.readFile ./record-call-refine.py);
 
   # Rewrite a transcript's [HH:MM:SS] timestamps as wall-clock local
   # time given a session start epoch. Args: transcript_path start_epoch
@@ -398,7 +258,7 @@ let
     import json, re, sys, textwrap
 
     LINE_RE = re.compile(r"^\[(\d\d):(\d\d):(\d\d)\] (.+)$")
-    SPEAKER_RE = re.compile(r"^(Me|Speaker \d+): (.*)$")
+    SPEAKER_RE = re.compile(r"^(Me|Speaker \d+|Unknown speaker): (.*)$")
     WRAP_COL = 80
 
     def parse(line):
@@ -640,29 +500,28 @@ let
       "$EPOCH" \
       "$WORK/transcript.diarized.txt" \
       "$SRC/transcript.offsets.json"
-    if [ -f "$SRC/transcript.offsets.json" ]; then
-      python3 ${turnsPy} \
-        "$WORK/transcript.diarized.txt" \
-        "$WORK/transcript.diarized.turns.txt" \
-        "''${RECORD_CALL_TURN_GAP_SEC:-8}" \
-        "$SRC/transcript.offsets.json" >/dev/null
-    else
-      python3 ${turnsPy} \
-        "$WORK/transcript.diarized.txt" \
-        "$WORK/transcript.diarized.turns.txt" \
-        "''${RECORD_CALL_TURN_GAP_SEC:-8}" >/dev/null
-    fi
+    python3 ${refinePy} \
+      "$SRC/transcript.txt" "$WORK/transcript.diarized.alignment.json" \
+      "$WORK/session.wav" "$WORK/diarization.words.json" \
+      --server "''${RECORD_CALL_ALIGNMENT_SERVER:-}" \
+      --model "''${RECORD_CALL_ALIGNMENT_MODEL:-}"
+    python3 ${alignPy} \
+      "$SRC/transcript.txt" "$WORK/diarization.json" "$EPOCH" \
+      "$WORK/transcript.diarized.txt" "$SRC/transcript.offsets.json" \
+      "$WORK/diarization.words.json"
+    python3 ${turnsPy} \
+      "$WORK/transcript.diarized.txt" \
+      "$WORK/transcript.diarized.turns.txt" \
+      "''${RECORD_CALL_TURN_GAP_SEC:-8}" \
+      "$WORK/transcript.diarized.offsets.json" >/dev/null
 
     mv "$WORK/diarization.response.json" "$SRC/diarization.response.json"
     mv "$WORK/diarization.json" "$SRC/diarization.json"
+    mv "$WORK/diarization.words.json" "$SRC/diarization.words.json"
     mv "$WORK/transcript.diarized.txt" "$SRC/transcript.diarized.txt"
     mv "$WORK/transcript.diarized.turns.txt" "$SRC/transcript.diarized.turns.txt"
-    if [ -f "$SRC/transcript.offsets.json" ]; then
-      cp "$SRC/transcript.offsets.json" "$WORK/transcript.diarized.offsets.json"
-      mv "$WORK/transcript.diarized.offsets.json" "$SRC/transcript.diarized.offsets.json"
-    else
-      rm -f "$SRC/transcript.diarized.offsets.json"
-    fi
+    mv "$WORK/transcript.diarized.offsets.json" "$SRC/transcript.diarized.offsets.json"
+    mv "$WORK/transcript.diarized.alignment.json" "$SRC/transcript.diarized.alignment.json"
   '';
 
   sessionConfig = pkgs.writeText "record-call-session-config.json" (
@@ -680,6 +539,7 @@ let
       merge = mergePy;
       dedupe = dedupePy;
       turns = turnsPy;
+      align = alignPy;
       diarize = diarizeScript;
       diarizationModel = "nemotron-speech-streaming-en-0.6b";
       inherit defaultWhisperServerUrl defaultDiarizationServerUrl;

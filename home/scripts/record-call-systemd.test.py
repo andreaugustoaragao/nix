@@ -41,9 +41,10 @@ class SystemdTests(unittest.TestCase):
         # two fixture commands to the real user manager's private socket.
         for name in ("systemdRun", "systemctl"):
             executable = self.config[name]
+            extra = ["--setenv=XDG_STATE_HOME=" + str(self.fixture.root / "state")] if name == "systemdRun" else []
             bridge = self.fixture.root / ("fixture-" + name)
             bridge.write_text(f"#!{sys.executable}\nimport os, sys\nos.execve({executable!r}, "
-                              f"[{executable!r}, *sys.argv[1:]], {{**os.environ, "
+                              f"[{executable!r}, *{extra!r}, *sys.argv[1:]], {{**os.environ, "
                               f"'XDG_RUNTIME_DIR': {os.environ['XDG_RUNTIME_DIR']!r}}})\n")
             bridge.chmod(0o700)
             self.config[name] = str(bridge)
@@ -60,9 +61,12 @@ class SystemdTests(unittest.TestCase):
 
     def stop_test_units(self):
         for directory in self.directories:
-            state = recorder.read_json(directory / ".record-call/state.json")
-            subprocess.run([self.config["systemctl"], "--user", "stop", state["unit"]],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            for suffix in ("", "-transcribed", "-transcribed-diarized"):
+                path = directory.with_name(directory.name + suffix) / ".record-call/state.json"
+                if path.exists():
+                    state = recorder.read_json(path)
+                    subprocess.run([self.config["systemctl"], "--user", "stop", state["unit"]],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
     def command(self, *arguments, expected=0):
         result = subprocess.run([sys.executable, str(Path(__file__).with_name("record-call-session.py")),
@@ -91,7 +95,11 @@ class SystemdTests(unittest.TestCase):
     def await_status(self, expected):
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            manifest = recorder.read_json(self.session.directory / "recording.json")
+            self.session.adopt_renamed_directory(self.session.directory)
+            try:
+                manifest = recorder.read_json(self.session.directory / "recording.json")
+            except FileNotFoundError:
+                continue
             if manifest["status"] in expected:
                 return manifest
             time.sleep(0.1)
@@ -102,6 +110,7 @@ class SystemdTests(unittest.TestCase):
         while time.monotonic() < deadline:
             properties = recorder.owner_properties(self.session.state, self.session.config)
             if properties.get("ActiveState") not in ("active", "activating", "deactivating"):
+                self.session.adopt_renamed_directory(self.session.directory)
                 return
             time.sleep(0.1)
         self.fail("Synthetic unit did not exit")
@@ -109,6 +118,50 @@ class SystemdTests(unittest.TestCase):
     def assert_unrelated_modules(self):
         modules = json.loads((self.fixture.root / "modules.json").read_text())
         self.assertEqual([item["index"] for item in modules], [11, 12])
+
+    def test_new_capture_survives_previous_diarization_and_cleanup(self):
+        (self.fixture.root / "control.json").write_text('{"diarization_success":true,"diarization_gate":true}')
+        first = self.session
+        time.sleep(0.8)
+        self.stop_public()
+
+        def wait_for(condition):
+            deadline = time.monotonic() + 15
+            while not condition():
+                if time.monotonic() > deadline:
+                    self.fail("Synthetic worker did not reach the expected state")
+                time.sleep(0.05)
+
+        def entered(session):
+            session.adopt_renamed_directory(session.directory)
+            return (session.private / "diarizer-entered").exists()
+
+        wait_for(lambda: entered(first))
+        prior_status = json.loads(self.command("status", "--json").stdout)
+        self.assertTrue(prior_status["canStartRecording"])
+        self.assertEqual(prior_status["diarization"]["status"], "running")
+        self.assertTrue((self.fixture.root / "state/record-call/diarization.lock").is_file())
+        self.start_public(self.fixture.root / "second synthetic capture")
+        second = self.session
+        self.assertNotEqual(first.state["unit"], second.state["unit"])
+        modules = (self.fixture.root / "modules.json").read_bytes()
+        (first.private / "diarizer-release").touch()
+        wait_for(lambda: recorder.owner_properties(first.state, self.config).get("ActiveState")
+                 not in ("active", "activating", "deactivating"))
+        first.adopt_renamed_directory(first.directory)
+        self.assertEqual(recorder.read_json(first.directory / "recording.json")["status"], "ready")
+        self.assertEqual(recorder.read_json(first.private / "state.json")["diarization"]["status"], "ready")
+        current = json.loads(self.command("status", "--json").stdout)
+        self.assertEqual(current["status"], "recording")
+        self.assertEqual(current["recordingId"], second.manifest["recordingId"])
+        self.assertEqual((self.fixture.root / "modules.json").read_bytes(), modules)
+        self.assertFalse((second.private / "stop.json").exists())
+        self.stop_public()
+        wait_for(lambda: entered(second))
+        (second.private / "diarizer-release").touch()
+        self.assertEqual(self.await_status({"ready", "incomplete"})["status"], "ready")
+        self.await_stopped()
+        self.assert_unrelated_modules()
 
     def test_ready_contract_and_argument_quoting(self):
         blocked_directory = self.fixture.root / "must not start concurrently"
@@ -201,7 +254,7 @@ class SystemdTests(unittest.TestCase):
         manifest = self.await_status({"ready", "incomplete"})
         self.assertEqual(manifest["status"], "ready", manifest.get("failure"))
         self.await_stopped()
-        self.assertEqual(success.read_bytes(), receipt)
+        self.assertEqual((self.session.private / "windows/000000/call.ok.json").read_bytes(), receipt)
         self.assertEqual((self.fixture.root / "call-attempts").read_text(), "1")
         self.assertEqual((self.fixture.root / "mic-attempts").read_text(), "2")
         self.assertEqual(len(list((self.session.private / "windows").glob("*/done.json"))), 1)

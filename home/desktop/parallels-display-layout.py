@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import math
 import os
 import queue
 import re
@@ -67,8 +68,15 @@ def desired_positions(layout, outputs):
         for name in (left, "Virtual-1", right)
     ):
         return None
-    left_width = outputs[left]["logical"]["width"]
-    center_width = outputs["Virtual-1"]["logical"]["width"]
+    def occupied_width(name):
+        output = outputs[name]
+        mode = output["modes"][output["current_mode"]]
+        # Niri reports fractional logical widths rounded down, but a
+        # touching output needs to start after the full occupied width.
+        return math.ceil(mode["width"] / output["logical"]["scale"])
+
+    left_width = occupied_width(left)
+    center_width = occupied_width("Virtual-1")
     return {left: 0, "Virtual-1": left_width, right: left_width + center_width}
 
 

@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  personalOnly,
   ...
 }:
 # Web apps are exposed as ordinary XDG desktop entries so they show up
@@ -8,7 +9,10 @@
 # app catalog itself lives in ./web-apps-data.nix so the macOS
 # .app-bundle generator can consume the exact same list.
 let
-  apps = import ./web-apps-data.nix;
+  # The Linux desktop installs the native ChatGPT app separately.
+  apps = builtins.filter (app: app.key != "chatgpt" && (!personalOnly || app.profile == "Personal")) (
+    import ./web-apps-data.nix
+  );
 
   iconsRoot = ./../../assets/icons;
 

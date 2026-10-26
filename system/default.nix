@@ -3,6 +3,7 @@
   isServer,
   hostName,
   stateVersion,
+  personalOnly,
   ...
 }:
 
@@ -10,16 +11,19 @@
   imports = [
     ./boot.nix
     ./nix.nix
-    ./auto-upgrade.nix
-    ./matrix-alert.nix
-    ./flake-update.nix
     ./packages.nix
     ./users.nix
+    ./personal-isolation.nix
     ./networking.nix
-    ./ssh.nix
     ./security.nix # Security hardening configuration
     ./env.nix
     ./nvim.nix
+  ]
+  ++ lib.optionals (!personalOnly) [
+    ./auto-upgrade.nix
+    ./matrix-alert.nix
+    ./flake-update.nix
+    ./ssh.nix
     ./sops.nix
   ]
   ++ lib.optionals (!isServer) [
@@ -36,11 +40,11 @@
     ./kmscon.nix
     ./fonts.nix
   ]
-  ++ lib.optionals (hostName != "workstation" && !isServer) [
+  ++ lib.optionals (!personalOnly && hostName != "workstation" && !isServer) [
     ./loki.nix
     ./grafana.nix
   ]
-  ++ lib.optionals (hostName != "workstation") [
+  ++ lib.optionals (!personalOnly && hostName != "workstation") [
     ./caddy.nix
     # Workstation runs chroma as a sidecar of the upstream fulcrum
     # docker-compose.yml; every other host that runs fulcrum from
@@ -64,13 +68,15 @@
   # Corporate internal CAs + the MITM TLS-intercepting proxy root.
   # Required for curl/git/openssl to validate connections that go
   # through the corporate egress proxy or hit internal services.
-  config.security.pki.certificateFiles = [
-    ../certs/internal-root-2.pem
-    ../certs/internal-root-1.pem
-    ../certs/internal-intermediate.pem
-    ../certs/proxy-root.pem
-    ../certs/netskope-root.pem
-  ]
-  ++ lib.optionals (hostName == "prl-dev-vm") [ ../certs/tracker-local-ca.pem ];
+  config.security.pki.certificateFiles = lib.optionals (!personalOnly) (
+    [
+      ../certs/internal-root-2.pem
+      ../certs/internal-root-1.pem
+      ../certs/internal-intermediate.pem
+      ../certs/proxy-root.pem
+      ../certs/netskope-root.pem
+    ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [ ../certs/tracker-local-ca.pem ]
+  );
 
 }

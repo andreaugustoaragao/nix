@@ -3,6 +3,7 @@
   lib,
   unstable-pkgs,
   hostName,
+  personalOnly,
   ...
 }:
 {
@@ -43,7 +44,6 @@
     ./zed.nix
     ./grok-bot.nix
     ./chatgpt.nix
-    ./fulcrum.nix
     ./waybar.nix
     ./eww.nix
     ./wallpapers.nix
@@ -53,12 +53,15 @@
     ./xresources.nix
     ./cursors.nix
     ./mimeapps.nix
-    ./notes.nix
     ./window-switcher.nix
     ./web-apps-launcher.nix
     ./do-not-disturb.nix
     ./quickshell.nix
     ./matugen.nix
+  ]
+  ++ lib.optionals (!personalOnly) [
+    ./fulcrum.nix
+    ./notes.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./parallels-displays.nix
@@ -84,7 +87,6 @@
     [
       pavucontrol
       easyeffects
-      teams-for-linux
       unstable-pkgs.telegram-desktop
       bitwarden-desktop
       unstable-pkgs.code-cursor
@@ -94,6 +96,7 @@
       obsidian
       qt6.qttools
       freelens-bin
+      (pkgs.callPackage ../../pkgs/pdfcraft.nix { })
 
       # Video-related packages
       snapshot
@@ -102,6 +105,7 @@
       obs-studio-plugins.advanced-scene-switcher
       kdePackages.kdenlive
     ]
+    ++ lib.optionals (!personalOnly) [ teams-for-linux ]
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
       aptakube

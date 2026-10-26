@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  personalOnly,
   isVm ? false,
   ...
 }:
@@ -21,17 +22,25 @@ in
   # GTK bookmarks for Thunar sidebar
   xdg.configFile."gtk-3.0/bookmarks".text = ''
     file://${config.home.homeDirectory}/downloads downloads
-    file://${config.home.homeDirectory}/projects/work work
+    ${lib.optionalString (!personalOnly) ''
+      file://${config.home.homeDirectory}/projects/work work
+    ''}
     file://${config.home.homeDirectory}/projects/personal personal
-    file://${config.home.homeDirectory}/projects/work/notes notes
+    ${lib.optionalString (!personalOnly) ''
+      file://${config.home.homeDirectory}/projects/work/notes notes
+    ''}
     file://${config.home.homeDirectory}/pictures/screenshots screenshots
-    file://${config.home.homeDirectory}/projects/work/infinity-core infinity-core
+    ${lib.optionalString (!personalOnly) ''
+      file://${config.home.homeDirectory}/projects/work/infinity-core infinity-core
+    ''}
   '';
 
   # Thunar file manager configuration via home-manager activation
   home.activation.configureThunar = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     # Create project directories if they don't exist
-    mkdir -p "${config.home.homeDirectory}/projects/work"
+    ${lib.optionalString (!personalOnly) ''
+      mkdir -p "${config.home.homeDirectory}/projects/work"
+    ''}
     mkdir -p "${config.home.homeDirectory}/projects/personal"
     echo "Created project directories"
 

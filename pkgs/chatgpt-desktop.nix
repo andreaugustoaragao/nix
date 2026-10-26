@@ -48,17 +48,17 @@
 }:
 
 let
-  version = "26.924.51851";
+  version = "26.1013.40934";
   sources = {
     aarch64-linux = {
       debArch = "arm64";
       nodeArch = "arm64";
-      hash = "sha256-2l5GjF/OZEQRNMNR//v0OOOW7DrcanjDDpqk2/haMWg=";
+      hash = "sha256-mrLLuvM86+qh4G61yreBKJNvknoNl78A5AaU5fMcYps=";
     };
     x86_64-linux = {
       debArch = "amd64";
       nodeArch = "x64";
-      hash = "sha256-fSW5n+ObA83D2DYx+yA9t3GGeIpTOHreDnBqJh6JaTU=";
+      hash = "sha256-PKWef5pmQbni+5rWgGg3hLWrgCb/dBj7ISoOvl3zodc=";
     };
   };
   source = sources.${stdenv.hostPlatform.system};

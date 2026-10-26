@@ -2,6 +2,7 @@
   pkgs,
   lib,
   unstable-pkgs,
+  personalOnly,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -35,6 +36,8 @@ in
     ./claude.nix
     ./codex.nix
     ./opencode.nix
+    ./pstack.nix
+    ./graphify.nix
     ./cursor.nix
     ./k9s.nix
     ./fzf.nix
@@ -45,19 +48,22 @@ in
     # github-work host aliases that point at sops-decrypted identity
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
     # platform-specific (see gpg.nix on Linux).
-    ./ssh-config.nix
   ]
+  ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
+  ++ lib.optionals personalOnly [ ./personal-identity.nix ]
   ++ lib.optionals (!isDarwinHost) [
     # gpg/ssh-agent management here is built on systemd-user units +
     # Linux paths (pinentry-qt, gcr-ssh-agent masking). macOS uses
     # launchd + the system keychain; wire that separately if needed.
-    ./gpg.nix
-    ./ssh-add-keys.nix
-    ./gpg-add-keys.nix
     # `xdg.desktopEntries` is a Linux-only HM option (the option name
     # itself is undefined on Darwin), so the entire feature lives in a
     # separately-imported module.
     ./desktop-entries.nix
+  ]
+  ++ lib.optionals (!isDarwinHost && !personalOnly) [
+    ./gpg.nix
+    ./ssh-add-keys.nix
+    ./gpg-add-keys.nix
   ]
   ++ lib.optionals isDarwinHost [
     # AeroSpace tiling-WM config — niri's closest macOS analog. The

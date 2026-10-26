@@ -2,6 +2,7 @@
   config,
   lib,
   owner,
+  personalOnly,
   isServer ? false,
   # Comes from flake.nix specialArgs. Using pkgs.stdenv.hostPlatform here
   # would recurse: imports must evaluate before _module.args resolves pkgs.
@@ -45,7 +46,9 @@
       # Ensure project directories are created via Home Manager activation
       createProjectDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Create project directories
-        $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/work"
+        ${lib.optionalString (!personalOnly) ''
+          $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/work"
+        ''}
         $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/personal"
         echo "Created project directories"
       '';
@@ -90,8 +93,10 @@
 
     extraConfig = {
       PROJECTS = "${config.home.homeDirectory}/projects";
-      WORK = "${config.home.homeDirectory}/projects/work";
       PERSONAL = "${config.home.homeDirectory}/projects/personal";
+    }
+    // lib.optionalAttrs (!personalOnly) {
+      WORK = "${config.home.homeDirectory}/projects/work";
     };
   };
 

@@ -18,6 +18,8 @@ set -euo pipefail
 #   LOCAL_FLAKE=/run/media/usb/nix ./install-nixos.sh   # skip the git
 #                                                       clone, copy from
 #                                                       this path instead
+#   PREBUILT_SYSTEM=/nix/store/...-nixos-system-...  # offline installer closure
+#   SET_USER_PASSWORD=1  # prompt for a fresh login password after installing
 #
 # LOCAL_FLAKE exists for the case where the upstream repo is private
 # (no anonymous clone) and you've staged the flake onto a USB stick or
@@ -32,7 +34,8 @@ DISK="${DISK:-/dev/sda}"
 FLAKE_REPO="${FLAKE_REPO:-https://github.com/andreaugustoaragao/nix.git}"
 LOCAL_FLAKE="${LOCAL_FLAKE:-}"
 USERNAME="aragao"
-USER_FULLNAME="Andre Aragao"
+PREBUILT_SYSTEM="${PREBUILT_SYSTEM:-}"
+SET_USER_PASSWORD="${SET_USER_PASSWORD:-0}"
 TMP_FLAKE="/tmp/nix-installer-flake"
 
 # Colors for output
@@ -67,6 +70,9 @@ if [[ -n "$LOCAL_FLAKE" ]]; then
     # -a preserves perms/symlinks; trailing /. ensures dotfiles (.git,
     # .sops.yaml, .gitignore) come along, which `nix build` needs.
     cp -a "$LOCAL_FLAKE/." "$TMP_FLAKE"
+    # Installation media and Nix store sources are read-only. The installed
+    # checkout must be editable by its owner for subsequent rebuilds.
+    chmod -R u+w "$TMP_FLAKE"
 else
     log "Fetching flake metadata from $FLAKE_REPO"
     git clone --depth=1 "$FLAKE_REPO" "$TMP_FLAKE" >/dev/null
@@ -114,6 +120,12 @@ else
     (( choice >= 1 && choice <= ${#candidates[@]} )) || error "out of range"
     TARGET_HOSTNAME="${candidates[$((choice - 1))]}"
     log "selected: $TARGET_HOSTNAME"
+fi
+
+# Reject a mismatched offline closure before asking to erase any disk.
+if [[ -n "$PREBUILT_SYSTEM" ]]; then
+    [[ -x "$PREBUILT_SYSTEM/bin/switch-to-configuration" ]] || error "Invalid PREBUILT_SYSTEM"
+    [[ "$(cat "$PREBUILT_SYSTEM/etc/hostname")" == "$TARGET_HOSTNAME" ]] || error "PREBUILT_SYSTEM hostname does not match $TARGET_HOSTNAME"
 fi
 
 # Final summary + confirmation
@@ -197,7 +209,16 @@ log "Using filesystem labels: nixos (btrfs root) and nixos-boot (EFI)"
 
 # Step 8: install
 log "Installing NixOS for host $TARGET_HOSTNAME"
-sudo nixos-install --root /mnt --flake "/mnt/home/$USERNAME/projects/personal/nix#$TARGET_HOSTNAME"
+if [[ -n "$PREBUILT_SYSTEM" ]]; then
+    sudo nixos-install --root /mnt --system "$PREBUILT_SYSTEM"
+else
+    sudo nixos-install --root /mnt --flake "/mnt/home/$USERNAME/projects/personal/nix#$TARGET_HOSTNAME"
+fi
+
+if [[ "$SET_USER_PASSWORD" == 1 ]]; then
+    log "Set a fresh login/sudo password for $USERNAME (entered only in this console)"
+    sudo nixos-enter --root /mnt -c "passwd $USERNAME"
+fi
 
 log "Installation completed successfully!"
 

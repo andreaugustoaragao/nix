@@ -741,37 +741,57 @@ class Session:
                 raise ValueError("invalid diarization timeline")
             previous_start = start
             speakers.add(speaker)
-        raw = (self.directory / "transcript.txt").read_text().splitlines()
-        aligned = (self.directory / "transcript.diarized.txt").read_text().splitlines()
-        if len(aligned) != len(raw):
-            raise ValueError("diarization dropped transcript lines")
-        labeled_remote = 0
-        unlabeled_remote = 0
-        for before, after in zip(raw, aligned):
-            prefix = re.match(r"^\[\d\d:\d\d:\d\d\] ", before)
-            if not prefix:
-                if after != before:
-                    raise ValueError("diarization changed transcript structure")
-                continue
-            if before.startswith(prefix.group() + "Me: "):
-                if after != before:
-                    raise ValueError("diarization changed microphone speech")
-                continue
-            if after == before:
-                unlabeled_remote += 1
-                continue
-            expected = re.escape(prefix.group()) + r"Speaker \d+: " + re.escape(before[len(prefix.group()):])
-            if not re.fullmatch(expected, after):
-                raise ValueError("diarization changed remote speech")
-            labeled_remote += 1
-        if unlabeled_remote:
-            raise DiarizationCoverageError(unlabeled_remote, labeled_remote + unlabeled_remote)
-        if not labeled_remote:
-            raise ValueError("no labeled remote speech")
+        alignment = self.directory / "transcript.diarized.alignment.json"
+        offsets = self.directory / "transcript.offsets.json"
+        coverage = None
+        if alignment.exists():
+            # Replay the deterministic attribution from immutable ASR receipts.
+            # This validates every original word, speaker decision, split,
+            # offset and coverage count before publishing a partial result.
+            with tempfile.TemporaryDirectory(prefix="validate-alignment-", dir=self.private) as temporary:
+                expected = Path(temporary) / "transcript.diarized.txt"
+                atomic_json(Path(temporary) / "segments.json", segments)
+                self.command("python", self.config["align"], self.directory / "transcript.txt",
+                             Path(temporary) / "segments.json", int(timestamp(self.manifest["startedAt"])),
+                             expected, offsets, self.directory / "diarization.words.json",
+                             env={**os.environ, "TZ": self.manifest["timeZone"]},
+                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60)
+                for suffix in (".txt", ".offsets.json", ".alignment.json"):
+                    if expected.with_suffix(suffix).read_bytes() != (self.directory / ("transcript.diarized" + suffix)).read_bytes():
+                        raise ValueError("diarization attribution does not match retained speech")
+            coverage = read_json(alignment)["coverage"]
+            offsets = self.directory / "transcript.diarized.offsets.json"
+        else:
+            raw = (self.directory / "transcript.txt").read_text().splitlines()
+            aligned = (self.directory / "transcript.diarized.txt").read_text().splitlines()
+            if len(aligned) != len(raw):
+                raise ValueError("diarization dropped transcript lines")
+            labeled_remote = 0
+            unlabeled_remote = 0
+            for before, after in zip(raw, aligned):
+                prefix = re.match(r"^\[\d\d:\d\d:\d\d\] ", before)
+                if not prefix:
+                    if after != before:
+                        raise ValueError("diarization changed transcript structure")
+                    continue
+                if before.startswith(prefix.group() + "Me: "):
+                    if after != before:
+                        raise ValueError("diarization changed microphone speech")
+                    continue
+                if after == before:
+                    unlabeled_remote += 1
+                    continue
+                expected = re.escape(prefix.group()) + r"Speaker \d+: " + re.escape(before[len(prefix.group()):])
+                if not re.fullmatch(expected, after):
+                    raise ValueError("diarization changed remote speech")
+                labeled_remote += 1
+            if unlabeled_remote:
+                raise DiarizationCoverageError(unlabeled_remote, labeled_remote + unlabeled_remote)
+            if not labeled_remote:
+                raise ValueError("no labeled remote speech")
         # The published artifact groups speech below multiline turn headers.
         # Rebuild it from the fully validated alignment, so a truncated or stale
         # turns file cannot pass merely by containing one speaker label.
-        offsets = self.directory / "transcript.offsets.json"
         with tempfile.TemporaryDirectory(prefix="validate-diarization-", dir=self.private) as temporary:
             expected = Path(temporary) / "turns.txt"
             self.command("python", self.config["turns"], self.directory / "transcript.diarized.txt",
@@ -779,7 +799,7 @@ class Session:
                          stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60)
             if transcript.read_bytes() != expected.read_bytes():
                 raise ValueError("diarization turns do not match labeled speech")
-        return len(speakers)
+        return len(speakers), coverage
 
     def attempt_diarization(self):
         prior = self.state.get("diarization") or {}
@@ -828,7 +848,9 @@ class Session:
         log_path = self.private / "diarization.log"
         try:
             self.protect_published_diarization()
-            with log_path.open("ab") as log:
+            # Only speaker inference is serialized. A later session can capture
+            # and transcribe while this one waits for or uses the backend.
+            with locked(state_root() / "diarization.lock", blocking=True), log_path.open("ab") as log:
                 self.command(
                     "diarize",
                     self.directory,
@@ -838,17 +860,22 @@ class Session:
                     stderr=subprocess.STDOUT,
                     timeout=7200,
                     env={**os.environ, "TZ": self.manifest["timeZone"],
-                         "RECORD_CALL_TURN_GAP_SEC": str(self.state["turnGap"])},
+                         "RECORD_CALL_TURN_GAP_SEC": str(self.state["turnGap"]),
+                         "RECORD_CALL_ALIGNMENT_SERVER": self.state.get("whisperServerUrl", ""),
+                         "RECORD_CALL_ALIGNMENT_MODEL": self.state.get("model", "")},
                 )
             transcript = self.directory / "transcript.diarized.turns.txt"
             diarization = read_json(self.directory / "diarization.json")
-            speakers = self.validate_diarization(transcript, diarization)
-            immutable = self.directory / f"transcript.diarized.{uuid.uuid4().hex}.turns.txt"
+            speakers, coverage = self.validate_diarization(transcript, diarization)
+            partial = bool(coverage and coverage["unresolvedRemoteWords"])
+            kind = "attributed" if partial else "diarized"
+            immutable = self.directory / f"transcript.{kind}.{uuid.uuid4().hex}.turns.txt"
             atomic_bytes(immutable, transcript.read_bytes())
             descriptor = self.transcript_descriptor(immutable)
             self.manifest["source"]["transcript"] = descriptor
             self.state["diarization"] = {
-                "status": "ready",
+                "status": "partial" if partial else "ready",
+                "coverage": coverage,
                 "attempts": attempts,
                 "startedAt": started,
                 "finishedAt": utc_now(),
@@ -858,6 +885,8 @@ class Session:
             }
             self.bound_log(log_path)
             self.persist()
+            if partial:
+                self.notify_diarization_failure()
             return True
         except subprocess.TimeoutExpired:
             failure = {"code": "diarization_timeout", "retryable": True}
@@ -885,9 +914,15 @@ class Session:
     def notify_diarization_failure(self):
         notifier = self.config.get("notifySend")
         failure = (self.state.get("diarization") or {}).get("failure") or {}
-        if not notifier or not isinstance(failure, dict) or not failure or self.manifest["status"] != "ready":
+        partial = (self.state.get("diarization") or {}).get("status") == "partial"
+        if not notifier or not isinstance(failure, dict) or (not failure and not partial) or self.manifest["status"] != "ready":
             return
-        if failure.get("code") == "diarization_incomplete_coverage" and all(
+        if partial:
+            coverage = self.state["diarization"]["coverage"]
+            detail = (f"Transcript ready with partial speaker labels. {coverage['unresolvedRemoteWords']} "
+                      f"{'word is' if coverage['unresolvedRemoteWords'] == 1 else 'words are'} "
+                      "marked Unknown speaker; other speaker labels are retained. ")
+        elif failure.get("code") == "diarization_incomplete_coverage" and all(
                 isinstance(failure.get(key), int) for key in ("unlabeledRemoteLines", "totalRemoteLines")):
             detail = (f"Could not label {failure['unlabeledRemoteLines']} of "
                       f"{failure['totalRemoteLines']} call speech lines. ")
@@ -1469,7 +1504,7 @@ class Session:
         self.manifest["failure"] = None
         self.manifest["finalizedAt"] = utc_now()
         self.persist()
-        if diarization_failed:
+        if diarization_failed or (self.state.get("diarization") or {}).get("status") == "partial":
             self.notify_diarization_failure()
 
     def run(self, mode="capture"):
@@ -1983,10 +2018,24 @@ def transcript_ready_without_coverage_warning(session):
         return False
 
 
+def can_start_recording(value):
+    if (value.get("failure") or {}).get("code") == "legacy_recording_state":
+        return False
+    if value["status"] == "diarizing":
+        return True
+    if value["status"] == "finalizing":
+        # Initial diarization retains a finalizing public manifest until the
+        # transcript is published. Capture and routing have already stopped.
+        return (value.get("endedAt") is not None
+                and (value.get("finalization") or {}).get("stage") == "diarizing"
+                and (value.get("diarization") or {}).get("status") == "running")
+    return value["status"] not in ACTIVE
+
+
 def status(directory, config):
     if directory is None:
         legacy = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "record-call/session.env"
-        return {"status": "incomplete" if legacy.exists() else "idle", "failure": {
+        return {"status": "incomplete" if legacy.exists() else "idle", "canStartRecording": not legacy.exists(), "failure": {
             "stage": "recovery", "code": "legacy_recording_state", "retryable": False} if legacy.exists() else None}
     session = Session(directory, config)
     result = dict(session.manifest)
@@ -2028,6 +2077,7 @@ def status(directory, config):
     result["salvageable"] = (result["status"] == "incomplete" and result["endedAt"] is None
                              and result["source"].get("transcript") is None
                              and session.has_retained_audio_candidate())
+    result["canStartRecording"] = can_start_recording(result)
     return result
 
 
@@ -2161,7 +2211,7 @@ def cleanup_after_owner(directory, config, expected_id=None):
 def start(directory, config, config_path):
     with locked(state_root() / "command.lock"):
         existing = status(current_directory(), config)
-        if existing["status"] in ACTIVE or (existing.get("failure") or {}).get("code") == "legacy_recording_state":
+        if not existing["canStartRecording"]:
             raise Failure("startup", "recording_already_active")
         directory = Path(directory or Path.home() / "recordings/calls" / datetime.now().strftime("%Y%m%d-%H%M%S"))
         if directory.exists() and any(directory.iterdir()):

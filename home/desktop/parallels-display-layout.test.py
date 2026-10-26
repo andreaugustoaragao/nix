@@ -35,9 +35,13 @@ class HeadLayoutTests(unittest.TestCase):
         layout.feed(config(1))
         self.assertIsNone(layout.latest)
 
-    def test_positions_follow_live_logical_widths(self):
+    def test_positions_follow_live_output_sizes(self):
         outputs = {
-            name: {"logical": {"width": width}}
+            name: {
+                "logical": {"width": width, "scale": 2.0},
+                "current_mode": 0,
+                "modes": [{"width": width * 2}],
+            }
             for name, width in (
                 ("Virtual-1", 3360),
                 ("Virtual-2", 1692),
@@ -47,6 +51,25 @@ class HeadLayoutTests(unittest.TestCase):
         self.assertEqual(
             layout_module.desired_positions(("Virtual-2", "Virtual-3"), outputs),
             {"Virtual-2": 0, "Virtual-1": 1692, "Virtual-3": 5052},
+        )
+
+    def test_fractional_scale_does_not_overlap_the_next_display(self):
+        outputs = {
+            "Virtual-3": {
+                "logical": {"width": 1353, "scale": 2.5},
+                "current_mode": 0,
+                "modes": [{"width": 3384}],
+            },
+            "Virtual-1": {
+                "logical": {"width": 2688, "scale": 2.5},
+                "current_mode": 0,
+                "modes": [{"width": 6720}],
+            },
+            "Virtual-2": {"logical": {"width": 1353, "scale": 2.5}},
+        }
+        self.assertEqual(
+            layout_module.desired_positions(("Virtual-3", "Virtual-2"), outputs),
+            {"Virtual-3": 0, "Virtual-1": 1354, "Virtual-2": 4042},
         )
 
 

@@ -34,6 +34,9 @@ class RecorderTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="recorder-test '")
         self.root = Path(self.temp.name)
+        state = patch.object(recorder, "state_root", return_value=self.root / "state/record-call")
+        state.start()
+        self.addCleanup(state.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -452,13 +455,19 @@ class RecorderTests(unittest.TestCase):
         executable.chmod(0o700)
         diarizer = self.root / "fake-diarizer"
         diarizer.write_text(f"#!{sys.executable}\n" + textwrap.dedent(f'''
-            import json, pathlib, subprocess, sys
+            import json, pathlib, subprocess, sys, time
             root = pathlib.Path({str(self.root)!r})
             directory = pathlib.Path(sys.argv[1])
             counter = root / 'diarization-attempts'
             count = int(counter.read_text()) + 1 if counter.exists() else 1
             counter.write_text(str(count))
             mode = json.loads((root / 'control.json').read_text())
+            if mode.get('diarization_gate'):
+                (directory / '.record-call/diarizer-entered').touch()
+                deadline = time.monotonic() + 30
+                while not (directory / '.record-call/diarizer-release').exists():
+                    if time.monotonic() > deadline: sys.exit(18)
+                    time.sleep(0.02)
             if mode.get('diarization_corrupt_then_fail'):
                 (directory / 'transcript.diarized.turns.txt').write_text('partial replacement')
                 sys.exit(17)
@@ -508,9 +517,13 @@ class RecorderTests(unittest.TestCase):
             "dedupe": "record-call-dedupe.py",
             "turns": "record-call-turns.py",
             "align": "record-call-align.py",
+            "refine": "record-call-refine.py",
             "retime": "record-call-retime.py",
         }
         for name, filename in helpers.items():
+            if name in ("align", "refine"):
+                config[name] = str(Path(__file__).with_name(filename))
+                continue
             begin = source.index(f'  {name}Py = pkgs.writeText "{filename}" \'\'\n')
             body = source[begin:].split("\n", 1)[1].split("\n  '';", 1)[0]
             path = self.root / (name + ".py")
@@ -653,7 +666,7 @@ class RecorderTests(unittest.TestCase):
         turns = session.directory / "transcript.diarized.turns.txt"
         subprocess.run([sys.executable, session.config["turns"], str(aligned), str(turns), "8", str(offsets)],
                        check=True, stdout=subprocess.DEVNULL)
-        self.assertEqual(session.validate_diarization(turns, segments), 2)
+        self.assertEqual(session.validate_diarization(turns, segments)[0], 2)
 
     def assert_multiline_speech_retained(self, salvage):
         session = self.session()
@@ -1388,6 +1401,190 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(output.read_text(), "[15:00:10] Speaker 1: Near the end of a long segment\n")
 
+    def word_alignment(self, session, text, words, speakers, *, start=0, end=10):
+        source = session.directory / "transcript.txt"
+        stamp = recorder.datetime.fromtimestamp(
+            recorder.timestamp(session.manifest["startedAt"]) + start, recorder.timezone.utc).strftime("%H:%M:%S")
+        source.write_text(f"[{stamp}] {text}\n[15:00:09] Me: Local words stay intact\n")
+        recorder.atomic_json(source.with_suffix(".offsets.json"), [round(start * 1000), 9000])
+        window = session.private / "windows/000000"
+        window.mkdir(parents=True, exist_ok=True)
+        recorder.atomic_json(window / "call.json", {"segments": [
+            {"start": start, "end": end, "text": text, "words": words}]})
+        recorder.atomic_json(window / "call.ok.json", {
+            "parameters": {"startMs": 0, "endMs": 10000, "wordTimestampsTimeline": "original"},
+            "outputHash": recorder.file_hash(window / "call.json"),
+        })
+        recorder.atomic_json(session.directory / "diarization.json", speakers)
+        output = session.directory / "transcript.diarized.txt"
+        subprocess.run([sys.executable, session.config["align"], str(source),
+                        str(session.directory / "diarization.json"),
+                        str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output),
+                        str(source.with_suffix(".offsets.json"))], check=True,
+                       env={**os.environ, "TZ": "UTC"})
+        subprocess.run([sys.executable, session.config["turns"], str(output),
+                        str(session.directory / "transcript.diarized.turns.txt"), "8",
+                        str(output.with_suffix(".offsets.json"))], check=True, stdout=subprocess.DEVNULL)
+        return output, recorder.read_json(output.with_suffix(".alignment.json"))
+
+    def test_word_attribution_splits_multiple_speakers_without_losing_text(self):
+        session = self.session(duration=10000)
+        output, report = self.word_alignment(session, "First speaker. Yes! Back again.", [
+            {"word": " First", "start": 0.1, "end": 0.7},
+            {"word": " speaker", "start": 0.8, "end": 1.4},
+            {"word": ".", "start": 1.4, "end": 1.5},
+            {"word": " Yes!", "start": 2, "end": 2.15},
+            {"word": " Back", "start": 3, "end": 3.5},
+            {"word": " again.", "start": 3.6, "end": 4},
+        ], [{"start": 0, "end": 1.5, "speaker": "a"},
+            {"start": 2, "end": 2.15, "speaker": "b"},
+            {"start": 3, "end": 4, "speaker": "a"}])
+        self.assertEqual(output.read_text(), "[15:00:00] Speaker 1: First speaker.\n"
+                         "[15:00:02] Speaker 2: Yes!\n[15:00:03] Speaker 1: Back again.\n"
+                         "[15:00:09] Me: Local words stay intact\n")
+        self.assertEqual(report["coverage"]["unresolvedRemoteWords"], 0)
+        self.assertEqual(session.validate_diarization(output.with_name("transcript.diarized.turns.txt"),
+                                                     recorder.read_json(session.directory / "diarization.json"))[0], 2)
+
+    def test_word_attribution_preserves_overlap_and_only_repairs_boundary_jitter(self):
+        session = self.session(duration=10000)
+        words = [{"word": " " + word, "start": i, "end": i + 0.8}
+                 for i, word in enumerate(["one", "two", "three", "four", "five"])]
+        output, report = self.word_alignment(session, "one two three four five", words, [
+            {"start": 0, "end": 5, "speaker": "a"},
+            {"start": 0.98, "end": 1.018, "speaker": "b"},
+            {"start": 3.2, "end": 3.4, "speaker": "b"},
+        ])
+        self.assertIn("Speaker 1: one two three", output.read_text())
+        self.assertIn("Unknown speaker: four", output.read_text())
+        self.assertIn("Speaker 1: five", output.read_text())
+        self.assertEqual(report["coverage"]["unresolvedRemoteWords"], 1)
+        self.assertIn("boundary_context", report["rows"][0]["reasons"])
+
+    def test_word_does_not_inherit_speaker_from_tiny_overlap_before_silence(self):
+        session = self.session(duration=10000)
+        output, report = self.word_alignment(session, "first stretched last", [
+            {"word": " first", "start": 0, "end": 0.5},
+            {"word": " stretched", "start": 1, "end": 2},
+            {"word": " last", "start": 3, "end": 3.5},
+        ], [{"start": 0, "end": 1.05, "speaker": "a"},
+            {"start": 3, "end": 3.5, "speaker": "b"}])
+        self.assertIn("Unknown speaker: stretched", output.read_text())
+        self.assertEqual(report["coverage"]["unresolvedRemoteWords"], 1)
+
+    def test_word_attribution_rejects_compressed_vad_and_mismatching_text(self):
+        session = self.session(duration=10000)
+        speakers = [{"start": 5, "end": 6, "speaker": "a"}, {"start": 7, "end": 8, "speaker": "b"}]
+        for words in ([{"word": " original text", "start": 0, "end": 1}],
+                      [{"word": " replacement text", "start": 5, "end": 8}]):
+            output, report = self.word_alignment(session, "original text", words, speakers, start=5, end=8)
+            self.assertIn("Unknown speaker: original text", output.read_text())
+            self.assertEqual(report["coverage"]["unresolvedRemoteWords"], 2)
+
+    def test_partial_speaker_result_is_published_and_tampering_rejected(self):
+        session = self.session(duration=10000)
+        session.finalize()
+        output, report = self.word_alignment(session, "one two three", [
+            {"word": " one", "start": 0, "end": 0.8},
+            {"word": " two", "start": 1, "end": 1.8},
+            {"word": " three", "start": 2, "end": 2.8},
+        ], [{"start": 0, "end": 3, "speaker": "a"}, {"start": 1, "end": 1.8, "speaker": "b"}])
+        session.config["diarize"] = "true"  # Publish the real generated artifacts above.
+        self.assertTrue(session.attempt_diarization())
+        self.assertEqual(session.state["diarization"]["status"], "partial")
+        published = session.directory / session.manifest["source"]["transcript"]["path"]
+        self.assertIn("transcript.attributed.", published.name)
+        self.assertIn("Unknown speaker:", published.read_text())
+        self.assertIn("Speaker 1:", published.read_text())
+        original = published.read_bytes()
+        session.config["notifySend"] = "/fake/notify-send"
+        with patch.object(recorder.subprocess, "run") as command:
+            session.notify_diarization_failure()
+        self.assertIn("1 word is marked Unknown speaker", command.call_args.args[0][-1])
+        output.write_text(output.read_text().replace("three", "invented"))
+        self.assertFalse(session.attempt_diarization())
+        self.assertEqual(published.read_bytes(), original)
+        self.assertEqual(session.manifest["source"]["transcript"]["path"], published.name)
+
+    def test_refinement_matches_unique_context_and_rejects_repeated_short_words(self):
+        spec = importlib.util.spec_from_file_location("refine", Path(__file__).with_name("record-call-refine.py"))
+        refine = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(refine)
+        reference = [{"text": x, "start": 5, "end": 9} for x in ["Keep", "these", "words."]]
+        observed = refine.timed_words({"segments": [{"words": [
+            {"word": " Keep", "start": 0, "end": 0.5},
+            {"word": " these", "start": 0.5, "end": 1},
+            {"word": " words.", "start": 1, "end": 1.5},
+        ]}]}, 5, 4)
+        self.assertEqual(len(refine.match_words(reference, observed)), 3)
+        self.assertEqual(observed[0]["start"], 5)
+        short = [{"text": "yes", "start": 5, "end": 9}]
+        repeated = [{"key": "yes", "start": 5, "end": 6}, {"key": "yes", "start": 7, "end": 8}]
+        self.assertEqual(refine.match_words(short, repeated), {})
+        self.assertEqual(refine.match_words(reference, [{"key": "different", "start": 5, "end": 6}]), {})
+
+    def test_unmarked_vad_words_are_not_treated_as_original_clock(self):
+        session = self.session(duration=10000)
+        output, _ = self.word_alignment(session, "one two three", [
+            {"word": " one", "start": 0, "end": 0.8},
+            {"word": " two", "start": 1, "end": 1.8},
+            {"word": " three", "start": 2, "end": 2.8},
+        ], [{"start": 0, "end": 1, "speaker": "a"}, {"start": 1, "end": 3, "speaker": "b"}])
+        receipt = session.private / "windows/000000/call.ok.json"
+        value = recorder.read_json(receipt)
+        del value["parameters"]["wordTimestampsTimeline"]
+        recorder.atomic_json(receipt, value)
+        subprocess.run([sys.executable, session.config["align"], str(session.directory / "transcript.txt"),
+                        str(session.directory / "diarization.json"),
+                        str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output),
+                        str(session.directory / "transcript.offsets.json")], check=True,
+                       env={**os.environ, "TZ": "UTC"})
+        self.assertIn("Unknown speaker: one two three", output.read_text())
+
+    def test_split_remote_words_interleave_with_microphone_in_time_order(self):
+        session = self.session(duration=10000)
+        output, _ = self.word_alignment(session, "first second", [
+            {"word": " first", "start": 0, "end": 0.8},
+            {"word": " second", "start": 2, "end": 2.8},
+        ], [{"start": 0, "end": 1, "speaker": "a"}, {"start": 2, "end": 3, "speaker": "b"}])
+        source = session.directory / "transcript.txt"
+        source.write_text(source.read_text().replace("[15:00:09] Me:", "[15:00:01] Me:"))
+        recorder.atomic_json(source.with_suffix(".offsets.json"), [0, 1000])
+        subprocess.run([sys.executable, session.config["align"], str(source),
+                        str(session.directory / "diarization.json"),
+                        str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output),
+                        str(source.with_suffix(".offsets.json"))], check=True,
+                       env={**os.environ, "TZ": "UTC"})
+        self.assertEqual(output.read_text().splitlines(), ["[15:00:00] Speaker 1: first",
+                         "[15:00:01] Me: Local words stay intact", "[15:00:02] Speaker 2: second"])
+        self.assertEqual(recorder.read_json(output.with_suffix(".offsets.json")), [0, 1000, 2000])
+
+    def test_refinement_timeout_preserves_source_and_unknown_output(self):
+        import argparse
+        spec = importlib.util.spec_from_file_location("refine", Path(__file__).with_name("record-call-refine.py"))
+        refine = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(refine)
+        session = self.session(duration=10000)
+        output, _ = self.word_alignment(session, "words stay unchanged", [], [
+            {"start": 0, "end": 1, "speaker": "a"}, {"start": 1, "end": 3, "speaker": "b"}])
+        source = session.directory / "transcript.txt"
+        before = source.read_bytes()
+        args = argparse.Namespace(transcript=str(source), report=str(output.with_suffix(".alignment.json")),
+                                  audio=str(session.directory / "chunks/call_000000.wav"),
+                                  output=str(session.directory / "diarization.words.json"),
+                                  server="http://synthetic.invalid", model="", curl="curl", whisper="whisper-cli")
+        with patch.object(refine.subprocess, "run", side_effect=subprocess.TimeoutExpired("curl", 60)) as call:
+            refine.run(args)
+        self.assertEqual(call.call_count, 1)
+        self.assertIn("vad=false", call.call_args.args[0])
+        evidence = recorder.read_json(args.output)
+        self.assertEqual(evidence["requests"][0]["status"], "failed")
+        self.assertEqual(evidence["entries"], [])
+        self.assertEqual(source.read_bytes(), before)
+        self.assertIn("Unknown speaker: words stay unchanged", output.read_text())
+        long = {"rows": [{"speaker": None, "sourceOffsetMs": 0, "sourceEndMs": 50000}]}
+        self.assertEqual(refine.plan(long, 60), [])
+
     def test_diarization_uses_verified_intervals_without_guessing_across_speakers(self):
         session = self.session(duration=45000)
         source = session.directory / "transcript.txt"
@@ -1424,8 +1621,8 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(output.read_text(),
                              "[15:00:05] Speaker 1: First reply\n"
                              "[15:00:15] Speaker 2: Second reply\n"
-                             "[15:00:25] Two people in one segment\n"
-                             "[15:00:35] Uncovered reply\n[15:00:36] Me: My reply\n")
+                             "[15:00:25] Unknown speaker: Two people in one segment\n"
+                             "[15:00:35] Unknown speaker: Uncovered reply\n[15:00:36] Me: My reply\n")
         (window / "call.json").write_text('{"segments":[]}')
         result = subprocess.run(command, env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
@@ -1449,7 +1646,7 @@ class RecorderTests(unittest.TestCase):
             str(int(recorder.timestamp(session.manifest["startedAt"]))), str(output), str(offsets)
         ], env={**os.environ, "TZ": "UTC"}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(output.read_text(), source.read_text())
+        self.assertEqual(output.read_text(), source.read_text().replace("] ", "] Unknown speaker: "))
 
     def test_diarization_shell_uses_raw_audio_and_retains_legacy_override(self):
         session = self.session(duration=5000)
@@ -1480,7 +1677,7 @@ class RecorderTests(unittest.TestCase):
         body = source.split('  diarizeScript = pkgs.writeShellScript "record-call-diarize" \'\'\n', 1)[1]
         body = textwrap.dedent(body.split("\n  '';", 1)[0])
         body = body.replace('${binPath}', str(self.root)).replace("''${", "${")
-        for name in ("concatCall", "diarizationResponse", "align", "turns"):
+        for name in ("concatCall", "diarizationResponse", "align", "refine", "turns"):
             body = body.replace('${' + name + 'Py}', shlex.quote(session.config[name]))
         script = self.root / "diarize.sh"
         script.write_text(body)
@@ -2958,6 +3155,7 @@ class RecorderTests(unittest.TestCase):
             value = recorder.status(session.directory, session.config)
         self.assertEqual(value["status"], "diarizing")
         self.assertEqual(value["diarization"]["status"], "running")
+        self.assertTrue(value["canStartRecording"])
 
         with patch.object(recorder, "owner_properties", return_value={
                 "ActiveState": "inactive", "InvocationID": ""}):
@@ -2966,6 +3164,94 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(value["diarization"]["status"], "failed")
         self.assertEqual(value["diarization"]["failure"]["code"], "diarization_owner_lost")
         self.assertEqual((session.directory / "recording.json").read_bytes(), public_before)
+
+    def test_start_during_initial_or_retried_diarization_preserves_previous_session(self):
+        session = self.session()
+        session.finalize()
+        session.config.update(systemdRun=shutil.which("true"), defaultWhisperServerUrl="http://synthetic.invalid")
+        session.state.update(bootId=recorder.boot_id(), invocationId="old-worker", unit="old.service",
+                             finalizationStage="diarizing", diarization={"status": "running"})
+        pointer = recorder.state_root() / "current.json"
+        with patch.object(recorder, "owner_properties", return_value={
+                "ActiveState": "active", "InvocationID": "old-worker"}):
+            for phase in ("finalizing", "ready"):
+                with self.subTest(phase=phase):
+                    session.manifest["status"] = phase
+                    session.persist()
+                    recorder.atomic_json(pointer, {"recordingId": session.manifest["recordingId"],
+                                                   "directory": str(session.directory)})
+                    value = recorder.status(session.directory, session.config)
+                    self.assertTrue(value["canStartRecording"])
+                    before = {str(p): p.read_bytes() for p in session.directory.rglob("*") if p.is_file()}
+                    target = self.root / ("next-" + phase)
+                    recorder.start(target, session.config, self.root / "config.json")
+                    new = recorder.Session(target, session.config)
+                    self.assertNotEqual(new.manifest["recordingId"], session.manifest["recordingId"])
+                    self.assertEqual(recorder.current_directory(), target)
+                    self.assertEqual(new.manifest["status"], "starting")
+                    self.assertEqual({str(p): p.read_bytes() for p in session.directory.rglob("*") if p.is_file()}, before)
+                    with self.assertRaises(recorder.Failure) as error:
+                        recorder.start(self.root / "third", session.config, self.root / "config.json")
+                    self.assertEqual(error.exception.code, "recording_already_active")
+
+    def test_start_remains_blocked_until_diarization_has_released_capture(self):
+        session = self.session()
+        session.state.update(bootId=recorder.boot_id(), invocationId="owner", unit="old.service",
+                             finalizationStage="diarizing", diarization={"status": "running"})
+        with patch.object(recorder, "owner_properties", return_value={
+                "ActiveState": "active", "InvocationID": "owner"}):
+            for phase, stage, ended, diarization in (
+                    ("starting", "diarizing", session.manifest["endedAt"], "running"),
+                    ("recording", "diarizing", session.manifest["endedAt"], "running"),
+                    ("finalizing", "transcribing", session.manifest["endedAt"], "pending"),
+                    ("finalizing", "diarizing", None, "running"),
+                    ("finalizing", "diarizing", session.manifest["endedAt"], "failed")):
+                session.manifest.update(status=phase, endedAt=ended)
+                session.state.update(finalizationStage=stage, diarization={"status": diarization})
+                session.persist()
+                self.assertFalse(recorder.status(session.directory, session.config)["canStartRecording"])
+
+    def test_diarization_jobs_wait_without_failing_or_overlapping_backend_requests(self):
+        first = self.session()
+        second_directory = self.root / "second"
+        shutil.copytree(first.directory, second_directory)
+        state = recorder.read_json(second_directory / ".record-call/state.json")
+        recorder.rebase_state_paths(state, first.directory, second_directory)
+        state["recordingId"] = "second-id"
+        recorder.atomic_json(second_directory / ".record-call/state.json", state)
+        manifest = recorder.read_json(second_directory / "recording.json")
+        manifest["recordingId"] = "second-id"
+        recorder.atomic_json(second_directory / "recording.json", manifest)
+        second = recorder.Session(second_directory, first.config)
+        (self.root / "control.json").write_text('{"diarization_success":true,"diarization_gate":true}')
+
+        def wait_for(condition):
+            deadline = recorder.time.monotonic() + 10
+            while not condition():
+                if recorder.time.monotonic() > deadline:
+                    self.fail("Synthetic diarization did not reach the expected state")
+                recorder.time.sleep(0.01)
+
+        with recorder.ThreadPoolExecutor(max_workers=2) as pool:
+            try:
+                a = pool.submit(first.finalize)
+                wait_for(lambda: (first.private / "diarizer-entered").exists())
+                b = pool.submit(second.finalize)
+                wait_for(lambda: recorder.read_json(second.private / "state.json").get("finalizationStage") == "diarizing")
+                self.assertEqual((self.root / "diarization-attempts").read_text(), "1")
+                self.assertFalse((second.private / "diarizer-entered").exists())
+                (first.private / "diarizer-release").touch()
+                a.result(timeout=10)
+                wait_for(lambda: (second.private / "diarizer-entered").exists())
+                (second.private / "diarizer-release").touch()
+                b.result(timeout=10)
+                self.assertEqual((self.root / "diarization-attempts").read_text(), "2")
+                for session in (first, second):
+                    self.assertEqual(session.manifest["status"], "ready")
+                    self.assertEqual(session.state["diarization"]["status"], "ready")
+            finally:
+                for session in (first, second):
+                    (session.private / "diarizer-release").touch()
 
     def isolated_cli(self, config, *arguments, invocation=""):
         config_path = self.root / "cli-config.json"
@@ -2984,7 +3270,7 @@ class RecorderTests(unittest.TestCase):
         legacy.write_bytes(original)
         result = self.isolated_cli({}, "status", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), {"status": "incomplete", "failure": {
+        self.assertEqual(json.loads(result.stdout), {"status": "incomplete", "canStartRecording": False, "failure": {
             "stage": "recovery", "code": "legacy_recording_state", "retryable": False}})
         output = self.root / "new-recording"
         result = self.isolated_cli({}, "start", output)
@@ -3097,15 +3383,26 @@ class RecorderTests(unittest.TestCase):
             root.finalizing = true;
             toggle(root, toggleProcess);
             assert.strictEqual(toggleProcess.running, false);
-            root._pollOut = JSON.stringify({status:'finalizing',outputDir:'/a call',
+            root._pollOut = JSON.stringify({status:'finalizing',outputDir:'/a call',canStartRecording:true,
                 finalization:{completedWindows:686,totalWindows:686,stage:'diarizing'},
                 diarization:{status:'running',attempts:1}});
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'diarizing');
             assert.strictEqual(root.diarizationStatus, 'running');
             assert.strictEqual(statusText(root), 'Diarizing');
-            assert.strictEqual(tooltip(root), 'Identifying call participants...');
-            root._pollOut = JSON.stringify({status:'incomplete',outputDir:"/a call '; $ignored",failure:{code:'asr_exit',retryable:true}});
+            assert.strictEqual(tooltip(root), 'Identifying call participants — click to start another recording');
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            toggleProcess = {running:false};
+            startNew(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            root._pollOut = JSON.stringify({status:'diarizing',canStartRecording:true,diarization:{status:'running'}});
+            status(root, 0, 0);
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            root._pollOut = JSON.stringify({status:'incomplete',canStartRecording:true,outputDir:"/a call '; $ignored",failure:{code:'asr_exit',retryable:true}});
             status(root, 0, 0);
             root.finalizing = false;
             toggle(root, toggleProcess);
@@ -3113,7 +3410,7 @@ class RecorderTests(unittest.TestCase):
             root.startNew = () => startNew(root, toggleProcess);
             root.failureText = () => 'Speech recognition failed';
             assert.ok(tooltip(root).includes('right-click to start another recording'));
-            root._pollOut = JSON.stringify({status:'incomplete',outputDir:'/retained recording',salvageable:true,
+            root._pollOut = JSON.stringify({status:'incomplete',canStartRecording:true,outputDir:'/retained recording',salvageable:true,
                 failure:{code:'capture_end_unknown',retryable:false}});
             status(root, 0, 0);
             toggleProcess = {running:false};
@@ -3137,7 +3434,7 @@ class RecorderTests(unittest.TestCase):
             assert.strictEqual(iconName(root), 'mic');
             assert.strictEqual(iconColor(root, {surfaceText:'neutral'}), 'neutral');
             assert.strictEqual(tooltip(root), 'Transcript ready — click to start recording.');
-            root._pollOut = JSON.stringify({status:'incomplete',transcriptReadyWithoutCoverageWarning:false,
+            root._pollOut = JSON.stringify({status:'incomplete',canStartRecording:true,transcriptReadyWithoutCoverageWarning:false,
                 failure:{stage:'capture',code:'incomplete_audio_coverage',retryable:false}});
             status(root, 0, 0);
             assert.strictEqual(root.phase, 'incomplete');
@@ -3164,7 +3461,7 @@ class RecorderTests(unittest.TestCase):
             rightClick(root)();
             assert.strictEqual(toggleProcess.running, false);
             assert.strictEqual(tooltip(root), 'An older recording needs review before a new one can start');
-            root._pollOut = JSON.stringify({status:'ready',outputDir:"/a call '; $ignored",
+            root._pollOut = JSON.stringify({status:'ready',canStartRecording:true,outputDir:"/a call '; $ignored",
                 diarization:{status:'failed',attempts:1,failure:{code:'diarization_failed',retryable:true}}});
             status(root, 0, 0);
             root.recording = false;
@@ -3177,7 +3474,13 @@ class RecorderTests(unittest.TestCase):
             root.startNew = () => startNew(root, toggleProcess);
             rightClick(root)();
             assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
-            root._pollOut = JSON.stringify({status:'ready'});
+            root._pollOut = JSON.stringify({status:'ready',canStartRecording:true,diarization:{status:'partial'}});
+            status(root, 0, 0);
+            assert.ok(tooltip(root).includes('Unknown speaker'));
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            root._pollOut = JSON.stringify({status:'ready',canStartRecording:true});
             status(root, 0, 0);
             root.recording = false;
             root._pollOut = JSON.stringify({status:'ready',coverage:{acceptedMinorGaps:true}});
@@ -3189,7 +3492,13 @@ class RecorderTests(unittest.TestCase):
             status(root, 0, 0);
             assert.strictEqual(root.minorGaps, false);
             assert.strictEqual(tooltip(root), 'Transcript ready — click to start recording.');
-            root._pollOut = JSON.stringify({status:'ready'});
+            root._pollOut = JSON.stringify({status:'ready',canStartRecording:true,diarization:{status:'partial'}});
+            status(root, 0, 0);
+            assert.ok(tooltip(root).includes('Unknown speaker'));
+            toggleProcess = {running:false};
+            toggle(root, toggleProcess);
+            assert.deepStrictEqual(toggleProcess.command, ['record-call','start']);
+            root._pollOut = JSON.stringify({status:'ready',canStartRecording:true});
             status(root, 0, 0);
             assert.strictEqual(root.minorGaps, false);
             toggle(root, toggleProcess);
@@ -3202,6 +3511,7 @@ class RecorderTests(unittest.TestCase):
             assert.strictEqual(toggleProcess.running, false);
             root.recording = false;
             root.finalizing = true;
+            root.canStartRecording = false;
             rightClick(root)();
             assert.strictEqual(toggleProcess.running, false);
             root.finalizing = false;

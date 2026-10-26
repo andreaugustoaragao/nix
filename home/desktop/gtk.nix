@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  hostName,
   useDms ? false,
   ...
 }:
@@ -12,6 +13,13 @@ in
 {
   gtk = {
     enable = true;
+    # Match the personal VM explicitly, including apps that read GTK's
+    # settings.ini rather than the desktop portal's current font setting.
+    font = lib.mkIf (hostName == "prl-dev-vm") {
+      name = "Noto Sans";
+      size = 10;
+      package = pkgs.noto-fonts;
+    };
     # Adwaita stays the structural base in both modes; DMS's
     # matugen-generated `dank-colors.css` is symlinked at gtk.css and
     # overlays Adwaita with the wallpaper-derived palette when useDms.
