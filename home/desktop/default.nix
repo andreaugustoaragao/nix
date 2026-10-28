@@ -32,6 +32,7 @@
     ./uwsm.nix
     ./screenshot.nix
     ./brave.nix
+    ./agent-browsers.nix
     # Pin Brave's Personal/ and Work/ profile dirs so display names
     # stay in lockstep with --profile-directory used by the web-app
     # launchers. Ships a `brave-profiles-reset` script. See module
@@ -44,6 +45,7 @@
     ./zed.nix
     ./grok-bot.nix
     ./chatgpt.nix
+    ./folio.nix
     ./waybar.nix
     ./eww.nix
     ./wallpapers.nix

@@ -7,7 +7,6 @@
       "--enable-features=UseOzonePlatform"
       "--ozone-platform=wayland"
       "--password-store=gnome-libsecret"
-      "--remote-debugging-port=9223"
     ];
     extensions = [
       # Bitwarden Password Manager

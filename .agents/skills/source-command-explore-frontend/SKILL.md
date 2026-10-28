@@ -1,10 +1,10 @@
 ---
 name: "source-command-explore-frontend"
-description: "Adversarial UX review of a running frontend by driving an already-open browser via `dev-browser` + CDP.
-Deterministic evidence-collection pass (screenshots at multiple viewports, DOM outline, console/network
-errors, keyboard-focus walk, a11y spot-checks), followed by a structured defects-and-improvements
+description: "Adversarial UX review of a running frontend by driving a managed browser-task page.
+Deterministic evidence-collection pass (screenshots at multiple viewports, DOM outline,
+resource timing, keyboard-focus walk, a11y spot-checks), followed by a structured defects-and-improvements
 report with severity, location, and proposed fix. Works against any local or remote frontend whose
-tab is already loaded in a Chrome/Brave instance started with `--remote-debugging-port=9222`."
+page is opened in the managed development browser with explicit task ownership."
 ---
 
 # source-command-explore-frontend
@@ -32,14 +32,15 @@ The user should provide (or defaults apply):
 
 | Input | Default | Notes |
 |---|---|---|
-| `CDP_ENDPOINT` | `http://localhost:9222` | Chrome/Brave DevTools Protocol URL |
-| `TARGET_URL_CONTAINS` | (ask user) | Substring used to match the correct tab (e.g. `localhost:3100`) |
+| `TASK` | create a task | Existing owned task UUID, if continuing a review |
+| `PAGE` | `main` | Owned page name within the task |
+| `TARGET_URL` | infer from context or ask | Full URL to open when starting a task |
 | `APP_NAME` | inferred from tab title | Used in the report header only |
 | `VIEWPORTS` | `1920x1080,1280x800,768x1024,390x844` | Widths to capture. Keep 3–4. |
 | `ROUTES` | (single tab) | Optional list of paths/hashes to visit in the same tab |
 
-Ask for any missing required input using AskUserQuestion. If the target tab cannot be
-identified unambiguously, STOP and ask.
+Resolve the URL from the request or project context. Ask if it remains ambiguous.
+Use an existing task only when it belongs to this review; never choose an everyday browser tab.
 
 ---
 
@@ -48,261 +49,213 @@ identified unambiguously, STOP and ask.
 Run these checks. If any fails, STOP with a clear fix suggestion.
 
 ```bash
-# dev-browser must be on PATH
-command -v dev-browser >/dev/null 2>&1 || {
-  # fall back to known home-manager symlink name
-  command -v dev-browser || { echo "dev-browser missing: install via npm i -g dev-browser or add to nix"; exit 1; }
-}
-
-# CDP endpoint must answer
-curl -fsS "${CDP_ENDPOINT:-http://localhost:9222}/json/version" >/dev/null || {
-  echo "No CDP on ${CDP_ENDPOINT:-http://localhost:9222}. Restart browser with --remote-debugging-port=9222"
+set -euo pipefail
+command -v browser-task >/dev/null || {
+  echo "browser-task is unavailable; activate the managed Nix configuration"
   exit 1
 }
-
-# Working dir for artifacts
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_DIR="/tmp/explore-frontend/${RUN_ID}"
 mkdir -p "$OUT_DIR"
 echo "OUT_DIR=$OUT_DIR"
 ```
 
-Record `OUT_DIR` and `CDP_ENDPOINT` — every subsequent dev-browser invocation reads them.
+Record `OUT_DIR`, `TASK`, and `PAGE` for subsequent invocations. The managed
+browser services are configured on Linux; do not assume macOS has them.
+If the helper reports an unavailable profile, report that error without installing
+a browser, changing the everyday profile, or attaching through a raw CDP endpoint.
 
 ---
 
-## Step 2 — Identify the target tab (blocking)
+## Step 2 — Open or inspect the owned page
+
+For a new review, open the target in its own background task:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 20 <<'EOF'
-const pages = await browser.listPages();
-console.log(JSON.stringify(pages, null, 2));
-EOF
+TASK="$(browser-task start development --label "Frontend UX review" --url "$TARGET_URL" | jq -r .task)"
+PAGE="main"
+browser-task info "$TASK"
 ```
 
-Pick the single page whose `url` contains `TARGET_URL_CONTAINS`. If 0 or >1 match, STOP and ask.
-Record the `id` as `TAB_ID`. All later scripts use `browser.getPage(TAB_ID)` so they operate on
-the live tab the user already navigated.
+For a task already assigned to this review, inspect it with `browser-task info "$TASK"`.
+If it was kept or completed, explicitly run `browser-task resume "$TASK"` before
+continuing. Use its existing page name; do not navigate or adopt an unrelated tab.
+Use `accounts` instead of `development` only for signed-in third-party services.
+Send one JSON action at a time through `browser-task action`:
 
-**Never call `page.goto()` on the target tab during review** — it would disrupt the user's session
-and may lose in-progress state. Navigate by driving links/buttons the same way a user would, and
-only if the review explicitly requires it.
+```bash
+printf '%s\n' '{"type":"evaluate","expression":"({url:location.href,title:document.title})"}' \
+  | browser-task action "$TASK" --page "$PAGE" --timeout 20
+```
+
+`evaluate` returns a synchronous page-local value under `value`. It has no host
+bindings, filesystem access, persistent variables, or Promise support. Use
+`browser-task open TASK --page NAME` for additional pages. Do not create or
+select pages through raw browser or CDP APIs. **Do not navigate during review**:
+`start` already loaded the new page, and an existing task may hold in-progress
+state. Follow links only when the review explicitly requires it.
 
 ---
 
 ## Step 3 — Deterministic evidence collection
 
-Run all of these. Save artifacts to `$OUT_DIR`. Findings later cite artifacts by filename.
-
-### 3.1 Full-page screenshots at each viewport
-
-For each `WxH` in `VIEWPORTS`:
+Run each check and save its output under `$OUT_DIR`. Findings later cite those
+artifacts by filename. Define a helper for JSON actions:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 60 <<EOF
-const page = await browser.getPage("${TAB_ID}");
-await page.setViewportSize({ width: ${W}, height: ${H} });
-await page.waitForTimeout(400);  // let responsive layout settle
-const buf = await page.screenshot({ fullPage: true });
-await saveScreenshot(buf, "vp-${W}x${H}-full.png");
-
-// Above-the-fold only, same viewport
-const buf2 = await page.screenshot({ fullPage: false });
-await saveScreenshot(buf2, "vp-${W}x${H}-fold.png");
-EOF
+action() {
+  browser-task action "$TASK" --page "$PAGE" --timeout 30
+}
+eval_page() {
+  jq -nc --arg expression "$1" '{type:"evaluate",expression:$expression}' | action
+}
 ```
 
-Then copy to `$OUT_DIR`:
-```bash
-cp ~/.dev-browser/tmp/vp-*.png "$OUT_DIR/"
-```
+### 3.1 Screenshots at each viewport
 
-### 3.2 DOM outline + landmark audit
+For each `WxH` in `VIEWPORTS`, set the viewport and capture both a full page
+and a visible viewport screenshot. The screenshot result contains a private
+`path`; copy that file to the review directory. For example:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 30 <<'EOF'
-const page = await browser.getPage(TAB_ID);
-const data = await page.evaluate(() => {
-  const walk = (el, depth=0, max=6) => {
-    if (depth > max) return '';
-    const t = el.tagName?.toLowerCase();
-    if (!t || ['script','style','svg','path','g','defs','use','clipPath'].includes(t)) return '';
-    const id = el.id ? '#' + el.id : '';
-    const cls = (typeof el.className === 'string' && el.className.trim())
-      ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : '';
-    const role = el.getAttribute('role') ? `[role=${el.getAttribute('role')}]` : '';
-    const aria = el.getAttribute('aria-label') ? `[aria="${el.getAttribute('aria-label').slice(0,50)}"]` : '';
-    const txt = el.children.length === 0 ? (el.textContent||'').trim().slice(0,60) : '';
-    let s = '  '.repeat(depth) + t + id + cls + role + aria + (txt ? ' : ' + txt : '') + '\n';
-    for (const c of el.children) s += walk(c, depth+1, max);
-    return s;
-  };
-  // Landmarks audit
-  const landmarks = {
-    main: document.querySelectorAll('main, [role=main]').length,
-    nav: document.querySelectorAll('nav, [role=navigation]').length,
-    header: document.querySelectorAll('header, [role=banner]').length,
-    footer: document.querySelectorAll('footer, [role=contentinfo]').length,
-    h1: document.querySelectorAll('h1').length,
-    buttonsNoLabel: Array.from(document.querySelectorAll('button'))
-      .filter(b => !b.textContent.trim() && !b.getAttribute('aria-label') && !b.getAttribute('title')).length,
-    imgsNoAlt: Array.from(document.querySelectorAll('img')).filter(i => !i.hasAttribute('alt')).length,
-    inputsNoLabel: Array.from(document.querySelectorAll('input,textarea,select'))
-      .filter(i => !i.labels?.length && !i.getAttribute('aria-label') && !i.getAttribute('aria-labelledby')).length,
-  };
-  return { outline: walk(document.body).slice(0, 60000), landmarks };
-});
-await writeFile("structure.txt", data.outline);
-await writeFile("landmarks.json", JSON.stringify(data.landmarks, null, 2));
-console.log(JSON.stringify(data.landmarks));
-EOF
-cp ~/.dev-browser/tmp/structure.txt ~/.dev-browser/tmp/landmarks.json "$OUT_DIR/"
+W=1280 H=800
+jq -nc --argjson width "$W" --argjson height "$H" \
+  '{type:"viewport",width:$width,height:$height}' | action
+printf '%s\n' '{"type":"screenshot","full_page":true}' | action \
+  | tee "$OUT_DIR/vp-${W}x${H}-full.json"
+cp "$(jq -r .path "$OUT_DIR/vp-${W}x${H}-full.json")" \
+  "$OUT_DIR/vp-${W}x${H}-full.png"
+printf '%s\n' '{"type":"screenshot","full_page":false}' | action \
+  | tee "$OUT_DIR/vp-${W}x${H}-fold.json"
+cp "$(jq -r .path "$OUT_DIR/vp-${W}x${H}-fold.json")" \
+  "$OUT_DIR/vp-${W}x${H}-fold.png"
 ```
 
-### 3.3 Console + network errors (live)
+Repeat for the requested viewport list. If background screenshot capture fails,
+record the error and the missing viewport. Do not foreground the browser to
+hide the failure. A finding still needs visual evidence from a successful
+capture.
 
-Hook into the page's console and network via `page.on()`, then trigger a benign re-render
-(e.g., focus/blur the document). Collect for ~5 seconds.
+### 3.2 DOM outline and landmark audit
+
+Take a snapshot to get visible structure and live refs:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 20 <<'EOF'
-const page = await browser.getPage(TAB_ID);
-const events = [];
-page.on('console', m => events.push({t:'console', type:m.type(), text:m.text().slice(0,500)}));
-page.on('pageerror', e => events.push({t:'pageerror', text:String(e).slice(0,500)}));
-page.on('requestfailed', r => events.push({t:'requestfailed', url:r.url(), err:r.failure()?.errorText}));
-page.on('response', r => { if (r.status() >= 400) events.push({t:'http', status:r.status(), url:r.url()}); });
-await page.evaluate(() => { window.dispatchEvent(new Event('focus')); });
-await page.waitForTimeout(5000);
-await writeFile("events.json", JSON.stringify(events, null, 2));
-console.log("events:", events.length);
-EOF
-cp ~/.dev-browser/tmp/events.json "$OUT_DIR/"
+printf '%s\n' '{"type":"snapshot","max_nodes":2500,"max_chars":60000}' \
+  | action > "$OUT_DIR/structure.json"
 ```
+
+A later snapshot or navigation invalidates earlier refs. Use a fresh ref or
+unique role and name before each interaction. Inspect the document's landmarks
+with a synchronous expression:
+
+```bash
+eval_page '(() => { const count = s => document.querySelectorAll(s).length; return {main:count("main,[role=main]"),nav:count("nav,[role=navigation]"),header:count("header,[role=banner]"),footer:count("footer,[role=contentinfo]"),h1:count("h1"),buttonsNoLabel:[...document.querySelectorAll("button")].filter(e=>!e.textContent.trim()&&!e.getAttribute("aria-label")&&!e.getAttribute("title")).length,imgsNoAlt:[...document.querySelectorAll("img")].filter(e=>!e.hasAttribute("alt")).length,inputsNoLabel:[...document.querySelectorAll("input,textarea,select")].filter(e=>!e.labels?.length&&!e.getAttribute("aria-label")&&!e.getAttribute("aria-labelledby")).length}; })()' \
+  | jq .value > "$OUT_DIR/landmarks.json"
+```
+
+### 3.3 Runtime health spot-check
+
+Inspect visible error and loading states in the snapshot and screenshots.
+Record the current resource timing entries, which may include completed
+requests but do not provide a complete network log:
+
+```bash
+eval_page 'performance.getEntriesByType("resource").slice(-100).map(e=>({name:e.name,duration:Math.round(e.duration),status:e.responseStatus||null}))' \
+  | jq .value > "$OUT_DIR/resources.json"
+```
+
+The native tool has no persistent console, page-error, network-event, or
+request-interception API. Do not claim those checks were performed. Note this
+coverage limit in the report and use app logs only when the user's task gives
+you access to them.
 
 ### 3.4 Keyboard focus walk
 
-Tabs through up to 30 focusable elements to verify visible focus rings and logical order.
+Press Tab up to 30 times with typed `key` actions. After each press, read the
+active element's label, position, and focus style. Save the returned `value`
+objects as `focus-trail.json`. This loop starts from the page's current focus:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 30 <<'EOF'
-const page = await browser.getPage(TAB_ID);
-await page.evaluate(() => document.body.focus());
-const trail = [];
-for (let i = 0; i < 30; i++) {
-  await page.keyboard.press('Tab');
-  const info = await page.evaluate(() => {
-    const a = document.activeElement;
-    if (!a) return null;
-    const r = a.getBoundingClientRect();
-    const cs = getComputedStyle(a);
-    return {
-      tag: a.tagName.toLowerCase(),
-      role: a.getAttribute('role'),
-      label: (a.getAttribute('aria-label') || a.textContent || '').trim().slice(0,60),
-      rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-      outline: cs.outlineStyle + ' ' + cs.outlineWidth + ' ' + cs.outlineColor,
-      boxShadow: cs.boxShadow.slice(0, 120),
-      visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden',
-    };
-  });
-  trail.push(info);
-}
-await writeFile("focus-trail.json", JSON.stringify(trail, null, 2));
-console.log("steps:", trail.length);
-EOF
-cp ~/.dev-browser/tmp/focus-trail.json "$OUT_DIR/"
+for i in $(seq 1 30); do
+  printf '%s\n' '{"type":"key","key":"Tab"}' | action >/dev/null
+  eval_page '(() => { const a=document.activeElement; if(!a)return null; const r=a.getBoundingClientRect(),s=getComputedStyle(a); return {tag:a.tagName.toLowerCase(),role:a.getAttribute("role"),label:(a.getAttribute("aria-label")||a.textContent||"").trim().slice(0,60),rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height)},outline:s.outlineStyle+" "+s.outlineWidth+" "+s.outlineColor,boxShadow:s.boxShadow.slice(0,120),visible:r.width>0&&r.height>0&&s.visibility!=="hidden"}; })()' \
+    | jq .value > "$OUT_DIR/focus-${i}.json"
+done
+jq -s . "$OUT_DIR"/focus-*.json > "$OUT_DIR/focus-trail.json"
 ```
+
+Inspect the screenshots at focused steps when the style data suggests that a
+ring is missing or focus reaches an invisible element.
 
 ### 3.5 Contrast spot-check
 
-Sample computed colors vs backgrounds on visible text nodes; flag anything below WCAG AA (4.5:1
-for normal text, 3:1 for large). This is a *spot check*, not a full axe audit.
+Sample computed colors on visible text. Flag ratios below WCAG AA, 4.5:1 for
+normal text and 3:1 for large text. This is a spot-check, not an axe audit.
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 30 <<'EOF'
-const page = await browser.getPage(TAB_ID);
-const low = await page.evaluate(() => {
-  const toRGB = s => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null;
-    const p = m[1].split(',').map(x=>parseFloat(x.trim())); return [p[0],p[1],p[2], p[3]??1]; };
-  const lum = ([r,g,b]) => { const f = v => { v/=255; return v<=.03928 ? v/12.92 : Math.pow((v+.055)/1.055,2.4); };
-    return .2126*f(r)+.7152*f(g)+.0722*f(b); };
-  const ratio = (a,b) => { const L1=lum(a),L2=lum(b); return (Math.max(L1,L2)+.05)/(Math.min(L1,L2)+.05); };
-  const resolveBg = el => { while (el && el !== document.body) {
-    const c = getComputedStyle(el).backgroundColor; const p = toRGB(c);
-    if (p && p[3] > 0.1) return p; el = el.parentElement; } return [255,255,255,1]; };
+expr="$(cat <<'JS'
+(() => {
+  const rgb = s => { const m = s.match(/rgba?\(([^)]+)\)/); return m ? m[1].split(",").map(x => Number.parseFloat(x)) : null; };
+  const lum = c => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }; return .2126*f(c[0]) + .7152*f(c[1]) + .0722*f(c[2]); };
+  const background = el => { for (let p = el; p; p = p.parentElement) { const c = rgb(getComputedStyle(p).backgroundColor); if (c && (c[3] ?? 1) > .1) return c; } return [255,255,255]; };
   const out = [];
-  const els = Array.from(document.querySelectorAll('p,span,a,button,label,li,td,th,h1,h2,h3,h4,h5,h6,div'));
-  for (const el of els.slice(0, 400)) {
-    const txt = (el.innerText || '').trim();
-    if (!txt || txt.length < 2) continue;
-    const cs = getComputedStyle(el);
-    const fg = toRGB(cs.color); if (!fg) continue;
-    const bg = resolveBg(el);
-    const size = parseFloat(cs.fontSize);
-    const bold = parseInt(cs.fontWeight) >= 700;
-    const large = size >= 24 || (size >= 18.66 && bold);
-    const r = ratio(fg, bg);
-    const need = large ? 3 : 4.5;
-    if (r < need) {
-      const rect = el.getBoundingClientRect();
-      out.push({
-        ratio: +r.toFixed(2), need, large, text: txt.slice(0, 60),
-        fg: cs.color, bg: `rgb(${bg[0]},${bg[1]},${bg[2]})`,
-        rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) },
-      });
-    }
+  for (const el of [...document.querySelectorAll("p,span,a,button,label,li,td,th,h1,h2,h3,h4,h5,h6")].slice(0,400)) {
+    const text = (el.innerText || "").trim();
+    if (text.length < 2) continue;
+    const style = getComputedStyle(el), fg = rgb(style.color);
+    if (!fg) continue;
+    const bg = background(el), a = lum(fg), b = lum(bg);
+    const ratio = (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+    const size = Number.parseFloat(style.fontSize), bold = Number.parseInt(style.fontWeight) >= 700;
+    const need = size >= 24 || (size >= 18.66 && bold) ? 3 : 4.5;
+    if (ratio >= need) continue;
+    const r = el.getBoundingClientRect();
+    out.push({text:text.slice(0,60),ratio:+ratio.toFixed(2),need,fg:style.color,bg:background(el),rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height)}});
+    if (out.length === 80) break;
   }
   return out;
-});
-await writeFile("contrast-low.json", JSON.stringify(low, null, 2));
-console.log("low-contrast elements:", low.length);
-EOF
-cp ~/.dev-browser/tmp/contrast-low.json "$OUT_DIR/"
+})()
+JS
+)"
+eval_page "$expr" | jq .value > "$OUT_DIR/contrast-low.json"
 ```
 
 ### 3.6 Hit-target sizes
 
-Flag interactive elements smaller than 24x24 (WCAG 2.5.8 minimum) or 44x44 (Apple/recommended).
+Flag interactive elements smaller than 24x24 as WCAG 2.5.8 failures. A 44x44
+size is a recommendation. Save up to 80 visible targets with positions:
 
 ```bash
-dev-browser --connect "$CDP_ENDPOINT" --timeout 20 <<'EOF'
-const page = await browser.getPage(TAB_ID);
-const small = await page.evaluate(() => {
-  const sel = 'button, a[href], [role=button], input:not([type=hidden]), [onclick]';
+expr="$(cat <<'JS'
+(() => {
   const out = [];
-  for (const el of document.querySelectorAll(sel)) {
+  for (const el of document.querySelectorAll("button,a[href],[role=button],input:not([type=hidden])")) {
     const r = el.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0) continue;
-    if (r.width < 44 || r.height < 44) {
-      out.push({
-        tag: el.tagName.toLowerCase(),
-        label: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0,60),
-        w: Math.round(r.width), h: Math.round(r.height),
-        x: Math.round(r.x), y: Math.round(r.y),
-      });
-    }
+    if (!r.width || !r.height || (r.width >= 44 && r.height >= 44)) continue;
+    out.push({tag:el.tagName.toLowerCase(),label:(el.getAttribute("aria-label")||el.textContent||"").trim().slice(0,60),w:Math.round(r.width),h:Math.round(r.height),x:Math.round(r.x),y:Math.round(r.y)});
+    if (out.length === 80) break;
   }
-  return out.slice(0, 80);
-});
-await writeFile("hit-targets.json", JSON.stringify(small, null, 2));
-console.log("small hit-targets:", small.length);
-EOF
-cp ~/.dev-browser/tmp/hit-targets.json "$OUT_DIR/"
+  return out;
+})()
+JS
+)"
+eval_page "$expr" | jq .value > "$OUT_DIR/hit-targets.json"
 ```
 
-### 3.7 Long-text / overflow stress
+### 3.7 Long-text and overflow stress
 
-Some defects only appear with long content. Skip if you cannot identify an input whose content you
-can safely replace. If there is an editable field, snapshot before, fill 500 chars of lorem ipsum,
-screenshot, then **restore the original value** (no submit).
+Skip this if you cannot identify a field whose draft value you can safely
+replace. Read the current value with a synchronous `evaluate` expression.
+Use a typed `fill` action with a fresh ref or unique role and name to insert
+500 characters of sample text. Capture a screenshot, then restore the exact
+original value with another `fill` action. Do not submit the form.
 
 ---
-
 ## Step 4 — Adversarial analysis
 
 For each of the 8 axes below, open `$OUT_DIR` artifacts (Read screenshots, landmarks.json,
-focus-trail.json, contrast-low.json, hit-targets.json, events.json) and enumerate findings.
+focus-trail.json, contrast-low.json, hit-targets.json, resources.json) and enumerate findings.
 **Every finding gets evidence.**
 
 1. **Visual hierarchy & composition** — misalignments, inconsistent spacing scales, competing
@@ -320,9 +273,8 @@ focus-trail.json, contrast-low.json, hit-targets.json, events.json) and enumerat
    buttons without accessible names, keyboard traps.
 7. **Content & copy** — jargon, inconsistent capitalization, error messages that blame the
    user, empty states that don't tell you what to do next, ambiguous labels, truncation.
-8. **Performance feel & runtime health** — cite `events.json` (console errors, 4xx/5xx,
-   `requestfailed`). Missing skeletons, layout shifts, slow-looking interactions, duplicate
-   network calls.
+8. **Performance feel & runtime health** — cite `resources.json`, screenshots, and visible
+   loading states. Note that console errors and a complete network log are unavailable.
 
 ---
 
@@ -335,7 +287,7 @@ tooling can parse it:
 # Explore-Frontend Report — <APP_NAME>
 
 Run: <RUN_ID>
-Target: <url> (tab <TAB_ID>)
+Target: <url> (task <TASK>, page <PAGE>)
 Viewports tested: <list>
 Artifacts: <OUT_DIR>
 
@@ -365,6 +317,14 @@ Severity rubric:
 - **Low** — inconsistency only a careful reviewer would spot.
 - **Nit** — stylistic; safe to ignore.
 
+After the report and browser work are complete, run `browser-task finish "$TASK"`.
+Registered pages remain for one hour. For user review, capture a screenshot before
+running `browser-task keep "$TASK"`. The default profiles are headless and cannot
+show a desktop window. Only a deliberately configured headed profile supports
+`browser-task show "$TASK" --page "$PAGE"`, and only on user request.
+Resume kept tasks before further automation or finishing. Active, kept, manual,
+and unrelated pages never age out through this workflow.
+
 Stop after writing the report. Do not attempt fixes in the same run — the user decides what to
 pursue. If the user asks for fixes, branch from main and address findings top-down by severity.
 
@@ -372,23 +332,22 @@ pursue. If the user asks for fixes, branch from main and address findings top-do
 
 ## Safety & idempotence
 
-- Script runs are read-only. Never call `page.goto()`, never click destructive buttons
-  (anything labeled Delete / Remove / Logout / Send / Submit).
+- Keep the review read-only. Never use `navigate` during review or click destructive
+  buttons (anything labeled Delete / Remove / Logout / Send / Submit).
 - If a finding requires interaction to reproduce (e.g., a dropdown), capture the *before*
   state, perform the minimum interaction, capture the *after* state, and restore with `Escape`
   or a close button. Never leave the tab in a modified state.
 - All artifacts land in `$OUT_DIR` and are identified by `RUN_ID` so repeat runs don't clobber.
-- `dev-browser`'s sandbox already blocks filesystem escape; paths outside `~/.dev-browser/tmp/`
-  will fail — copy to `$OUT_DIR` from the shell after each script block.
+- `screenshot` returns a private artifact path. Copy that file to `$OUT_DIR`
+  from the shell after each capture. Other actions do not write files.
 
 ---
 
 ## Quick one-shot
 
-If you just want to kick the whole thing off with defaults, paste this and fill the two vars:
+To start with defaults, set the target and run Steps 1–5 in order:
 
 ```bash
-TARGET_URL_CONTAINS="localhost:3100"
-CDP_ENDPOINT="http://localhost:9222"
+TARGET_URL="http://localhost:3100"
 # then run Steps 1-5 in order
 ```

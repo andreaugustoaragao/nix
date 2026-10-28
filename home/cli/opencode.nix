@@ -39,6 +39,8 @@ let
 in
 {
   config = lib.mkIf (!isServer) {
+    xdg.configFile."opencode/AGENTS.md".text = import ./browser-instructions.nix;
+
     xdg.configFile."opencode/opencode.jsonc".text = builtins.toJSON {
       "$schema" = "https://opencode.ai/config.json";
       model = if personalOnly then "openai/gpt-6-sol" else "litellm/gpt-6-astra";

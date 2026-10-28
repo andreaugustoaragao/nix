@@ -31,6 +31,20 @@ let
   # Daily-driver terminal (see ./default-terminal.nix for selection
   # logic and per-consumer string forms).
   term = import ./default-terminal.nix { inherit isVm; };
+  browserProfiles = import ../../pkgs/browser-profiles.nix;
+  headedBrowserProfiles = lib.filterAttrs (_: profile: !profile.headless) browserProfiles;
+  browserWorkspaces = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (role: _: ''workspace "agent-browser-${role}"'') headedBrowserProfiles
+  );
+  browserWindowRules = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (role: profile: ''
+      window-rule {
+          match app-id="${profile.appId}"
+          open-on-workspace "agent-browser-${role}"
+          open-focused false
+      }
+    '') headedBrowserProfiles
+  );
 
   quakeTerminal = pkgs.writeShellApplication {
     name = "quake-terminal";
@@ -130,6 +144,7 @@ in
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = ''
     ${workspaceBlock}
+    ${browserWorkspaces}
 
     // Monitor/Output configuration. Virtual-* scaling accounts for both
     // the hypervisor's Retina rendering and the desired on-screen size;
@@ -278,6 +293,7 @@ in
     }
 
     // Window rules (similar to Hyprland windowrule)
+    ${browserWindowRules}
     // Global rounded corners for all windows
     window-rule {
         geometry-corner-radius 12

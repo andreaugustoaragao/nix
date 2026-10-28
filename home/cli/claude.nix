@@ -77,6 +77,8 @@ let
 in
 {
   home.file = {
+    ".claude/rules/browser.md".text = import ./browser-instructions.nix;
+
     # Claude in Chrome native messaging host for Brave
     ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
       claudeBrowserHost;
@@ -172,7 +174,7 @@ in
         allow = [
           "Agent"
           "Bash"
-          "Bash(dev-browser *)"
+          "Bash(browser-task *)"
           "Read"
           "Write"
           "Edit"

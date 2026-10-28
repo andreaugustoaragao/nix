@@ -10,15 +10,17 @@
 }:
 
 let
-  trustedProjectPath = "${config.home.homeDirectory}/projects/personal/nix";
+  trustedNixPath = "${config.home.homeDirectory}/projects/personal/nix";
+  trustedPersonalFulcrumPath = "${config.home.homeDirectory}/projects/personal/fulcrum";
+  trustedWorkFulcrumPath = "${config.home.homeDirectory}/projects/work/fulcrum";
+  trustedInfinityPath = "${config.home.homeDirectory}/projects/work/infinity";
   trustedInfinityCorePath = "${config.home.homeDirectory}/projects/work/infinity-core";
+  trustedNotesPath = "${config.home.homeDirectory}/projects/work/notes";
 
   codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
     inherit (unstable-pkgs) go gopls;
   };
-  agentBrowser = pkgs.callPackage ../../pkgs/agent-browser-background.nix { };
-  devBrowser = pkgs.callPackage ../../pkgs/dev-browser.nix { };
-  browserMcp = pkgs.callPackage ../../pkgs/dev-browser-mcp.nix { };
+  browserTask = pkgs.callPackage ../../pkgs/browser-task.nix { };
 
   # Lifecycle hooks inherit the Codex process environment; they do not
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
@@ -81,7 +83,8 @@ let
     # Discover the browser tool in every session; connect to a browser only
     # when called, so headless hosts and closed browsers do not block startup.
     [mcp_servers.dev_browser]
-    command = "${lib.getExe browserMcp}"
+    command = "${lib.getExe browserTask}"
+    args = ["mcp"]
     required = true
     startup_timeout_sec = 15
     tool_timeout_sec = 330
@@ -145,11 +148,23 @@ let
       args = ["s/^OPENAI_API_KEY=//", "${osConfig.sops.secrets.open_ai_key.path}"]
     ''}
 
-    [projects."${trustedProjectPath}"]
+    [projects."${trustedNixPath}"]
+    trust_level = "trusted"
+
+    [projects."${trustedPersonalFulcrumPath}"]
     trust_level = "trusted"
 
     ${lib.optionalString (!personalOnly) ''
+      [projects."${trustedWorkFulcrumPath}"]
+      trust_level = "trusted"
+
+      [projects."${trustedInfinityPath}"]
+      trust_level = "trusted"
+
       [projects."${trustedInfinityCorePath}"]
+      trust_level = "trusted"
+
+      [projects."${trustedNotesPath}"]
       trust_level = "trusted"
     ''}
 
@@ -175,8 +190,7 @@ in
   # directly, so bubblewrap is irrelevant (and unbuildable).
   home.packages = [
     codeLsp
-    devBrowser
-    browserMcp
+    browserTask
     pkgs.mcp-nixos
   ]
   ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.bubblewrap ];
@@ -300,29 +314,7 @@ in
     Nix source and report activation as pending until it has actually run;
     new chats load the generated instructions after activation.
 
-    # Browser control
-
-    Use agent-browser for routine browser navigation, reading, clicking, filling,
-    and screenshots. Invoke `${lib.getExe agentBrowser}` through the terminal;
-    use `--help` for the installed command syntax. Attach to the existing browser
-    with `--cdp 9222` on every invocation. List tabs with `tab`, select the relevant
-    tab with `tab <id>`, then inspect it with `snapshot -i`. Tab selection and
-    creation preserve desktop focus. Use `bringtofront` only when the user
-    explicitly requests showing the tab. Use the returned
-    element refs for actions and take a fresh snapshot after navigation or page
-    changes. Use screenshots to verify visual layout and styling.
-
-    Use the dev_browser MCP tool for custom Playwright scripts, batched actions,
-    assertions, and detailed DOM inspection. It attaches to an existing browser
-    by default; list tabs first and use the relevant tab ID or a named task page.
-    Scripts use QuickJS with a Playwright browser global, not Node.js; consult
-    `dev-browser --help` for its API. Browser tabs persist, but do not assume
-    JavaScript variables persist between scripts.
-
-    Choose one browser controller per task. Preserve unrelated tabs and inspect
-    the current page before retrying failed actions. If CDP is unavailable,
-    report the connection issue instead of installing browsers or changing the
-    user's browser profile or launch flags.
+    ${import ./browser-instructions.nix}
   '';
 
   # Codex discovers this user-level skill in every project. Keep the

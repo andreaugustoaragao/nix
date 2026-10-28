@@ -71,6 +71,19 @@ in
           version_check = false;
           manifest_check = true;
         };
+        keys = {
+          # Keep tmux's prefix, pane navigation, new-tab, and zoom defaults.
+          split_vertical = "prefix+percent";
+          split_horizontal = "prefix+double_quote";
+          workspace_picker = [
+            "prefix+w"
+            "prefix+f"
+          ];
+          resize_pane_left = "prefix+shift+h";
+          resize_pane_down = "prefix+shift+j";
+          resize_pane_up = "prefix+shift+k";
+          resize_pane_right = "prefix+shift+l";
+        };
         session.resume_agents_on_restore = true;
       };
     };

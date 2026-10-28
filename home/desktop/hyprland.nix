@@ -13,6 +13,15 @@ let
   # fall back to kitty because ghostty's OpenGL renderer needs a GL
   # version the guest 3D driver doesn't expose.
   term = import ./default-terminal.nix { inherit isVm; };
+  browserProfiles = import ../../pkgs/browser-profiles.nix;
+  headedBrowserProfiles = lib.filterAttrs (_: profile: !profile.headless) browserProfiles;
+  browserWindowRules = lib.mapAttrsToList (role: profile: {
+    name = "agent_browser_${role}";
+    "match:class" = "^${profile.appId}$";
+    workspace = "name:agent-browser-${role} silent";
+    no_initial_focus = true;
+    suppress_event = "activate activatefocus";
+  }) headedBrowserProfiles;
 
   # DMS Settings window: float + size to match the Niri equivalent.
   dmsWindowRules = lib.optionals useDms [
@@ -402,7 +411,8 @@ in
           "main_picker"
           "pavucontrol"
         ]
-        ++ dmsWindowRules;
+        ++ dmsWindowRules
+        ++ browserWindowRules;
 
       # Layer-shell rules. Currently only used to apply blur to the DMS
       # bar — DMS handles its own backdrop blur for popouts/modals.

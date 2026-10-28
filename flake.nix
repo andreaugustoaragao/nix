@@ -364,6 +364,7 @@
         in
         {
           dev-browser-mcp = pkgs.callPackage ./pkgs/dev-browser-mcp.nix { };
+          browser-task = pkgs.callPackage ./pkgs/browser-task.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
@@ -720,7 +721,8 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          dev-browser-mcp = (pkgs.callPackage ./pkgs/dev-browser-mcp.nix { }).tests.protocol;
+          dev-browser-mcp = self.packages.${system}.browser-task.tests.protocol;
+          browser-task-failures = self.packages.${system}.browser-task.tests.failure-modes;
           herdr-integrations =
             pkgs.runCommand "check-herdr-integrations"
               {
