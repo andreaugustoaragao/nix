@@ -19,13 +19,13 @@ Require the intended `HC_TERMINAL_ID` and owning core; don't choose an unrelated
 default core when the coordinator has no terminal context.
 
 Check `cursor-agent models` and the installed Codex configuration/model catalog.
-The Nix templates select these exact models:
+Use these exact model choices:
 
-| Template | Model | Use |
+| Launch | Model | Use |
 | --- | --- | --- |
-| `dev-grok` | Cursor `grok-4.7-high` | Default implementation |
-| `dev-grok-xhigh` | Cursor `grok-4.7-xhigh` | Particularly difficult work |
-| `dev-composer` | Cursor `composer-2.5` | Small, mechanical work when requested |
+| `herdr-cursor MODEL TASK` | Cursor `grok-4.7-high` | Default implementation |
+| `herdr-cursor MODEL TASK` | Cursor `grok-4.7-xhigh` | Particularly difficult work |
+| `herdr-cursor MODEL TASK` | Cursor `composer-2.5` | Small, mechanical work when requested |
 | `dev-review` | Codex `gpt-6-astra`, `xhigh` | Fresh, independent review |
 
 Verify the actual model at startup. A listed Cursor model does not prove that
@@ -67,27 +67,32 @@ LSP/current source to ground work; follow project verification requirements.
 Replace the example paths, name and coordinator address before running:
 
 ```sh
-hc run --bg --name task-impl --cwd /absolute/worktree dev-grok \
+hc run --bg --name task-impl --cwd /absolute/worktree -- herdr-cursor grok-4.7-high \
   "Implement <objective>. Scope: <files>. Verify: <checks>. Report to t8 with hc send t8 when done or blocked. No subagents."
 ```
 
-Check `first_message.sent`, then read the startup screen and observed model. The
-Cursor template uses `ready: quiet` because it has no initial native status
-report; quiet output can also be a trust/login dialog. Never blindly resend a
-task after an uncertain send. Resolve only trust decisions already authorized
-by the task; surface new permission or login decisions to the user.
+The launcher supplies the worker instructions and assignment as Cursor's initial
+prompt argument. Cursor retains that prompt through its startup/trust flow; core
+does not paste it into a possibly quiet dialog. Read the startup screen and
+observed model. Never blindly resend a task after an uncertain launch. Resolve
+only trust decisions already authorized by the task; surface new permission or
+login decisions to the user.
 
 `herdr-cursor` loads a session-local Cursor plugin that reports `working` on
 prompt submission and `done`, `idle` or `error` when the turn ends. It does not
 change global Cursor hooks. It cannot detect every permission/trust dialog;
 inspect the screen when a wait times out. Workers can explicitly report a
-question with `herdr-cursor-status blocked question`.
+question with `herdr-cursor-status blocked question`. That marker survives the
+turn ending and clears when the next prompt is accepted.
 
 Use `hc wait --children any --timeout 30` while awaiting results, doing useful
 independent work between waits. Messages arrive as input. After a report, read
 the actual output/artifacts; `hc wait` returns status, not the answer. Read a
-worker before retrying a failed send. Never use `hc send --force` to answer a
-permission dialog. Send corrections to the same worker conversation:
+worker before retrying a failed send. A reported question blocks normal sends:
+check `hc get` shows `kind: question`, read the question and verify that Cursor
+is at its ordinary input prompt. Then `hc send --force` may deliver the answer
+to that question. Never force-send into a permission, authentication or trust
+dialog. Send corrections to the same worker conversation:
 
 ```sh
 hc send --wait --timeout 30 task-impl "Fix <specific finding>; rerun <affected check>."
@@ -101,11 +106,20 @@ work to make the workflow operate.
 
 ## Review, integrate and finish
 
-After implementation, start `dev-review` as a fresh read-only session against
-the worker's actual checkout. Supply the original requirements, baseline/diff,
+After implementation, start a fresh read-only session against the worker's
+actual checkout:
+
+```sh
+hc run --bg --name task-review --cwd /absolute/worktree dev-review \
+  "<review assignment and coordinator address>"
+```
+
+Supply the original requirements, baseline/diff,
 acceptance criteria and verification evidence, without the implementer's
 self-assessment. The managed `codex` launcher already adds `--no-daemon` inside
 Herdr; do not add that flag a second time.
+Check the review launch's `first_message.sent`; if false, inspect the screen and
+resolve startup before sending its role instructions and assignment once.
 
 Require reproducible defects with file/line evidence and practical impact.
 Don't use an arbitrary numerical cutoff to dismiss defects. Keep unrelated

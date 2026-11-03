@@ -1,8 +1,9 @@
-if [[ -z "${HC_TERMINAL_ID:-}" || -z "${HERDR_COORDINATE_TTY:-}" || ! -c "$HERDR_COORDINATE_TTY" ]]; then
+if [[ -z "${HC_TERMINAL_ID:-}" || -z "${HERDR_COORDINATE_TTY:-}" || ! -c "$HERDR_COORDINATE_TTY" || -z "${HERDR_COORDINATE_STATE_DIR:-}" || ! -d "$HERDR_COORDINATE_STATE_DIR" ]]; then
   printf '{}\n'
   exit 0
 fi
 
+question_file="$HERDR_COORDINATE_STATE_DIR/blocked"
 kind=""
 case "${1:-hook}" in
   hook)
@@ -25,6 +26,17 @@ case "${1:-hook}" in
     esac
     ;;
   *) printf '{}\n'; exit 1 ;;
+esac
+
+case "$state" in
+  working|idle|clear) rm -f -- "$question_file" ;;
+  blocked) printf '%s' "$kind" > "$question_file" ;;
+  done)
+    if [[ -f "$question_file" ]]; then
+      state=blocked
+      kind=$(cat "$question_file")
+    fi
+    ;;
 esac
 
 if [[ -n "$state" ]]; then

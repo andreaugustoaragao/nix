@@ -7,7 +7,10 @@ let
   };
   cursorStatus = pkgs.writeShellApplication {
     name = "herdr-cursor-status";
-    runtimeInputs = [ pkgs.jq ];
+    runtimeInputs = [
+      pkgs.jq
+      pkgs.coreutils
+    ];
     text = builtins.readFile ./herdr-coordinate/cursor-status.sh;
   };
   cursorPlugin = pkgs.runCommand "herdr-coordinate-cursor-plugin" { } ''
@@ -31,28 +34,32 @@ let
   '';
   cursor = pkgs.writeShellApplication {
     name = "herdr-cursor";
-    runtimeInputs = [ pkgs.coreutils ];
+    runtimeInputs = [
+      pkgs.coreutils
+      cursorStatus
+    ];
     text = ''
+      if [[ $# -ne 2 ]]; then
+        echo 'Usage: herdr-cursor MODEL TASK' >&2
+        exit 1
+      fi
+      case "$1" in
+        grok-4.7-high|grok-4.7-xhigh|composer-2.5) ;;
+        *) echo "Unsupported development worker model: $1" >&2; exit 1 ;;
+      esac
       if [[ -z "''${HC_TERMINAL_ID:-}" ]]; then
         echo 'herdr-cursor must be launched in a herdr-core terminal with hc run.' >&2
         exit 1
       fi
       HERDR_COORDINATE_TTY=$(tty)
       export HERDR_COORDINATE_TTY
-      exec cursor-agent --plugin-dir ${cursorPlugin} "$@"
+      HERDR_COORDINATE_STATE_DIR=$(mktemp -d "''${TMPDIR:-/tmp}/herdr-cursor.XXXXXXXX")
+      export HERDR_COORDINATE_STATE_DIR
+      trap 'rm -rf -- "$HERDR_COORDINATE_STATE_DIR"' EXIT
+      instructions=$(cat ${./herdr-coordinate/implementer.md})
+      cursor-agent --plugin-dir ${cursorPlugin} --model "$1" "$instructions"$'\n\n'"$2"
     '';
   };
-  implementer = builtins.readFile ./herdr-coordinate/implementer.md;
-  worker = model: ''
-    ---
-    description: Scoped implementation with ${model}; separate worktree required for edits.
-    command: ${lib.getExe cursor} --model ${model}
-    ready: quiet
-    submit: enter
-    stop: ctrl+c
-    ---
-    ${implementer}
-  '';
 in
 {
   home.packages = [
@@ -63,9 +70,6 @@ in
   home.file.".agents/skills/herdr-coordinate".source = skill;
 
   xdg.configFile = {
-    "herdr-core/templates/dev-grok.md".text = worker "grok-4.7-high";
-    "herdr-core/templates/dev-grok-xhigh.md".text = worker "grok-4.7-xhigh";
-    "herdr-core/templates/dev-composer.md".text = worker "composer-2.5";
     "herdr-core/templates/dev-review.md".text = ''
       ---
       description: Independent read-only code review with Codex Astra, xhigh effort.
