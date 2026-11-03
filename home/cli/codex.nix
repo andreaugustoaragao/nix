@@ -31,6 +31,7 @@ let
   # Use the npm entrypoint explicitly to avoid recursing through PATH.
   codexLauncher = pkgs.writeShellScript "codex" ''
     export AGENT_TOOL=codex
+    unset NO_COLOR
     if [ -n "''${HC_TERMINAL_ID:-}" ] || [ "''${HERDR_ENV:-}" = 1 ] \
       || [ -n "''${ORCA_PANE_KEY:-}" ] || [ "''${ORCA_STRUCTURED_SESSION:-}" = 1 ]; then
       set -- --no-daemon "$@"

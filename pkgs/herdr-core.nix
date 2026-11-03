@@ -2,6 +2,7 @@
   lib,
   stdenvNoCC,
   fetchurl,
+  makeWrapper,
 }:
 
 let
@@ -35,6 +36,8 @@ stdenvNoCC.mkDerivation {
     inherit (source) hash;
   };
 
+  nativeBuildInputs = [ makeWrapper ];
+
   unpackPhase = ''
     runHook preUnpack
     tar -xzf "$src"
@@ -48,6 +51,7 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
     install -Dm755 herdr-core "$out/bin/herdr-core"
+    wrapProgram "$out/bin/herdr-core" --unset NO_COLOR
     ln -s herdr-core "$out/bin/hc"
     runHook postInstall
   '';

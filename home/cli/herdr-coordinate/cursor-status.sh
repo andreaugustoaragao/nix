@@ -28,6 +28,6 @@ case "${1:-hook}" in
 esac
 
 if [[ -n "$state" ]]; then
-  printf '\033]7501;state=%s:app=cursor-agent%s\033\\' "$state" "$kind" > "$HERDR_COORDINATE_TTY"
+  printf '\033]7501;state=%s:app=cursor-agent%s\033\134' "$state" "$kind" > "$HERDR_COORDINATE_TTY"
 fi
 printf '{}\n'
