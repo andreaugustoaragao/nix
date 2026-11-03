@@ -43,8 +43,9 @@ let
 
   # Keep fast-moving npm CLIs out of activation. Rebuilds must be
   # repeatable and offline once the tools have been bootstrapped; a daily
-  # user service updates them independently instead.
+  # user service updates them and Pi's personal packages together instead.
   update-npm-ai-tools = pkgs.writeShellScriptBin "update-npm-ai-tools" ''
+    set -e
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
     mkdir -p "$NPM_CONFIG_PREFIX/bin"
     export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
@@ -52,6 +53,10 @@ let
       @openai/codex@latest \
       @earendil-works/pi-coding-agent@latest \
       @xai-official/grok@latest
+
+    # Use the freshly updated CLI; never reconcile project-local packages
+    # based on the working directory of a manual or scheduled invocation.
+    "$NPM_CONFIG_PREFIX/bin/pi" update --extensions --no-approve
   '';
 
   # Script to install goplay (Go Playground client) via go install
@@ -208,7 +213,7 @@ in
         install-qwen-code # Script to install Qwen Code CLI tool
         install-gemini-cli # Script to install Google Gemini CLI
         install-pi-coding-agent # Script to install Pi coding agent
-        update-npm-ai-tools # Daily/manual updater for Codex + Pi + Grok Build
+        update-npm-ai-tools # Daily/manual updater for Codex + Pi/packages + Grok Build
         (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
       ]
       ++ [

@@ -1,10 +1,6 @@
 ---
 name: "source-command-explore-frontend"
-description: "Adversarial UX review of a running frontend by driving a managed browser-task page.
-Deterministic evidence-collection pass (screenshots at multiple viewports, DOM outline,
-resource timing, keyboard-focus walk, a11y spot-checks), followed by a structured defects-and-improvements
-report with severity, location, and proposed fix. Works against any local or remote frontend whose
-page is opened in the managed development browser with explicit task ownership."
+description: "Adversarial UX review of a running frontend by driving a managed browser-task page. Deterministic evidence-collection pass (screenshots at multiple viewports, DOM outline, resource timing, keyboard-focus walk, a11y spot-checks), followed by a structured defects-and-improvements report with severity, location, and proposed fix. Works against any local or remote frontend whose page is opened in the managed development browser with explicit task ownership."
 ---
 
 # source-command-explore-frontend

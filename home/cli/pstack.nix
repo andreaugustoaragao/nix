@@ -4,8 +4,8 @@ let
   pstackSource = pkgs.fetchFromGitHub {
     owner = "cursor";
     repo = "plugins";
-    rev = "c742dd61706fbacc1b95f1a20b7b988cf096ce6c";
-    hash = "sha256-YB+9AIZJ6aR5Yx1OC22Xc6HdoxvDDjja/z2yMUt5gWs=";
+    rev = "ae5650febf4320793844c12c4adaa937f417f8da";
+    hash = "sha256-sX6KIElyFreuDPt4zViNis2nuAn9QG0n38z3uejJU98=";
   };
 
   # Keep relative links to the guide, agents, and sibling skills intact.
