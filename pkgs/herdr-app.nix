@@ -84,7 +84,8 @@ stdenv.mkDerivation {
     install -Dm644 THIRD-PARTY-NOTICES "$out/share/licenses/herdr-app/THIRD-PARTY-NOTICES"
     wrapProgram "$out/bin/herdr-app" \
       --prefix PATH : ${lib.makeBinPath [ herdr-core ]} \
-      --suffix PATH : ${lib.makeBinPath [ xdg-utils ]}
+      --suffix PATH : ${lib.makeBinPath [ xdg-utils ]} \
+      --set-default WGPU_BACKEND gl
     runHook postInstall
   '';
 
