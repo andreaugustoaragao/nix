@@ -9,7 +9,6 @@ let
   herdr = pkgs.callPackage ../../pkgs/herdr.nix { };
   python = pkgs.python3.withPackages (pythonPkgs: [ pythonPkgs.json5 ]);
   assets = "${herdr}/share/herdr/integrations";
-  skill = "${herdr}/share/herdr/skill";
   # These paths are also inspected by `herdr integration status`.
   integrations = {
     ".claude/hooks/herdr-agent-state.sh" = "claude/herdr-agent-state.sh";
@@ -18,15 +17,6 @@ let
     ".grok/hooks/herdr-agent-state.sh" = "grok/herdr-agent-state.sh";
     ".pi/agent/extensions/herdr-agent-state.ts" = "pi/herdr-agent-state.ts";
   };
-  skills = [
-    # Codex and Pi both discover the shared Agent Skills directory.
-    ".agents/skills/herdr"
-    ".claude/skills/herdr"
-    ".cursor/skills/herdr"
-    ".grok/skills/herdr"
-    ".gemini/skills/herdr"
-    ".config/opencode/skills/herdr"
-  ];
 in
 {
   home.packages = [ herdr ];
@@ -38,9 +28,6 @@ in
       # Replace previous copies installed by Herdr with the same pinned assets.
       force = true;
     }) integrations)
-    (lib.genAttrs skills (_: {
-      source = skill;
-    }))
     {
       ".grok/hooks/herdr.json" = {
         force = true;
@@ -83,6 +70,11 @@ in
           resize_pane_down = "prefix+shift+j";
           resize_pane_up = "prefix+shift+k";
           resize_pane_right = "prefix+shift+l";
+        };
+        ui = {
+          agent_panel_sort = "priority";
+          status_indicators = "symbols";
+          toast.delivery = "system";
         };
         session.resume_agents_on_restore = true;
       };

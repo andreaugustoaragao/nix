@@ -1,7 +1,11 @@
 ''
   # Browser control
 
-  Use `browser-task` for browser work. It manages two persistent profiles:
+  For Orca's embedded browser, load the `orca` skill and use the selected
+  Orca CLI's version-matched guide. That browser is separate from the managed
+  profiles below; its tabs belong to Orca.
+
+  Use `browser-task` for other browser work. It manages two persistent profiles:
   `accounts` for signed-in services and `development` for local apps, test
   accounts, and frontend checks. Each has its own browser process and data.
   Never auto-discover a browser or attach to the everyday browser. Desktop

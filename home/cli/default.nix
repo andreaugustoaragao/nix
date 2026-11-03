@@ -37,6 +37,8 @@ in
     ./codex.nix
     ./opencode.nix
     ./herdr.nix
+    ./agent-terminals.nix
+    ./herdr-coordinate.nix
     ./pstack.nix
     ./graphify.nix
     ./cursor.nix

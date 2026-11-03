@@ -69,6 +69,15 @@ in
       '';
     };
 
+    defaultModel = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "[^/]+/[^/]+");
+      default = null;
+      description = ''
+        Qualified provider/model selected by plain pi. Null leaves pi's
+        existing default untouched.
+      '';
+    };
+
     baseUrlSubstitutions = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
@@ -111,18 +120,19 @@ in
         existing='{}'
       fi
 
-      # Replace the retired per-quant Qwen pattern in existing settings.
+      # Replace retired per-quant Qwen entries in existing settings.
       # Unlike initial seeding below, this is a targeted, idempotent
       # migration and preserves all user-managed scope entries and thinking
       # levels. It handles both pi's string and rich object representations.
       existing="$(
         printf '%s' "$existing" | ${pkgs.jq}/bin/jq \
-          --arg old 'llama-cpp/qwen3.6-35b-a3b-*' \
+          --arg oldPattern 'llama-cpp/qwen3.6-35b-a3b-*' \
+          --arg oldQuant 'llama-cpp/qwen3.6-35b-a3b-q8-local' \
           --arg new 'llama-cpp/*-local' \
           'if .enabledModels? != null then
              .enabledModels |= map(
-               if type == "string" and . == $old then $new
-               elif type == "object" and (.model? == $old) then .model = $new
+               if type == "string" and (. == $oldPattern or . == $oldQuant) then $new
+               elif type == "object" and (.model? == $oldPattern or .model? == $oldQuant) then .model = $new
                else .
                end
              )
@@ -136,6 +146,19 @@ in
             | ${pkgs.jq}/bin/jq --argjson em "$enabled_models" '. + {enabledModels: $em}'
         )"
       fi
+      ${lib.optionalString (cfg.defaultModel != null) ''
+        existing="$(
+          printf '%s' "$existing" \
+            | ${pkgs.jq}/bin/jq --argjson default ${
+              lib.escapeShellArg (
+                builtins.toJSON {
+                  defaultProvider = builtins.head (lib.splitString "/" cfg.defaultModel);
+                  defaultModel = builtins.elemAt (lib.splitString "/" cfg.defaultModel) 1;
+                }
+              )
+            } '. + $default'
+        )"
+      ''}
       printf '%s' "$existing" > "$target_settings.tmp"
       mv "$target_settings.tmp" "$target_settings"
       chmod 0600 "$target_settings"

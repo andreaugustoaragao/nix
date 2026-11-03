@@ -698,6 +698,8 @@ in
     "llama-cpp/*-local"
   ];
 
+  services.piModels.defaultModel = lib.mkIf (!personalOnly) "litellm/gpt-5.4";
+
   # Global pi context file. Loaded into every pi session's system prompt.
   # See: pi-coding-agent/README.md (Context Files).
   home.file.".pi/agent/AGENTS.md".text = ''

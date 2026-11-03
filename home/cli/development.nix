@@ -9,6 +9,7 @@
 
 let
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
+  ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
 
   # Script to install qwen-code via npm
   install-qwen-code = pkgs.writeShellScriptBin "install-qwen-code" ''
@@ -201,6 +202,7 @@ in
         # Architecture Diagramming (C4 model)
         plantuml-c4 # PlantUML with C4 model library (includes plantuml)
         graphviz # Graph layout engine (required by PlantUML)
+        (pkgs.callPackage ../../pkgs/uml-viewer.nix { }) # Interactive diagrams and uml-ir
 
         # AI/ML Development
         install-qwen-code # Script to install Qwen Code CLI tool
@@ -229,6 +231,12 @@ in
         unstable-pkgs.go-licenses # Go dependency license checker
         unstable-pkgs.gotests # Generate Go tests from source code
         unstable-pkgs.impl # Generate method stubs for implementing an interface
+      ]
+      # The parser dependency has no Intel macOS wheel.
+      ++ lib.optionals (pkgs.stdenv.hostPlatform.system != "x86_64-darwin") [
+        ubTools.crapper # Complexity and coverage
+        ubTools.dryer # Structural duplicate detection
+        ubTools.mutator # Mutation testing
       ]
       ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux (
         with pkgs;
@@ -269,6 +277,18 @@ in
     };
 
     activation = {
+      # The initial local installation works before a system rebuild. Once
+      # home.packages is active, remove only that installation's bootstrap links.
+      removeUbToolsBootstrap = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        for tool in crapper dryer mutator uml-viewer uml-ir; do
+          commandPath="$HOME/.local/bin/$tool"
+          if [[ -L "$commandPath" ]] && \
+            [[ "$(${pkgs.coreutils}/bin/readlink "$commandPath")" == "$HOME/.local/share/ub-tools/bin/$tool" ]]; then
+            run ${pkgs.coreutils}/bin/rm -- "$commandPath"
+          fi
+        done
+      '';
+
       # Auto-install npm-based AI CLI tools if not present
       installNpmAiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         export NPM_CONFIG_PREFIX="$HOME/.npm-global"

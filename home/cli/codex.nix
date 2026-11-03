@@ -31,6 +31,10 @@ let
   # Use the npm entrypoint explicitly to avoid recursing through PATH.
   codexLauncher = pkgs.writeShellScript "codex" ''
     export AGENT_TOOL=codex
+    if [ -n "''${HC_TERMINAL_ID:-}" ] || [ "''${HERDR_ENV:-}" = 1 ] \
+      || [ -n "''${ORCA_PANE_KEY:-}" ] || [ "''${ORCA_STRUCTURED_SESSION:-}" = 1 ]; then
+      set -- --no-daemon "$@"
+    fi
     exec "${config.home.homeDirectory}/.npm-global/bin/codex" \
       --dangerously-bypass-hook-trust \
       "$@"
@@ -177,6 +181,7 @@ let
   # Stage the template into the Nix store so activation has a stable,
   # readable path to copy + substitute from.
   configTomlTemplateFile = pkgs.writeText "codex-config.toml.template" configTomlTemplate;
+  configurePython = pkgs.python3.withPackages (ps: [ ps.tomlkit ]);
 in
 
 {
@@ -246,10 +251,38 @@ in
 
     # Pstack in Codex
 
-    Apply this section when a pstack skill is invoked. It adapts setup-pstack
+    Apply this section when a pstack skill is invoked. It controls execution
     and overrides the bundled Cursor model defaults for Codex only. Preserve
     project instructions and their rules for delegation, review, and commits.
     These preferences do not enable autonomous work or change the parent model.
+
+    ## Execution policy
+
+    Use relevant pstack coding, design, writing, and verification guidance.
+
+    Invoking poteto-mode does not authorize automatic workflow routing,
+    agent panels, or delegation. This restriction also applies to skills
+    that pstack invokes indirectly.
+
+    Default to direct implementation by the current agent. Use multi-agent
+    workflows only when explicitly requested or authorized for the task.
+
+    When delegation is authorized:
+
+    - Delegate complete, independent pieces of work with clear ownership.
+    - Reuse the implementation agent for corrections and follow-ups.
+    - Use a fresh reviewer when independent review is warranted.
+    - Do not launch another agent solely because a fix or retry is needed.
+
+    Keep approved design decisions closed unless new evidence invalidates them.
+
+    Repeat tests or reviews only for changed behavior, new evidence, or
+    missing required coverage. Reuse valid passing evidence.
+
+    These rules override conflicting pstack workflow and delegation defaults.
+    Preserve project-required verification and explicit user instructions.
+
+    ## Authorized delegation and model setup
 
     For codebase exploration, grounding, and review, use Graphify under the
     guidance above before delegation when it can help. Pass workers the graph
@@ -408,6 +441,12 @@ in
         exit 1
       fi
     ''}
+    # Orca mirrors its managed-home settings back here. Keep runtime-added
+    # preferences, projects and hook trust while updating Nix-defined leaves.
+    if ! ${lib.getExe configurePython} ${./codex-configure.py} "$target" "$codex_config_tmp"; then
+      rm -f "$codex_config_tmp"
+      exit 1
+    fi
     mv "$codex_config_tmp" "$target"
     chmod 0600 "$target"
   '';

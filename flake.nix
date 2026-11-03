@@ -361,6 +361,8 @@
             config.allowUnfree = true;
             overlays = [ inputs.rust-overlay.overlays.default ];
           };
+          ubTools = pkgs.callPackage ./pkgs/ub-tools.nix { };
+          umlViewer = pkgs.callPackage ./pkgs/uml-viewer.nix { };
         in
         {
           dev-browser-mcp = pkgs.callPackage ./pkgs/dev-browser-mcp.nix { };
@@ -369,12 +371,26 @@
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
           herdr = pkgs.callPackage ./pkgs/herdr.nix { };
+          herdr-core = pkgs.callPackage ./pkgs/herdr-core.nix { };
+          uml-viewer = umlViewer;
         }
         // nixpkgs.lib.optionalAttrs (system != "x86_64-darwin") {
+          inherit (ubTools) crapper dryer mutator;
+          ub-tools = pkgs.symlinkJoin {
+            name = "ub-tools";
+            paths = [
+              ubTools.crapper
+              ubTools.dryer
+              ubTools.mutator
+              umlViewer
+            ];
+          };
           graphify = inputs.nixpkgs-unstable.legacyPackages.${system}.callPackage ./pkgs/graphify.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
           chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
+          herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
+          orca-ide = pkgs.callPackage ./pkgs/orca-ide.nix { };
           pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
         }
 
@@ -723,6 +739,21 @@
         {
           dev-browser-mcp = self.packages.${system}.browser-task.tests.protocol;
           browser-task-failures = self.packages.${system}.browser-task.tests.failure-modes;
+          agent-host-context = pkgs.runCommand "check-agent-host-context" { } ''
+            ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-host-context.test.py
+            touch "$out"
+          '';
+          agent-json-configure = pkgs.runCommand "check-agent-json-configure" { } ''
+            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-json-configure.test.py
+            touch "$out"
+          '';
+          codex-configure =
+            pkgs.runCommand "check-codex-configure"
+              { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.tomlkit ])) ]; }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/codex-configure.test.py
+                touch "$out"
+              '';
           herdr-integrations =
             pkgs.runCommand "check-herdr-integrations"
               {

@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -74,22 +75,10 @@ let
 
     echo -e "''${model} ''${dim}│''${reset} ''${ctx_color}''${remaining}% ctx''${reset} ''${dim}│''${reset} ''${cost_fmt} ''${dim}│''${reset} ''${duration_fmt} ''${dim}│''${reset} ''${project}''${branch_fmt}"
   '';
-in
-{
-  home.file = {
-    ".claude/rules/browser.md".text = import ./browser-instructions.nix;
 
-    # Claude in Chrome native messaging host for Brave
-    ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
-      claudeBrowserHost;
-
-    # Claude in Chrome native messaging host for Chromium
-    ".config/chromium/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
-      claudeBrowserHost;
-
-    # Claude Code settings (declarative)
-    # Model changes: update the model value below, then nixos-rebuild switch
-    ".claude/settings.json".text = builtins.toJSON {
+  # Model changes: update the model value below, then nixos-rebuild switch.
+  settings = pkgs.writeText "claude-settings.json" (
+    builtins.toJSON {
       model = "opus[1m]";
       effortLevel = "max";
       editorMode = "vim";
@@ -157,7 +146,35 @@ in
         type = "command";
         command = "${claudeStatusLine}";
       };
-    };
+    }
+  );
+  configureSettings = arguments: ''
+    run ${lib.getExe pkgs.python3} ${./agent-json-configure.py} \
+      --kind claude \
+      --target ${lib.escapeShellArg "${config.home.homeDirectory}/.claude/settings.json"} \
+      --desired ${settings} \
+      --state ${lib.escapeShellArg "${config.xdg.stateHome}/agent-json/claude.json"} \
+      --legacy "''${oldGenPath:-}/home-files/.claude/settings.json" ${arguments}
+  '';
+in
+{
+  # Detach the retired home.file link before Home Manager removes it. Merge
+  # after linking so agents (including Orca's realpath writer) get a real file.
+  home.activation.claudeSettingsPrepare =
+    lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
+      (configureSettings "--prepare");
+  home.activation.claudeSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] (configureSettings "");
+
+  home.file = {
+    ".claude/rules/browser.md".text = import ./browser-instructions.nix;
+
+    # Claude in Chrome native messaging host for Brave
+    ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
+      claudeBrowserHost;
+
+    # Claude in Chrome native messaging host for Chromium
+    ".config/chromium/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json".text =
+      claudeBrowserHost;
 
     # Claude Code local settings (MCP server enablement)
     ".claude/settings.local.json".text = builtins.toJSON {

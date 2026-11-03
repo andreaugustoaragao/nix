@@ -9,7 +9,13 @@ let
   system = pkgs.stdenv.hostPlatform.system;
   fileManager =
     if hostName == "prl-dev-vm" then "io.github.lgse.Strata.desktop" else "thunar.desktop";
-  textViewer = if useDms then "com.danklinux.dms.notepad.desktop" else "codium.desktop";
+  textViewer =
+    if hostName == "prl-dev-vm" then
+      "local.folio.Reader.desktop"
+    else if useDms then
+      "com.danklinux.dms.notepad.desktop"
+    else
+      "codium.desktop";
   officeDefaults =
     if system == "aarch64-linux" then
       {

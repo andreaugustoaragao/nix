@@ -66,6 +66,7 @@
     ./notes.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
+    ./herdr-layouts.nix
     ./parallels-displays.nix
     ./hyprland-noctalia.nix
   ];
@@ -113,6 +114,9 @@
       aptakube
     ]
     ++ lib.optionals (hostName == "prl-dev-vm") [
+      (pkgs.callPackage ../../pkgs/herdr-app.nix { })
+      (pkgs.callPackage ../../pkgs/herdr-core.nix { })
       (pkgs.callPackage ../../pkgs/opencode2-desktop.nix { })
+      (pkgs.callPackage ../../pkgs/orca-ide.nix { })
     ];
 }

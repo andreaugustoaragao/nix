@@ -13,8 +13,6 @@ let
   agentHubHook = {
     command = ''if [ -x "${config.home.homeDirectory}/.local/bin/agent-hub" ]; then "${config.home.homeDirectory}/.local/bin/agent-hub" cursor-hook; else printf '{}\n'; fi'';
   };
-in
-{
   # Cursor / cursor-agent reads ~/.cursor/hooks.json for hook registration.
   # The format mirrors Claude Code's hook config in spirit: a list of
   # event entries, each with a matcher and a command to invoke.
@@ -22,29 +20,45 @@ in
   # The `pi-rs hook cursor` adapter writes the agent-expected envelope
   # (`{"permission":"allow","updated_input":{"command":...}}` on rewrite,
   # `{}` on passthrough). See home/cli/pi-rs/crates/pi-rs/src/cmd/hook.rs.
-  home.file.".cursor/hooks.json".text = builtins.toJSON {
-    version = 1;
-    hooks = {
-      sessionStart = [
-        agentHubHook
-        {
-          command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
-        }
-      ];
-      sessionEnd = [ agentHubHook ];
-      beforeSubmitPrompt = [ agentHubHook ];
-      afterAgentResponse = [ agentHubHook ];
-      postToolUse = [ agentHubHook ];
-      stop = [ (agentHubHook // { loop_limit = 1; }) ];
-      preToolUse = [
-        {
-          matcher = "Bash";
-          command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
-        }
-        agentHubHook
-      ];
-    };
-  };
+  hooks = pkgs.writeText "cursor-hooks.json" (
+    builtins.toJSON {
+      version = 1;
+      hooks = {
+        sessionStart = [
+          agentHubHook
+          {
+            command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
+          }
+        ];
+        sessionEnd = [ agentHubHook ];
+        beforeSubmitPrompt = [ agentHubHook ];
+        afterAgentResponse = [ agentHubHook ];
+        postToolUse = [ agentHubHook ];
+        stop = [ (agentHubHook // { loop_limit = 1; }) ];
+        preToolUse = [
+          {
+            matcher = "Bash";
+            command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
+          }
+          agentHubHook
+        ];
+      };
+    }
+  );
+  configureHooks = arguments: ''
+    run ${lib.getExe pkgs.python3} ${./agent-json-configure.py} \
+      --kind cursor \
+      --target ${lib.escapeShellArg "${config.home.homeDirectory}/.cursor/hooks.json"} \
+      --desired ${hooks} \
+      --state ${lib.escapeShellArg "${config.xdg.stateHome}/agent-json/cursor.json"} \
+      --legacy "''${oldGenPath:-}/home-files/.cursor/hooks.json" ${arguments}
+  '';
+in
+{
+  home.activation.cursorHooksPrepare =
+    lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
+      (configureHooks "--prepare");
+  home.activation.cursorHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] (configureHooks "");
 
   # cursor-agent stores runtime state (model picker, auth) in
   # ~/.cursor/cli-config.json. Merge vimMode on activation so we do not

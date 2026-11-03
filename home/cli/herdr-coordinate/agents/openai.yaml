@@ -1,0 +1,6 @@
+interface:
+  display_name: "Herdr development mode"
+  short_description: "Codex coordinates Grok workers and independent review"
+  default_prompt: "Use $herdr-coordinate to complete this development task with Grok workers and independent Codex review."
+policy:
+  allow_implicit_invocation: false

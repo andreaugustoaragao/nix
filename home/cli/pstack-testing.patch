@@ -1,0 +1,140 @@
+--- a/skills/poteto-mode/SKILL.md
++++ b/skills/poteto-mode/SKILL.md
+@@ -16,6 +16,8 @@
+
+ Remaining triggers:
+
++- Choosing checks, triaging findings, or repeating testing or review → read [Testing and review](references/testing-and-review.md). Include that reference in delegated reviewer and implementer briefs.
++
+ - Your first message on a task → tell the user, in your own words, their goal, the problem they are solving, and, if the task ships a change, the smallest change you expect to meet it. Don't wait for confirmation. If the evidence rules out the change the user asked for, show it and stop. Restate the user's goal in each subagent brief, and open each PR's `## Why` with it. Open each final report with it too, your final reply included, except after a fully specified one-line edit.
+ - Nontrivial change, architecture decision, or "are we sure?" → the **how** skill.
+ - About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
+@@ -32,7 +34,7 @@
+ - Running a benchmark, measuring perf yourself, or reporting a speedup or regression you measured → the **benchmark-checklist** skill before you report or act on the number.
+ - Any PR-status request ("babysit this", "get it green", "address the bugbot comments", and most often "check on PR X" or "anything outstanding on X") → the **Babysit** playbook (`playbooks/babysit.md`), not Cursor's built-in babysit skill, whose description matches the same words. Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Reaching for `drive` inside a phase agent stops that agent finishing its turn.
+ - Asked to land or ship a green stack → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
+-- Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `references/bugbot-triage.md`.
++- Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage findings per `references/bugbot-triage.md`.
+ - Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
+ - Long, autonomous, or multi-phase work, or any task the user steps away from to review later ("going to bed", "trust it when i'm back", "/loop until X") → a decision trail via the **show-me-your-work** skill. Commit it when stakes need an auditable record. Keep it local otherwise.
+
+--- a/skills/poteto-mode/playbooks/autonomous-run.md
++++ b/skills/poteto-mode/playbooks/autonomous-run.md
+@@ -2,7 +2,7 @@
+
+ **You own the exit condition. Define done, then drive to it without stopping.**
+
+-1. State the exit condition as a checkable predicate before the first iteration (tests green, repro fixed, all N PRs merged, pixel-diff zero).
++1. State the exit condition as a checkable predicate before the first iteration (tests green, repro fixed, all N PRs merged, pixel-diff zero). For testing and review, choose acceptance evidence and repeat passes per [Testing and review](../references/testing-and-review.md).
+ 2. Pick the wake mechanism using Cursor's `/loop` command (a built-in, not a pstack skill). An event to watch (CI, a merge, a ref advancing) gets a watcher subagent that wakes you on the event, with a long time-based heartbeat as fallback. No event gets a fixed-interval heartbeat sized to when the result is worth re-checking. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 3. Each iteration makes the smallest change the evidence justifies, verifies it against the predicate, commits if it advanced, discards changes that didn't help. Belt-and-suspenders that "might help" gets reverted, not left to ride.
+    Sequence the work via the **sequence-verifiable-units** principle skill, verifying each unit before the next instead of batching checks at the end.
+--- a/skills/poteto-mode/playbooks/babysit.md
++++ b/skills/poteto-mode/playbooks/babysit.md
+@@ -17,7 +17,7 @@
+
+    Answer a user question mid-loop and continue. Only an explicit stop ends the loop before the active forge's stop condition. On GitHub, that is `READY` in single or stack mode, or a `WAITING`/`merge-queue` report or `COMPLETE` in queued mode. On Origin, that is the merge-ready state defined above. For a GitHub queued stack, capture the PR list bottom-to-top once and pass the same frozen list to every rearm. Revise the list only for the sanctioned follow-up PR from step 4. Append it at the end, drop the merged owner, and rearm with the corrected snapshot.
+ 7. **Classify CI before any retrigger.** Flake or infrastructure earns one fresh build, never a job retry. One retry only. An identical second failure means it was never flake, so reclassify and read the child logs instead of retrying blind. A failure in code the diff never touches means a stale base, so check with `git merge-base --is-ancestor` before assuming flake. Report a stale base as needing a rebase instead of burning retries. Only a failure in the diff's own code gets a commit.
+-8. **Bugbot is triaged skeptically, always.** Verify each claim against the code per `../references/bugbot-triage.md`. Fix real findings with a red-first proof in the lowest PR that owns the code, never at the tip unless the owning PR has merged. In that case, use step 4's sanctioned follow-up PR. Per step 2, upstack fixes wait for step 5's next frontier-driven push wave. Push that wave before replying so the reply cites the commit. On Origin, reply with `origin pr thread reply <thread-id> <pr> --body-file <reply-file>`. On GitHub, call `gh api --method POST "repos/<owner>/<repo>/pulls/<pr>/comments/<comment-id>/replies" --input <payload.json>` and put the reply body in the JSON file as data. Never interpolate comment text or a reply into a shell command. Dismiss noise with the concrete disproof on the thread. On GitHub, use the watcher's Bugbot pass count. On Origin, derive the pass count from `origin pr thread list` and the review history. From the third pass on, lean toward dismissing documented patterns, still escalating anything touching security, auth, billing, data, or migrations rather than dismissing it yourself. Never churn code to quiet a bot.
++8. **Bugbot is triaged skeptically, always.** Verify each claim against the code per `../references/bugbot-triage.md`. Fix real findings with a red-first proof in the lowest PR that owns the code, never at the tip unless the owning PR has merged. In that case, use step 4's sanctioned follow-up PR. Per step 2, upstack fixes wait for step 5's next frontier-driven push wave. Push that wave before replying so the reply cites the commit. On Origin, reply with `origin pr thread reply <thread-id> <pr> --body-file <reply-file>`. On GitHub, call `gh api --method POST "repos/<owner>/<repo>/pulls/<pr>/comments/<comment-id>/replies" --input <payload.json>` and put the reply body in the JSON file as data. Never interpolate comment text or a reply into a shell command. Dismiss noise with the concrete disproof on the thread. On GitHub, use the watcher's Bugbot pass count. On Origin, derive the pass count from `origin pr thread list` and the review history. Pass count does not change the evidence or severity. Apply the shared triage rules, and revisit a dismissed finding when new evidence or changed code invalidates its reason. Never churn code to quiet a bot.
+ 9. **Stop at the human's line.** Owner approval is a wait, not a blocker to fix. Babysitting never authorizes merging. Only an explicit request to merge, land, ship, or merge when ready does. Route that request to Shipping. Surface the escalation and keep working the rest. After GitHub reports `READY`, a queued `WAITING`/`merge-queue` stop, or `COMPLETE`, or after Origin reports the frontier merge-ready, sweep the run's triage decisions once. Offer any team-useful dismissal pattern as a candidate entry in the shared rubric (`../references/bugbot-triage.md`) and its own PR. Never keep it only in private memory.
+
+ `drive` ends at merge-ready. Landing the stack is `playbooks/shipping.md`.
+--- a/skills/poteto-mode/playbooks/bug-fix.md
++++ b/skills/poteto-mode/playbooks/bug-fix.md
+@@ -3,6 +3,8 @@
+ **You own this task. Plan, review, verify.** Delegate investigation and the fix to subagents, stay in the lead. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+
+ Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspenders that "might help" is a hypothesis, not a fix. It does not ship. When evidence refutes a hypothesis, revert what it motivated. The smallest change the evidence justifies ships, nothing more.
++
++Choose the reproduction and affected regression checks per [Testing and review](../references/testing-and-review.md). Use it again for findings and repeat passes.
+
+ 1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
+ 2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
+--- a/skills/poteto-mode/playbooks/feature.md
++++ b/skills/poteto-mode/playbooks/feature.md
+@@ -1,6 +1,8 @@
+ ### Feature
+
+ **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
++
++Before implementation, choose acceptance evidence and required checks per [Testing and review](../references/testing-and-review.md). Use it again for findings and repeat passes.
+
+ 1. `how` over the affected subsystem.
+ 2. `architect` for parallel design exploration.
+--- a/skills/poteto-mode/references/bugbot-triage.md
++++ b/skills/poteto-mode/references/bugbot-triage.md
+@@ -4,13 +4,11 @@
+
+ ## Decision rubric
+
+-Classify each Bugbot thread before acting:
++Use [Testing and review](testing-and-review.md) to classify each finding as `fix`, `investigate`, `defer`, or `dismiss`. Use the patterns below as leads and verify their conditions against the current code.
+
+-- `fix`: The comment identifies a plausible correctness, security, privacy, data loss, auth, billing, migration, idempotency, race, or shipped-behavior issue. Fix it in the lowest owning PR, then reply with the commit SHA and resolve the thread.
+-- `dismiss`: The comment matches a documented low-risk noisy pattern, and the current code/context proves the concern does not need a code change. Reply with a short reason and resolve the thread.
+-- `ask`: The comment is novel, high-severity, security/privacy/data-related, or ambiguous. Ask the user instead of guessing.
++Investigate with available source and safe local checks before escalating uncertainty. Ask when a missing fact or product decision belongs to the user, or an explicit approval gate applies. A category label alone does not require a permission question.
+
+-When in doubt, ask. Skipping a noisy code-quality comment is cheap; skipping a real data or security bug is not.
++For a fix, reply with the verified commit SHA and resolve the thread. For a deferral or dismissal, reply with the concrete reason. Resolve only when the repository workflow allows that disposition. An unresolved required check remains a blocker.
+
+ ## Learned pattern format
+
+@@ -72,16 +70,11 @@
+ - Do not skip when: The only evidence is a human saying "false positive" on a high-risk issue without explanation.
+ - Example signal: A file-naming rule comment whose body says the file is already compliant.
+
+-## Ask by default
++## Investigate consequential findings
+
+-Do not auto-skip these categories, even if a previous PR dismissed something similar:
++Do not dismiss security, privacy, authorization, billing, data loss, migration, idempotency, concurrency, or cross-system findings merely because they seem rare. Establish the trigger and consequence. A previous dismissal does not establish safety for a different code path.
+
+-- Security, privacy, auth, billing, data retention, training-data, and permission-boundary findings.
+-- High-severity findings.
+-- Migration, schema, idempotency, concurrency, and cross-system behavior findings.
+-- Comments where the suggested fix is small and clearly reduces risk without changing product intent.
+-
+-Historical data showed humans sometimes dismiss security/data-flow comments. Treat those as owner judgment calls, not team-wide skip rules.
++Keep unresolved consequential uncertainty visible. Gather evidence within the authorized scope, then ask only for information or decisions you cannot obtain yourself. A small suggested fix still needs evidence and a check of the behavior it changes.
+
+ ## Candidate learnings from recent babysits
+
+--- /dev/null
++++ b/skills/poteto-mode/references/testing-and-review.md
+@@ -0,0 +1,34 @@
++# Testing and review
++
++Use this procedure when choosing checks, acting on review findings, or deciding whether another pass is necessary. Preserve the task's scope, project gates, and explicit approval requirements. Specialized playbooks still own their release and optimization targets.
++
++## Choose acceptance evidence
++
++Before implementation, name the required observable outcomes and the checks that establish them. Keep this in the existing task notes. For a bug, include the original reproduction. Choose regression checks for affected callers, shared behavior, and meaningful failure paths suggested by the change. Include relevant supported configurations and persistent effects.
++
++Use the project's required commands and existing verification tools. Scale additional checks to the consequence of failure and what remains uncertain. Do not invent future requirements or add a permanent test for every reversible edit. A passing suite covers only the behavior it exercises.
++
++## Classify findings before changing code
++
++For each finding, state its trigger, evidence that the trigger is reachable in supported use, observable consequence, and disposition. A safe reproduction or a concrete input and code path can establish evidence. Label unverified hypotheses and unknown frequency honestly. Do not replace evidence with invented probability scores.
++
++- **Fix** a demonstrated requirement violation or consequential defect within scope. Compare the proposed fix's complexity and regression risk with the defect. Choose the smallest change that addresses the cause.
++- **Investigate** uncertainty that could change acceptance. Run the smallest useful check or inspect the relevant invariant. Rare security, data loss, and other serious failures warrant investigation even without frequency data. Do not require a dangerous production reproduction.
++- **Defer** optional improvements and hypothetical future requirements that do not prevent acceptance. Record the reason and remaining consequence. Existing unrelated defects stay outside scope unless they block this task or the change newly exposes them.
++- **Dismiss** a disproven claim, or a claim excluded by an enforced invariant or the supported contract. Cite the evidence. Difficulty reproducing a claim alone does not disprove it.
++
++The implementing agent verifies a reviewer's claim before editing. Unresolved consequential uncertainty remains visible as an investigation or blocker. Ask only for missing information, product decisions, or authorization that the current session does not supply. Create external issues only when the user's workflow authorizes them.
++
++## Repeat checks for a reason
++
++After a fix, repeat its reproduction and the checks the changed behavior could invalidate. Include boundary cases and affected callers. Broaden the pass when shared behavior, dependencies, or new failures justify it. Run required final checks on the final artifact.
++
++Before an additional testing or review pass, name what changed, what new evidence appeared, or which required coverage is missing. Use repeated runs for intermittent behavior or noisy measurements with an explicit purpose. An unchanged passing result alone does not justify another pass.
++
++Carry findings and their evidence into follow-up briefs. Reopen a deferred or dismissed finding when new evidence or changed code invalidates its reason. After two failed fixes sharing a premise, apply [Attack the Premise](../../principle-attack-the-premise/SKILL.md) before another fix.
++
++## Finish or report incomplete
++
++Finish successfully when required outcomes and checks pass on the final artifact and no unresolved finding prevents acceptance. Record deferred findings and the limits of the evidence. Optional improvements do not keep the task open.
++
++Continue when a failed requirement or consequential uncertainty has an actionable next step. If a required check cannot run, a real blocker remains, or an explicit resource limit is reached, report incomplete with the missing evidence and next step. Never weaken a requirement, skip a required gate, or treat exhausted attempts as success.
