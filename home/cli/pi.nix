@@ -684,21 +684,30 @@ in
   # exists both as a built-in Anthropic model AND as a route on the
   # corporate LiteLLM gateway, so we have to be explicit about which
   # path each cycle slot takes. Anthropic models go direct via
-  # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the four GPT
-  # and Gemini entries route through litellm. The local wildcard selects
-  # Qwen3.6 on the workstation and Bonsai 2 on VM hosts that use mac-work.
+  # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the LiteLLM
+  # entries below track the current gateway catalog rather than the
+  # older four-model subset. The local wildcard selects Qwen3.6 on the
+  # workstation and Bonsai 2 on VM hosts that use mac-work.
   services.piModels.enabledModels = [
     "anthropic/claude-opus-4-7"
   ]
   ++ lib.optionals (!personalOnly) [
+    "litellm/gpt-6-sol"
+    "litellm/gpt-6-luna"
+    "litellm/gpt-6.1-sol"
+    "litellm/gpt-5.6-sol"
+    "litellm/gpt-5.6-luna"
+    "litellm/gpt-5.6-terra"
     "litellm/gpt-5.5"
     "litellm/gpt-5.4"
-    "litellm/gemini-2.5-pro"
-    "litellm/gemini-2.5-flash"
+    "litellm/gemini-3.1-pro"
+    "litellm/gemini-3.8-flash"
+    "litellm/gemini-3.5-flash"
+    "litellm/grok-4.7"
     "llama-cpp/*-local"
   ];
 
-  services.piModels.defaultModel = lib.mkIf (!personalOnly) "litellm/gpt-5.4";
+  services.piModels.defaultModel = lib.mkIf (!personalOnly) "litellm/gpt-6.1-sol";
 
   # Global pi context file. Loaded into every pi session's system prompt.
   # See: pi-coding-agent/README.md (Context Files).

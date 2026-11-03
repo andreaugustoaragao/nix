@@ -51,7 +51,7 @@ let
   # deliberately distinctive so the activation sed below can't match
   # legitimate config text by accident.
   configTomlTemplate = ''
-    model = "gpt-6-sol"
+    model = "gpt-6.1-sol"
     model_provider = "${
       if hostName == "prl-dev-vm" then
         "chatgpt-retry"

@@ -140,6 +140,60 @@ in
            end'
       )"
 
+      # Expand the original four-model LiteLLM seed to the current gateway
+      # catalog when the user still has only that legacy subset. This is a
+      # one-way migration: once a settings file contains any newer LiteLLM
+      # entries, activation stops touching the curated list and pi's
+      # /scoped-models UI remains the source of truth.
+      existing="$(
+        printf '%s' "$existing" | ${pkgs.jq}/bin/jq \
+          --argjson legacy '[
+            "litellm/gpt-5.5",
+            "litellm/gpt-5.4",
+            "litellm/gemini-2.5-pro",
+            "litellm/gemini-2.5-flash"
+          ]' \
+          --argjson current '[
+            "litellm/gpt-6-sol",
+            "litellm/gpt-6-luna",
+            "litellm/gpt-6.1-sol",
+            "litellm/gpt-5.6-sol",
+            "litellm/gpt-5.6-luna",
+            "litellm/gpt-5.6-terra",
+            "litellm/gpt-5.5",
+            "litellm/gpt-5.4",
+            "litellm/gemini-3.1-pro",
+            "litellm/gemini-3.8-flash",
+            "litellm/gemini-3.5-flash",
+            "litellm/grok-4.7"
+          ]' \
+          '
+          def modelOf:
+            if type == "string" then .
+            elif type == "object" then (.model? // empty)
+            else empty
+            end;
+          def hasModel($list; $model):
+            any($list[]; (modelOf == $model));
+          def appendModel($list; $model):
+            if hasModel($list; $model) then $list
+            elif any($list[]; type == "object") then $list + [{ model: $model }]
+            else $list + [$model]
+            end;
+          if .enabledModels? != null then
+            .enabledModels |= (
+              . as $models
+              | [ $models[] | select((modelOf | startswith("litellm/"))) | modelOf ] as $litellm
+              | if ($litellm | length) > 0 and all($litellm[]; $legacy | index(.)) then
+                  reduce $current[] as $model ($models; appendModel(.; $model))
+                else
+                  $models
+                end
+            )
+          else .
+          end'
+      )"
+
       if ! printf '%s' "$existing" | ${pkgs.jq}/bin/jq -e '.enabledModels' >/dev/null 2>&1; then
         existing="$(
           printf '%s' "$existing" \
