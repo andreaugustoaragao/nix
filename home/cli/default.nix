@@ -36,6 +36,7 @@ in
     ./claude.nix
     ./codex.nix
     ./opencode.nix
+    ./shared-vault.nix
     ./herdr.nix
     ./agent-terminals.nix
     ./herdr-coordinate.nix

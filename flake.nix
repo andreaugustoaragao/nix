@@ -754,6 +754,23 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/codex-configure.test.py
                 touch "$out"
               '';
+          shared-vault-configure =
+            pkgs.runCommand "check-shared-vault-configure"
+              {
+                nativeBuildInputs = [
+                  (pkgs.python3.withPackages (ps: [
+                    ps.tomlkit
+                    ps.json5
+                  ]))
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-configure.test.py
+                touch "$out"
+              '';
+          shared-vault-module = import ./home/cli/shared-vault-check.nix {
+            inherit pkgs home-manager;
+          };
           herdr-integrations =
             pkgs.runCommand "check-herdr-integrations"
               {

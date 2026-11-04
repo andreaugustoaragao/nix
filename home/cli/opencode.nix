@@ -45,12 +45,14 @@ in
       "$schema" = "https://opencode.ai/config.json";
       model = if personalOnly then "openai/gpt-6-sol" else "litellm/gpt-6-astra";
       update = "disable"; # The executable is managed by Nix.
-      mcp.servers = lib.optionalAttrs (!personalOnly) {
-        atlassian = {
-          type = "remote";
-          url = "https://mcp.atlassian.com/v2/mcp";
-        };
-      };
+      mcp.servers =
+        lib.optionalAttrs (!personalOnly) {
+          atlassian = {
+            type = "remote";
+            url = "https://mcp.atlassian.com/v2/mcp";
+          };
+        }
+        // config.my.sharedVault.opencodeServers;
       providers =
         lib.optionalAttrs (!personalOnly) {
           litellm = {
