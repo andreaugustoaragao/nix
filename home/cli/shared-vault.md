@@ -8,7 +8,70 @@ initialize a catalog or resume scheduled work.
 Before enabling it, certify a release providing `bin/vault-client` and
 `bin/vault-mcp` with the explicit `--socket PATH --vault ID` contract. Its
 `sharedVaultSourceRevision` passthru must match the declared full `releaseId`.
+`pkgs/shared-vault-release.nix` accepts a certified `.tar.gz` archive URL and
+whole-file SHA256, package version and reviewed full source revision. The archive
+has one top-level directory. Its build checks the archive's
+`share/vault-services/release.json` against those declared values and requires
+the service, CLI, MCP, Bun and automation bootstrap files. An archive without
+the reviewed manifest is rejected. The release build and certification remain
+separate from this configuration module.
+On Linux, package installation removes ELF files for other CPUs or musl after
+archive certification and before strict native fixup. It retains both matching
+Bun copies and verifies their bytes. The retained glibc closure includes
+libxcb for the shipped X11 native module; missing dependencies still fail the
+build. Patching changes installed bytes, so an actual native package build and
+installed runtime acceptance on each supported architecture remain release gates.
+
+For a clean, commit-bound Fulcrum checkout with a passing `release` or `focused`
+development-certification receipt, run `home/cli/shared-vault-release.py` with
+`--worktree`, `--receipt`, `--state-directory` and `--output`. The state directory
+must already be private (`0700`); the `.tar.gz` output must be new and directly
+inside it. The producer currently requires Linux for process-tree supervision.
+It rejects Git replacement objects and materialized tracked files whose raw
+bytes or executable modes differ from the unreplaced candidate commit, even
+when Git's filtered status reports a clean checkout. It checks this before
+the verifier and again before publication. The producer calls that checkout's pinned
+`node_modules/bun/bin/bun.exe --no-env-file scripts/development-certification.ts
+check --receipt PATH` before and after copying. It requires the receipt to cover
+the exact clean commit, package version and full installed dependency digest,
+then reruns the existing installed dependency and patch checks on both source
+and staged runtime. The digest includes every approved dependency file's bytes
+and executable mode, including Bun; the producer checks it against both the
+source and the materialized staging tree. Tracked source comes from committed
+Git blobs and modes, independent of local archive attributes. The producer
+authenticates the candidate commit, reconstructs its root tree from the complete
+file inventory, and verifies each exported blob against its object ID. The complete
+installed dependency tree is copied with only safe internal file links
+materialized. `.env` files, `.git`, caches and
+mutable vault data stay out of the archive. The expected staging file inventory
+comes from authenticated Git bytes, receipt-bound dependency entries and the
+generated runtime contents. Exact paths, bytes, modes and parent-directory sets
+must match before the staging tree can become a seal; an export-time Git helper
+cannot redefine this baseline. Before running staged checks, the producer seals every
+file's bytes and mode and the complete directory inventory, including generated
+launchers. Additions, removals, links and changed files make verification fail.
+Archive construction uses only that sealed inventory; the emitted archive's
+entries, modes and file bytes must also match after the last verifier or Git
+command has closed, before the final archive hash and publication. The output is a deterministic,
+single-root `.tar.gz` with a SHA256 SRI sidecar suitable for `hash` in the Nix
+package call. Each target architecture needs its own certified native archive.
+Existing outputs are never replaced. Publication uses owned hardlinks; a failed
+or interrupted attempt removes only links to its own temporary files. Successful
+staging is removed; failures
+retain a private diagnostic under the chosen state directory without publishing
+an archive. Each verifier command runs under a Linux subreaper that closes and
+reaps its detached descendants on timeout or interruption before reporting a
+settled failure. If descendant closure cannot be proved, the diagnostic says
+`held`, records the supervisor PID, and keeps any staging directory for recovery.
+The small `shared-vault-release` check uses a fake receipt checker
+for layout and refusal tests; only a real certification receipt checked by the
+candidate's own tool can authorize a release archive.
+
 Set `vaultId` and `runtimeDirectory` to the values selected for the service.
+Set `service.recordingsDirectory` to expose capture metadata and verified
+transcript windows through the shared read API. Omitting it leaves processing
+history readable and the capture catalog explicitly unconfigured. This option
+does not activate recording intake or replay existing recordings.
 The socket uses the first 24 hexadecimal SHA256 characters of the vault ID:
 `RUNTIME/vault-HASH/api.sock`. Evaluation rejects noncanonical runtime paths,
 missing identities and socket paths longer than 103 bytes.
@@ -84,6 +147,32 @@ independent applications do not participate in its advisory lock. Mutable
 configuration symlinks and hardlinks are refused; resolve their declarative
 owner before changing them. OpenCode's generated link remains owned by its
 existing module and is read only by this helper.
+
+The optional `my.sharedVault.service` module installs a Linux user service from
+that same release. It remains disabled until migration and cutover. Set the
+canonical notes directory, migrated state directory and existing vector
+namespace explicitly. The service starts with `--config` and
+`--release-manifest`; its manifest reports the artifact revision that Fulcrum
+checks against `releaseId`. Automation admission and recording admission default
+to paused. When automation is enabled, supply the reviewed Codex executable
+path. No startup step initializes or migrates vault state.
+
+`recordingsDirectory` alone provides recording reads. Set `recordingIntake` with
+an `agentName` and enable the automation owner to configure shared processing.
+The optional `model`, `systemPromptAppend`, `recordCall` and
+`google = { account = "..."; executable = "/..."; }` fields select the existing
+runtime profile; unset fields are omitted. These values are nonsecret Nix
+configuration. Credentials stay with their existing owner. Both admission
+settings remain paused by default, even with a complete intake profile.
+An enabled recording admission without a profile is rejected during evaluation.
+
+`vault-service-config check` compares the installed connection, service JSON and
+complete loaded unit bytes with the Nix generation, validates the artifact
+manifest identity, and inspects the loaded user unit for a stale generation or
+an overriding drop-in. It prints
+only `ok`, `drift` or `unavailable` for each component and exits 2 unless all
+match. It does not start the unit, read credentials or certify provider/storage
+behavior. A missing user bus reports `unavailable`.
 
 Verification is available through `checks.<system>.shared-vault-configure`
 and `checks.<system>.shared-vault-module`. The latter evaluates Home Manager,
