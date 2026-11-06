@@ -771,6 +771,21 @@
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
             inherit pkgs home-manager;
           };
+          notes-sync =
+            pkgs.runCommand "check-notes-sync"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.git
+                  pkgs.python3
+                  pkgs.shellcheck
+                ];
+              }
+              ''
+                shellcheck -s bash ${self.outPath}/home/services/notes-sync-reconcile.sh
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/services/notes-sync-reconcile.test.py
+                touch "$out"
+              '';
           herdr-integrations =
             pkgs.runCommand "check-herdr-integrations"
               {
