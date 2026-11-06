@@ -768,6 +768,19 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-configure.test.py
                 touch "$out"
               '';
+          shared-vault-release =
+            pkgs.runCommand "check-shared-vault-release"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.git
+                ]
+                ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.binutils ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-release.test.py
+                touch "$out"
+              '';
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
             inherit pkgs home-manager;
           };
