@@ -10,13 +10,10 @@
 }:
 
 let
-  # Source checkout — service is a no-op on machines that don't have it
-  # (guarded via ConditionPathExists below). Update flow:
-  #
-  #   cd ~/projects/work/fulcrum && git pull
-  #   systemctl --user restart fulcrum
-  #
-  projectRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
+  sourceRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
+  shared = config.my.sharedVault or { enable = false; };
+  projectRoot =
+    if shared.enable then "${config.xdg.dataHome}/fulcrum/releases/${shared.releaseId}" else sourceRoot;
 
   # Runtime library path for native modules (onnxruntime / sharp in
   # @huggingface/transformers). `libstdc++` is the one that actually
@@ -50,14 +47,20 @@ let
     (pkgs.callPackage ../../pkgs/dev-browser.nix { })
   ];
   binPath = lib.optionalString (hostName == "prl-dev-vm") "${runtimeBinPath}:" + serviceBinPath;
-  effectiveRuntimePath = lib.concatStringsSep ":" [
-    runtimeBinPath
-    "${config.home.homeDirectory}/.local/share/fulcrum/runtime/node-26.10.0/bin"
-    "${config.home.homeDirectory}/.local/share/fulcrum/runtime/bun-1.4.2/bin"
-    serviceBinPath
-    "/etc/profiles/per-user/${config.home.username}/bin"
-    "/run/current-system/sw/bin"
-  ];
+  effectiveRuntimePath = lib.concatStringsSep ":" (
+    lib.optionals shared.enable [
+      "${shared.release}/bin"
+      "${projectRoot}/node_modules/.bin"
+    ]
+    ++ [
+      runtimeBinPath
+      "${config.home.homeDirectory}/.local/share/fulcrum/runtime/node-26.10.0/bin"
+      "${config.home.homeDirectory}/.local/share/fulcrum/runtime/bun-1.4.2/bin"
+      serviceBinPath
+      "/etc/profiles/per-user/${config.home.username}/bin"
+      "/run/current-system/sw/bin"
+    ]
+  );
 
   # Per-user cert/key for fulcrum's HTTPS listener — kept outside the
   # source checkout so a fresh clone doesn't accidentally pick them up,
@@ -151,8 +154,8 @@ in
     Unit = {
       Description = "Fulcrum — executive operational intelligence (source)";
       Documentation = [ "file://${projectRoot}/CLAUDE.md" ];
-      After = [ "network-online.target" ];
-      Wants = [ "network-online.target" ];
+      After = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
+      Wants = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
       # No-op on machines without the project checked out.
       ConditionPathExists = projectRoot;
     };
@@ -224,7 +227,10 @@ in
         "MATRIX_USER_ID=@maui-alerts:matrix.faragao.net"
         "MATRIX_DEVICE_ID=AeSV8hGVoC"
         "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
-      ];
+      ]
+      ++ lib.optionals shared.enable (
+        lib.mapAttrsToList (name: value: "${name}=${value}") shared.service.environment
+      );
       # OpenAI-compatible inference is routed through the same corporate
       # LiteLLM gateway and bearer token that Codex uses. Both values stay
       # in sops-managed runtime files; the wrapper exports the conventional
@@ -310,14 +316,23 @@ in
         export FULCRUM_TLS_CERT=${lib.escapeShellArg runtimeTlsCert}
         export FULCRUM_TLS_KEY=${lib.escapeShellArg runtimeTlsKey}
 
-        exec ${pkgs.bun}/bin/bun run start
+        ${
+          if shared.enable then
+            ''
+              exec ${shared.release}/bin/bun --env-file=${lib.escapeShellArg "${sourceRoot}/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
+            ''
+          else
+            ''
+              exec ${pkgs.bun}/bin/bun run start
+            ''
+        }
       '';
 
       Restart = "on-failure";
       RestartSec = "5s";
       # Bun handles SIGTERM gracefully (drains SSE streams); give it room.
       KillMode = "mixed";
-      TimeoutStopSec = "15s";
+      TimeoutStopSec = if shared.enable then "180s" else "15s";
 
       # Soft resource ceilings to keep a runaway sub-agent from eating the
       # machine. Bump if you hit them in practice.
