@@ -1,6 +1,6 @@
 {
-  "url": "file:///home/aragao/.local/share/vault-services/releases/0.225.2-7e2050ab/shared-vault-release.tar.gz",
-  "hash": "sha256-xfF49tnInqMnOWSvIJHywanC7CB6wWGvGtNBcEXJdIU=",
-  "packageVersion": "0.225.2",
-  "sourceRevision": "7e2050ab9a0e017d4489919a4f743f57d82c8d5a"
+  "url": "file:///home/aragao/.local/share/vault-services/releases/0.225.4-123cce5d/shared-vault-release.tar.gz",
+  "hash": "sha256-YMF01PygHoENhWk/jRpQSAxbdFgim4h/51vCAtvn2SQ=",
+  "packageVersion": "0.225.4",
+  "sourceRevision": "123cce5d296c90707e97be1c8c6658598a2a2927"
 }
