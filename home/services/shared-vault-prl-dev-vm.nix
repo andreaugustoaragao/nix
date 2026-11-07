@@ -3,6 +3,12 @@ let
   pin = builtins.fromJSON (builtins.readFile ./shared-vault-prl-dev-vm-release.json);
 in
 {
+  systemd.user.services.shared-vault.Service = {
+    RuntimeDirectory = "shared-vault";
+    RuntimeDirectoryMode = "0700";
+    RuntimeDirectoryPreserve = "yes";
+  };
+
   my.sharedVault = {
     enable = true;
     vaultId = "work-notes";
