@@ -105,10 +105,31 @@ let
       exit 2
     fi
   '';
+  cleanupProgram = pkgs.writeText "shared-vault-artifact-cleanup.ts" ''
+    import { existsSync } from 'node:fs';
+    import { artifactRegistryPath, reportArtifacts, cleanArtifacts } from '${shared.release}/share/vault-services/src/infrastructure/adapters/maintenance/owned-artifacts.ts';
+
+    const args = process.argv.slice(2);
+    if (args.length !== 1 || !['--dry-run', '--apply'].includes(args[0])) {
+      process.stderr.write('usage: vault-artifacts-cleanup --dry-run|--apply\n');
+      process.exit(2);
+    }
+    const root = artifactRegistryPath('/tmp');
+    const report = existsSync(root) ? reportArtifacts(root) : [];
+    const counts = new Map<string, number>();
+    for (const item of report) counts.set(item.disposition, (counts.get(item.disposition) ?? 0) + 1);
+    const selected = report.filter(item => item.disposition === 'eligible').slice(0, 20);
+    const result = args[0] === '--apply' && selected.length ? await cleanArtifacts(root, selected) : null;
+    process.stdout.write(JSON.stringify({ root, mode: args[0], counts: Object.fromEntries(counts), selected: selected.length, result }) + '\n');
+  '';
+  cleanupLauncher = pkgs.writeShellScriptBin "vault-artifacts-cleanup" ''
+    exec ${shared.release}/bin/bun --no-env-file ${cleanupProgram} "$@"
+  '';
 in
 {
   options.my.sharedVault.service = {
     enable = lib.mkEnableOption "the independent shared vault owner after migration";
+    cleanup.enable = lib.mkEnableOption "daily bounded retirement through the existing artifact owner";
     recordingsDirectory = lib.mkOption {
       type = lib.types.nullOr absolutePath;
       default = null;
@@ -243,7 +264,7 @@ in
       }
     ];
     xdg.configFile."shared-vault/service.json".source = configurationFile;
-    home.packages = [ diagnostics ];
+    home.packages = [ diagnostics ] ++ lib.optional cfg.cleanup.enable cleanupLauncher;
     systemd.user.services.shared-vault = {
       Unit = {
         Description = "Shared vault, document processing and automation";
@@ -263,6 +284,27 @@ in
         KillMode = "control-group";
       };
       Install.WantedBy = [ "default.target" ];
+    };
+    systemd.user.services.shared-vault-artifact-cleanup = lib.mkIf cfg.cleanup.enable {
+      Unit.Description = "Retire eligible shared vault test artifacts through their owner";
+      Service = {
+        Type = "oneshot";
+        ExecStart = "${cleanupLauncher}/bin/vault-artifacts-cleanup --apply";
+        UMask = "0077";
+        Nice = 15;
+        IOSchedulingClass = "idle";
+        MemoryMax = "512M";
+        TimeoutStartSec = 300;
+      };
+    };
+    systemd.user.timers.shared-vault-artifact-cleanup = lib.mkIf cfg.cleanup.enable {
+      Unit.Description = "Daily cleanup of closed, expired shared vault test artifacts";
+      Timer = {
+        OnCalendar = "daily";
+        RandomizedDelaySec = "10m";
+        Persistent = true;
+      };
+      Install.WantedBy = [ "timers.target" ];
     };
   };
 }

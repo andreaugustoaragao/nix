@@ -45,6 +45,9 @@
     ./registry-forward.nix
     ./chroma.nix
   ]
+  ++ lib.optionals (!personalOnly && hostName == "prl-dev-vm") [
+    ./shared-vault-prl-dev-vm.nix
+  ]
   ++ lib.optionals (!personalOnly && isDarwinHost) [
     ./notes-sync-darwin.nix
   ]
