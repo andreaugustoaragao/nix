@@ -42,8 +42,8 @@ in
       automation = {
         enable = true;
         executable = "${config.home.homeDirectory}/.local/bin/codex";
-        activation = "paused";
-        recordingAdmission = "paused";
+        activation = "enabled";
+        recordingAdmission = "enabled";
       };
       cleanup.enable = true;
     };
