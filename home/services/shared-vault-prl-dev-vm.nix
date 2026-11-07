@@ -27,6 +27,11 @@ in
         TESSDATA_PREFIX = "${pkgs.tesseract}/share/tessdata";
         FULCRUM_OFFICE_EXEC = "${pkgs.libreoffice}/lib/libreoffice/program/soffice";
         FULCRUM_EMBEDDING_CACHE_DIR = "${config.xdg.cacheHome}/fulcrum/embeddings";
+        FULCRUM_NODE_PATH = "${pkgs.nodejs_26}/bin/node";
+        FULCRUM_NOTES_DIR = "${config.home.homeDirectory}/projects/work/notes";
+        FULCRUM_CHROMIUM_PATH = "${config.xdg.dataHome}/fulcrum/runtime/chromium-managed";
+        NIX_LD = "/run/current-system/sw/share/nix-ld/lib/ld.so";
+        LOG_LEVEL = "info";
       };
       automation = {
         enable = true;
