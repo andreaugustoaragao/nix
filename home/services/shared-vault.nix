@@ -76,8 +76,8 @@ let
     service=ok
     release=ok
     unit=ok
-    ${pkgs.coreutils}/bin/cmp -s ${expectedConnection} ${lib.escapeShellArg shared.connectionFile} || connection=drift
-    ${pkgs.coreutils}/bin/cmp -s ${configurationFile} ${lib.escapeShellArg "${config.xdg.configHome}/shared-vault/service.json"} || service=drift
+    ${pkgs.diffutils}/bin/cmp -s ${expectedConnection} ${lib.escapeShellArg shared.connectionFile} || connection=drift
+    ${pkgs.diffutils}/bin/cmp -s ${configurationFile} ${lib.escapeShellArg "${config.xdg.configHome}/shared-vault/service.json"} || service=drift
     ${pkgs.jq}/bin/jq -e --arg revision ${lib.escapeShellArg shared.releaseId} \
       --arg version ${lib.escapeShellArg shared.release.version} \
       '.packageVersion == $version and .source == {kind:"artifact",revision:$revision}' \
@@ -96,7 +96,7 @@ let
     elif [ "$unit_state" != loaded ] || [ "$fragment" != ${lib.escapeShellArg serviceUnit} ] \
       || [ -n "$dropins" ] || [ "$reload" != no ]; then
       unit=drift
-    elif ! ${pkgs.coreutils}/bin/cmp -s ${expectedUnit} "$fragment"; then
+    elif ! ${pkgs.diffutils}/bin/cmp -s ${expectedUnit} "$fragment"; then
       unit=drift
     fi
     printf '{"connection":"%s","service":"%s","release":"%s","unit":"%s"}\n' \
