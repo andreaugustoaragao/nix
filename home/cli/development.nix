@@ -61,7 +61,7 @@ let
 
   # Script to install goplay (Go Playground client) via go install
   install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
-    export GOPATH="''${GOPATH:-$HOME/go}"
+    export GOPATH="''${GOPATH:-${config.xdg.dataHome}/go}"
     export GOBIN="''${GOBIN:-$GOPATH/bin}"
     ${unstable-pkgs.go}/bin/go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
     echo "goplay installed to $GOBIN/goplay"
@@ -261,8 +261,8 @@ in
       PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
 
       # Go
-      GOPATH = "$HOME/go";
-      GOBIN = "$HOME/go/bin";
+      GOPATH = "${config.xdg.dataHome}/go";
+      GOBIN = "${config.xdg.dataHome}/go/bin";
 
       # Rust
       CARGO_HOME = "$HOME/.cargo";
@@ -278,7 +278,7 @@ in
       # correct OPENAI_API_KEY/BASE_URL/MODEL at launch, where they apply.
 
       # Development paths
-      PATH = "$PATH:$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
+      PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
     };
 
     activation = {
