@@ -13,7 +13,10 @@ let
   sourceRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
   shared = config.my.sharedVault or { enable = false; };
   projectRoot =
-    if shared.enable then "${config.xdg.dataHome}/fulcrum/releases/${shared.releaseId}" else sourceRoot;
+    if shared.enable then
+      "${config.home.homeDirectory}/projects/work/fulcrum-releases/${shared.releaseId}"
+    else
+      sourceRoot;
 
   # Runtime library path for native modules (onnxruntime / sharp in
   # @huggingface/transformers). `libstdc++` is the one that actually
@@ -54,8 +57,7 @@ let
     ]
     ++ [
       runtimeBinPath
-      "${config.home.homeDirectory}/.local/share/fulcrum/runtime/node-26.10.0/bin"
-      "${config.home.homeDirectory}/.local/share/fulcrum/runtime/bun-1.4.2/bin"
+      "${pkgs.nodejs_26}/bin"
       serviceBinPath
       "/etc/profiles/per-user/${config.home.username}/bin"
       "/run/current-system/sw/bin"
@@ -153,7 +155,7 @@ in
   systemd.user.services.fulcrum = {
     Unit = {
       Description = "Fulcrum — executive operational intelligence (source)";
-      Documentation = [ "file://${projectRoot}/CLAUDE.md" ];
+      Documentation = [ "file://${projectRoot}/docs/README.md" ];
       After = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
       Wants = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
       # No-op on machines without the project checked out.
@@ -236,9 +238,8 @@ in
       # in sops-managed runtime files; the wrapper exports the conventional
       # OpenAI variables only in the service process, so neither secret nor
       # the employer-specific gateway hostname enters the Nix store.
-      # The vault's
-      # ${projectRoot}/.env (symlinked to ~/projects/work/notes/.fulcrum/.env)
-      # is still auto-loaded by bun for the other secrets (TELEGRAM,
+      # The vault's .fulcrum/.env is loaded explicitly for the shared
+      # release; source mode keeps Bun's existing .env discovery (TELEGRAM,
       # ELEVENLABS, MPC, …); bun does not override env vars already set
       # by the wrapper, so the sops key wins.
       ExecStart = pkgs.writeShellScript "fulcrum-start" ''
@@ -319,7 +320,7 @@ in
         ${
           if shared.enable then
             ''
-              exec ${shared.release}/bin/bun --env-file=${lib.escapeShellArg "${sourceRoot}/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
+              exec ${shared.release}/bin/bun --env-file=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes/.fulcrum/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
             ''
           else
             ''

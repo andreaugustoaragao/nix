@@ -15,22 +15,13 @@ has one top-level directory. Its build checks the archive's
 the service, CLI, MCP, Bun and automation bootstrap files. An archive without
 the reviewed manifest is rejected. The release build and certification remain
 separate from this configuration module.
-The `prl-dev-vm` deployment pins a locally certified archive through
-`home/services/shared-vault-prl-dev-vm-release.json`. Its private persistent
-archive stays outside the source checkout. Before a rebuild after the fixed-output
-archive has been garbage-collected, import that exact archive under the expected
-basename:
-
-```sh
-nix-store --add-fixed sha256 /home/aragao/.local/share/vault-services/releases/0.225.2-7e2050ab/shared-vault-release.tar.gz
-```
-
-The imported hash must match the release pin. This preloads the local artifact;
-the sandboxed package builder does not read the operator's private home directory.
-Keep the archive and its certification evidence while the release or rollback
-still references them. The host profile begins with automation and recording
-admission paused for offline migration; completing installed verification is a
-separate step before enabling normal admission.
+The `prl-dev-vm` deployment pins a certified archive in the private Fulcrum
+GitHub releases through `home/services/shared-vault-prl-dev-vm-release.json`.
+Run `python3 home/cli/shared-vault-bootstrap.py` from the Nix checkout to fetch
+and verify that archive, import it into Nix, build the runtime package and
+restore its exact Git source checkout. The bootstrap also accepts `--archive`
+for offline recovery. See [environment recovery](../../docs/shared-vault-recovery.md)
+for credentials, mutable-state restoration and installed verification.
 
 On Linux, package installation removes ELF files for other CPUs or musl after
 archive certification and before strict native fixup. It retains both matching

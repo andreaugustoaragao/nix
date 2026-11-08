@@ -1,6 +1,14 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  unstable-pkgs,
+  ...
+}:
 let
   pin = builtins.fromJSON (builtins.readFile ./shared-vault-prl-dev-vm-release.json);
+  chromium = pkgs.writeShellScript "fulcrum-chromium" ''
+    exec ${pkgs.coreutils}/bin/env -u LD_LIBRARY_PATH ${unstable-pkgs.chromium}/bin/chromium "$@"
+  '';
 in
 {
   systemd.user.services.shared-vault.Service = {
@@ -35,7 +43,7 @@ in
         FULCRUM_EMBEDDING_CACHE_DIR = "${config.xdg.cacheHome}/fulcrum/embeddings";
         FULCRUM_NODE_PATH = "${pkgs.nodejs_26}/bin/node";
         FULCRUM_NOTES_DIR = "${config.home.homeDirectory}/projects/work/notes";
-        FULCRUM_CHROMIUM_PATH = "${config.xdg.dataHome}/fulcrum/runtime/chromium-managed";
+        FULCRUM_CHROMIUM_PATH = "${chromium}";
         NIX_LD = "/run/current-system/sw/share/nix-ld/lib/ld.so";
         LOG_LEVEL = "info";
       };
