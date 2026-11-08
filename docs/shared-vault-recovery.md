@@ -24,7 +24,7 @@ evaluate, but this native archive is not an x86_64 or Darwin release.
 Prerequisites are Nix with flakes, Git, Python 3, access to the private Fulcrum
 repository and the host's SOPS decryption key. Restore the SSH identities and
 the configured `github-work` alias, or use `--source-repository` with an
-authenticated repository URL. The download uses `GH_TOKEN`, `GITHUB_TOKEN` or
+an SSH or HTTPS repository URL without embedded credentials. HTTPS uses Git's credential helper. The download uses `GH_TOKEN`, `GITHUB_TOKEN` or
 Git's existing HTTPS credential helper. Credentials are not written into Git,
 the release pin or the Nix store.
 
@@ -34,10 +34,10 @@ git clone git@github.com:andreaugustoaragao/nix.git ~/projects/personal/nix
 cd ~/projects/personal/nix
 python3 home/cli/shared-vault-bootstrap.py
 nix flake check --no-build --all-systems
-sudo nixos-rebuild switch --flake ~/projects/personal/nix#prl-dev-vm
 ```
 
-Restore the mutable state below before activating the production services.
+Keep production services and sync timers stopped while restoring the mutable
+state below. Activation is a separate final step after that restore.
 The bootstrap does not start services or change that state. It can be rerun:
 the exact existing checkout is verified and reused. GitHub downloads go to a
 private temporary directory, are checked against the committed SHA256 and
@@ -82,6 +82,16 @@ The original activation and source backups from November 7 remain under
 document does not claim they are an off-machine backup of current live state.
 Keep a private off-machine backup of mutable data and decryption keys as part
 of the machine's backup procedure.
+
+## Activate after restoring state
+
+Only after the private state and decryption keys are restored, activate the
+configuration. This command starts the production services and persistent
+timers, including the scheduler and notes sync:
+
+```sh
+sudo nixos-rebuild switch --flake ~/projects/personal/nix#prl-dev-vm
+```
 
 ## Verify the restored installation
 

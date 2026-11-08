@@ -2,6 +2,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -36,7 +37,7 @@ class RestoreTests(unittest.TestCase):
         source = root / "source"
         source.mkdir()
         subprocess.run(["git", "init", "--quiet", str(source)], check=True)
-        (source / ".gitignore").write_text("node_modules/\n")
+        (source / ".gitignore").write_text("node_modules/\n.env\n")
         (source / ".env.example").write_text("EXAMPLE=placeholder\n")
         (source / "package.json").write_text('{"version":"1.2.3"}\n')
         subprocess.run(["git", "-C", str(source), "add", ".gitignore", ".env.example", "package.json"], check=True)
@@ -73,6 +74,55 @@ class RestoreTests(unittest.TestCase):
                 bootstrap.restore_checkout(str(source), root / "runtimes", package, pin)
             self.assertFalse((root / "runtimes" / pin["sourceRevision"]).exists())
             self.assertEqual(list((root / "runtimes").iterdir()), [])
+
+
+    def test_ignored_dependency_overrides_and_environment_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, package, pin = self.fixture(root)
+            checkout = bootstrap.restore_checkout(str(source), root / "runtimes", package, pin)
+            nested = checkout / "src/node_modules/fixture-dependency/index.js"
+            nested.parent.mkdir(parents=True)
+            nested.write_text("module.exports = 'unapproved dependency'\n")
+            self.assertEqual(bootstrap.git(checkout, "status", "--porcelain"), b"")
+            with self.assertRaisesRegex(bootstrap.RestoreError, "unexpected directory"):
+                bootstrap.restore_checkout(str(source), root / "runtimes", package, pin)
+            self.assertTrue(nested.is_file())
+            shutil.rmtree(checkout / "src")
+            environment = checkout / ".env"
+            environment.write_text("UNAPPROVED=fixture\n")
+            with self.assertRaisesRegex(bootstrap.RestoreError, "unexpected file"):
+                bootstrap.restore_checkout(str(source), root / "runtimes", package, pin)
+            self.assertTrue(environment.is_file())
+
+    def test_empty_destination_created_during_restore_is_never_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, package, pin = self.fixture(root)
+            publish = bootstrap.publish_checkout
+            identity = []
+            def concurrent_directory(staging, target):
+                target.mkdir(mode=0o700)
+                identity.append(target.stat().st_ino)
+                return publish(staging, target)
+            with patch.object(bootstrap, "publish_checkout", side_effect=concurrent_directory):
+                with self.assertRaises(FileExistsError):
+                    bootstrap.restore_checkout(str(source), root / "runtimes", package, pin)
+            target = root / "runtimes" / pin["sourceRevision"]
+            self.assertEqual(target.stat().st_ino, identity[0])
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_embedded_source_credentials_are_rejected_before_git(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, package, pin = self.fixture(root)
+            for repository in ["https://fixture:private-value@example.invalid/repo.git", "https://example.invalid/repo.git?token=private-value", "ssh://git:private-value@example.invalid/repo.git"]:
+                with self.subTest(repository=repository), patch.object(bootstrap.subprocess, "run") as run:
+                    with self.assertRaises(bootstrap.RestoreError) as error:
+                        bootstrap.restore_checkout(repository, root / "runtimes", package, pin)
+                    run.assert_not_called()
+                    self.assertNotIn("private-value", str(error.exception))
+            self.assertFalse((root / "runtimes").exists())
 
 
 if __name__ == "__main__":

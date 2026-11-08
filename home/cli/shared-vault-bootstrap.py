@@ -3,6 +3,7 @@
 
 import argparse
 import base64
+import ctypes
 import hashlib
 import json
 import os
@@ -116,15 +117,63 @@ def git(root, *args):
     return subprocess.check_output(["git", "--no-replace-objects", "-C", str(root), *args])
 
 
+def source_repository(value):
+    if "://" in value:
+        parsed = urllib.parse.urlsplit(value)
+        if (parsed.scheme not in {"https", "ssh", "file"} or parsed.password is not None
+                or (parsed.scheme == "https" and parsed.username is not None)
+                or parsed.query or parsed.fragment):
+            raise RestoreError("Source repository must use a local path, SSH, or HTTPS without embedded credentials; use Git's credential helper")
+    return value
+
+
+def publish_checkout(staging, target):
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "linux":
+        rename = libc.renameat2
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(staging), -100, os.fsencode(target), 1)
+    elif sys.platform == "darwin":
+        rename = libc.renamex_np
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(staging), os.fsencode(target), 4)
+    else:
+        raise RestoreError("Atomic exclusive checkout publication requires Linux or Darwin")
+    if result != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(target))
+
+
+def verify_checkout_layout(root, tracked):
+    directories = {parent.as_posix() for name in tracked for parent in Path(name).parents}
+    for current, dirs, files in os.walk(root, followlinks=False):
+        directory = Path(current)
+        for name in dirs[:]:
+            path = directory / name
+            relative = path.relative_to(root).as_posix()
+            if relative == ".git" and not path.is_symlink():
+                dirs.remove(name)
+            elif relative == "node_modules":
+                dirs.remove(name)
+            elif relative not in directories or path.is_symlink():
+                raise RestoreError("Runtime checkout contains an unexpected directory; it was preserved: " + relative)
+        for name in files:
+            relative = (directory / name).relative_to(root).as_posix()
+            if relative not in tracked and relative != "node_modules":
+                raise RestoreError("Runtime checkout contains an unexpected file; it was preserved: " + relative)
+
+
 def verify_checkout(root, package, pin):
     if git(root, "rev-parse", "HEAD").decode().strip() != pin["sourceRevision"]:
         raise RestoreError("Existing runtime checkout has a different commit")
     if git(root, "status", "--porcelain=v1", "--untracked-files=all"):
         raise RestoreError("Runtime checkout contains local changes; it was preserved")
     source = package / "share/vault-services"
-    for name in git(root, "ls-files", "-z").decode().split("\0"):
-        if not name:
-            continue
+    tracked = set(git(root, "ls-files", "-z").decode().split("\0")) - {""}
+    verify_checkout_layout(root, tracked)
+    for name in sorted(tracked):
         local = root / name
         certified = source / name
         if name == ".env.example":
@@ -141,7 +190,8 @@ def verify_checkout(root, package, pin):
         raise RestoreError("Runtime dependencies do not point to the pinned Nix package")
 
 
-def restore_checkout(source_repository, runtime_root, package, pin):
+def restore_checkout(repository, runtime_root, package, pin):
+    repository = source_repository(repository)
     manifest = json.loads((package / "share/vault-services/release.json").read_text())
     expected = {"packageVersion": pin["packageVersion"], "source": {"kind": "artifact", "revision": pin["sourceRevision"]}}
     if manifest != expected:
@@ -155,16 +205,13 @@ def restore_checkout(source_repository, runtime_root, package, pin):
         return target
     with tempfile.TemporaryDirectory(prefix=".restore-", dir=runtime_root) as staging_name:
         staging = Path(staging_name) / "checkout"
-        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--", source_repository, str(staging)], check=True)
+        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--", repository, str(staging)], check=True)
         subprocess.run(["git", "-C", str(staging), "checkout", "--quiet", "--detach", pin["sourceRevision"]], check=True)
         with (staging / ".git/info/exclude").open("a") as excluded:
             excluded.write("\n/node_modules\n")
         (staging / "node_modules").symlink_to(package / "share/vault-services/node_modules", target_is_directory=True)
         verify_checkout(staging, package, pin)
-        # An existing target is never replaced, including one created by another restore.
-        if target.exists() or target.is_symlink():
-            raise RestoreError("Runtime target appeared during restoration; it was preserved")
-        staging.rename(target)
+        publish_checkout(staging, target)
     return target
 
 
@@ -202,5 +249,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (RestoreError, OSError, ValueError, subprocess.SubprocessError) as error:
+    except subprocess.SubprocessError:
+        raise SystemExit("Restore failed: a required command failed; review its diagnostic output") from None
+    except (RestoreError, OSError, ValueError) as error:
         raise SystemExit("Restore failed: " + str(error)) from None
