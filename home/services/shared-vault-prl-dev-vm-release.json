@@ -1,5 +1,5 @@
 {
-  "url": "file:///home/aragao/.local/share/vault-services/releases/0.225.5-634bbbd9/shared-vault-release.tar.gz",
+  "url": "https://github.com/andrearagao/fulcrum/releases/download/shared-vault-0.225.5-634bbbd9-aarch64-linux/shared-vault-release.tar.gz",
   "hash": "sha256-CzgvDFgx8JCYhX/K0uVj3qS1nLgpAjJjEndvyAyXC4A=",
   "packageVersion": "0.225.5",
   "sourceRevision": "634bbbd94a4a520885de732e92c197d4b598773c"

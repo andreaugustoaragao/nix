@@ -781,6 +781,19 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-release.test.py
                 touch "$out"
               '';
+          shared-vault-bootstrap =
+            pkgs.runCommand "check-shared-vault-bootstrap"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.git
+                ];
+              }
+              ''
+                export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-bootstrap.test.py
+                touch "$out"
+              '';
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
             inherit pkgs home-manager;
           };
