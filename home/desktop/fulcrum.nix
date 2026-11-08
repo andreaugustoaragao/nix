@@ -6,12 +6,17 @@
   ...
 }:
 let
-  # The backend already runs from this checkout. Fetch only on its verified
-  # host, so other machines do not need this local repository or its credentials.
-  # Keep the package pinned independently of the checkout's working changes.
+  shared = config.my.sharedVault or { enable = false; };
+  sourceRoot =
+    if shared.enable then
+      "${config.home.homeDirectory}/projects/work/fulcrum-releases/${shared.releaseId}"
+    else
+      "${config.home.homeDirectory}/projects/work/fulcrum";
+  pin = builtins.fromJSON (builtins.readFile ./fulcrum-source.json);
+  # Desktop keeps its independent revision in the bootstrapped Git history.
   source = builtins.fetchGit {
-    url = "file://${config.home.homeDirectory}/projects/work/fulcrum";
-    rev = "459a86487701d1b698011a203f5c4774fbe1130e";
+    url = "file://${sourceRoot}";
+    rev = pin.revision;
     allRefs = true;
   };
   cfg = config.my.fulcrum.desktop;
@@ -20,7 +25,7 @@ in
   options.my.fulcrum.desktop.package = lib.mkOption {
     type = lib.types.nullOr lib.types.package;
     default = null;
-    description = "Revision-pinned local Fulcrum desktop; null disables installation.";
+    description = "Revision-pinned Fulcrum desktop; null disables installation.";
   };
   config = {
     my.fulcrum.desktop.package = lib.mkIf (hostName == "prl-dev-vm") (

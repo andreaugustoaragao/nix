@@ -52,10 +52,16 @@ def read_pin(path):
     return pin
 
 
+def checked_token(value):
+    if not value or not re.fullmatch(r"[\x21-\x7e]+", value):
+        raise RestoreError("Invalid GitHub credential format; provide a single token without whitespace")
+    return value
+
+
 def github_token():
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token:
-        return token
+        return checked_token(token)
     result = subprocess.run(
         ["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n",
         text=True, capture_output=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}, timeout=30,
@@ -63,7 +69,7 @@ def github_token():
     fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
     if result.returncode or not fields.get("password"):
         raise RestoreError("A GitHub credential with read access to andrearagao/fulcrum is required")
-    return fields["password"]
+    return checked_token(fields["password"])
 
 
 def download(pin, destination):
@@ -118,13 +124,29 @@ def git(root, *args):
 
 
 def source_repository(value):
-    if "://" in value:
+    invalid = "Source repository must use a local path, SSH, or HTTPS without embedded credentials; use Git's credential helper"
+    if value.startswith(("https://", "ssh://", "file://")):
         parsed = urllib.parse.urlsplit(value)
-        if (parsed.scheme not in {"https", "ssh", "file"} or parsed.password is not None
-                or (parsed.scheme == "https" and parsed.username is not None)
-                or parsed.query or parsed.fragment):
-            raise RestoreError("Source repository must use a local path, SSH, or HTTPS without embedded credentials; use Git's credential helper")
-    return value
+        if any(ord(character) <= 32 or ord(character) == 127 for character in value) or parsed.password is not None or parsed.query or parsed.fragment:
+            raise RestoreError(invalid)
+        if parsed.scheme == "https" and (not parsed.hostname or parsed.username is not None):
+            raise RestoreError(invalid)
+        if parsed.scheme == "ssh" and (not parsed.hostname or not re.fullmatch(r"[A-Za-z0-9._-]+", parsed.username or "git")):
+            raise RestoreError(invalid)
+        if parsed.scheme == "file":
+            if parsed.netloc not in ("", "localhost"):
+                raise RestoreError(invalid)
+            value = urllib.parse.unquote(parsed.path)
+        else:
+            return value
+    elif re.fullmatch(r"(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+:[A-Za-z0-9_./~-]+", value):
+        return value
+    elif ":" in value and not value.startswith("/"):
+        raise RestoreError(invalid)
+    local = Path(value).expanduser()
+    if not local.is_dir():
+        raise RestoreError(invalid)
+    return str(local.resolve())
 
 
 def publish_checkout(staging, target):
@@ -242,7 +264,13 @@ def main():
             raise RestoreError("Expected one Nix runtime package")
         package = Path(paths[0])
         result["package"] = str(package)
-        result["checkout"] = str(restore_checkout(args.source_repository, args.runtime_root, package, pin))
+        checkout = restore_checkout(args.source_repository, args.runtime_root, package, pin)
+        desktop = json.loads((flake / "home/desktop/fulcrum-source.json").read_text())
+        if not re.fullmatch(r"[a-f0-9]{40}", desktop["revision"]):
+            raise RestoreError("Desktop source pin must be a full Git commit")
+        git(checkout, "cat-file", "-e", desktop["revision"] + "^{commit}")
+        result["checkout"] = str(checkout)
+        result["desktopSourceRevision"] = desktop["revision"]
     print(json.dumps(result, indent=2))
 
 
@@ -251,5 +279,7 @@ if __name__ == "__main__":
         main()
     except subprocess.SubprocessError:
         raise SystemExit("Restore failed: a required command failed; review its diagnostic output") from None
-    except (RestoreError, OSError, ValueError) as error:
+    except ValueError:
+        raise SystemExit("Restore failed: invalid release metadata or configuration") from None
+    except (RestoreError, OSError) as error:
         raise SystemExit("Restore failed: " + str(error)) from None

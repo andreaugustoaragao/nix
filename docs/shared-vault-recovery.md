@@ -13,7 +13,9 @@ clean checkout of the pinned source under `~/projects/work/fulcrum-releases/`.
 Every exported source file and executable mode is compared with the certified package;
 the intentionally omitted `.env.example` is checked against the pinned Git commit.
 `node_modules` points to that package. The checkout retains real Git metadata
-for Fulcrum's installed-version checks. Existing changed checkouts are preserved
+for Fulcrum's installed-version checks. Fulcrum Desktop reads its independent
+revision from this same restored history; the bootstrap also checks that commit
+is available. A separate development checkout is not a restore prerequisite. Existing changed checkouts are preserved
 and cause an explicit failure.
 
 ## Restore code and configuration

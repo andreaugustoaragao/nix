@@ -2,6 +2,8 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
+import sys
 import shutil
 from pathlib import Path
 import subprocess
@@ -116,13 +118,29 @@ class RestoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, package, pin = self.fixture(root)
-            for repository in ["https://fixture:private-value@example.invalid/repo.git", "https://example.invalid/repo.git?token=private-value", "ssh://git:private-value@example.invalid/repo.git"]:
+            for repository in ["https://fixture:private-value@example.invalid/repo.git", "https://example.invalid/repo.git?token=private-value", "ssh://git:private-value@example.invalid/repo.git", "https::https://fixture:private-value@example.invalid/repo.git"]:
                 with self.subTest(repository=repository), patch.object(bootstrap.subprocess, "run") as run:
                     with self.assertRaises(bootstrap.RestoreError) as error:
                         bootstrap.restore_checkout(repository, root / "runtimes", package, pin)
                     run.assert_not_called()
                     self.assertNotIn("private-value", str(error.exception))
             self.assertFalse((root / "runtimes").exists())
+
+
+    def test_malformed_github_token_never_appears_in_cli_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pin = Path(directory) / "pin.json"
+            pin.write_text(json.dumps({
+                "sourceRevision": "1" * 40, "packageVersion": "1.2.3",
+                "hash": "sha256-" + base64.b64encode(hashlib.sha256(b"fixture").digest()).decode(),
+                "url": "https://github.com/andrearagao/fulcrum/releases/download/test/shared-vault-release.tar.gz",
+            }))
+            secret = "fixture-secret-that-must-not-appear"
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name("shared-vault-bootstrap.py")), "--pin", str(pin), "--archive-only"],
+                                    env={**os.environ, "GH_TOKEN": secret + "\n"}, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Invalid GitHub credential format", result.stderr)
+            self.assertNotIn(secret, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
