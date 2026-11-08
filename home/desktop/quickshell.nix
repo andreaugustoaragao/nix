@@ -33,16 +33,21 @@ let
       ${displays.dp2} = portrait;
     } (lib.optionalAttrs isVm { "Virtual-3" = portrait; });
 
+  # DMS requires a newer Go 1.27 patch release than stable nixpkgs provides.
+  dmsPkgs = pkgs // {
+    inherit (unstable-pkgs) go_1_27;
+  };
+
   # DMS currently ignores `useFahrenheit` for CPU temperature widgets and
   # process popouts, so patch the packaged QML to keep hardware temps aligned
   # with the rest of the shell's unit setting.
-  dmsPackage = inputs.dms.packages.${pkgs.stdenv.hostPlatform.system}.default.overrideAttrs (old: {
+  dmsPackage = (inputs.dms.lib.mkDmsShell dmsPkgs).overrideAttrs (old: {
     postInstall = (old.postInstall or "") + ''
       substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/ProcessSummary.qml \
         --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? DgopService.cpuTemperature.toFixed(0) + "°C" : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
 
-      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/PerformanceView.qml \
-        --replace-fail 'extraInfo: DgopService.cpuTemperature > 0 ? (DgopService.cpuTemperature.toFixed(0) + "°C") : ""' 'extraInfo: DgopService.cpuTemperature > 0 ? ((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C")) : ""'
+      substituteInPlace $out/share/quickshell/dms/Modules/ProcessList/CpuPane.qml \
+        --replace-fail 'Devices.formatTemp(DgopService.cpuTemperature)' '((SettingsData.useFahrenheit ? (DgopService.cpuTemperature * 9 / 5 + 32) : DgopService.cpuTemperature).toFixed(0) + "°" + (SettingsData.useFahrenheit ? "F" : "C"))'
 
       # DMS writes gsettings color-scheme = "default" for light mode
       # unless the portal already reported "prefer-light" (systemColorScheme

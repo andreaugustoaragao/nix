@@ -36,8 +36,10 @@ in
     ./claude.nix
     ./codex.nix
     ./opencode.nix
+    ./shared-vault.nix
     ./herdr.nix
     ./agent-terminals.nix
+    ./agent-projects.nix
     ./herdr-coordinate.nix
     ./pstack.nix
     ./graphify.nix

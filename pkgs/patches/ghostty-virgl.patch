@@ -1,0 +1,180 @@
+--- a/src/renderer/OpenGL.zig
++++ b/src/renderer/OpenGL.zig
+@@ -35,9 +35,9 @@
+ 
+ const log = std.log.scoped(.opengl);
+ 
+-/// We require at least OpenGL 4.3
++/// OpenGL 4.0 with the extensions checked in prepareContext.
+ pub const MIN_VERSION_MAJOR = 4;
+-pub const MIN_VERSION_MINOR = 3;
++pub const MIN_VERSION_MINOR = 0;
+ 
+ alloc: std.mem.Allocator,
+ 
+@@ -184,6 +184,42 @@
+         return error.OpenGLOutdated;
+     }
+ 
++    if (major == 4 and minor < 3) {
++        inline for (.{
++            "GL_ARB_vertex_attrib_binding",
++            "GL_ARB_shading_language_420pack",
++            "GL_KHR_debug",
++        }) |required| {
++            var extensions = try gl.ext.iterator();
++            while (try extensions.next()) |extension| {
++                if (std.mem.eql(u8, extension, required)) break;
++            } else {
++                log.err("OpenGL compatibility renderer requires {s}", .{required});
++                return error.OpenGLExtensionMissing;
++            }
++        }
++
++        // The bundled GLAD loader only loads core entry points. These
++        // extension functions have the same names and signatures in 4.3.
++        inline for (.{
++            "BindVertexBuffer",
++            "VertexAttribBinding",
++            "VertexAttribFormat",
++            "VertexAttribIFormat",
++            "VertexAttribLFormat",
++            "VertexBindingDivisor",
++            "DebugMessageCallback",
++        }) |name| {
++            @field(gl.glad.context, name) = @ptrCast(
++                getProcAddress("gl" ++ name) orelse return error.OpenGLFunctionMissing,
++            );
++        }
++    }
++
++    log.info("renderer={s}; cell colors use R32UI texture buffers", .{
++        std.mem.sliceTo(gl.glad.context.GetString.?(gl.c.GL_RENDERER), 0),
++    });
++
+     // Enable debug output for the context.
+     try gl.enable(gl.c.GL_DEBUG_OUTPUT);
+ 
+--- a/src/renderer/opengl/Pipeline.zig
++++ b/src/renderer/opengl/Pipeline.zig
+@@ -33,6 +33,8 @@
+ 
+ vao: gl.VertexArray,
+ 
++background_cells: gl.Texture,
++
+ stride: usize,
+ 
+ blending_enabled: bool,
+@@ -60,16 +62,21 @@
+ 
+     if (VertexAttributes) |VA| try autoAttribute(VA, vaobind, opts.step_fn);
+ 
++    const background_cells = try gl.Texture.create();
++    errdefer background_cells.destroy();
++
+     return .{
+         .program = program,
+         .fbo = fbo,
+         .vao = vao,
++        .background_cells = background_cells,
+         .stride = if (VertexAttributes) |VA| @sizeOf(VA) else 0,
+         .blending_enabled = opts.blending_enabled,
+     };
+ }
+ 
+ pub fn deinit(self: *const Self) void {
++    self.background_cells.destroy();
+     self.program.destroy();
+ }
+ 
+--- a/src/renderer/opengl/RenderPass.zig
++++ b/src/renderer/opengl/RenderPass.zig
+@@ -106,8 +106,7 @@
+         _ = sampler.sampler.bind(@intCast(i)) catch return;
+     };
+ 
+-    // Bind 0th buffer as the vertex buffer,
+-    // and bind the rest as storage buffers.
++    // Buffer 0 contains vertices; buffer 1 contains packed cell colors.
+     if (s.buffers.len > 0) {
+         if (s.buffers[0]) |vbo| vaobind.bindVertexBuffer(
+             0,
+@@ -116,8 +115,11 @@
+             @intCast(s.pipeline.stride),
+         ) catch return;
+ 
+-        for (s.buffers[1..], 1..) |b, i| if (b) |buf| {
+-            _ = buf.bindBase(.storage, @intCast(i)) catch return;
++        if (s.buffers.len > 1) if (s.buffers[1]) |buf| {
++            gl.Texture.active(2) catch return;
++            _ = s.pipeline.background_cells.bind(.buffer) catch return;
++            gl.glad.context.TexBuffer.?(gl.c.GL_TEXTURE_BUFFER, gl.c.GL_R32UI, buf.id);
++            gl.errors.getError() catch return;
+         };
+     }
+ 
+--- a/src/renderer/shaders/glsl/common.glsl
++++ b/src/renderer/shaders/glsl/common.glsl
+@@ -1,4 +1,5 @@
+-#version 430 core
++#version 400 core
++#extension GL_ARB_shading_language_420pack : require
+ 
+ // These are common definitions to be shared across shaders, the first
+ // line of any shader that needs these should be `#include "common.glsl"`.
+--- a/src/renderer/shaders/glsl/cell_bg.f.glsl
++++ b/src/renderer/shaders/glsl/cell_bg.f.glsl
+@@ -6,9 +6,7 @@
+ // Must declare this output for some versions of OpenGL.
+ layout(location = 0) out vec4 out_FragColor;
+ 
+-layout(binding = 1, std430) readonly buffer bg_cells {
+-    uint cells[];
+-};
++layout(binding = 2) uniform usamplerBuffer bg_cells;
+ 
+ vec4 cell_bg() {
+     uvec2 grid_size = unpack2u16(grid_size_packed_2u16);
+@@ -49,7 +47,7 @@
+ 
+     // Load the color for the cell.
+     vec4 cell_color = load_color(
+-            unpack4u8(cells[grid_pos.y * grid_size.x + grid_pos.x]),
++            unpack4u8(texelFetch(bg_cells, int(grid_pos.y * grid_size.x + grid_pos.x)).r),
+             use_linear_blending
+         );
+ 
+--- a/src/renderer/shaders/glsl/cell_text.v.glsl
++++ b/src/renderer/shaders/glsl/cell_text.v.glsl
+@@ -36,9 +36,7 @@
+     vec2 tex_coord;
+ } out_data;
+ 
+-layout(binding = 1, std430) readonly buffer bg_cells {
+-    uint bg_colors[];
+-};
++layout(binding = 2) uniform usamplerBuffer bg_cells;
+ 
+ void main() {
+     uvec2 grid_size = unpack2u16(grid_size_packed_2u16);
+@@ -117,7 +115,7 @@
+     out_data.color = load_color(color, true);
+     // Get the BG color
+     out_data.bg_color = load_color(
+-            unpack4u8(bg_colors[grid_pos.y * grid_size.x + grid_pos.x]),
++            unpack4u8(texelFetch(bg_cells, int(grid_pos.y * grid_size.x + grid_pos.x)).r),
+             true
+         );
+     // Blend it with the global bg color
+--- a/src/renderer/shadertoy.zig
++++ b/src/renderer/shadertoy.zig
+@@ -259,7 +259,7 @@
+ 
+ /// Convert SPIR-V binary to GLSL.
+ pub fn glslFromSpv(alloc: Allocator, spv: []const u8) ![:0]const u8 {
+-    const GLSL_VERSION = 430;
++    const GLSL_VERSION = 400;
+ 
+     const c = spvcross.c;
+     return try spvCross(alloc, c.SPVC_BACKEND_GLSL, spv, (struct {

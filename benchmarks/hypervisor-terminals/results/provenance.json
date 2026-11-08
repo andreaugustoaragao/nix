@@ -1,0 +1,45 @@
+{
+  "image_sha256": "2094b28281a8c949f3aca713697f66e6f1977ff43e657c6d97c52756cbfe302d",
+  "stable_nixpkgs_revision": "b25309931cfda5f0b8805f462a29897eeae50168",
+  "ghostty_nixpkgs_revision": "f9887a8a434bfba06e20dfc77bc8e0628266af84",
+  "app_trials": [
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "storage_and_go_retest_trials": [
+    40,
+    41,
+    42,
+    43,
+    44
+  ],
+  "screenshots": {
+    "parallels": 45,
+    "fusion": 45
+  },
+  "script_sha256": {
+    "terminal_workload.py": "b0a4b69cd9b96f4ec1143aeceac3a972658e8cb91e9a402ff623762a2359e559",
+    "guest.py": "a16bb9df6674b6291283021d31ab012f9dbe67603a5fef6612f8327b51df5629",
+    "compare.py": "def879f68f07d91c3a5c523ccf921794566ded8f8214daea23b290fdcde383cf",
+    "analyze.py": "775c8efd5a41c40402c00e83eb66ff2c92de1fc5a229b9865f6ddf5ccee972b6",
+    "storage.py": "151782ca047558e66e80341e0dfddfa269ec116d0674855e7c78f2af9683029a"
+  },
+  "artifact_sha256": {
+    "app-summary.json": "033cddf2b53322e0cfe5bb94d6048b2a32e1e35aa58d6c61cbaa3e324d2aef11",
+    "storage-summary.json": "74b1655a081e5e5d892b51641783a5a6db38b7df5c6d53b73fe5c083985059ab",
+    "host-metadata.json": "cd3242aaa287116add270bd2b6a0199ecd9b89e641e26f8f794ffb83b0d63440",
+    "parallels-evidence.tar.gz": "e69743a833dae0a3e19a2291bd59ef792cf6d6ec5bc04e8c2eb9da8c3eb22c7d",
+    "fusion-evidence.tar.gz": "1fd208bd20c4da2648befa528e4a178a2837feaf2a0184a80d8544673b8068ae",
+    "parallels-ghostty.png": "f19bfdbf324260af9f60bd1dd755f8791285d970e8589c712c2be05ac42db52d",
+    "parallels-herdr.png": "ba1372bcc92f32d3a0829451bbaaae00e249f7ff3ed57da7f1d66bcf3bd44f25",
+    "parallels-kero.png": "69b4a902af480ae6372b46f0e78b0f82814696ff6e13e8899c11e6d98b141590",
+    "fusion-ghostty.png": "2f649d72b600c113a7503c5e938f890a787ec285c62a5beb6fbd01f0e9ef12fd",
+    "fusion-herdr.png": "3155507cb50173cb7adc7c6cc5b3906e29c22f6327bdd3c2b1bcc22dc6ee0a36",
+    "fusion-kero.png": "c06978743478ed4daf1c1c5261b3e44a41300229c03837e81c1b3c25ce1ad1e5",
+    "measurements.tar.gz": "f45170a544da2d04bf4b2c0b1e80b5db430c5d7fd368687dafa606770da5846b",
+    "setup-and-exclusions.tar.gz": "259aae2d65b26b0a84bcdb81342366729eb86bc58dec37ac3781be58606a61c5"
+  }
+}

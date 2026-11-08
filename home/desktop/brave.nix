@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  unstable-pkgs,
   hostName,
   isVm ? false,
   ...
@@ -160,7 +159,7 @@ let
   # Linux-only module — the Darwin brave build wraps with makeWrapper
   # and has no gappsWrapperArgs, but home/desktop is never imported
   # on mac-work.
-  bravePackage = unstable-pkgs.brave.overrideAttrs (old: {
+  bravePackage = (pkgs.callPackage ../../pkgs/brave.nix { }).overrideAttrs (old: {
     preFixup = old.preFixup + ''
       gappsWrapperArgs+=(
         --add-flags ${lib.escapeShellArg (builtins.concatStringsSep " " commandLineArgs)}
@@ -180,7 +179,7 @@ in
     ''
   );
 
-  # Brave Browser configuration using unstable version
+  # Brave Browser configuration using the pinned upstream release
   programs.brave = {
     enable = true;
     package = bravePackage;

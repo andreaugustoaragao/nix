@@ -2,6 +2,7 @@
   pkgs,
   lib,
   isVm,
+  hostName,
   ...
 }:
 
@@ -13,8 +14,8 @@
     NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
     ENABLE_TOOL_SEARCH = "true";
   }
-  // lib.optionalAttrs isVm {
-    # Parallels exposes OpenGL but no Vulkan — Zed otherwise refuses to start on lavapipe.
+  // lib.optionalAttrs (isVm && hostName != "prl-dev-vm") {
+    # Other VM hosts still use Zed's software fallback.
     ZED_ALLOW_EMULATED_GPU = "1";
   };
 

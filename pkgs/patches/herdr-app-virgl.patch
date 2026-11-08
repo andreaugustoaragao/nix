@@ -1,0 +1,56 @@
+diff --git a/vendor/gpui-pre-wgpu/src/wgpu_context.rs b/vendor/gpui-pre-wgpu/src/wgpu_context.rs
+index 4c55ef1..974aefb 100644
+--- a/vendor/gpui-pre-wgpu/src/wgpu_context.rs
++++ b/vendor/gpui-pre-wgpu/src/wgpu_context.rs
+@@ -418,9 +418,13 @@ impl WgpuContext {
+     async fn create_device(
+         adapter: &wgpu::Adapter,
+     ) -> anyhow::Result<(wgpu::Device, wgpu::Queue, bool, TextureFormat)> {
+-        let dual_source_blending = adapter
+-            .features()
+-            .contains(wgpu::Features::DUAL_SOURCE_BLENDING);
++        let texture_instance_data = adapter.get_info().backend == wgpu::Backend::Gl
++            && (cfg!(target_family = "wasm")
++                || adapter.limits().max_storage_buffers_per_shader_stage == 0);
++        let dual_source_blending = !texture_instance_data
++            && adapter
++                .features()
++                .contains(wgpu::Features::DUAL_SOURCE_BLENDING);
+ 
+         let mut required_features = wgpu::Features::empty();
+         if dual_source_blending {
+@@ -433,8 +437,9 @@ impl WgpuContext {
+         }
+ 
+         let color_atlas_texture_format = Self::select_color_texture_format(adapter)?;
+-        #[cfg(target_family = "wasm")]
+-        let required_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
++        // Native OpenGL 4.0 / ES 3.0 adapters can use the existing WebGL2
++        // texture transport without compute shaders or storage buffers.
++        let required_limits = if texture_instance_data {
+             wgpu::Limits::downlevel_webgl2_defaults()
+                 .using_resolution(adapter.limits())
+                 .using_alignment(adapter.limits())
+@@ -443,10 +448,6 @@ impl WgpuContext {
+                 .using_resolution(adapter.limits())
+                 .using_alignment(adapter.limits())
+         };
+-        #[cfg(not(target_family = "wasm"))]
+-        let required_limits = wgpu::Limits::downlevel_defaults()
+-            .using_resolution(adapter.limits())
+-            .using_alignment(adapter.limits());
+ 
+         let (device, queue) = adapter
+             .request_device(&wgpu::DeviceDescriptor {
+@@ -724,7 +725,10 @@ impl WgpuContext {
+     }
+ 
+     pub fn uses_webgl_instance_data(&self) -> bool {
+-        matches!(self.backend, WgpuBackend::Gl) && cfg!(target_family = "wasm")
++        matches!(
++            self.backend,
++            WgpuBackend::Gl | WgpuBackend::Native(wgpu::Backend::Gl)
++        ) && self.device.limits().max_storage_buffers_per_shader_stage == 0
+     }
+ 
+     pub fn supports_dual_source_blending(&self) -> bool {

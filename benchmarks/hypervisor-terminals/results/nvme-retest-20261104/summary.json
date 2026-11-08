@@ -1,0 +1,111 @@
+{
+  "fusion_version": "26.0.0",
+  "fusion_build": "25388279",
+  "kernel": "6.18.55",
+  "cpus": 8,
+  "cpu_possible": "0-7",
+  "cold_boot_32": {
+    "status": "driver_rejected_parameter",
+    "block_device_present": false
+  },
+  "cold_boot_64": {
+    "status": "driver_rejected_parameter",
+    "block_device_present": false
+  },
+  "cold_boot_8": {
+    "status": "failed_reliability_gate",
+    "poll_queues_actual": "8",
+    "controller_queue_count": "16",
+    "nvme_timeout_count": 6,
+    "nvme_timeouts": [
+      "[  142.316572] nvme nvme0: I/O tag 193 (40c1) QID 7 timeout, completion polled",
+      "[  184.052861] nvme nvme0: I/O tag 174 (00ae) QID 3 timeout, completion polled",
+      "[  222.965007] nvme nvme0: I/O tag 206 (e0ce) QID 1 timeout, completion polled",
+      "[  309.754475] nvme nvme0: I/O tag 99 (0063) QID 5 timeout, completion polled",
+      "[  313.078486] nvme nvme0: I/O tag 51 (6033) QID 1 timeout, completion polled",
+      "[  323.062456] nvme nvme0: I/O tag 192 (20c0) QID 2 timeout, completion polled"
+    ],
+    "userspace_errors": [],
+    "crc_read_bytes": 67108864,
+    "crc_job_error": 0,
+    "go_clean_seconds": 18.616384842000002,
+    "go_incremental_seconds": 0.75395623,
+    "stress_read_bytes": 1387917312,
+    "stress_write_bytes": 1385361408
+  },
+  "new_fusion": {
+    "version": "26H1u1 / 26.0.1",
+    "build": "25689522",
+    "download_source": "https://archive.org/download/vmwareworkstationarchive/Fusion/26H1/VMware-Fusion-26H1u1-25689522_universal.dmg",
+    "dmg_sha256": "df1911f8de651818a43c20ca1054403da7e39534f15a2e0e0f9d41ffcf728ab8",
+    "code_signing_team": "EG7KH642X6",
+    "signature_verification": "codesign --verify --deep --strict passed",
+    "gatekeeper": "accepted; Notarized Developer ID",
+    "status": "Tested after local administrator initialization; see fusion26h1u1/summary.json",
+    "remote_auth_error": -60007,
+    "results": {
+      "default": {
+        "kernel_timeout_count": 7,
+        "kernel_timeouts": [
+          "[  105.201604] nvme nvme0: I/O tag 129 (6081) QID 1 timeout, completion polled",
+          "[  105.289220] nvme nvme0: I/O tag 192 (d0c0) QID 2 timeout, completion polled",
+          "[  105.349569] nvme nvme0: I/O tag 64 (2040) QID 6 timeout, completion polled",
+          "[  142.829006] nvme nvme0: I/O tag 76 (a04c) QID 7 timeout, completion polled",
+          "[  221.926142] nvme nvme0: I/O tag 244 (10f4) QID 6 timeout, completion polled",
+          "[  227.053977] nvme nvme0: I/O tag 50 (a032) QID 1 timeout, completion polled",
+          "[  263.141971] nvme nvme0: I/O tag 192 (90c0) QID 2 timeout, completion polled"
+        ],
+        "errors": [],
+        "poll_queues": "0",
+        "controller_queue_count": "9",
+        "cpus": 8,
+        "status": "failed reliability gate",
+        "go_seconds": {
+          "clean": 20.759196884999994,
+          "incremental": 0.7967549999999903
+        },
+        "crc_read_bytes": 67108864,
+        "crc_job_error": 0,
+        "stress_io_bytes": {
+          "read": 837984256,
+          "write": 837808128
+        }
+      },
+      "cold8": {
+        "kernel_timeout_count": 2,
+        "kernel_timeouts": [
+          "[   79.389259] nvme nvme0: I/O tag 67 (3043) QID 2 timeout, completion polled",
+          "[   79.413765] nvme nvme0: I/O tag 128 (b080) QID 3 timeout, completion polled"
+        ],
+        "errors": [
+          "RuntimeError('Reliability gate failed: kernel I/O warnings during storage suite; further speed/stress tests skipped')"
+        ],
+        "poll_queues": "8",
+        "controller_queue_count": "16",
+        "cpus": 8,
+        "status": "failed reliability gate"
+      },
+      "sata": {
+        "kernel_timeout_count": 0,
+        "kernel_timeouts": [],
+        "errors": [],
+        "poll_queues": null,
+        "controller_queue_count": null,
+        "cpus": 8,
+        "status": "passed reliability pilot",
+        "go_seconds": {
+          "clean": 17.333579591000003,
+          "incremental": 0.6944379170000019
+        },
+        "crc_read_bytes": 67108864,
+        "crc_job_error": 0,
+        "stress_io_bytes": {
+          "read": 1632071680,
+          "write": 1629978624
+        }
+      }
+    }
+  },
+  "kernel_source": "https://raw.githubusercontent.com/gregkh/linux/v6.18.55/drivers/nvme/host/pci.c",
+  "test_scope": "Excluded reliability pilot, not a five-round throughput comparison. Rejected/timeout configurations are not ranked by speed."
+}

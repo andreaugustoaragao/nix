@@ -1,13 +1,19 @@
-{ pkgs, unstable-pkgs, ... }:
+{
+  pkgs,
+  unstable-pkgs,
+  hostName,
+  ...
+}:
 let
 
-  # Wrap zed-editor without rebuilding it from source: symlinkJoin the
-  # cached binary into a thin wrapper derivation, then makeWrapper only
-  # the `zed` entry point. Keeps cache.nixos.org hits intact — only this
-  # 30-second wrapper rebuilds when the injection script changes.
+  # Keep secret loading in a separate wrapper so it does not rebuild Zed.
   zedWrapped =
     let
-      zedPkg = unstable-pkgs.zed-editor;
+      zedPkg =
+        if hostName == "prl-dev-vm" then
+          unstable-pkgs.callPackage ../../pkgs/zed-virgl.nix { }
+        else
+          unstable-pkgs.zed-editor;
     in
     pkgs.symlinkJoin {
       name = "zed-editor-${zedPkg.version}-wrapped";

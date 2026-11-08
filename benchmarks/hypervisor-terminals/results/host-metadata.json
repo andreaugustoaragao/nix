@@ -1,0 +1,30 @@
+{
+  "model": "Mac17,6",
+  "cpu": "Apple M5 Max",
+  "logical_cpus": "18",
+  "memory_bytes": "137438953472",
+  "macos": "ProductName:\t\tmacOS\nProductVersion:\t\t26.7.1\nBuildVersion:\t\t25G241",
+  "parallels": "prlctl version 27.0.3 (58680)",
+  "parallels_disk": {
+    "DeviceIdentifier": "disk3s5",
+    "FilesystemName": "APFS",
+    "MountPoint": "/System/Volumes/Data",
+    "APFSContainerReference": "disk3",
+    "BusProtocol": "Apple Fabric",
+    "SolidState": true,
+    "TotalSize": 1995165736960,
+    "FreeSpace": 0,
+    "filesystem_device": 16777231
+  },
+  "fusion_disk": {
+    "DeviceIdentifier": "disk3s5",
+    "FilesystemName": "APFS",
+    "MountPoint": "/System/Volumes/Data",
+    "APFSContainerReference": "disk3",
+    "BusProtocol": "Apple Fabric",
+    "SolidState": true,
+    "TotalSize": 1995165736960,
+    "FreeSpace": 0,
+    "filesystem_device": 16777231
+  }
+}

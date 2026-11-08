@@ -1,0 +1,8 @@
+2026-11-04T15:49:31.476Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] Log for vmrun pid=16500 version=1.17.0 build=25689522 option=Release
+2026-11-04T15:49:31.476Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] The host is 64-bit Arm.
+2026-11-04T15:49:31.476Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] Host codepage=UTF-8 encoding=UTF-8
+2026-11-04T15:49:31.476Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] Host is macOS 26.7.1 (25G241) Darwin 25.6.0
+2026-11-04T15:49:31.476Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] Host offset from UTC is -07:00.
+2026-11-04T15:49:31.467Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] VTHREAD 8299553216 "vmx" tid 56705610
+2026-11-04T15:49:31.467Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] DictionaryLoad: Cannot open file "/Library/Preferences/VMware Fusion/vsphereFeatures/vsphereFeatures.cfg": No such file or directory.
+2026-11-04T15:49:31.467Z -INFO vmware-vmx 16500 [fusion@4413 threadName="vmx"] [msg.dictionary.load.openFailed] Cannot open file "/Library/Preferences/VMware Fusion/vsphereFeatures/vsphereFeatures.cfg": No such file or directory.

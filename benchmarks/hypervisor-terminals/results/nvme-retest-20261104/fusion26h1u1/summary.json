@@ -1,0 +1,69 @@
+{
+  "version": "26H1u1 / 26.0.1",
+  "build": "25689522",
+  "engine_path": "/Users/aragao/Downloads/vmware-nvme-retest-20261104/VMware Fusion.app/Contents/Library/vmware-vmx",
+  "kernel": "6.18.55",
+  "test_scope": "Reliability pilots; no five-round NVMe speed ranking because the reliability gate failed",
+  "cases": {
+    "default": {
+      "kernel_timeout_count": 7,
+      "kernel_timeouts": [
+        "[  105.201604] nvme nvme0: I/O tag 129 (6081) QID 1 timeout, completion polled",
+        "[  105.289220] nvme nvme0: I/O tag 192 (d0c0) QID 2 timeout, completion polled",
+        "[  105.349569] nvme nvme0: I/O tag 64 (2040) QID 6 timeout, completion polled",
+        "[  142.829006] nvme nvme0: I/O tag 76 (a04c) QID 7 timeout, completion polled",
+        "[  221.926142] nvme nvme0: I/O tag 244 (10f4) QID 6 timeout, completion polled",
+        "[  227.053977] nvme nvme0: I/O tag 50 (a032) QID 1 timeout, completion polled",
+        "[  263.141971] nvme nvme0: I/O tag 192 (90c0) QID 2 timeout, completion polled"
+      ],
+      "errors": [],
+      "poll_queues": "0",
+      "controller_queue_count": "9",
+      "cpus": 8,
+      "status": "failed reliability gate",
+      "go_seconds": {
+        "clean": 20.759196884999994,
+        "incremental": 0.7967549999999903
+      },
+      "crc_read_bytes": 67108864,
+      "crc_job_error": 0,
+      "stress_io_bytes": {
+        "read": 837984256,
+        "write": 837808128
+      }
+    },
+    "cold8": {
+      "kernel_timeout_count": 2,
+      "kernel_timeouts": [
+        "[   79.389259] nvme nvme0: I/O tag 67 (3043) QID 2 timeout, completion polled",
+        "[   79.413765] nvme nvme0: I/O tag 128 (b080) QID 3 timeout, completion polled"
+      ],
+      "errors": [
+        "RuntimeError('Reliability gate failed: kernel I/O warnings during storage suite; further speed/stress tests skipped')"
+      ],
+      "poll_queues": "8",
+      "controller_queue_count": "16",
+      "cpus": 8,
+      "status": "failed reliability gate"
+    },
+    "sata": {
+      "kernel_timeout_count": 0,
+      "kernel_timeouts": [],
+      "errors": [],
+      "poll_queues": null,
+      "controller_queue_count": null,
+      "cpus": 8,
+      "status": "passed reliability pilot",
+      "go_seconds": {
+        "clean": 17.333579591000003,
+        "incremental": 0.6944379170000019
+      },
+      "crc_read_bytes": 67108864,
+      "crc_job_error": 0,
+      "stress_io_bytes": {
+        "read": 1632071680,
+        "write": 1629978624
+      }
+    }
+  }
+}

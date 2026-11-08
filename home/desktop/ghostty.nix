@@ -3,17 +3,17 @@
   lib,
   unstable-pkgs,
   isVm,
+  hostName,
   ...
 }:
 let
   inherit (pkgs.stdenv.hostPlatform) isLinux;
 
-  # Parallels' guest 3D driver tops out at OpenGL 4.0/4.1, but ghostty
-  # >=1.3 requires 4.3. Force Mesa to use llvmpipe (software, OpenGL
-  # 4.5+) for ghostty only — scoped via wrapper so other GL apps keep
-  # using the accelerated guest driver.
+  # Parallels lacks SSBOs; texture buffers keep cell colors on its VirGL GPU.
   ghosttyPkg =
-    if isVm then
+    if hostName == "prl-dev-vm" then
+      unstable-pkgs.callPackage ../../pkgs/ghostty-virgl.nix { }
+    else if isVm then
       pkgs.symlinkJoin {
         name = "ghostty-vm-${unstable-pkgs.ghostty.version}";
         paths = [ unstable-pkgs.ghostty ];

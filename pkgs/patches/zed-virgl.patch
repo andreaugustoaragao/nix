@@ -1,0 +1,47 @@
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,6 @@
++> [!IMPORTANT]
++> Remove this line to confirm you've reviewed this PR before submitting.
++
+ # Zed
+ 
+ [![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
+--- a/crates/gpui_wgpu/src/wgpu_context.rs
++++ b/crates/gpui_wgpu/src/wgpu_context.rs
+@@ -434,8 +434,13 @@
+         }
+ 
+         let color_atlas_texture_format = Self::select_color_texture_format(adapter)?;
+-        #[cfg(target_family = "wasm")]
+-        let required_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
++        let required_limits = if adapter.limits().max_storage_buffers_per_shader_stage == 0
++            || (cfg!(target_family = "wasm") && adapter.get_info().backend == wgpu::Backend::Gl)
++        {
++            log::info!(
++                "Using texture instance data on adapter {:?}",
++                adapter.get_info().name
++            );
+             wgpu::Limits::downlevel_webgl2_defaults()
+                 .using_resolution(adapter.limits())
+                 .using_alignment(adapter.limits())
+@@ -444,10 +449,6 @@
+                 .using_resolution(adapter.limits())
+                 .using_alignment(adapter.limits())
+         };
+-        #[cfg(not(target_family = "wasm"))]
+-        let required_limits = wgpu::Limits::downlevel_defaults()
+-            .using_resolution(adapter.limits())
+-            .using_alignment(adapter.limits());
+ 
+         let (device, queue) = adapter
+             .request_device(&wgpu::DeviceDescriptor {
+@@ -727,7 +728,7 @@
+     }
+ 
+     pub fn uses_webgl_instance_data(&self) -> bool {
+-        matches!(self.backend, WgpuBackend::Gl) && cfg!(target_family = "wasm")
++        self.device.limits().max_storage_buffers_per_shader_stage == 0
+     }
+ 
+     pub fn supports_dual_source_blending(&self) -> bool {
