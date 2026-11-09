@@ -48,7 +48,7 @@ def read_pin(path):
         raise RestoreError("Invalid package version")
     if not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", pin["hash"]):
         raise RestoreError("Release pin needs a SHA256 SRI digest")
-    if not re.fullmatch(r"https://github\.com/andrearagao/fulcrum/releases/download/[A-Za-z0-9._-]+/shared-vault-release\.tar\.gz", pin["url"]):
+    if pin["url"] is not None and not re.fullmatch(r"https://github\.com/andrearagao/fulcrum/releases/download/[A-Za-z0-9._-]+/shared-vault-release\.tar\.gz", pin["url"]):
         raise RestoreError("Release URL must name the private Fulcrum release asset")
     return pin
 
@@ -74,6 +74,8 @@ def github_token():
 
 
 def download(pin, destination):
+    if pin["url"] is None:
+        raise RestoreError("This release is local-only; provide --archive PATH to the retained certified archive")
     tag = urllib.parse.urlsplit(pin["url"]).path.split("/")[-2]
     headers = {
         "Authorization": "Bearer " + github_token(), "Accept": "application/vnd.github+json",

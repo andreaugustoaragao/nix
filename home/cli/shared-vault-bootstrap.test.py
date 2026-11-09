@@ -19,6 +19,29 @@ spec.loader.exec_module(bootstrap)
 
 
 class RestoreTests(unittest.TestCase):
+    def test_local_only_pin_requires_archive_without_credentials_or_network(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pin.json"
+            pin = {"url": None, "sourceRevision": "1" * 40, "packageVersion": "1.2.3",
+                   "hash": "sha256-" + base64.b64encode(bytes(32)).decode()}
+            path.write_text(json.dumps(pin))
+            self.assertEqual(bootstrap.read_pin(path), pin)
+            with patch.object(bootstrap, "github_token") as token, patch.object(bootstrap.urllib.request, "build_opener") as network:
+                with self.assertRaisesRegex(bootstrap.RestoreError, "local-only.*--archive"):
+                    bootstrap.download(pin, Path(directory) / "archive.tar.gz")
+                token.assert_not_called()
+                network.assert_not_called()
+
+    def test_local_only_cli_explains_retained_archive_requirement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pin.json"
+            path.write_text(json.dumps({"url": None, "sourceRevision": "1" * 40, "packageVersion": "1.2.3",
+                                       "hash": "sha256-" + base64.b64encode(bytes(32)).decode()}))
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name("shared-vault-bootstrap.py")),
+                                     "--pin", str(path), "--archive-only"], text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("local-only; provide --archive", result.stderr)
+
     def test_wrong_archive_never_reaches_nix(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / bootstrap.ARCHIVE_NAME

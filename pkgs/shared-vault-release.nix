@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchurl,
+  requireFile,
   jq,
   python3,
   binutils,
@@ -15,10 +16,18 @@
   sourceRevision,
 }:
 let
-  artifact = fetchurl {
-    inherit url hash;
-    name = "shared-vault-release.tar.gz";
-  };
+  artifact =
+    if url == null then
+      requireFile {
+        inherit hash;
+        name = "shared-vault-release.tar.gz";
+        message = "Import the retained certified runtime with shared-vault-bootstrap.py --archive PATH --archive-only before building this local release.";
+      }
+    else
+      fetchurl {
+        inherit url hash;
+        name = "shared-vault-release.tar.gz";
+      };
   elfMachine =
     {
       x86_64-linux = 62;
