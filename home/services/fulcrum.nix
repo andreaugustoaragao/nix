@@ -12,11 +12,7 @@
 let
   sourceRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
   shared = config.my.sharedVault or { enable = false; };
-  projectRoot =
-    if shared.enable then
-      "${config.home.homeDirectory}/projects/work/fulcrum-releases/${shared.releaseId}"
-    else
-      sourceRoot;
+  projectRoot = if shared.enable then "${shared.release}/share/vault-services" else sourceRoot;
 
   # Runtime library path for native modules (onnxruntime / sharp in
   # @huggingface/transformers). `libstdc++` is the one that actually
@@ -154,12 +150,14 @@ in
 
   systemd.user.services.fulcrum = {
     Unit = {
-      Description = "Fulcrum — executive operational intelligence (source)";
+      Description = "Fulcrum — executive operational intelligence (${
+        if shared.enable then "Nix release" else "source"
+      })";
       Documentation = [ "file://${projectRoot}/docs/README.md" ];
       After = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
       Wants = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
-      # No-op on machines without the project checked out.
-      ConditionPathExists = projectRoot;
+      # Development checkouts are optional; packaged releases are Nix dependencies.
+      ConditionPathExists = lib.mkIf (!shared.enable) projectRoot;
     };
 
     Service = {

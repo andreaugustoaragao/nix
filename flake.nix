@@ -794,6 +794,9 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-bootstrap.test.py
                 touch "$out"
               '';
+          fulcrum-packaged-runtime = import ./home/services/fulcrum-release-check.nix {
+            inherit pkgs home-manager;
+          };
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
             inherit pkgs home-manager;
           };
