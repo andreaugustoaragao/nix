@@ -6,18 +6,11 @@
   ...
 }:
 let
-  shared = config.my.sharedVault or { enable = false; };
-  sourceRoot =
-    if shared.enable then
-      "${config.home.homeDirectory}/projects/work/fulcrum-releases/${shared.releaseId}"
-    else
-      "${config.home.homeDirectory}/projects/work/fulcrum";
   pin = builtins.fromJSON (builtins.readFile ./fulcrum-source.json);
-  # Desktop keeps its independent revision in the bootstrapped Git history.
-  source = builtins.fetchGit {
-    url = "file://${sourceRoot}";
-    rev = pin.revision;
-    allRefs = true;
+  source = pkgs.fetchzip {
+    name = "fulcrum-desktop-source";
+    url = "https://github.com/andrearagao/fulcrum/archive/${pin.revision}.tar.gz";
+    inherit (pin) hash;
   };
   cfg = config.my.fulcrum.desktop;
 in
