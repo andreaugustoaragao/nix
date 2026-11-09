@@ -3,8 +3,10 @@
 The committed Nix flake selects the system packages, five agent clients,
 independent vault service, scheduler, cleanup timer and notes synchronization.
 `home/services/shared-vault-prl-dev-vm-release.json` pins the aarch64-linux
-runtime by full Fulcrum commit and SHA256. The archive is retained in the
-private `andrearagao/fulcrum` GitHub release named in that pin.
+runtime by full Fulcrum commit and SHA256. A null `url` selects a local-only
+release: retain its certified archive privately and import it with `--archive`
+before rebuilding. This mode performs no runtime download or publication.
+Pins with a GitHub URL retain the existing private-release download workflow.
 
 The runtime archive contains certified source, built web assets and installed
 native dependencies. It does not contain credentials, Git metadata or mutable
@@ -31,7 +33,7 @@ store. Runtime and desktop inputs are both verified against committed hashes.
 mkdir -p ~/projects/personal
 git clone git@github.com:andreaugustoaragao/nix.git ~/projects/personal/nix
 cd ~/projects/personal/nix
-python3 home/cli/shared-vault-bootstrap.py
+python3 home/cli/shared-vault-bootstrap.py --archive /path/to/shared-vault-release.tar.gz
 nix flake check --no-build --all-systems
 ```
 
