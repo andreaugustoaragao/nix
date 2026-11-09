@@ -82,10 +82,10 @@
     # 26.05 flipped this default to false; pin true to keep exporting the
     # XDG_*_DIR variables into the session as before.
     setSessionVariables = true;
-    desktop = null;
+    desktop = "${config.home.homeDirectory}/desktop";
     templates = null;
     publicShare = null;
-    documents = null;
+    documents = "${config.home.homeDirectory}/documents";
     download = "${config.home.homeDirectory}/downloads";
     music = "${config.home.homeDirectory}/music";
     pictures = "${config.home.homeDirectory}/pictures";
