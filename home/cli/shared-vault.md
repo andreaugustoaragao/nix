@@ -8,20 +8,23 @@ initialize a catalog or resume scheduled work.
 Before enabling it, certify a release providing `bin/vault-client` and
 `bin/vault-mcp` with the explicit `--socket PATH --vault ID` contract. Its
 `sharedVaultSourceRevision` passthru must match the declared full `releaseId`.
-`pkgs/shared-vault-release.nix` accepts a certified `.tar.gz` archive URL and
+`pkgs/shared-vault-release.nix` accepts a certified `.tar.gz` archive pin and
 whole-file SHA256, package version and reviewed full source revision. The archive
 has one top-level directory. Its build checks the archive's
 `share/vault-services/release.json` against those declared values and requires
 the service, CLI, MCP, Bun and automation bootstrap files. An archive without
 the reviewed manifest is rejected. The release build and certification remain
 separate from this configuration module.
-The `prl-dev-vm` deployment pins a certified archive in the private Fulcrum
-GitHub releases through `home/services/shared-vault-prl-dev-vm-release.json`.
-Run `python3 home/cli/shared-vault-bootstrap.py` from the Nix checkout to fetch
-and verify that archive, import it into Nix, build the runtime package and
-verify its packaged application identity. It also imports the separately pinned
-desktop source archive. The bootstrap accepts `--archive` and `--desktop-archive`
-for offline recovery. See [environment recovery](../../docs/shared-vault-recovery.md)
+The `prl-dev-vm` deployment pins its certified archive through
+`home/services/shared-vault-prl-dev-vm-release.json`. The current local-only pin
+has `url: null`; retain its archive privately and run
+`python3 home/cli/shared-vault-bootstrap.py --archive /path/to/shared-vault-release.tar.gz`
+from the Nix checkout. For a pin with a private GitHub release URL, omit
+`--archive` to download it. The bootstrap verifies and imports the archive,
+builds the runtime package and verifies its packaged application identity.
+It also imports the separately pinned desktop source archive; supply
+`--desktop-archive` when restoring that source offline.
+See [environment recovery](../../docs/shared-vault-recovery.md)
 for credentials, mutable-state restoration and installed verification.
 
 On Linux, package installation removes ELF files for other CPUs or musl after
