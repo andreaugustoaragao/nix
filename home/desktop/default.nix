@@ -66,7 +66,6 @@
     ./notes.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
-    ./kero.nix
     ./herdr-layouts.nix
     ./parallels-displays.nix
     ./hyprland-noctalia.nix
