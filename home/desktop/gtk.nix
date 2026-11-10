@@ -1,14 +1,18 @@
 {
+  config,
   pkgs,
   lib,
   hostName,
+  appearance,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
 let
-  iconTheme = if useDms then "Papirus-Dark" else "Yaru-blue";
-  iconPkg = if useDms then pkgs.papirus-icon-theme else pkgs.yaru-theme;
+  integratedShell = useDms || useNoctalia;
+  iconTheme = if integratedShell then "Papirus-Dark" else "Yaru-blue";
+  iconPkg = if integratedShell then pkgs.papirus-icon-theme else pkgs.yaru-theme;
 in
 {
   gtk = {
@@ -23,14 +27,31 @@ in
     # Adwaita stays the structural base in both modes; DMS's
     # matugen-generated `dank-colors.css` is symlinked at gtk.css and
     # overlays Adwaita with the wallpaper-derived palette when useDms.
-    theme = {
-      name = "Adwaita";
-    };
+    theme =
+      if appearance.isGruvbox then
+        null
+      else
+        {
+          name = "Adwaita";
+        };
     # 26.05 changed the gtk4 theme default from `config.gtk.theme` to null;
     # pin it to Adwaita to keep the pre-upgrade gtk4 appearance.
-    gtk4.theme = {
-      name = "Adwaita";
-    };
+    gtk4.theme =
+      if appearance.isGruvbox then
+        null
+      else
+        {
+          name = "Adwaita";
+        };
+    gtk2.extraConfig = lib.optionalString appearance.isGruvbox ''
+      include "${config.xdg.configHome}/gtk-2.0/gruvbox.rc"
+    '';
+    gtk3.extraCss = lib.optionalString appearance.isGruvbox ''
+      @import url("gruvbox.css");
+    '';
+    gtk4.extraCss = lib.optionalString appearance.isGruvbox ''
+      @import url("gruvbox.css");
+    '';
     iconTheme = {
       name = iconTheme;
       package = iconPkg;
@@ -43,10 +64,10 @@ in
     # In DMS mode, the freedesktop color-scheme portal toggles dark/light
     # globally (syncModeWithPortal=true). Forcing prefer-dark-theme here
     # would override the portal and break light-mode switching.
-    gtk3.extraConfig = lib.mkIf (!useDms) {
+    gtk3.extraConfig = lib.mkIf (!integratedShell) {
       gtk-application-prefer-dark-theme = 1;
     };
-    gtk4.extraConfig = lib.mkIf (!useDms) {
+    gtk4.extraConfig = lib.mkIf (!integratedShell) {
       gtk-application-prefer-dark-theme = 1;
     };
   };
@@ -55,7 +76,17 @@ in
   # it, but a few symbolic names DMS/Qt request (input-keyboard-symbolic,
   # application-x-executable, …) aren't in those themes; installing Adwaita
   # into the profile makes them resolvable via the icon-lookup fallback.
-  home.packages = [ pkgs.adwaita-icon-theme ];
+  home.packages = [
+    pkgs.adwaita-icon-theme
+  ]
+  ++ lib.optionals appearance.isGruvbox [
+    pkgs.adw-gtk3
+    pkgs.gruvbox-gtk-theme
+  ];
+  xdg.configFile = lib.mkIf appearance.isGruvbox {
+    "gtk-3.0/gtk.css".force = true;
+    "gtk-4.0/gtk.css".force = true;
+  };
 
   # User avatar. DMS (and other freedesktop consumers) look for ~/.face;
   # mirror the AccountsService login avatar here so the shell profile pic
@@ -69,11 +100,11 @@ in
 
   dconf.settings = {
     "org/gnome/desktop/interface" = {
-      gtk-theme = "Adwaita";
-      icon-theme = iconTheme;
+      gtk-theme = lib.mkIf (!appearance.isGruvbox) "Adwaita";
+      icon-theme = lib.mkIf (!appearance.isGruvbox) iconTheme;
       cursor-theme = "Bibata-Modern-Classic";
       # In DMS mode the portal owns the color-scheme; don't pin it here.
-      color-scheme = lib.mkIf (!useDms) "prefer-dark";
+      color-scheme = lib.mkIf (!integratedShell) "prefer-dark";
     };
 
     "org/gtk/settings/file-chooser" = {

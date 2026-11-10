@@ -1,4 +1,8 @@
 {
+  config,
+  lib,
+  appearance,
+  pkgs,
   unstable-pkgs,
   ...
 }:
@@ -43,9 +47,9 @@
       };
 
       # Colors - Catppuccin Mocha theme
-      colors = {
+      colors = appearance.mapColors {
         #webpage.darkmode.enabled = true;
-        webpage.preferred_color_scheme = "dark";
+        webpage.preferred_color_scheme = if appearance.isGruvbox then "auto" else "dark";
 
         # Completion menu
         completion = {
@@ -282,7 +286,7 @@
 
       # Hints
       hints = {
-        border = "1px solid #cdd6f4"; # Catppuccin Mocha text
+        border = appearance.render "1px solid #cdd6f4";
         chars = "asdfghjkl";
         uppercase = true;
       };
@@ -427,31 +431,70 @@
     };
 
     # Extra config for URL-based patterns that can't be handled in settings
-    extraConfig = ''
-      # Set default permissions for all sites
-      config.set('content.notifications.enabled', 'ask', '*')
-      config.set('content.media.audio_capture', 'ask', '*')
-      config.set('content.media.video_capture', 'ask', '*')
-      config.set('content.media.audio_video_capture', 'ask', '*')
+    extraConfig =
+      lib.optionalString appearance.isGruvbox ''
+        import json
+        import subprocess
 
-      # Site-specific notifications permissions
-      config.set('content.notifications.enabled', True, 'https://web.whatsapp.com')
-      config.set('content.notifications.enabled', True, 'https://teams.microsoft.com')
-      config.set('content.notifications.enabled', True, 'https://grok.com')
+        _gruvbox_settings = json.loads(r"""${
+          builtins.toJSON {
+            colors = config.programs.qutebrowser.settings.colors;
+            hints.border = config.programs.qutebrowser.settings.hints.border;
+          }
+        }""")
+        _gruvbox_dark = json.loads(r"""${builtins.toJSON appearance.dark}""")
+        _gruvbox_light = json.loads(r"""${builtins.toJSON appearance.light}""")
 
-      # Site-specific media permissions for video conferencing
-      config.set('content.media.audio_capture', True, 'https://teams.microsoft.com')
-      config.set('content.media.audio_capture', True, 'https://meet.google.com')
-      config.set('content.media.audio_capture', True, 'https://zoom.us')
+        def _gruvbox_apply(scheme):
+            palette = _gruvbox_dark if scheme == "'prefer-dark'" else _gruvbox_light
+            replacements = {_gruvbox_dark[key]: palette[key] for key in palette}
 
-      config.set('content.media.video_capture', True, 'https://teams.microsoft.com')
-      config.set('content.media.video_capture', True, 'https://meet.google.com')
-      config.set('content.media.video_capture', True, 'https://zoom.us')
+            def apply(settings, prefix=""):
+                for key, value in settings.items():
+                    name = prefix + key
+                    if isinstance(value, dict):
+                        apply(value, name + ".")
+                    elif isinstance(value, str):
+                        # Replace each original color once, not substitutions of substitutions.
+                        import re
+                        value = re.sub(r"#[0-9a-fA-F]{6}", lambda m: replacements.get(m[0], m[0]), value)
+                        config.set(name, value)
 
-      config.set('content.media.audio_video_capture', True, 'https://teams.microsoft.com')
-      config.set('content.media.audio_video_capture', True, 'https://meet.google.com')
-      config.set('content.media.audio_video_capture', True, 'https://zoom.us')
-    '';
+            apply(_gruvbox_settings)
+
+        # config.py runs before QApplication exists. Read the desktop setting
+        # without constructing Qt objects; web content follows Qt's live scheme.
+        _gruvbox_scheme = subprocess.run(
+            ["${pkgs.glib}/bin/gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+            capture_output=True, text=True, check=False,
+        ).stdout.strip()
+        _gruvbox_apply(_gruvbox_scheme)
+      ''
+      + ''
+        # Set default permissions for all sites
+        config.set('content.notifications.enabled', 'ask', '*')
+        config.set('content.media.audio_capture', 'ask', '*')
+        config.set('content.media.video_capture', 'ask', '*')
+        config.set('content.media.audio_video_capture', 'ask', '*')
+
+        # Site-specific notifications permissions
+        config.set('content.notifications.enabled', True, 'https://web.whatsapp.com')
+        config.set('content.notifications.enabled', True, 'https://teams.microsoft.com')
+        config.set('content.notifications.enabled', True, 'https://grok.com')
+
+        # Site-specific media permissions for video conferencing
+        config.set('content.media.audio_capture', True, 'https://teams.microsoft.com')
+        config.set('content.media.audio_capture', True, 'https://meet.google.com')
+        config.set('content.media.audio_capture', True, 'https://zoom.us')
+
+        config.set('content.media.video_capture', True, 'https://teams.microsoft.com')
+        config.set('content.media.video_capture', True, 'https://meet.google.com')
+        config.set('content.media.video_capture', True, 'https://zoom.us')
+
+        config.set('content.media.audio_video_capture', True, 'https://teams.microsoft.com')
+        config.set('content.media.audio_video_capture', True, 'https://meet.google.com')
+        config.set('content.media.audio_video_capture', True, 'https://zoom.us')
+      '';
   };
 
 }

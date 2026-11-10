@@ -1,9 +1,9 @@
-_:
+{ appearance, ... }:
 
 {
   # Xresources configuration with Catppuccin Mocha colors and centralized DPI
   xresources = {
-    properties = {
+    properties = appearance.mapColors {
       "*.foreground" = "#cdd6f4";
       "*.background" = "#1e1e2e";
       "*.cursorColor" = "#f5e0dc";

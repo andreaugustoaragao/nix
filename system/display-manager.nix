@@ -12,12 +12,13 @@
 
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
-  # via lib.mkDefault, so on interactive useDms hosts we omit the command here
-  # and let dms-greeter win. On !useDms hosts the tuigreet command below is
-  # used instead. Auto-login hosts do not need a greeter module at all.
-  imports = lib.optionals (useDms && !autoLogin) [ inputs.dank-greeter.nixosModules.default ];
+  # via lib.mkDefault. Import it on every useDms host, including autologin, so
+  # a user-session exit while greetd is still running still has that greeter.
+  # !useDms hosts use the tuigreet command below. Autologin must not replace
+  # default_session: greetd starts that command as a logind greeter.
+  imports = lib.optionals useDms [ inputs.dank-greeter.nixosModules.default ];
 }
-// lib.optionalAttrs (useDms && !autoLogin) {
+// lib.optionalAttrs useDms {
   programs.dms-greeter = {
     enable = true;
     compositor.name = "niri";
@@ -32,26 +33,31 @@
 
   services.greetd = {
     enable = true;
-    settings =
-      if autoLogin then
-        {
-          # Auto-login configuration - goes straight to desktop
-          default_session = {
-            command = "${unstable-pkgs.niri}/bin/niri --session";
-            # command = "${pkgs.hyprland}/bin/Hyprland";
-            user = owner.name;
-          };
-        }
-      else
-        {
-          default_session = {
-            user = "greeter";
-          }
-          // lib.optionalAttrs (!useDms) {
-            # Interactive tuigreet — replaced by DMS greeter when useDms.
-            command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${unstable-pkgs.niri}/bin/niri --session'";
-          };
-        };
+    # greetd 0.10.3 starts default_session as SessionClass::Greeter and
+    # starts initial_session as SessionClass::User only when /run/greetd.run
+    # is absent. Keep the greeter as default_session so a user-session exit
+    # while this greetd process is still running starts that login. An exit
+    # of the greetd process itself does not. The NixOS module leaves
+    # services.greetd.restart false when initial_session is present, and
+    # restartIfChanged is false, so activation does not replace the greetd
+    # process that is already running and a later daemon exit stays stopped.
+    # A greeter after that stop needs an explicitly started greetd. The
+    # existing runfile makes that start default_session, not initial_session.
+    settings = {
+      default_session = {
+        user = "greeter";
+      }
+      // lib.optionalAttrs (!useDms) {
+        # Interactive tuigreet — replaced by DMS greeter when useDms.
+        command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${unstable-pkgs.niri}/bin/niri --session'";
+      };
+    }
+    // lib.optionalAttrs autoLogin {
+      initial_session = {
+        command = "${unstable-pkgs.niri}/bin/niri --session";
+        user = owner.name;
+      };
+    };
   };
 
   services.gnome.gnome-keyring.enable = true;
@@ -59,7 +65,7 @@
   # Backport the OpenSession race fix until it ships in GNOME Keyring.
   # https://gitlab.gnome.org/GNOME/gnome-keyring/-/merge_requests/112
   nixpkgs.overlays = [
-    (_final: prev: {
+    (final: prev: {
       gnome-keyring = prev.gnome-keyring.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           (prev.fetchurl {
@@ -74,6 +80,38 @@
           })
         ];
       });
+      # Failed initial registerListener only. A successful registration keeps
+      # Polkit's notify::owner path. polkit-qt-1 is patched only in the
+      # kdePackages set passed to this package. The logind D-Bus fallback
+      # also resolves sessions when hidepid hides /proc/1/cgroup from the
+      # unprivileged agent. No procfs exception or Polkit grant is needed.
+      hyprpolkitagent =
+        (prev.hyprpolkitagent.override {
+          kdePackages = prev.kdePackages // {
+            polkit-qt-1 = prev.kdePackages.polkit-qt-1.overrideAttrs (old: {
+              patches = (old.patches or [ ]) ++ [
+                ../pkgs/polkit-qt-registration-init.patch
+              ];
+            });
+          };
+        }).overrideAttrs
+          (
+            old:
+            let
+              patches = (old.patches or [ ]) ++ [
+                ../pkgs/hyprpolkitagent-registration.patch
+              ];
+            in
+            {
+              inherit patches;
+              passthru = lib.recursiveUpdate (old.passthru or { }) {
+                tests.logind-session = final.callPackage ../pkgs/hyprpolkitagent-logind-session-test.nix {
+                  inherit (old) src;
+                  inherit patches;
+                };
+              };
+            }
+          );
     })
   ];
 

@@ -3,7 +3,9 @@
   pkgs,
   lib,
   hostName,
+  appearance,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -48,13 +50,13 @@ in
     # In DMS mode, route Qt through qtct so DMS's matugen-rendered
     # qt5ct/qt6ct color schemes apply. Outside DMS, fall back to the
     # static adwaita platformtheme + style for native-looking GTK pairing.
-    platformTheme.name = if useDms then "qtct" else "adwaita";
-    style.name = lib.mkIf (!useDms) "adwaita-dark";
+    platformTheme.name = if useDms || appearance.isGruvbox then "qtct" else "adwaita";
+    style.name =
+      if appearance.isGruvbox then "Fusion" else lib.mkIf (!useDms && !useNoctalia) "adwaita-dark";
   };
 
-  # Home Manager's `qtct` shorthand sets QT_QPA_PLATFORMTHEME=qt5ct,
-  # which themes Qt5 apps only — Qt6 apps look for a `qt6ct` plugin id
-  # and silently load nothing. Force qt6ct since modern Qt apps are Qt6.
+  # Both installed platform plugins advertise qt5ct and qt6ct aliases.
+  # Keep the existing DMS override; Gruvbox uses HM's shared qtct route.
   home.sessionVariables = lib.mkIf useDms {
     QT_QPA_PLATFORMTHEME = lib.mkForce "qt6ct";
   };
@@ -63,7 +65,7 @@ in
   #   - useDms=true  → qt5ct/qt6ct read DMS's color scheme files
   #   - useDms=false → adwaita-qt mimics GTK's Adwaita visually
   home.packages =
-    if useDms then
+    if useDms || appearance.isGruvbox then
       [
         pkgs.libsForQt5.qt5ct
         pkgs.qt6Packages.qt6ct

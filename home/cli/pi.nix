@@ -3,6 +3,7 @@
   lib,
   pkgs,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -14,6 +15,76 @@ let
   # x86_64-linux, aarch64-linux, and aarch64-darwin.
   piRs = pkgs.callPackage ../../home/cli/pi-rs { };
   browserTask = pkgs.callPackage ../../pkgs/browser-task.nix { };
+
+  # Pi 1.5's strict theme schema; the setting selects light/dark in that order.
+  gruvboxTheme =
+    mode:
+    let
+      c = appearance.${mode};
+    in
+    {
+      "$schema" = "https://pi.dev/schemas/theme.schema.json";
+      name = "gruvbox-${mode}";
+      appearance = mode;
+      colors = {
+        accent = c.yellow;
+        border = c.overlay0;
+        borderAccent = c.yellow;
+        borderMuted = c.surface2;
+        success = c.green;
+        error = c.red;
+        warning = c.peach;
+        muted = c.subtext0;
+        dim = c.overlay0;
+        inherit (c) text;
+        thinkingText = c.subtext0;
+        selectedBg = c.surface1;
+        userMessageBg = c.surface0;
+        userMessageText = c.text;
+        customMessageBg = c.mantle;
+        customMessageText = c.text;
+        customMessageLabel = c.mauve;
+        toolPendingBg = c.mantle;
+        toolSuccessBg = c.mantle;
+        toolErrorBg = c.surface0;
+        toolTitle = c.text;
+        toolOutput = c.subtext1;
+        mdHeading = c.yellow;
+        mdLink = c.blue;
+        mdLinkUrl = c.teal;
+        mdCode = c.green;
+        mdCodeBlock = c.text;
+        mdCodeBlockBorder = c.surface2;
+        mdQuote = c.subtext0;
+        mdQuoteBorder = c.teal;
+        mdHr = c.surface2;
+        mdListBullet = c.peach;
+        toolDiffAdded = c.green;
+        toolDiffRemoved = c.red;
+        toolDiffContext = c.subtext0;
+        syntaxComment = c.overlay0;
+        syntaxKeyword = c.red;
+        syntaxFunction = c.green;
+        syntaxVariable = c.text;
+        syntaxString = c.green;
+        syntaxNumber = c.mauve;
+        syntaxType = c.yellow;
+        syntaxOperator = c.teal;
+        syntaxPunctuation = c.subtext1;
+        thinkingOff = c.surface2;
+        thinkingMinimal = c.overlay0;
+        thinkingLow = c.blue;
+        thinkingMedium = c.teal;
+        thinkingHigh = c.yellow;
+        thinkingXhigh = c.peach;
+        bashMode = c.green;
+      };
+      export = {
+        pageBg = c.base;
+        cardBg = c.surface0;
+        infoBg = c.mantle;
+      };
+    };
 
   # Directory-style pi extension that forks oh-my-pi's 78 site-specific
   # web_fetch handlers (arxiv, github, npm, pypi, crates.io, docs.rs, mdn,
@@ -628,6 +699,13 @@ in
     pkgs.mcp-nixos
   ];
 
+  home.file.".pi/agent/themes/gruvbox-dark.json" = lib.mkIf appearance.isGruvbox {
+    text = builtins.toJSON (gruvboxTheme "dark");
+  };
+  home.file.".pi/agent/themes/gruvbox-light.json" = lib.mkIf appearance.isGruvbox {
+    text = builtins.toJSON (gruvboxTheme "light");
+  };
+
   # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
   # with a vim-modal editor. Seed the package into settings.json so pi
   # auto-loads it on startup.
@@ -654,6 +732,8 @@ in
   home.file.".pi/agent/extensions/ast-grep.ts".source = astGrepExtension;
   home.file.".pi/agent/extensions/ast-edit.ts".source = astEditExtension;
   home.file.".pi/agent/extensions/browser-mcp.ts".source = webBrowserMcpExtension;
+  # User-facing task lifecycle UI; uses the managed browser-task CLI above.
+  home.file.".pi/agent/extensions/browser-companion".source = ./pi-extensions/browser-companion;
   home.file.".pi/agent/extensions/pi-rs-rewrite.ts".source = piRsRewriteExtension;
 
   # pi-rs-backed primitives. These are thin TS shells that spawn the

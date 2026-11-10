@@ -1,4 +1,5 @@
 {
+  config,
   hostName,
   pkgs,
   useDms ? false,
@@ -8,7 +9,12 @@
 let
   system = pkgs.stdenv.hostPlatform.system;
   fileManager =
-    if hostName == "prl-dev-vm" then "io.github.lgse.Strata.desktop" else "thunar.desktop";
+    if config.programs.yazi-rune.enable then
+      "io.github.yazi_rune.desktop"
+    else if hostName == "prl-dev-vm" then
+      "io.github.lgse.Strata.desktop"
+    else
+      "thunar.desktop";
   textViewer =
     if hostName == "prl-dev-vm" then
       "local.folio.Reader.desktop"

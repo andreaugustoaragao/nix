@@ -4,6 +4,7 @@
   unstable-pkgs,
   isVm,
   hostName,
+  appearance,
   ...
 }:
 let
@@ -78,12 +79,10 @@ in
     # window-theme defaults to "auto" — follows the freedesktop
     # color-scheme preference so GTK chrome flips with system mode.
 
-    # Translucent terminal — cells using the default bg render at this
-    # opacity (so wallpaper bleeds through). Cells with explicit bg
-    # colors stay fully opaque, which is how tmux's active pane
-    # (window-active-style bg=<surface hex>) reads as "solid" while
-    # inactive panes (bg=default) fade to wallpaper.
-    background-opacity = 0.85
+    # Match Kitty/Alacritty's near-opaque background so wallpaper colors
+    # don't visibly tint the startup shell. Explicit cell backgrounds
+    # (e.g. Neovim/tmux) remain fully opaque.
+    background-opacity = 0.98
     background-blur-radius = 20
 
     # No window chrome. On Linux we drop the decoration entirely; on
@@ -127,6 +126,11 @@ in
 
     # Auto-switch via freedesktop portal color-scheme. Both themes ship
     # with ghostty — no extra files to manage.
-    theme = light:TokyoNight Day,dark:Catppuccin Mocha
+    theme = ${
+      if appearance.isGruvbox then
+        "light:Gruvbox Light,dark:Gruvbox Dark"
+      else
+        "light:TokyoNight Day,dark:Catppuccin Mocha"
+    }
   '';
 }

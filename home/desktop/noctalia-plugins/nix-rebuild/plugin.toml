@@ -1,0 +1,11 @@
+id = "aragao/nix-rebuild"
+name = "NixOS rebuild"
+version = "1.0.0"
+plugin_api = 32
+author = "aragao"
+description = "Rebuild the dirty Nix checkout with GUI-authorized system activation."
+dependencies = ["noctalia-nix-rebuild"]
+
+[[widget]]
+id = "rebuild"
+entry = "rebuild.luau"

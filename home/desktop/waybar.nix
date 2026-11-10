@@ -2,6 +2,7 @@
   pkgs,
   lib,
   useDms ? false,
+  useNoctalia ? false,
   isVm ? false,
   ...
 }:
@@ -29,13 +30,13 @@ in
   # DankBar, so don't install the package or its bundled systemd unit
   # (which would auto-start at graphical-session.target regardless of
   # programs.waybar.systemd.enable=false).
-  programs.waybar = lib.mkIf (!useDms) {
+  programs.waybar = lib.mkIf (!(useDms || useNoctalia)) {
     enable = true;
     systemd.enable = false;
   };
 
   # Separate configuration files for different window managers
-  xdg.configFile = lib.mkIf (!useDms) {
+  xdg.configFile = lib.mkIf (!(useDms || useNoctalia)) {
     "waybar/hyprland-config.json".text = builtins.toJSON {
       reload_style_on_change = true;
       layer = "top";

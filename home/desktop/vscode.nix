@@ -1,6 +1,7 @@
 {
   pkgs,
   unstable-pkgs,
+  appearance,
   ...
 }:
 let
@@ -111,7 +112,7 @@ in
         tim-koehler.helm-intellisense # Helm chart IntelliSense
 
         # Themes
-        catppuccin.catppuccin-vsc # Catppuccin color theme
+        (if appearance.isGruvbox then jdinhlife.gruvbox else catppuccin.catppuccin-vsc)
         catppuccin.catppuccin-vsc-icons # Catppuccin icon theme
 
         # Database
@@ -127,9 +128,11 @@ in
       userSettings = {
         # Theme follows the system light/dark mode.
         "window.autoDetectColorScheme" = true;
-        "workbench.preferredDarkColorTheme" = "Catppuccin Mocha";
-        "workbench.preferredLightColorTheme" = "Catppuccin Latte";
-        "workbench.colorTheme" = "Catppuccin Mocha";
+        "workbench.preferredDarkColorTheme" =
+          if appearance.isGruvbox then "Gruvbox Dark Medium" else "Catppuccin Mocha";
+        "workbench.preferredLightColorTheme" =
+          if appearance.isGruvbox then "Gruvbox Light Medium" else "Catppuccin Latte";
+        "workbench.colorTheme" = if appearance.isGruvbox then "Gruvbox Dark Medium" else "Catppuccin Mocha";
         "workbench.iconTheme" = "material-icon-theme";
 
         # Vim

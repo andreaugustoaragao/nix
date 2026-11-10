@@ -1,0 +1,118 @@
+--- a/src/core/Agent.cpp
++++ b/src/core/Agent.cpp
+@@ -3,6 +3,9 @@
+ #include <polkitagent/polkitagent.h>
+ #include <print>
+ #include <QtCore/QString>
++#include <QtCore/QTimer>
++#include <algorithm>
++#include "LogindSession.hpp"
+ using namespace Qt::Literals::StringLiterals;
+ 
+ #include "Agent.hpp"
+@@ -17,10 +20,8 @@
+ }
+ 
+ bool CAgent::start() {
+-    sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
+-
+-    listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
+-
++    // QApplication installs Qt's glib dispatcher before registration, so the
++    // system-bus connection and a retry timer share that event loop.
+     int          argc = 1;
+     char*        argv = (char*)"hyprpolkitagent";
+     QApplication app(argc, &argv);
+@@ -28,6 +29,48 @@
+     app.setApplicationName("Hyprland Polkit Agent");
+     QGuiApplication::setQuitOnLastWindowClosed(false);
+ 
++    // Retry only a failed initial registerListener. Success leaves Polkit's
++    // notify::owner handler in place; a second register would replace it.
++    QTimer registrationTimer;
++    registrationTimer.setSingleShot(true);
++    int delayMs = 1000;
++
++    const auto tryRegister = [&]() -> bool {
++        sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
++        if (!sessionSubject->isValid()) {
++            // hidepid can hide /proc/1/cgroup, which libsystemd needs even
++            // to resolve our own PID. Ask logind for this PID's session;
++            // never trust XDG_SESSION_ID or choose another user's display.
++            const QString id = logindSessionForProcess(getpid());
++            if (!id.isEmpty())
++                sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(id);
++        }
++        if (!sessionSubject->isValid()) {
++            std::print(stderr, "hyprpolkitagent: no logind session subject; authentication agent registration failed\n");
++            return false;
++        }
++        if (listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent")) {
++            std::print(stderr, "hyprpolkitagent: authentication agent registered\n");
++            return true;
++        }
++        std::print(stderr, "hyprpolkitagent: authentication agent registration failed\n");
++        return false;
++    };
++
++    if (!tryRegister()) {
++        registrationTimer.callOnTimeout(&registrationTimer, [&] {
++            if (tryRegister()) {
++                registrationTimer.stop();
++                return;
++            }
++            delayMs = std::min(delayMs * 2, 30000);
++            registrationTimer.setInterval(delayMs);
++            registrationTimer.start();
++        });
++        registrationTimer.setInterval(delayMs);
++        registrationTimer.start();
++    }
++
+     app.exec();
+ 
+     return true;
+--- /dev/null
++++ b/src/core/LogindSession.hpp
+@@ -0,0 +1,33 @@
++#pragma once
++
++#include <QtCore/QString>
++#include <QtDBus/QDBusConnection>
++#include <QtDBus/QDBusMessage>
++#include <QtDBus/QDBusObjectPath>
++#include <QtDBus/QDBusReply>
++#include <QtDBus/QDBusVariant>
++
++// Resolve only the requested PID through the trusted system-bus logind.
++// Polkit still verifies the caller's session when registering the listener.
++inline QString logindSessionForProcess(quint32 pid) {
++    const auto bus = QDBusConnection::systemBus();
++    auto lookup = QDBusMessage::createMethodCall(
++        QStringLiteral("org.freedesktop.login1"),
++        QStringLiteral("/org/freedesktop/login1"),
++        QStringLiteral("org.freedesktop.login1.Manager"),
++        QStringLiteral("GetSessionByPID"));
++    lookup << pid;
++    const QDBusReply<QDBusObjectPath> session = bus.call(lookup, QDBus::Block, 5000);
++    if (!session.isValid())
++        return {};
++
++    auto properties = QDBusMessage::createMethodCall(
++        QStringLiteral("org.freedesktop.login1"), session.value().path(),
++        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
++    properties << QStringLiteral("org.freedesktop.login1.Session") << QStringLiteral("Id");
++    const QDBusReply<QDBusVariant> id = bus.call(properties, QDBus::Block, 5000);
++    if (!id.isValid() || id.value().variant().metaType().id() != QMetaType::QString)
++        return {};
++
++    return id.value().variant().toString();
++}
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -11,1 +11,1 @@
+-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Quick QuickControls2)
++find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Quick QuickControls2 DBus)
+@@ -46,1 +46,1 @@
+-    PRIVATE Qt6::Widgets Qt6::Quick Qt6::Gui Qt6::QuickControls2 PkgConfig::deps
++    PRIVATE Qt6::Widgets Qt6::Quick Qt6::Gui Qt6::QuickControls2 Qt6::DBus PkgConfig::deps

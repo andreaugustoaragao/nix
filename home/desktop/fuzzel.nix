@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  appearance,
   isVm ? false,
   ...
 }:
@@ -70,8 +71,8 @@ in
   # when the system color-scheme toggles, and seeded on rebuild by the
   # activation script below.
   xdg.configFile = {
-    "fuzzel/fuzzel.mocha.ini".text = mochaIni;
-    "fuzzel/fuzzel.latte.ini".text = latteIni;
+    "fuzzel/fuzzel.mocha.ini".text = appearance.render mochaIni;
+    "fuzzel/fuzzel.latte.ini".text = appearance.render latteIni;
   };
 
   # Point fuzzel.ini at the variant matching the current portal

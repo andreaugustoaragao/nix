@@ -1,5 +1,6 @@
 {
   isVm ? false,
+  appearance,
   ...
 }:
 
@@ -35,7 +36,7 @@ in
       sort_order = "alphabetical";
     };
 
-    style = ''
+    style = appearance.render ''
       window {
         margin: 0px;
         border: 2px solid #cdd6f4;

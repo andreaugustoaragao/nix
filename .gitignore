@@ -1,4 +1,6 @@
 node_modules/
+# Local isolated Git worktrees.
+.worktrees/
 package.json
 package-lock.json
 # But DO track pi extension package manifests — they're authored.

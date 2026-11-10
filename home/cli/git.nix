@@ -3,6 +3,7 @@
   lib,
   pkgs,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -22,12 +23,12 @@ in
     delta = {
       enable = true;
       enableGitIntegration = true;
-      options = {
+      options = appearance.mapColors {
         dark = true;
         line-numbers = true;
         navigate = true;
         side-by-side = true;
-        syntax-theme = "base16";
+        syntax-theme = if appearance.isGruvbox then "gruvbox-dark" else "base16";
 
         file-style = "bold #cba6f7";
         hunk-header-file-style = "bold #89b4fa";

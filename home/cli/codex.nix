@@ -6,6 +6,7 @@
   pkgs,
   unstable-pkgs,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -61,9 +62,9 @@ let
         "litellm"
     }"
     model_reasoning_effort = "high"
-    # Route approval requests to Auto-review instead of prompting for routine work.
-    sandbox_mode = "workspace-write"
-    approval_policy = "on-request"
+    # Start in YOLO mode: full access without approval prompts.
+    sandbox_mode = "danger-full-access"
+    approval_policy = "never"
     approvals_reviewer = "auto_review"
 
     features.hooks = true
@@ -174,6 +175,10 @@ let
     ''}
 
     [tui]
+    ${lib.optionalString appearance.isGruvbox ''
+      # ANSI syntax colors follow the terminal palette in both light and dark mode.
+      theme = "ansi"
+    ''}
     vim_mode_default = true
     status_line_use_colors = true
     status_line = ["model-with-reasoning", "current-dir", "git-branch", "estimated-thread-cost", "run-state", "permissions", "approval-mode"]

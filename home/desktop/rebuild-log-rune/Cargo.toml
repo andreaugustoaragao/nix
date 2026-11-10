@@ -1,0 +1,23 @@
+[package]
+name = "rebuild-log-rune"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+description = "A native Rune viewer for live NixOS rebuild logs"
+
+[dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b", default-features = false, features = ["accessibility", "dbus"] }
+rune-kit = { git = "https://github.com/anomalyco/rune", rev = "7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b", default-features = false }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+strip-ansi-escapes = "0.2.1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.dev]
+debug = 0
+
+[profile.dev.package."*"]
+opt-level = 1

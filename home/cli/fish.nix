@@ -3,6 +3,7 @@
   lib,
   hostName,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -111,11 +112,11 @@ in
       set -gx SOPS_AGE_KEY_FILE $HOME/.config/sops/age/keys.txt
     '';
 
-    interactiveShellInit = ''
+    interactiveShellInit = appearance.render ''
       # Any-nix-shell integration for better nix-shell experience
       ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
 
-      # Catppuccin Mocha shell syntax colors.
+      # ${if appearance.isGruvbox then "Gruvbox Dark" else "Catppuccin Mocha"} shell syntax colors.
       set -g fish_color_autosuggestion 6c7086
       set -g fish_color_command 89b4fa
       set -g fish_color_comment 6c7086
