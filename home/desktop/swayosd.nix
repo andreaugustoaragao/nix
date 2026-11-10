@@ -1,5 +1,6 @@
 {
   pkgs,
+  appearance,
   ...
 }:
 
@@ -17,7 +18,7 @@
     style = "./style.css"
   '';
 
-  xdg.configFile."swayosd/style.css".text = ''
+  xdg.configFile."swayosd/style.css".text = appearance.render ''
     /* Catppuccin Mocha colors for SwayOSD */
     @define-color background-color #1e1e2e;
     @define-color border-color #cdd6f4;

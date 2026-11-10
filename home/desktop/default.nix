@@ -52,6 +52,7 @@
     ./fcitx.nix
     ./thunar.nix
     ./strata.nix
+    ./yazi-rune.nix
     ./xresources.nix
     ./cursors.nix
     ./mimeapps.nix
@@ -59,6 +60,7 @@
     ./web-apps-launcher.nix
     ./do-not-disturb.nix
     ./quickshell.nix
+    ./noctalia.nix
     ./matugen.nix
   ]
   ++ lib.optionals (!personalOnly) [

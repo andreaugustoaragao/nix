@@ -1,4 +1,5 @@
 {
+  config,
   hostName,
   inputs,
   lib,
@@ -58,9 +59,11 @@ lib.mkIf (hostName == "prl-dev-vm") {
 
   # Keep "Show in folder" consistent with the inode/directory MIME default.
   # A per-user registration takes precedence over Thunar's packaged service.
-  xdg.dataFile."dbus-1/services/org.freedesktop.FileManager1.service".text = ''
-    [D-BUS Service]
-    Name=org.freedesktop.FileManager1
-    Exec=${strataWithGvfs}/bin/strata --gapplication-service
-  '';
+  xdg.dataFile."dbus-1/services/org.freedesktop.FileManager1.service".text =
+    lib.mkIf (!config.programs.yazi-rune.enable)
+      ''
+        [D-BUS Service]
+        Name=org.freedesktop.FileManager1
+        Exec=${strataWithGvfs}/bin/strata --gapplication-service
+      '';
 }

@@ -1,6 +1,6 @@
 {
-  "url": "https://github.com/andrearagao/fulcrum/releases/download/shared-vault-0.225.5-634bbbd9-aarch64-linux/shared-vault-release.tar.gz",
-  "hash": "sha256-CzgvDFgx8JCYhX/K0uVj3qS1nLgpAjJjEndvyAyXC4A=",
-  "packageVersion": "0.225.5",
-  "sourceRevision": "634bbbd94a4a520885de732e92c197d4b598773c"
+  "url": null,
+  "hash": "sha256-TGXgLwBFmcnYxc8qL89Sx3LpNcbuA0pUr/UwVan8XNQ=",
+  "packageVersion": "0.225.8",
+  "sourceRevision": "fb61727f9b6cb964c56a9445da3747033680e3fc"
 }

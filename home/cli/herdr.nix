@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  appearance,
   ...
 }:
 
@@ -53,6 +54,12 @@ in
       force = true;
       source = (pkgs.formats.toml { }).generate "herdr-config.toml" {
         onboarding = false;
+        theme = lib.optionalAttrs appearance.isGruvbox {
+          name = "gruvbox";
+          auto_switch = true;
+          dark_name = "gruvbox";
+          light_name = "gruvbox-light";
+        };
         update = {
           # The executable and integrations are updated together through Nix.
           version_check = false;
@@ -81,7 +88,7 @@ in
     };
     "opencode/plugins/herdr-agent-state.js".source = "${assets}/opencode/herdr-agent-state.js";
     "opencode/herdr-tui-session.js".source = "${assets}/opencode/herdr-tui-session.js";
-    "opencode/herdr-opencode/tui.js".source = "${assets}/opencode/tui.js";
+    "opencode/herdr-opencode/tui.js".source = "${assets}/opencode/herdr-opencode/tui.js";
   };
 
   # Agent-owned JSON stays writable. Merge only Herdr entries after Codex's

@@ -1,0 +1,33 @@
+id = "aragao/dms-toolbar"
+name = "DMS toolbar controls"
+version = "1.0.0"
+plugin_api = 32
+author = "aragao"
+description = "Inline volume, RAM/disk usage and call-recorder controls."
+dependencies = ["wpctl", "noctalia-record-call"]
+
+[[widget]]
+id = "volume"
+entry = "volume.luau"
+
+[[widget]]
+id = "ram"
+entry = "resources.luau"
+[[widget.setting]]
+key = "resource"
+type = "string"
+label_key = "Resource"
+default = "ram"
+
+[[widget]]
+id = "disk"
+entry = "resources.luau"
+[[widget.setting]]
+key = "resource"
+type = "string"
+label_key = "Resource"
+default = "disk"
+
+[[widget]]
+id = "recorder"
+entry = "recorder.luau"

@@ -57,6 +57,11 @@ stdenvNoCC.mkDerivation {
     install -Dm755 "$src" "$out/bin/herdr"
     mkdir -p "$out/share/herdr"
     cp -r ${integrationSource}/src/integration/assets "$out/share/herdr/integrations"
+    # Match the installed layout so relative imports survive Home Manager symlinks.
+    chmod u+w "$out/share/herdr/integrations/opencode"
+    mkdir -p "$out/share/herdr/integrations/opencode/herdr-opencode"
+    mv "$out/share/herdr/integrations/opencode/tui.js" \
+      "$out/share/herdr/integrations/opencode/herdr-opencode/tui.js"
     cp -r ${integrationSource}/skills/herdr "$out/share/herdr/skill"
     wrapProgram "$out/bin/herdr" --suffix PATH : ${
       lib.makeBinPath [

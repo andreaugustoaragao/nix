@@ -2,6 +2,7 @@
   pkgs,
   lib,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -20,7 +21,7 @@
       tmuxPlugins.tmux-fzf
       tmuxPlugins.continuum
     ];
-    extraConfig = ''
+    extraConfig = appearance.render ''
       set-option -g set-titles on
       # Title rendering: prefer the pane title (apps like pi, nvim, k9s
       # set it via OSC 0/2 escape sequences with meaningful content)
@@ -57,7 +58,9 @@
       # mtime-cached on their config files, so even when the refresh
       # fires they don't re-fork jq/grep on every tick.
       set -g status-interval 15
-      # Catppuccin Mocha palette (matches ghostty/foot/kitty/alacritty).
+      # ${
+        if appearance.isGruvbox then "Gruvbox Dark" else "Catppuccin Mocha"
+      } palette (matches ghostty/foot/kitty/alacritty).
       # Static — does not flip in light mode. If needed, swap colors via a
       # darkman script that sources a different conf and `refresh-client -S`.
       #
@@ -225,7 +228,7 @@
         fi
         local ctx; ctx=$(cat "$cache")
         [ -z "$ctx" ] && return 0
-        printf '#[fg=#89b4fa,bold,bg=default]󱃾 %s' "$ctx"
+        printf '#[fg=${appearance.dark.blue},bold,bg=default]󱃾 %s' "$ctx"
       }
 
       # Same mtime-cache pattern for the Azure default subscription.
@@ -240,7 +243,7 @@
         fi
         local sub; sub=$(cat "$cache")
         [ -z "$sub" ] && return 0
-        printf '#[fg=#89b4fa,bold,bg=default] %s' "$sub"
+        printf '#[fg=${appearance.dark.blue},bold,bg=default] %s' "$sub"
       }
 
       # Project label. Prefer the per-session TMUX_SESSION_ROOT_DIR
@@ -259,7 +262,7 @@
         else
           label=$pane_path
         fi
-        printf '#[fg=#f5e0dc] %s' "$label"
+        printf '#[fg=${appearance.dark.rosewater}] %s' "$label"
       }
 
       get_git_output() {
@@ -305,7 +308,7 @@
         printf '%s\n' "$status" | grep -qE '^\?\?'   && flags+="?"
       fi
 
-      printf '#[fg=#f38ba8]  %s#[fg=#fab387][%s]' "$branch" "$flags"
+      printf '#[fg=${appearance.dark.red}]  %s#[fg=${appearance.dark.peach}][%s]' "$branch" "$flags"
     '')
   ];
 

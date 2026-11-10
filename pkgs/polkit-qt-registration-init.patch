@@ -1,0 +1,13 @@
+--- a/agent/polkitqt1-agent-listener.cpp
++++ b/agent/polkitqt1-agent-listener.cpp
+@@ -27,7 +27,9 @@
+ public:
+     PolkitAgentListener *listener;
+ #ifndef POLKIT_QT_1_COMPATIBILITY_MODE
+-    void *registeredHandle;
++    // Both Listener constructors allocate this object and can return
++    // before registerListener. ~Listener unregisters a non-null handle.
++    void *registeredHandle = nullptr;
+ #endif
+ };
+ 

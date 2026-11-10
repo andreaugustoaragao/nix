@@ -79,6 +79,22 @@ class IntegrationTests(unittest.TestCase):
             self.reconcile()
         self.assertEqual(path.read_text(), '{"hooks": ["invalid"]}')
 
+    def test_opencode_tui_loads_through_home_manager_symlinks(self):
+        assets = ASSETS / "opencode"
+        entrypoint, = assets.rglob("tui.js")
+        plugin = self.config / "opencode/herdr-opencode/tui.js"
+        plugin.parent.mkdir(parents=True)
+        plugin.symlink_to(entrypoint)
+        helper = plugin.parent.parent / "herdr-tui-session.js"
+        helper.symlink_to(assets / "herdr-tui-session.js")
+        subprocess.run([
+            "node", "--input-type=module", "-e",
+            'import assert from "node:assert/strict";'
+            f'const {{ default: plugin }} = await import({json.dumps(plugin.as_uri())});'
+            'assert.equal(plugin.id, "herdr.opencode.session-selection");'
+            'assert.equal(typeof plugin.setup, "function");',
+        ], check=True, timeout=5)
+
     def test_session_hooks_report_to_the_pane_socket(self):
         for agent in ("claude", "codex", "cursor", "grok"):
             with self.subTest(agent=agent), socket.socket(socket.AF_UNIX) as server:

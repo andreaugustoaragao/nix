@@ -6,6 +6,7 @@
   pkgs,
   unstable-pkgs,
   personalOnly,
+  appearance,
   ...
 }:
 
@@ -174,6 +175,10 @@ let
     ''}
 
     [tui]
+    ${lib.optionalString appearance.isGruvbox ''
+      # ANSI syntax colors follow the terminal palette in both light and dark mode.
+      theme = "ansi"
+    ''}
     vim_mode_default = true
     status_line_use_colors = true
     status_line = ["model-with-reasoning", "current-dir", "git-branch", "estimated-thread-cost", "run-state", "permissions", "approval-mode"]

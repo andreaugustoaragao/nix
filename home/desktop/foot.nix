@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  appearance,
   ...
 }:
 
@@ -85,9 +86,9 @@ in
 
       colors = lib.recursiveUpdate {
         alpha = "0.98";
-      } mocha;
+      } (appearance.mapColors mocha);
 
-      colors2 = latte;
+      colors2 = appearance.mapColors latte;
     };
   };
 
