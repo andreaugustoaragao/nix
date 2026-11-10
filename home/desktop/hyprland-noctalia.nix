@@ -2,7 +2,12 @@
   config,
   lib,
   pkgs,
+  unstable-pkgs,
+  wallpapers,
+  personalOnly,
+  appearance,
   useDms ? false,
+  useNoctalia ? false,
   lockScreen ? false,
   ...
 }:
@@ -10,6 +15,81 @@ let
   # The stable package uses Qt 6.11; the unstable Qt 6.12 build fails in
   # Noctalia's Hyprland IPC types.
   noctalia = pkgs.noctalia-shell;
+  nativeNoctalia = unstable-pkgs.noctalia;
+  previewSettings = (pkgs.formats.toml { }).generate "noctalia-preview.toml" (
+    import ./noctalia-settings.nix {
+      inherit
+        lib
+        pkgs
+        wallpapers
+        personalOnly
+        lockScreen
+        appearance
+        ;
+      inherit (config.my) displays;
+      preview = true;
+    }
+  );
+  previewNiriConfig = pkgs.writeText "noctalia-preview.kdl" ''
+    hotkey-overlay {
+      skip-at-startup
+    }
+    layout {
+      gaps 10
+    }
+    animations { off; }
+    prefer-no-csd
+    window-rule {
+      geometry-corner-radius 12
+      clip-to-geometry true
+    }
+    binds {
+      Alt+Space { spawn "${lib.getExe nativeNoctalia}" "msg" "panel-toggle" "launcher"; }
+      Alt+Comma { spawn "${lib.getExe nativeNoctalia}" "msg" "settings-toggle"; }
+      Alt+Period { spawn "${lib.getExe nativeNoctalia}" "msg" "panel-toggle" "control-center"; }
+      Alt+W { close-window; }
+      Alt+Shift+Q { quit skip-confirmation=true; }
+    }
+  '';
+  previewRecorder = pkgs.writeShellApplication {
+    name = "noctalia-record-call";
+    text = ''
+      export XDG_CONFIG_HOME="${config.xdg.configHome}"
+      export XDG_STATE_HOME="${config.xdg.stateHome}"
+      export XDG_CACHE_HOME="${config.xdg.cacheHome}"
+      export XDG_DATA_HOME="${config.xdg.dataHome}"
+      export DBUS_SESSION_BUS_ADDRESS="unix:path=''${XDG_RUNTIME_DIR:?}/bus"
+      exec record-call "$@"
+    '';
+  };
+  noctaliaPreview = pkgs.writeShellApplication {
+    name = "noctalia-preview";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.dbus
+      unstable-pkgs.niri
+      nativeNoctalia
+      pkgs.wireplumber
+      previewRecorder
+    ];
+    text = ''
+      if [ -z "''${WAYLAND_DISPLAY-}" ]; then
+        printf '%s\n' 'Run noctalia-preview inside your Wayland desktop.' >&2
+        exit 1
+      fi
+      export XDG_CONFIG_HOME="${config.xdg.configHome}/noctalia-preview-personal"
+      export XDG_STATE_HOME="${config.xdg.stateHome}/noctalia-preview-personal"
+      export XDG_CACHE_HOME="${config.xdg.cacheHome}/noctalia-preview-personal"
+      export XDG_DATA_HOME="${config.xdg.dataHome}/noctalia-preview-personal"
+      unset NOCTALIA_CONFIG_HOME NOCTALIA_STATE_HOME NOCTALIA_DATA_HOME
+      unset NIRI_SOCKET HYPRLAND_INSTANCE_SIGNATURE DISPLAY
+      export XDG_CURRENT_DESKTOP=niri
+      export GSETTINGS_BACKEND=memory
+      mkdir -p "$XDG_CONFIG_HOME/noctalia" "$XDG_STATE_HOME/noctalia"
+      install -m600 ${previewSettings} "$XDG_CONFIG_HOME/noctalia/preview.toml"
+      exec dbus-run-session -- niri --config ${previewNiriConfig} -- ${lib.getExe nativeNoctalia}
+    '';
+  };
   initialSettings = pkgs.writeText "noctalia-test-settings.json" (
     builtins.toJSON {
       colorSchemes.syncGsettings = false;
@@ -97,7 +177,7 @@ let
       ${builtins.readFile ./hyprland-noctalia-test.sh}
     '';
   };
-  dmsSessionCondition = pkgs.writeShellScript "dms-session-condition" ''
+  shellSessionCondition = pkgs.writeShellScript "desktop-shell-session-condition" ''
     case ":''${XDG_CURRENT_DESKTOP-}:" in
       *:NoctaliaTest:*) exit 1 ;;
       *) exit 0 ;;
@@ -109,6 +189,8 @@ in
     noctalia
     noctaliaTest
     testLauncher
+    nativeNoctalia
+    noctaliaPreview
   ];
 
   xdg.configFile = {
@@ -138,6 +220,9 @@ in
   '';
 
   systemd.user.services.dms = lib.mkIf useDms {
-    Service.ExecCondition = [ "${dmsSessionCondition}" ];
+    Service.ExecCondition = [ "${shellSessionCondition}" ];
+  };
+  systemd.user.services.noctalia = lib.mkIf useNoctalia {
+    Service.ExecCondition = [ "${shellSessionCondition}" ];
   };
 }

@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  appearance,
   ...
 }:
 let
@@ -57,7 +58,10 @@ let
   };
   themeText =
     colors:
-    lib.concatStringsSep "\n" (lib.mapAttrsToList (name: value: "${name} ${value}") colors) + "\n";
+    lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (name: value: "${name} ${value}") (appearance.mapColors colors)
+    )
+    + "\n";
 in
 {
   # Kitty is a secondary terminal (ghostty is daily-driver).

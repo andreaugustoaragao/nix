@@ -2,17 +2,21 @@
   pkgs,
   lib,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
-# When DMS owns the desktop, the daemons it replaces (mako/swayosd/hyprpaper/waybar)
+# When an integrated shell owns the desktop, its replaced daemons
 # packages stay installed but their systemd units aren't defined at all. This avoids
 # the `linked but not enabled` state where systemd can still auto-restart a unit if
 # it ever gets nudged (mako in particular fights DMS for org.freedesktop.Notifications).
+let
+  standaloneShell = !useDms && !useNoctalia;
+in
 {
   # Generic Wayland session services (start when a Wayland compositor is running)
   systemd.user.services = {
-    wl-mako = lib.mkIf (!useDms) {
+    wl-mako = lib.mkIf standaloneShell {
       Unit = {
         Description = "Wayland: mako notification daemon";
         After = [ "graphical-session.target" ];
@@ -29,7 +33,7 @@
       };
     };
 
-    wl-swayosd = lib.mkIf (!useDms) {
+    wl-swayosd = lib.mkIf standaloneShell {
       Unit = {
         Description = "Wayland: swayosd server";
         After = [ "graphical-session.target" ];
@@ -46,7 +50,7 @@
       };
     };
 
-    wl-hyprpaper = lib.mkIf (!useDms) {
+    wl-hyprpaper = lib.mkIf standaloneShell {
       Unit = {
         Description = "Wayland: hyprpaper wallpaper daemon";
         After = [ "graphical-session.target" ];
@@ -118,7 +122,7 @@
       };
     };
 
-    wl-eww = {
+    wl-eww = lib.mkIf standaloneShell {
       Unit = {
         Description = "Wayland: eww status bar";
         After = [ "graphical-session.target" ];
@@ -139,7 +143,7 @@
       };
     };
 
-    wl-waybar = lib.mkIf (!useDms) {
+    wl-waybar = lib.mkIf standaloneShell {
       Unit = {
         Description = "Wayland: waybar status bar";
         After = [ "graphical-session.target" ];

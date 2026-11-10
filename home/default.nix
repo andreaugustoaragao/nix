@@ -14,6 +14,7 @@
 {
   # Import LazyVim configuration
   imports = [
+    ./appearance
     ./cli
     ./fonts.nix
     # User services index is platform-aware: Linux pulls in

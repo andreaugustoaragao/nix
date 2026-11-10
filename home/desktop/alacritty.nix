@@ -1,7 +1,7 @@
-_:
+{ appearance, ... }:
 
 {
-  # Secondary terminal — static Catppuccin Mocha. Alacritty has no
+  # Secondary terminal — static dark palette. Alacritty has no
   # native portal-driven theme switching.
   programs.alacritty = {
     enable = true;
@@ -37,7 +37,7 @@ _:
         };
       };
 
-      colors = {
+      colors = appearance.mapColors {
         primary = {
           foreground = "#cdd6f4";
           background = "#1e1e2e";

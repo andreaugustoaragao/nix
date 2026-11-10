@@ -2,6 +2,7 @@
   pkgs,
   unstable-pkgs,
   hostName,
+  appearance,
   ...
 }:
 let
@@ -100,8 +101,9 @@ in
       };
       theme = {
         mode = "system";
-        light = "Catppuccin Latte";
-        dark = "Catppuccin Mocha";
+        # Gruvbox ships with the pinned Zed package; no runtime extension fetch.
+        light = if appearance.isGruvbox then "Gruvbox Light" else "Catppuccin Latte";
+        dark = if appearance.isGruvbox then "Gruvbox Dark" else "Catppuccin Mocha";
       };
       icon_theme = {
         mode = "system";

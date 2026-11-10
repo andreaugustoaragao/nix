@@ -1,17 +1,23 @@
 {
   config,
   pkgs,
+  unstable-pkgs,
   lib,
   hostName,
   personalOnly,
+  appearance,
   isVm ? false,
   isWorkstation ? false,
   lockScreen ? false,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
 let
+  fileManager =
+    if config.programs.yazi-rune.enable then lib.getExe config.programs.yazi-rune.package else "thunar";
+  noctalia = lib.getExe unstable-pkgs.noctalia;
   # Canonical dp1 (landscape) / dp2 (portrait) slot metadata — typed
   # my.displays.* options declared in ./display-options.nix, values
   # resolved per-host in flake.nix. dp2Dimensions computes the dp1
@@ -142,7 +148,7 @@ in
   ];
 
   # Niri configuration with Hyprland-like keybindings
-  xdg.configFile."niri/config.kdl".text = ''
+  xdg.configFile."niri/config.kdl".text = appearance.render ''
     ${workspaceBlock}
     ${browserWorkspaces}
 
@@ -214,7 +220,7 @@ in
     // Environment variables
     environment {
         QT_QPA_PLATFORM "wayland"
-        QT_QPA_PLATFORMTHEME "qt6ct"
+        QT_QPA_PLATFORMTHEME "${if appearance.isGruvbox then "qt5ct" else "qt6ct"}"
         QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
         GDK_BACKEND "wayland,x11"
         NIXOS_OZONE_WL "1"
@@ -389,7 +395,7 @@ in
 
         focus-ring {
             active-color "#f38ba8"
-            inactive-color "#7d0d2d"
+            inactive-color "${if appearance.isGruvbox then appearance.dark.maroon else "#7d0d2d"}"
         }
 
         shadow {
@@ -398,12 +404,12 @@ in
             offset x=0 y=0
             spread 4
 
-            color "#7d0d2dff"
+            color "${if appearance.isGruvbox then "${appearance.dark.maroon}ff" else "#7d0d2dff"}"
         }
 
         tab-indicator {
             active-color "#f38ba8"
-            inactive-color "#7d0d2d"
+            inactive-color "${if appearance.isGruvbox then appearance.dark.maroon else "#7d0d2d"}"
         }
     }
 
@@ -451,7 +457,7 @@ in
         // the running process.
         Mod+Return { spawn ${term.spawnArgs}; }
         F8 repeat=false hotkey-overlay-title="Toggle drop-down terminal" { spawn "${quakeTerminal}/bin/quake-terminal"; }
-        Mod+Shift+T { spawn "thunar"; }
+        Mod+Shift+T { spawn "${fileManager}"; }
         Mod+Shift+B { spawn "browser-default"; }
         ${lib.optionalString (!personalOnly) ''
           Mod+Shift+M { spawn "bookmarks"; }
@@ -463,10 +469,22 @@ in
         Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
-        Mod+Space { spawn "fuzzel"; }
-        Mod+D { spawn "fuzzel"; }
         ${
-          if useDms then
+          if useNoctalia then
+            ''
+              Mod+Space { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
+              Mod+D { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
+            ''
+          else
+            ''
+              Mod+Space { spawn "fuzzel"; }
+              Mod+D { spawn "fuzzel"; }
+            ''
+        }
+        ${
+          if useNoctalia then
+            ''Mod+Escape { spawn "${noctalia}" "msg" "panel-toggle" "session"; }''
+          else if useDms then
             ''Mod+Escape { spawn "dms" "ipc" "call" "powermenu" "toggle"; }''
           else
             ''Mod+Escape { spawn "wlogout"; }''
@@ -570,7 +588,9 @@ in
         Mod+Shift+F { spawn "screenshot-niri" "output"; }
         
         ${lib.optionalString lockScreen (
-          if useDms then
+          if useNoctalia then
+            ''Mod+Ctrl+L { spawn "${noctalia}" "msg" "session" "lock"; }''
+          else if useDms then
             ''
               // Lock screen via DMS (dms-settings.json owns the timeouts).
               Mod+Ctrl+L { spawn "dms" "ipc" "call" "lock" "lock"; }
@@ -586,11 +606,20 @@ in
         Mod+Ctrl+S { spawn "screensaver"; }
 
         // Notification control
-        Mod+Semicolon { spawn "makoctl" "restore"; }
-
-        // Waybar toggle
-        Mod+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar"; }
-        Mod+Shift+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww"; }
+        ${
+          if useNoctalia then
+            ''
+              Mod+Semicolon { spawn "${noctalia}" "msg" "panel-toggle" "notifications"; }
+              Mod+Y { spawn "${noctalia}" "msg" "bar-toggle"; }
+              Mod+Shift+Y { spawn "${noctalia}" "msg" "desktop-widgets-toggle"; }
+            ''
+          else
+            ''
+              Mod+Semicolon { spawn "makoctl" "restore"; }
+              Mod+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar"; }
+              Mod+Shift+Y { spawn "sh" "-c" "systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww"; }
+            ''
+        }
         ${lib.optionalString useDms ''
           // DMS surface toggles
           // Theme toggle does two things in sequence:
@@ -608,11 +637,27 @@ in
           Mod+Period  { spawn "dms" "ipc" "call" "control-center" "toggle"; }
           Mod+N       { spawn "dms" "ipc" "call" "notepad" "toggle"; }
         ''}
+        ${lib.optionalString useNoctalia ''
+          Mod+Shift+D { spawn "${noctalia}" "msg" "theme-mode-toggle"; }
+          Mod+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
+          Mod+Period { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
+          Mod+Alt+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
+          Mod+N { spawn "${if personalOnly then "codium" else "notes"}"; }
+        ''}
 
         // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl
         // direct when DMS owns the OSD (DMS shows its own via pipewire monitoring).
         ${
-          if useDms then
+          if useNoctalia then
+            ''
+              XF86AudioRaiseVolume { spawn "${noctalia}" "msg" "volume-up"; }
+              XF86AudioLowerVolume { spawn "${noctalia}" "msg" "volume-down"; }
+              XF86AudioMute { spawn "${noctalia}" "msg" "volume-mute"; }
+              XF86AudioMicMute { spawn "${noctalia}" "msg" "mic-mute"; }
+              XF86MonBrightnessUp { spawn "${noctalia}" "msg" "brightness-up"; }
+              XF86MonBrightnessDown { spawn "${noctalia}" "msg" "brightness-down"; }
+            ''
+          else if useDms then
             ''
               XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "-l" "1.5" "@DEFAULT_AUDIO_SINK@" "5%+"; }
               XF86AudioLowerVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }

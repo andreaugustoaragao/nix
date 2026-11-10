@@ -1,0 +1,6 @@
+interface:
+  display_name: "Chief of staff"
+  short_description: "Manage a backlog, Herdr workers and independent review"
+  default_prompt: "Use $chief-of-staff to manage my development backlog, schedule independent Herdr work within one shared worker limit, and own review, integration and verification."
+policy:
+  allow_implicit_invocation: false

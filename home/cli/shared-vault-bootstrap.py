@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Restore the pinned prl-dev-vm runtime from Git and a private release asset."""
+"""Import pinned private release inputs and build the immutable Nix runtime."""
 
 import argparse
 import base64
-import ctypes
 import hashlib
 import json
 import os
@@ -18,6 +17,8 @@ import urllib.request
 
 ARCHIVE_NAME = "shared-vault-release.tar.gz"
 MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_SOURCE_BYTES = 64 * 1024 * 1024
+DESKTOP_SOURCE_NAME = "fulcrum-desktop-source"
 
 
 class RestoreError(Exception):
@@ -25,11 +26,11 @@ class RestoreError(Exception):
 
 
 class AssetRedirect(urllib.request.HTTPRedirectHandler):
+    allowed_hosts = {"api.github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
+
     def redirect_request(self, request, response, code, message, headers, url):
         target = urllib.parse.urlsplit(url)
-        if target.scheme != "https" or target.hostname not in {
-            "api.github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"
-        } or target.username or target.password:
+        if target.scheme != "https" or target.hostname not in self.allowed_hosts or target.username or target.password:
             raise RestoreError("Unexpected release download redirect")
         redirected = super().redirect_request(request, response, code, message, headers, url)
         if redirected is not None:
@@ -47,7 +48,7 @@ def read_pin(path):
         raise RestoreError("Invalid package version")
     if not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", pin["hash"]):
         raise RestoreError("Release pin needs a SHA256 SRI digest")
-    if not re.fullmatch(r"https://github\.com/andrearagao/fulcrum/releases/download/[A-Za-z0-9._-]+/shared-vault-release\.tar\.gz", pin["url"]):
+    if pin["url"] is not None and not re.fullmatch(r"https://github\.com/andrearagao/fulcrum/releases/download/[A-Za-z0-9._-]+/shared-vault-release\.tar\.gz", pin["url"]):
         raise RestoreError("Release URL must name the private Fulcrum release asset")
     return pin
 
@@ -73,6 +74,8 @@ def github_token():
 
 
 def download(pin, destination):
+    if pin["url"] is None:
+        raise RestoreError("This release is local-only; provide --archive PATH to the retained certified archive")
     tag = urllib.parse.urlsplit(pin["url"]).path.split("/")[-2]
     headers = {
         "Authorization": "Bearer " + github_token(), "Accept": "application/vnd.github+json",
@@ -119,122 +122,57 @@ def import_archive(pin, archive):
     return result.stdout.strip()
 
 
-def git(root, *args):
-    return subprocess.check_output(["git", "--no-replace-objects", "-C", str(root), *args])
+class SourceRedirect(AssetRedirect):
+    allowed_hosts = {"api.github.com", "codeload.github.com"}
 
 
-def source_repository(value):
-    invalid = "Source repository must use a local path, SSH, or HTTPS without embedded credentials; use Git's credential helper"
-    if value.startswith(("https://", "ssh://", "file://")):
-        parsed = urllib.parse.urlsplit(value)
-        if any(ord(character) <= 32 or ord(character) == 127 for character in value) or parsed.password is not None or parsed.query or parsed.fragment:
-            raise RestoreError(invalid)
-        if parsed.scheme == "https" and (not parsed.hostname or parsed.username is not None):
-            raise RestoreError(invalid)
-        if parsed.scheme == "ssh" and (not parsed.hostname or not re.fullmatch(r"[A-Za-z0-9._-]+", parsed.username or "git")):
-            raise RestoreError(invalid)
-        if parsed.scheme == "file":
-            if parsed.netloc not in ("", "localhost"):
-                raise RestoreError(invalid)
-            value = urllib.parse.unquote(parsed.path)
-        else:
-            return value
-    elif re.fullmatch(r"(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+:[A-Za-z0-9_./~-]+", value):
-        return value
-    elif ":" in value and not value.startswith("/"):
-        raise RestoreError(invalid)
-    local = Path(value).expanduser()
-    if not local.is_dir():
-        raise RestoreError(invalid)
-    return str(local.resolve())
+def read_desktop_pin(path):
+    pin = json.loads(path.read_text())
+    if (not isinstance(pin, dict) or set(pin) != {"revision", "hash"}
+            or not isinstance(pin["revision"], str) or not re.fullmatch(r"[a-f0-9]{40}", pin["revision"])):
+        raise RestoreError("Desktop source pin requires its full revision and unpacked hash")
+    if not isinstance(pin["hash"], str) or not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", pin["hash"]):
+        raise RestoreError("Desktop source pin needs a SHA256 SRI digest")
+    return pin
 
 
-def publish_checkout(staging, target):
-    libc = ctypes.CDLL(None, use_errno=True)
-    if sys.platform == "linux":
-        rename = libc.renameat2
-        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-        rename.restype = ctypes.c_int
-        result = rename(-100, os.fsencode(staging), -100, os.fsencode(target), 1)
-    elif sys.platform == "darwin":
-        rename = libc.renamex_np
-        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-        rename.restype = ctypes.c_int
-        result = rename(os.fsencode(staging), os.fsencode(target), 4)
-    else:
-        raise RestoreError("Atomic exclusive checkout publication requires Linux or Darwin")
-    if result != 0:
-        code = ctypes.get_errno()
-        raise OSError(code, os.strerror(code), str(target))
+def download_desktop(pin, destination):
+    request = urllib.request.Request(
+        "https://api.github.com/repos/andrearagao/fulcrum/tarball/" + pin["revision"],
+        headers={"Authorization": "Bearer " + github_token(), "Accept": "application/vnd.github+json",
+                 "User-Agent": "shared-vault-bootstrap", "X-GitHub-Api-Version": "2022-11-28"},
+    )
+    opener = urllib.request.build_opener(SourceRedirect())
+    with opener.open(request, timeout=120) as response, destination.open("xb") as output:
+        size = 0
+        while chunk := response.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_SOURCE_BYTES:
+                raise RestoreError("Desktop source archive exceeds its bound")
+            output.write(chunk)
 
 
-def verify_checkout_layout(root, tracked):
-    directories = {parent.as_posix() for name in tracked for parent in Path(name).parents}
-    for current, dirs, files in os.walk(root, followlinks=False):
-        directory = Path(current)
-        for name in dirs[:]:
-            path = directory / name
-            relative = path.relative_to(root).as_posix()
-            if relative == ".git" and not path.is_symlink():
-                dirs.remove(name)
-            elif relative == "node_modules":
-                dirs.remove(name)
-            elif relative not in directories or path.is_symlink():
-                raise RestoreError("Runtime checkout contains an unexpected directory; it was preserved: " + relative)
-        for name in files:
-            relative = (directory / name).relative_to(root).as_posix()
-            if relative not in tracked and relative != "node_modules":
-                raise RestoreError("Runtime checkout contains an unexpected file; it was preserved: " + relative)
+def import_desktop_archive(pin, archive):
+    if archive.stat().st_size > MAX_SOURCE_BYTES:
+        raise RestoreError("Desktop source archive exceeds its bound")
+    result = subprocess.run(
+        ["nix-prefetch-url", "--unpack", "--name", DESKTOP_SOURCE_NAME, "--print-path",
+         archive.resolve().as_uri(), pin["hash"]],
+        check=True, capture_output=True, text=True,
+    )
+    lines = result.stdout.splitlines()
+    if len(lines) != 2 or not lines[1].startswith("/nix/store/"):
+        raise RestoreError("Expected one imported desktop source store path")
+    return lines[1]
 
 
-def verify_checkout(root, package, pin):
-    if git(root, "rev-parse", "HEAD").decode().strip() != pin["sourceRevision"]:
-        raise RestoreError("Existing runtime checkout has a different commit")
-    if git(root, "status", "--porcelain=v1", "--untracked-files=all"):
-        raise RestoreError("Runtime checkout contains local changes; it was preserved")
-    source = package / "share/vault-services"
-    tracked = set(git(root, "ls-files", "-z").decode().split("\0")) - {""}
-    verify_checkout_layout(root, tracked)
-    for name in sorted(tracked):
-        local = root / name
-        certified = source / name
-        if name == ".env.example":
-            # The certified archive deliberately omits this tracked template.
-            if local.is_symlink() or local.read_bytes() != git(root, "show", pin["sourceRevision"] + ":.env.example"):
-                raise RestoreError("Environment template differs from the pinned Git commit")
-            continue
-        if not certified.is_file() or local.is_symlink() or file_digest(local) != file_digest(certified):
-            raise RestoreError("Checkout bytes differ from the pinned package: " + name)
-        if bool(local.stat().st_mode & 0o111) != bool(certified.stat().st_mode & 0o111):
-            raise RestoreError("Checkout executable mode differs: " + name)
-    dependencies = root / "node_modules"
-    if not dependencies.is_symlink() or dependencies.resolve() != source / "node_modules":
-        raise RestoreError("Runtime dependencies do not point to the pinned Nix package")
-
-
-def restore_checkout(repository, runtime_root, package, pin):
-    repository = source_repository(repository)
-    manifest = json.loads((package / "share/vault-services/release.json").read_text())
+def verify_package(package, pin):
+    root = package / "share/vault-services"
+    manifest = json.loads((root / "release.json").read_text())
     expected = {"packageVersion": pin["packageVersion"], "source": {"kind": "artifact", "revision": pin["sourceRevision"]}}
-    if manifest != expected:
+    if manifest != expected or json.loads((root / "package.json").read_text())["version"] != pin["packageVersion"]:
         raise RestoreError("Nix package identity differs from the release pin")
-    runtime_root.mkdir(parents=True, exist_ok=True)
-    target = runtime_root / pin["sourceRevision"]
-    if target.exists() or target.is_symlink():
-        if target.is_symlink():
-            raise RestoreError("Existing runtime target is a symlink; it was preserved")
-        verify_checkout(target, package, pin)
-        return target
-    with tempfile.TemporaryDirectory(prefix=".restore-", dir=runtime_root) as staging_name:
-        staging = Path(staging_name) / "checkout"
-        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--", repository, str(staging)], check=True)
-        subprocess.run(["git", "-C", str(staging), "checkout", "--quiet", "--detach", pin["sourceRevision"]], check=True)
-        with (staging / ".git/info/exclude").open("a") as excluded:
-            excluded.write("\n/node_modules\n")
-        (staging / "node_modules").symlink_to(package / "share/vault-services/node_modules", target_is_directory=True)
-        verify_checkout(staging, package, pin)
-        publish_checkout(staging, target)
-    return target
+    return root
 
 
 def main():
@@ -242,9 +180,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pin", type=Path, default=flake / "home/services/shared-vault-prl-dev-vm-release.json")
     parser.add_argument("--archive", type=Path, help="Use a retained archive instead of downloading")
-    parser.add_argument("--archive-only", action="store_true", help="Import the verified archive without building or restoring the source checkout")
-    parser.add_argument("--source-repository", default="git@github-work:andrearagao/fulcrum.git")
-    parser.add_argument("--runtime-root", type=Path, default=Path.home() / "projects/work/fulcrum-releases")
+    parser.add_argument("--archive-only", action="store_true", help="Import only the verified runtime archive, without building the package")
+    parser.add_argument("--desktop-archive", type=Path, help="Use a retained desktop source archive instead of downloading")
     args = parser.parse_args()
     pin = read_pin(args.pin)
     with tempfile.TemporaryDirectory(prefix="shared-vault-bootstrap-") as scratch:
@@ -257,20 +194,23 @@ def main():
         print("Verified archive imported: " + imported, file=sys.stderr, flush=True)
     result = {"archive": imported, "hash": pin["hash"], "sourceRevision": pin["sourceRevision"]}
     if not args.archive_only:
+        desktop = read_desktop_pin(flake / "home/desktop/fulcrum-source.json")
+        with tempfile.TemporaryDirectory(prefix="fulcrum-desktop-source-") as scratch:
+            source_archive = Path(scratch) / "source.tar.gz"
+            if args.desktop_archive:
+                shutil.copyfile(args.desktop_archive, source_archive)
+            else:
+                download_desktop(desktop, source_archive)
+            result["desktopSource"] = import_desktop_archive(desktop, source_archive)
+        result["desktopSourceRevision"] = desktop["revision"]
         attribute = "#nixosConfigurations.prl-dev-vm.config.home-manager.users.aragao.my.sharedVault.release"
-        build = subprocess.run(["nix", "build", "--no-link", "--print-out-paths", str(flake) + attribute], check=True, capture_output=True, text=True)
+        build = subprocess.run(["nix", "build", "--no-link", "--print-out-paths", str(flake) + attribute], check=True, stdout=subprocess.PIPE, text=True)
         paths = build.stdout.splitlines()
         if len(paths) != 1:
             raise RestoreError("Expected one Nix runtime package")
         package = Path(paths[0])
         result["package"] = str(package)
-        checkout = restore_checkout(args.source_repository, args.runtime_root, package, pin)
-        desktop = json.loads((flake / "home/desktop/fulcrum-source.json").read_text())
-        if not re.fullmatch(r"[a-f0-9]{40}", desktop["revision"]):
-            raise RestoreError("Desktop source pin must be a full Git commit")
-        git(checkout, "cat-file", "-e", desktop["revision"] + "^{commit}")
-        result["checkout"] = str(checkout)
-        result["desktopSourceRevision"] = desktop["revision"]
+        result["applicationRoot"] = str(verify_package(package, pin))
     print(json.dumps(result, indent=2))
 
 

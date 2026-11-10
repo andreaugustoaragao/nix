@@ -2,8 +2,8 @@
 
 let
   skill = builtins.path {
-    name = "herdr-coordinate-skill";
-    path = ./herdr-coordinate;
+    name = "chief-of-staff-skill";
+    path = ./chief-of-staff;
   };
   cursorStatus = pkgs.writeShellApplication {
     name = "herdr-cursor-status";
@@ -67,7 +67,14 @@ in
     cursorStatus
   ];
 
-  home.file.".agents/skills/herdr-coordinate".source = skill;
+  home.file = {
+    ".agents/skills/chief-of-staff".source = skill;
+    # Preserve the old invocation without a second coordinator or worker pool.
+    ".agents/skills/herdr-coordinate".source = builtins.path {
+      name = "herdr-coordinate-compatibility-skill";
+      path = ./herdr-coordinate;
+    };
+  };
 
   xdg.configFile = {
     "herdr-core/templates/dev-review.md".text = ''

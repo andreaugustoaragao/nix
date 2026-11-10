@@ -4,6 +4,7 @@
   unstable-pkgs,
   isVm,
   hostName,
+  appearance,
   ...
 }:
 let
@@ -127,6 +128,11 @@ in
 
     # Auto-switch via freedesktop portal color-scheme. Both themes ship
     # with ghostty — no extra files to manage.
-    theme = light:TokyoNight Day,dark:Catppuccin Mocha
+    theme = ${
+      if appearance.isGruvbox then
+        "light:Gruvbox Light,dark:Gruvbox Dark"
+      else
+        "light:TokyoNight Day,dark:Catppuccin Mocha"
+    }
   '';
 }

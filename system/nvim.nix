@@ -1,4 +1,9 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  lib,
+  appearance,
+  ...
+}:
 
 {
   programs.neovim = {
@@ -12,7 +17,7 @@
       packages.myVimPackage = with pkgs.vimPlugins; {
         start = [
           # Color theme
-          catppuccin-nvim
+          (if appearance.isGruvbox then gruvbox-nvim else catppuccin-nvim)
 
           # Telescope and dependencies
           telescope-nvim
@@ -72,26 +77,48 @@
 
           # Alpha dashboard
           alpha-nvim
-        ];
+        ]
+        ++ lib.optionals appearance.isGruvbox [ auto-dark-mode-nvim ];
       };
 
       customRC = ''
         lua << EOF
-        -- Catppuccin colorscheme
-        require('catppuccin').setup({
-          flavour = "mocha",
-          background = {
-            dark = "mocha",
-            light = "latte",
-          },
-          transparent_background = false,
-          term_colors = true,
-          styles = {
-            comments = { "italic" },
-            keywords = { "italic" },
-          },
-        })
-        vim.cmd("colorscheme catppuccin")
+        ${
+          if appearance.isGruvbox then
+            ''
+              require('gruvbox').setup({ contrast = "", transparent_mode = false })
+              vim.cmd.colorscheme('gruvbox')
+              require('auto-dark-mode').setup({
+                update_interval = 3000,
+                set_dark_mode = function()
+                  vim.o.background = 'dark'
+                  vim.cmd.colorscheme('gruvbox')
+                end,
+                set_light_mode = function()
+                  vim.o.background = 'light'
+                  vim.cmd.colorscheme('gruvbox')
+                end,
+              })
+            ''
+          else
+            ''
+              -- Catppuccin colorscheme
+              require('catppuccin').setup({
+                flavour = "mocha",
+                background = {
+                  dark = "mocha",
+                  light = "latte",
+                },
+                transparent_background = false,
+                term_colors = true,
+                styles = {
+                  comments = { "italic" },
+                  keywords = { "italic" },
+                },
+              })
+              vim.cmd("colorscheme catppuccin")
+            ''
+        }
 
         -- Basic settings
         vim.opt.number = true
@@ -333,7 +360,7 @@
 
         -- Status line
         require('lualine').setup({
-          options = { theme = 'catppuccin' }
+          options = { theme = '${if appearance.isGruvbox then "gruvbox" else "catppuccin"}' }
         })
 
         -- Git signs
@@ -359,7 +386,9 @@
           "  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║ ",
           "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝ ",
           "                                                     ",
-          "           Catppuccin Mocha / Latte Theme             ",
+          "           ${
+            if appearance.isGruvbox then "Gruvbox Dark / Light" else "Catppuccin Mocha / Latte"
+          } Theme             ",
           "                                                     ",
         }
 
@@ -394,8 +423,13 @@
             "",
             get_load_time(),
             "",
-            "Soothing pastel colors for focused editing",
-            "~ Catppuccin ~",
+            "${
+              if appearance.isGruvbox then
+                "Warm colors for focused editing"
+              else
+                "Soothing pastel colors for focused editing"
+            }",
+            "~ ${if appearance.isGruvbox then "Gruvbox" else "Catppuccin"} ~",
           }
         end
 
@@ -405,14 +439,26 @@
         dashboard.section.footer.opts.hl = "AlphaFooter"
 
         -- Set custom highlight groups after colorscheme is loaded
-        vim.api.nvim_create_autocmd("ColorScheme", {
-          pattern = "catppuccin*",
-          callback = function()
-            vim.api.nvim_set_hl(0, "AlphaHeader", { fg = "#cba6f7" })
-            vim.api.nvim_set_hl(0, "AlphaButtons", { fg = "#89b4fa" })
-            vim.api.nvim_set_hl(0, "AlphaFooter", { fg = "#6c7086", italic = true })
-          end,
-        })
+        local function dashboard_highlights()
+          ${
+            if appearance.isGruvbox then
+              ''
+                local colors = require('gruvbox').palette
+                local light = vim.o.background == 'light'
+                vim.api.nvim_set_hl(0, "AlphaHeader", { fg = light and colors.faded_purple or colors.bright_purple })
+                vim.api.nvim_set_hl(0, "AlphaButtons", { fg = light and colors.faded_blue or colors.bright_blue })
+                vim.api.nvim_set_hl(0, "AlphaFooter", { fg = colors.gray, italic = true })
+              ''
+            else
+              ''
+                vim.api.nvim_set_hl(0, "AlphaHeader", { fg = "#cba6f7" })
+                vim.api.nvim_set_hl(0, "AlphaButtons", { fg = "#89b4fa" })
+                vim.api.nvim_set_hl(0, "AlphaFooter", { fg = "#6c7086", italic = true })
+              ''
+          }
+        end
+        vim.api.nvim_create_autocmd("ColorScheme", { callback = dashboard_highlights })
+        dashboard_highlights()
 
         -- Setup alpha
         alpha.setup(dashboard.opts)

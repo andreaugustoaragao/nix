@@ -1,8 +1,12 @@
 {
   pkgs,
+  appearance,
   ...
 }:
 
+let
+  themeName = if appearance.isGruvbox then "gruvbox_dark" else "catppuccin_mocha";
+in
 {
   home.packages = [ pkgs.btop ];
 
@@ -12,7 +16,7 @@
 
     #* Name of a btop++/bpytop/bashtop formatted ".theme" file, "Default" and "TTY" for builtin themes.
     #* Themes should be placed in "../share/btop/themes" relative to binary or "$HOME/.config/btop/themes"
-    color_theme = "catppuccin_mocha"
+    color_theme = "${themeName}"
 
     #* If the theme set background should be shown, set to False if you want terminal background transparency.
     theme_background = True
@@ -255,7 +259,7 @@
     custom_gpu_name5 = ""
   '';
 
-  xdg.configFile."btop/themes/catppuccin_mocha.theme".text = ''
+  xdg.configFile."btop/themes/${themeName}.theme".text = appearance.render ''
     theme[main_bg]="#1e1e2e"
     theme[main_fg]="#cdd6f4"
     theme[title]="#cdd6f4"
