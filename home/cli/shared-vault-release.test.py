@@ -1,0 +1,593 @@
+#!/usr/bin/env python3
+"""Controlled layout and refusal checks; the fake certificate is not release proof."""
+
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tarfile
+import tempfile
+import textwrap
+import unittest
+import zlib
+from unittest.mock import patch
+
+
+SOURCE = Path(__file__).with_name("shared-vault-release.py")
+SPEC = importlib.util.spec_from_file_location("shared_vault_release", SOURCE)
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "release supervision requires Linux")
+class ReleaseFixture(unittest.TestCase):
+    def setUp(self):
+        self.scratch = tempfile.TemporaryDirectory(prefix="shared-vault-release-test-")
+        self.addCleanup(self.scratch.cleanup)
+        self.base = Path(self.scratch.name)
+        self.repo = self.base / "repo"
+        self.repo.mkdir()
+        self.state = self.private_state("state")
+        self.receipt = self.base / "receipt.json"
+        self.log = self.base / "bun-calls.jsonl"
+        self.old_log = os.environ.get("FAKE_BUN_LOG")
+        os.environ["FAKE_BUN_LOG"] = str(self.log)
+        self.addCleanup(self.restore_log)
+
+        files = {
+            ".gitignore": "node_modules/\n",
+            ".env.example": "SAMPLE=never-archive\n",
+            "package.json": json.dumps({"version": "1.2.3", "packageManager": "bun@1.4.2"}) + "\n",
+            "bun.lock": "{}\n",
+            "scripts/development-certification.ts": "// fixture\n",
+            "scripts/verify-installed-dependencies.ts": "// fixture\n",
+            "scripts/verify-installed-patches.ts": "// fixture\n",
+            "scripts/automation-runner-bootstrap.ts": "// fixture\n",
+            "scripts/vault-service.ts": "// fixture\n",
+            "scripts/vault.ts": "// fixture\n",
+            "scripts/vault-mcp.ts": "// fixture\n",
+            "src/dependency.ts": "export const fixture = true;\n",
+        }
+        for name, content in files.items():
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        self.git("init", "-q")
+        self.git("add", ".")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")
+        self.revision = self.git("rev-parse", "HEAD").stdout.strip()
+
+        bun = self.repo / "node_modules/bun/bin/bun.exe"
+        bun.parent.mkdir(parents=True)
+        bun.write_text(f"#!{sys.executable}\n"
+                       "import json,os,sys\n"
+                       "a=sys.argv[1:]\n"
+                       "with open(os.environ['FAKE_BUN_LOG'],'a') as f:f.write(json.dumps(a)+'\\n')\n"
+                       "if a==['--version']:print('1.4.2')\n"
+                       "elif len(a)>3 and a[:3]==['--no-env-file','scripts/development-certification.ts','check']:\n"
+                       " r=json.load(open(a[4]));print(json.dumps({'status':'PASS','candidate':r['candidate'],'installedDependenciesSha256':r.get('installedDependenciesSha256')}))\n"
+                       "elif len(a)>1 and a[0]=='--no-env-file' and 'verify-installed-' in a[1]:print('{\"ok\":true}')\n"
+                       "elif len(a)>1 and a[0]=='--no-env-file':print(json.dumps(a[1:]))\n"
+                       "else:sys.exit(2)\n")
+        bun.chmod(0o755)
+        package = self.repo / "node_modules/foo"
+        package.mkdir()
+        (package / "package.json").write_text('{"name":"foo","version":"1.0.0"}\n')
+        (package / "index.js").write_text("export default 1;\n")
+        links = self.repo / "node_modules/.bin"
+        links.mkdir()
+        (links / "foo").symlink_to("../foo/index.js")
+        cache = self.repo / "node_modules/.cache"
+        cache.mkdir()
+        (cache / "mutable.txt").write_text("discard\n")
+        self.write_receipt()
+
+    def restore_log(self):
+        if self.old_log is None:
+            os.environ.pop("FAKE_BUN_LOG", None)
+        else:
+            os.environ["FAKE_BUN_LOG"] = self.old_log
+
+    def private_state(self, name):
+        state = self.base / name
+        state.mkdir(mode=0o700)
+        return state
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.repo, text=True, capture_output=True, check=True)
+
+    def write_receipt(self, **changes):
+        content = {"schema": "fulcrum.certification.v1", "status": "PASS", "profile": "release",
+                   "candidate": self.revision, "worktree": str(self.repo),
+                   "installedDependenciesSha256": MODULE.inventory_dependencies(self.repo / "node_modules")}
+        content.update(changes)
+        self.receipt.write_text(json.dumps(content) + "\n")
+
+    def create(self, state=None, name="release.tar.gz"):
+        state = state or self.state
+        output = state / name
+        return MODULE.create_release(self.repo, self.receipt, output, state)
+
+    def test_layout_and_determinism(self):
+        first = self.create()
+        other = self.private_state("other-state")
+        second = self.create(other)
+        self.assertEqual(first["hash"], second["hash"])
+        self.assertEqual(first["installedDependenciesSha256"],
+                         MODULE.inventory_dependencies(self.repo / "node_modules"))
+        self.assertEqual((self.state / "release.tar.gz").read_bytes(), (other / "release.tar.gz").read_bytes())
+        self.assertEqual((self.state / "release.tar.gz.sha256").read_text().strip(), first["hash"])
+        with tarfile.open(self.state / "release.tar.gz", "r:gz") as archive:
+            names = archive.getnames()
+            self.assertTrue(all(name.startswith("shared-vault-release/") or name == "shared-vault-release" for name in names))
+            self.assertFalse(any("/.git/" in name or name.endswith("/.git") or ".env" in name or ".cache" in name for name in names))
+            self.assertFalse(any(member.issym() or member.islnk() for member in archive))
+            self.assertIn("shared-vault-release/share/vault-services/src/dependency.ts", names)
+            self.assertIn("shared-vault-release/share/vault-services/node_modules/.bin/foo", names)
+            manifest = json.load(archive.extractfile("shared-vault-release/share/vault-services/release.json"))
+            self.assertEqual(manifest, {"packageVersion": "1.2.3", "source": {"kind": "artifact", "revision": self.revision}})
+            for name in ("bun", "vault-service", "vault-client", "vault-mcp"):
+                self.assertIn(f"shared-vault-release/bin/{name}", names)
+            unpacked = self.base / "unpacked"
+            unpacked.mkdir()
+            archive.extractall(unpacked, filter="data")
+        launcher = unpacked / "shared-vault-release/bin/vault-client"
+        invoked = subprocess.run(["sh", str(launcher), "--probe"], text=True,
+                                 capture_output=True, check=True)
+        self.assertEqual(json.loads(invoked.stdout)[-1], "--probe")
+        self.assertTrue(json.loads(invoked.stdout)[0].endswith("/scripts/vault.ts"))
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(sum(call[1:3] == ["scripts/development-certification.ts", "check"] for call in calls), 4)
+        self.assertTrue(any("verify-installed-dependencies.ts" in " ".join(call) for call in calls))
+        self.assertTrue(any("verify-installed-patches.ts" in " ".join(call) for call in calls))
+
+    def test_export_helper_cannot_redefine_the_staging_baseline(self):
+        remote = self.base / "promisor.git"
+        subprocess.run(["git", "clone", "--bare", "--quiet", str(self.repo), str(remote)],
+                       check=True, capture_output=True, timeout=20)
+        helper = self.base / "local-upload-pack.py"
+        marker = self.base / "export-helper-ran"
+        upload_pack = shutil.which("git-upload-pack")
+        self.assertIsNotNone(upload_pack)
+        helper.write_text(f"#!{sys.executable}\n"
+                          "import os,sys\nfrom pathlib import Path\n"
+                          f"for stage in Path({str(self.state)!r}).glob('release-stage-*/shared-vault-release'):\n"
+                          " app=stage/'share/vault-services'\n"
+                          " target=app/'scripts/vault.ts'\n"
+                          " if target.exists():\n"
+                          "  target.write_text('UNCERTIFIED SOURCE\\n')\n"
+                          "  (app/'src/injected.ts').write_text('UNTRACKED STAGING FILE\\n')\n"
+                          f"  Path({str(marker)!r}).write_text('ran')\n"
+                          f"os.execv({upload_pack!r},[{upload_pack!r},*sys.argv[1:]])\n")
+        helper.chmod(0o700)
+        self.git("remote", "add", "origin", str(remote))
+        self.git("config", "remote.origin.promisor", "true")
+        self.git("config", "remote.origin.partialclonefilter", "blob:none")
+        self.git("config", "remote.origin.uploadpack", str(helper))
+        missing = self.git("rev-parse", "HEAD:src/dependency.ts").stdout.strip()
+        (self.repo / ".git/objects" / missing[:2] / missing[2:]).unlink()
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertTrue(marker.exists())
+        self.assertEqual(self.git("status", "--porcelain").stdout, "")
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), self.revision)
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse((self.state / "release.tar.gz.sha256").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_staged_verifiers_cannot_change_the_approved_archive(self):
+        bun = self.repo / "node_modules/bun/bin/bun.exe"
+        original_bun = bun.read_text()
+        original_source = (self.repo / "src/dependency.ts").read_bytes()
+        actions = {
+            "source": "Path('src/dependency.ts').write_text('uncertified source\\n')",
+            "mode": "Path('src/dependency.ts').chmod(0o755)",
+            "private": "Path('.env').write_text('PROBE_ONLY=fixture\\n')",
+            "runtime": "Path('../../bin/vault-client').write_text('changed wrapper\\n')",
+            "removed": "Path('src/dependency.ts').unlink()",
+            "directory-link": "shutil.rmtree('src'); Path('src').symlink_to(" + repr(str(self.repo / 'src')) + ")",
+        }
+        for name, action in actions.items():
+            with self.subTest(name=name):
+                injected = ("a=sys.argv[1:]\nfrom pathlib import Path\nimport shutil\n"
+                            f"if os.getcwd() != {str(self.repo)!r} and len(a)>1 and a[1]=='scripts/verify-installed-dependencies.ts':\n"
+                            f" {action}\n")
+                bun.write_text(original_bun.replace("a=sys.argv[1:]\n", injected))
+                self.write_receipt()
+                state = self.private_state(f"staged-{name}")
+                with self.assertRaises(MODULE.ReleaseError):
+                    self.create(state)
+                self.assertFalse((state / "release.tar.gz").exists())
+                self.assertFalse((state / "release.tar.gz.sha256").exists())
+                self.assertFalse(list(state.glob("release-stage-*")))
+                self.assertEqual((self.repo / "src/dependency.ts").read_bytes(), original_source)
+
+    def test_archive_reads_are_checked_against_the_sealed_files(self):
+        original = MODULE.deterministic_archive
+
+        def change_during_archive(staging, output, *args):
+            source = staging / MODULE.ROOT_NAME / "share/vault-services/src/dependency.ts"
+            source.write_bytes(source.read_bytes().replace(b"true", b"null"))
+            return original(staging, output, *args)
+
+        with patch.object(MODULE, "deterministic_archive", side_effect=change_during_archive):
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_emitted_archive_bytes_must_match_the_seal(self):
+        original = tarfile.TarFile.addfile
+
+        def changed_bytes(archive, info, source=None):
+            if info.name.endswith("/src/dependency.ts"):
+                source = io.BytesIO(source.read().replace(b"true", b"null"))
+            return original(archive, info, source)
+
+        with patch.object(tarfile.TarFile, "addfile", new=changed_bytes):
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse((self.state / "release.tar.gz.sha256").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_existing_output_and_mismatched_receipt_are_refused(self):
+        output = self.state / "release.tar.gz"
+        output.write_bytes(b"existing")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertEqual(output.read_bytes(), b"existing")
+        output.unlink()
+        sidecar = self.state / "release.tar.gz.sha256"
+        sidecar.write_text("existing\n")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertEqual(sidecar.read_text(), "existing\n")
+        sidecar.unlink()
+        self.write_receipt(candidate="a" * 40)
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.write_receipt(profile="core")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse(output.exists())
+        self.assertEqual(len(list(self.state.glob("failure-*.json"))), 2)
+
+    def test_dirty_source_and_departing_link_are_refused_and_staging_is_cleaned(self):
+        (self.repo / "src/dependency.ts").write_text("dirty\n")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.git("checkout", "--", "src/dependency.ts")
+        (self.repo / "node_modules/.bin/escape").symlink_to(self.base / "receipt.json")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertEqual(len(list(self.state.glob("failure-*.json"))), 2)
+
+    def test_tracked_environment_file_is_refused(self):
+        (self.repo / ".env").write_text("PRIVATE=never-archive\n")
+        self.git("add", ".env")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "private fixture")
+        self.revision = self.git("rev-parse", "HEAD").stdout.strip()
+        self.write_receipt()
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_local_git_export_attributes_cannot_omit_committed_source(self):
+        attributes = self.repo / ".git/info/attributes"
+        attributes.write_text("src/dependency.ts export-ignore\nscripts/vault.ts export-subst\n")
+        self.create()
+        with tarfile.open(self.state / "release.tar.gz", "r:gz") as archive:
+            source = archive.extractfile("shared-vault-release/share/vault-services/src/dependency.ts")
+            self.assertEqual(source.read(), b"export const fixture = true;\n")
+
+    def test_replacement_refs_cannot_substitute_the_candidate_tree(self):
+        original = (self.repo / "src/dependency.ts").read_bytes()
+        original_blob = self.git("rev-parse", "HEAD:src/dependency.ts").stdout.strip()
+        (self.repo / "src/dependency.ts").write_text("export const fixture = 'replacement';\n")
+        self.git("add", "src/dependency.ts")
+        replacement_blob = self.git("hash-object", "src/dependency.ts").stdout.strip()
+        tree = self.git("write-tree").stdout.strip()
+        replacement = self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                               "commit-tree", tree, "-m", "replacement").stdout.strip()
+        self.git("replace", self.revision, replacement)
+        self.git("replace", original_blob, replacement_blob)
+        self.git("reset", "--hard", "HEAD")
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=all").stdout, "")
+        destination = self.base / "raw-export"
+        destination.mkdir()
+        MODULE.export_tracked_source(self.repo, self.revision, destination)
+        self.assertEqual((destination / "src/dependency.ts").read_bytes(), original)
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_clean_filter_checkout_differing_from_raw_blob_is_refused(self):
+        self.git("config", "filter.fixture.clean", "sed s/MATERIALIZED/COMMITTED/g")
+        self.git("config", "filter.fixture.smudge", "sed s/COMMITTED/MATERIALIZED/g")
+        (self.repo / ".gitattributes").write_text("src/dependency.ts filter=fixture\n")
+        source = self.repo / "src/dependency.ts"
+        source.write_text('export const fixture = "COMMITTED";\n')
+        self.git("add", ".gitattributes", "src/dependency.ts")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "filtered fixture")
+        self.revision = self.git("rev-parse", "HEAD").stdout.strip()
+        source.unlink()
+        self.git("checkout", "--", "src/dependency.ts")
+        self.git("add", "src/dependency.ts")  # Refresh Git's filtered stat cache.
+        self.assertIn("MATERIALIZED", source.read_text())
+        self.assertIn("COMMITTED", self.git("show", "HEAD:src/dependency.ts").stdout)
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=all").stdout, "")
+        self.write_receipt()
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_loose_blob_contents_must_match_the_requested_object_id(self):
+        object_id = self.git("rev-parse", "HEAD:src/dependency.ts").stdout.strip()
+        path = self.repo / ".git/objects" / object_id[:2] / object_id[2:]
+        changed = b"export const fixture = false;\n"
+        path.chmod(0o600)
+        path.write_bytes(zlib.compress(f"blob {len(changed)}\0".encode() + changed))
+        self.assertEqual(self.git("status", "--porcelain").stdout, "")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_commit_and_tree_contents_must_match_the_candidate_identity(self):
+        original_tree = self.git("rev-parse", "HEAD^{tree}").stdout.strip()
+        (self.repo / "src/dependency.ts").write_text("export const altered = true;\n")
+        self.git("add", "src/dependency.ts")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm", "alternate tree")
+        alternate = self.git("rev-parse", "HEAD").stdout.strip()
+        alternate_tree = self.git("rev-parse", "HEAD^{tree}").stdout.strip()
+        self.git("checkout", "-q", self.revision)
+        for kind, original_id, alternate_id in [("tree", original_tree, alternate_tree), ("commit", self.revision, alternate)]:
+            with self.subTest(kind=kind):
+                path = self.repo / ".git/objects" / original_id[:2] / original_id[2:]
+                original = path.read_bytes()
+                path.chmod(0o600)
+                replacement = subprocess.run(["git", "cat-file", kind, alternate_id], cwd=self.repo, check=True, capture_output=True).stdout
+                try:
+                    path.write_bytes(zlib.compress(f"{kind} {len(replacement)}\0".encode() + replacement))
+                    self.git("read-tree", alternate)
+                    (self.repo / "src/dependency.ts").write_text("export const altered = true;\n")
+                    with self.assertRaises(MODULE.ReleaseError):
+                        self.create(self.private_state(f"corrupt-{kind}"))
+                finally:
+                    path.write_bytes(original)
+                    self.git("read-tree", self.revision)
+                    self.git("checkout", "--", "src/dependency.ts")
+
+    def test_final_git_hook_cannot_publish_changed_archive_bytes(self):
+        hook = self.base / "final-git.py"
+        marker = self.base / "final-git-ran"
+        hook.write_text(f"#!{sys.executable}\nfrom pathlib import Path\nimport sys\n"
+                        f"for archive in Path({str(self.state)!r}).glob('release-*.tar.gz'):\n"
+                        " archive.write_bytes(b'changed after archive verification')\n"
+                        f" Path({str(marker)!r}).write_text('changed')\n"
+                        "sys.stdout.buffer.write(b'fixture\\0/\\0')\n")
+        hook.chmod(0o755)
+        self.git("config", "core.fsmonitor", str(hook))
+        result = self.create()
+        self.assertEqual(result['status'], 'ready')
+        self.assertFalse(marker.exists())
+        with tarfile.open(self.state / "release.tar.gz", "r:gz") as archive:
+            self.assertEqual(archive.extractfile(MODULE.ROOT_NAME + '/share/vault-services/src/dependency.ts').read(),
+                             (self.repo / 'src/dependency.ts').read_bytes())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_hidden_executable_mode_change_is_refused(self):
+        self.git("config", "core.filemode", "false")
+        (self.repo / "src/dependency.ts").chmod(0o755)
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=all").stdout, "")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_excluded_link_target_and_changed_dependency_bytes_are_refused(self):
+        cache_link = self.repo / "node_modules/.bin/cached"
+        cache_link.symlink_to("../.cache/mutable.txt")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        cache_link.unlink()
+        (self.repo / "node_modules/foo/index.js").write_text("changed after receipt\n")
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        (self.repo / "node_modules/foo/index.js").write_text("export default 1;\n")
+        (self.repo / "node_modules/foo/index.js").chmod(0o755)
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def test_missing_dependency_digest_is_refused(self):
+        self.write_receipt(installedDependenciesSha256=None)
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_publication_failures_remove_only_owned_links(self):
+        original = os.link
+        for target_name in ("release.tar.gz", "release.tar.gz.sha256"):
+            with self.subTest(target_name=target_name):
+                def interrupted(source, destination):
+                    original(source, destination)
+                    if Path(destination).name == target_name:
+                        raise MODULE.ReleaseError("packaging interrupted after publication link")
+                with patch.object(MODULE.os, "link", side_effect=interrupted):
+                    with self.assertRaises(MODULE.ReleaseError):
+                        self.create()
+                self.assertFalse((self.state / "release.tar.gz").exists())
+                self.assertFalse((self.state / "release.tar.gz.sha256").exists())
+                self.assertFalse(list(self.state.glob("release-stage-*")))
+                self.assertFalse(list(self.state.glob("release-hash-*")))
+
+    def test_handled_signal_during_publication_cleans_both_links(self):
+        original_link = os.link
+        previous = signal.getsignal(signal.SIGTERM)
+        def interrupted(_signal, _frame):
+            raise MODULE.ReleaseError("packaging interrupted")
+        def linked_then_signalled(source, destination):
+            original_link(source, destination)
+            if Path(destination).name == "release.tar.gz":
+                signal.raise_signal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, interrupted)
+        try:
+            with patch.object(MODULE.os, "link", side_effect=linked_then_signalled):
+                with self.assertRaises(MODULE.ReleaseError):
+                    self.create()
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+        self.assertFalse((self.state / "release.tar.gz").exists())
+        self.assertFalse((self.state / "release.tar.gz.sha256").exists())
+        self.assertFalse(list(self.state.glob("release-stage-*")))
+
+    def detached_checker(self):
+        marker = self.base / "detached-checker.json"
+        program = (
+            "import json,os,pathlib,subprocess,sys,time\n"
+            "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True)\n"
+            "fields=pathlib.Path('/proc/'+str(child.pid)+'/stat').read_text().split(') ',1)[1].split()\n"
+            "pathlib.Path(sys.argv[1]).write_text(json.dumps({'pid':child.pid,'startTime':fields[19]}))\n"
+            "time.sleep(60)\n"
+        )
+        self.addCleanup(self.cleanup_detached_checker, marker)
+        return [sys.executable, "-c", program, str(marker)], marker
+
+    def cleanup_detached_checker(self, marker):
+        if not marker.exists():
+            return
+        record = json.loads(marker.read_text())
+        path = Path("/proc") / str(record["pid"]) / "stat"
+        if path.exists():
+            fields = path.read_text().split(") ", 1)[1].split()
+            if fields[19] == record["startTime"]:
+                os.kill(record["pid"], signal.SIGKILL)
+                try:
+                    os.waitpid(record["pid"], os.WNOHANG)
+                except ChildProcessError:
+                    pass
+
+    def assert_detached_checker_joined(self, marker):
+        record = json.loads(marker.read_text())
+        path = Path("/proc") / str(record["pid"]) / "stat"
+        if path.exists():
+            fields = path.read_text().split(") ", 1)[1].split()
+            self.assertNotEqual(fields[19], record["startTime"], "owned descendant still exists")
+
+    def test_timeout_joins_detached_checker_descendant(self):
+        args, marker = self.detached_checker()
+        with self.assertRaises(MODULE.ReleaseError):
+            MODULE.command(args, self.base, "fixture timeout", timeout=1)
+        self.assertTrue(marker.exists())
+        self.assert_detached_checker_joined(marker)
+
+    def test_handled_interrupt_joins_detached_checker_descendant(self):
+        args, marker = self.detached_checker()
+        previous = signal.getsignal(signal.SIGTERM)
+        trigger_program = (
+            "import os,pathlib,sys,time\n"
+            "marker=pathlib.Path(sys.argv[1]); parent=int(sys.argv[2])\n"
+            "deadline=time.monotonic()+10\n"
+            "while not marker.exists() and time.monotonic()<deadline:time.sleep(0.01)\n"
+            "if marker.exists():os.kill(parent,15)\n"
+        )
+        def interrupted(_signal, _frame):
+            raise MODULE.ReleaseError("fixture interrupted")
+
+        signal.signal(signal.SIGTERM, interrupted)
+        trigger = subprocess.Popen([sys.executable, "-c", trigger_program, str(marker), str(os.getpid())])
+        try:
+            with self.assertRaises(MODULE.ReleaseError):
+                MODULE.command(args, self.base, "fixture interrupt", timeout=10)
+        finally:
+            if trigger.poll() is None:
+                trigger.terminate()
+            trigger.wait(timeout=10)
+            signal.signal(signal.SIGTERM, previous)
+        self.assertTrue(marker.exists())
+        self.assert_detached_checker_joined(marker)
+
+    def test_unsettled_verifier_retains_staging_for_recovery(self):
+        original = MODULE.verify_dependencies
+
+        def unsettled(root, bun):
+            if "release-stage-" in str(root):
+                raise MODULE.UnsettledVerifier("fixture closure unproved", 999999)
+            return original(root, bun)
+
+        with patch.object(MODULE, "verify_dependencies", side_effect=unsettled):
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create()
+        stages = list(self.state.glob("release-stage-*"))
+        self.assertEqual(len(stages), 1)
+        self.addCleanup(shutil.rmtree, stages[0])
+        diagnostic = json.loads(next(self.state.glob("failure-*.json")).read_text())
+        self.assertEqual(diagnostic["status"], "held")
+        self.assertEqual(diagnostic["staging"], str(stages[0]))
+        self.assertEqual(diagnostic["supervisorPid"], 999999)
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+
+class NativeSelectionFixture(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("readelf"),
+                         "native ELF selection requires Linux readelf")
+    def test_target_and_bun_are_retained_while_foreign_and_musl_are_pruned(self):
+        evaluated = os.environ.get("SHARED_VAULT_NATIVE_INSTALL_PHASE")
+        source = Path(evaluated) if evaluated else SOURCE.parents[2] / "pkgs/shared-vault-release.nix"
+        match = re.search(r"python3 - .* <<'PY'\n(?P<body>.*?)\n[ \t]*PY(?=\n|$)",
+                          source.read_text(), re.S)
+        self.assertIsNotNone(match)
+        script = match.group("body") if evaluated else textwrap.dedent(match.group("body"))
+        target_machine = int(os.environ.get("SHARED_VAULT_NATIVE_TARGET", "62"))
+        foreign_machine = 183 if target_machine == 62 else 62
+        with tempfile.TemporaryDirectory(prefix="shared-vault-native-test-") as scratch:
+            base = Path(scratch)
+            root = base / "node_modules"
+            bun = base / "bin/bun"
+            pinned = root / "bun/bin/bun.exe"
+            selected = root / "native/linux-target/module.node"
+            foreign = root / "native/linux-foreign/module.node"
+            musl = root / "native/linuxmusl-target/module.node"
+            ordinary = root / "foo/index.js"
+
+            def elf(machine):
+                header = bytearray(64)
+                header[:16] = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9)
+                struct.pack_into("<HHIQQQIHHHHHH", header, 16,
+                                 2, machine, 1, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0)
+                return bytes(header)
+
+            for path, content in ((bun, elf(target_machine)), (pinned, elf(target_machine)),
+                                  (selected, elf(target_machine)), (foreign, elf(foreign_machine)),
+                                  (musl, elf(target_machine)), (ordinary, b"export default 1;\n")):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+
+            result = subprocess.run([sys.executable, "-c", script, str(root), str(bun), str(target_machine)],
+                                    text=True, capture_output=True, check=True)
+            self.assertIn("retained=2 pruned=2", result.stdout)
+            for path in (bun, pinned, selected, ordinary):
+                self.assertTrue(path.is_file(), str(path))
+            for path in (foreign, musl):
+                self.assertFalse(path.exists(), str(path))
+
+
+if __name__ == "__main__":
+    unittest.main()
