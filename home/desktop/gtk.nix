@@ -3,12 +3,14 @@
   lib,
   hostName,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
 let
-  iconTheme = if useDms then "Papirus-Dark" else "Yaru-blue";
-  iconPkg = if useDms then pkgs.papirus-icon-theme else pkgs.yaru-theme;
+  integratedShell = useDms || useNoctalia;
+  iconTheme = if integratedShell then "Papirus-Dark" else "Yaru-blue";
+  iconPkg = if integratedShell then pkgs.papirus-icon-theme else pkgs.yaru-theme;
 in
 {
   gtk = {
@@ -43,10 +45,10 @@ in
     # In DMS mode, the freedesktop color-scheme portal toggles dark/light
     # globally (syncModeWithPortal=true). Forcing prefer-dark-theme here
     # would override the portal and break light-mode switching.
-    gtk3.extraConfig = lib.mkIf (!useDms) {
+    gtk3.extraConfig = lib.mkIf (!integratedShell) {
       gtk-application-prefer-dark-theme = 1;
     };
-    gtk4.extraConfig = lib.mkIf (!useDms) {
+    gtk4.extraConfig = lib.mkIf (!integratedShell) {
       gtk-application-prefer-dark-theme = 1;
     };
   };
@@ -73,7 +75,7 @@ in
       icon-theme = iconTheme;
       cursor-theme = "Bibata-Modern-Classic";
       # In DMS mode the portal owns the color-scheme; don't pin it here.
-      color-scheme = lib.mkIf (!useDms) "prefer-dark";
+      color-scheme = lib.mkIf (!integratedShell) "prefer-dark";
     };
 
     "org/gtk/settings/file-chooser" = {

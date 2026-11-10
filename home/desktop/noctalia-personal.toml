@@ -1,0 +1,47 @@
+# Minimal native Noctalia v5 configuration. GUI overrides live in its state dir.
+[shell]
+telemetry_enabled = false
+external_ip_enabled = false
+screen_time_enabled = false
+setup_wizard_enabled = false
+niri_overview_type_to_launch_enabled = false
+polkit_agent = true
+launch_apps_as_systemd_services = true
+
+[shell.animation]
+enabled = false
+
+[theme]
+mode = "dark"
+source = "builtin"
+builtin = "Catppuccin"
+
+[bar.main]
+enabled = true
+position = "top"
+margin_ends = 10
+margin_edge = 0
+start = ["launcher", "workspaces"]
+center = ["clock"]
+end = ["volume", "notifications", "tray", "session"]
+compositor_blur = false
+shadow = false
+
+[wallpaper]
+enabled = true
+
+[wallpaper.default]
+path = "color:#1e1e2e"
+
+[dock]
+enabled = false
+
+[desktop_widgets]
+enabled = false
+
+[lockscreen]
+enabled = true
+lock_before_suspend = true
+fingerprint = false
+allow_empty_password = false
+transition = []

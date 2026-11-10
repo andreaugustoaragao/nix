@@ -2,6 +2,7 @@
   pkgs,
   lib,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -10,9 +11,9 @@
   # DMS itself owns org.freedesktop.Notifications natively, so don't
   # install mako at all — having the binary on PATH is what lets stale
   # processes accidentally race DMS for the dbus slot.
-  home.packages = lib.optionals (!useDms) [ pkgs.mako ];
+  home.packages = lib.optionals (!(useDms || useNoctalia)) [ pkgs.mako ];
 
-  xdg.configFile."mako/config" = lib.mkIf (!useDms) {
+  xdg.configFile."mako/config" = lib.mkIf (!(useDms || useNoctalia)) {
     text = ''
       # Catppuccin Mocha theme colors
       background-color=#1e1e2ee6

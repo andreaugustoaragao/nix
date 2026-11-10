@@ -33,7 +33,7 @@ stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
 autoLogin = true
-useDms = true
+desktopShell = "noctalia"
 # Portrait framebuffer 2160x3840 at Niri scale 1.5 (Retina stays enabled).
 dp2Dimensions = { width = 1440, height = 2560 }
 

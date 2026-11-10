@@ -4,6 +4,7 @@
   lib,
   hostName,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -49,7 +50,7 @@ in
     # qt5ct/qt6ct color schemes apply. Outside DMS, fall back to the
     # static adwaita platformtheme + style for native-looking GTK pairing.
     platformTheme.name = if useDms then "qtct" else "adwaita";
-    style.name = lib.mkIf (!useDms) "adwaita-dark";
+    style.name = lib.mkIf (!useDms && !useNoctalia) "adwaita-dark";
   };
 
   # Home Manager's `qtct` shorthand sets QT_QPA_PLATFORMTHEME=qt5ct,

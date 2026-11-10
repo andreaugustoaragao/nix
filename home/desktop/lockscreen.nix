@@ -5,6 +5,7 @@
   lib,
   lockScreen ? false,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -24,7 +25,7 @@ let
     exec ${pkgs.swaylock-effects}/bin/swaylock -f
   '';
 
-  wantLock = lockScreen && !useDms;
+  wantLock = lockScreen && !useDms && !useNoctalia;
 in
 
 {

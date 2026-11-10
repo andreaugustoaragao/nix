@@ -59,6 +59,7 @@
     ./web-apps-launcher.nix
     ./do-not-disturb.nix
     ./quickshell.nix
+    ./noctalia.nix
     ./matugen.nix
   ]
   ++ lib.optionals (!personalOnly) [

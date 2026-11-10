@@ -132,6 +132,18 @@
 
       homePrefixFor = platform: if isDarwinPlatform platform then "/Users" else "/home";
 
+      desktopShellFor =
+        host:
+        let
+          shell = host.desktopShell or (if host.useDms or false then "dms" else "components");
+        in
+        assert builtins.elem shell [
+          "dms"
+          "noctalia"
+          "components"
+        ];
+        shell;
+
       # Set special args for each machine
       setSpecialArgs = host: {
         # Shared alternate-nixpkgs instances, instantiated ONCE per host
@@ -187,7 +199,8 @@
         # Enable DankMaterialShell on this host. When true, conflicting
         # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
         # hyprpolkitagent) are not autostarted so DMS owns the screen.
-        useDms = host.useDms or false;
+        useDms = desktopShellFor host == "dms";
+        useNoctalia = desktopShellFor host == "noctalia";
         # Per-host connector name map. The DMS config (and anywhere else
         # this flake references monitor outputs by name) thinks in
         # canonical dp1/dp2 slots — landscape primary on the right,
