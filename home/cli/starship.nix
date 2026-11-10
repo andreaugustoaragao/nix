@@ -2,6 +2,7 @@
   pkgs,
   lib,
   config,
+  appearance,
   ...
 }:
 
@@ -10,7 +11,7 @@ let
   # catppuccin/starship snippet. Defined once so module styles can
   # reference colors by semantic name ("fg:blue", "fg:text") and the
   # whole prompt repaints when the active palette flips light/dark.
-  palettes = {
+  palettes = appearance.mapColors {
     mocha = {
       rosewater = "#f5e0dc";
       flamingo = "#f2cdcd";
@@ -69,9 +70,16 @@ let
     };
   };
 
+  themeName =
+    paletteName:
+    let
+      variant = if paletteName == "mocha" then "dark" else "light";
+    in
+    if appearance.isGruvbox then "gruvbox_${variant}" else "catppuccin_${paletteName}";
+
   mkConfig = paletteName: palette: {
-    palette = "catppuccin_${paletteName}";
-    palettes."catppuccin_${paletteName}" = palette;
+    palette = themeName paletteName;
+    palettes.${themeName paletteName} = palette;
 
     # Three-line framed prompt:
     #   ╭─  $user at $host on  $os $version ❄

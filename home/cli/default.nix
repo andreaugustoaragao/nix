@@ -3,6 +3,7 @@
   lib,
   unstable-pkgs,
   personalOnly,
+  appearance,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -294,6 +295,6 @@ in
 
   programs.bat = {
     enable = true;
-    config.theme = "Catppuccin Mocha";
+    config.theme = if appearance.isGruvbox then "gruvbox-dark" else "Catppuccin Mocha";
   };
 }

@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchurl,
+  requireFile,
   jq,
   python3,
   binutils,
@@ -15,10 +16,18 @@
   sourceRevision,
 }:
 let
-  artifact = fetchurl {
-    inherit url hash;
-    name = "shared-vault-release.tar.gz";
-  };
+  artifact =
+    if url == null then
+      requireFile {
+        inherit hash;
+        name = "shared-vault-release.tar.gz";
+        message = "Import the retained certified runtime with shared-vault-bootstrap.py --archive PATH --archive-only before building this local release.";
+      }
+    else
+      fetchurl {
+        inherit url hash;
+        name = "shared-vault-release.tar.gz";
+      };
   elfMachine =
     {
       x86_64-linux = 62;
@@ -49,6 +58,7 @@ stdenv.mkDerivation {
   dontConfigure = true;
   dontBuild = true;
   dontStrip = true;
+  doInstallCheck = true;
 
   installPhase = ''
     runHook preInstall
@@ -130,6 +140,22 @@ stdenv.mkDerivation {
           and .kind == "artifact" and .revision == $revision)
       ' "$out/share/vault-services/release.json" >/dev/null
     runHook postInstall
+  '';
+
+  installCheckPhase = ''
+    runHook preInstallCheck
+    test -s "$out/share/vault-services/src/index.ts"
+    FULCRUM_PACKAGE_ROOT="$out/share/vault-services" "$out/bin/bun" --no-env-file --eval '
+      const root = process.env.FULCRUM_PACKAGE_ROOT;
+      const pkg = await Bun.file(root + "/package.json").json();
+      const release = await Bun.file(root + "/release.json").json();
+      if (pkg.version !== release.packageVersion) throw new Error("Application package version differs from its release manifest");
+      const { snapshotWebArtifact } = await import(root + "/scripts/web-artifact.ts");
+      const artifact = await snapshotWebArtifact(root);
+      if (!artifact.files.length) throw new Error("Packaged application has no web assets");
+      console.log("Verified packaged application " + pkg.version + ": " + artifact.files.length + " web assets");
+    '
+    runHook postInstallCheck
   '';
 
   passthru = {

@@ -3,20 +3,20 @@
 The committed Nix flake selects the system packages, five agent clients,
 independent vault service, scheduler, cleanup timer and notes synchronization.
 `home/services/shared-vault-prl-dev-vm-release.json` pins the aarch64-linux
-runtime by full Fulcrum commit and SHA256. The archive is retained in the
-private `andrearagao/fulcrum` GitHub release named in that pin.
+runtime by full Fulcrum commit and SHA256. A null `url` selects a local-only
+release: retain its certified archive privately and import it with `--archive`
+before rebuilding. This mode performs no runtime download or publication.
+Pins with a GitHub URL retain the existing private-release download workflow.
 
-The archive contains certified source and installed native dependencies. It
-does not contain credentials, Git metadata or mutable vault data. A bootstrap
-command imports the exact archive into Nix, builds its package and restores a
-clean checkout of the pinned source under `~/projects/work/fulcrum-releases/`.
-Every exported source file and executable mode is compared with the certified package;
-the intentionally omitted `.env.example` is checked against the pinned Git commit.
-`node_modules` points to that package. The checkout retains real Git metadata
-for Fulcrum's installed-version checks. Fulcrum Desktop reads its independent
-revision from this same restored history; the bootstrap also checks that commit
-is available. A separate development checkout is not a restore prerequisite. Existing changed checkouts are preserved
-and cause an explicit failure.
+The runtime archive contains certified source, built web assets and installed
+native dependencies. It does not contain credentials, Git metadata or mutable
+vault data. The service runs directly from the resulting Nix store package.
+Activation does not create source checkouts or install dependencies. Nix
+configuration generations retain the package for rollback and garbage collection.
+
+Fulcrum Desktop has a separate source revision and unpacked SHA256 in
+`home/desktop/fulcrum-source.json`. Its Nix derivation fetches that fixed source
+archive. It does not read a development checkout or the runtime's Git history.
 
 ## Restore code and configuration
 
@@ -24,42 +24,40 @@ Use the `prl-dev-vm` NixOS host configuration on aarch64-linux. Other hosts stil
 evaluate, but this native archive is not an x86_64 or Darwin release.
 
 Prerequisites are Nix with flakes, Git, Python 3, access to the private Fulcrum
-repository and the host's SOPS decryption key. Restore the SSH identities and
-the configured `github-work` alias, or use `--source-repository` with an
-an SSH or HTTPS repository URL without embedded credentials. HTTPS uses Git's credential helper. The download uses `GH_TOKEN`, `GITHUB_TOKEN` or
-Git's existing HTTPS credential helper. Credentials are not written into Git,
-the release pin or the Nix store.
+repository and the host's SOPS decryption key. Private GitHub downloads use
+`GH_TOKEN`, `GITHUB_TOKEN` or Git's existing HTTPS credential helper. Credentials
+are removed on asset/source redirects and never enter the release pins or Nix
+store. Runtime and desktop inputs are both verified against committed hashes.
 
 ```sh
 mkdir -p ~/projects/personal
 git clone git@github.com:andreaugustoaragao/nix.git ~/projects/personal/nix
 cd ~/projects/personal/nix
-python3 home/cli/shared-vault-bootstrap.py
+python3 home/cli/shared-vault-bootstrap.py --archive /path/to/shared-vault-release.tar.gz
 nix flake check --no-build --all-systems
 ```
 
 Keep production services and sync timers stopped while restoring the mutable
 state below. Activation is a separate final step after that restore.
-The bootstrap does not start services or change that state. It can be rerun:
-the exact existing checkout is verified and reused. GitHub downloads go to a
-private temporary directory, are checked against the committed SHA256 and
-are removed after Nix imports them. GitHub credentials are removed on asset
-redirects.
+The bootstrap imports the pinned runtime and desktop source into Nix, builds the
+runtime package and verifies its identity. It does not start services, change
+mutable state or create project directories. Repeated imports reuse the verified
+store paths. Downloads use private temporary directories that are removed after
+import.
 
 For an offline restore with a retained archive:
 
 ```sh
 python3 home/cli/shared-vault-bootstrap.py \
   --archive /path/to/shared-vault-release.tar.gz \
-  --source-repository /path/to/fulcrum
+  --desktop-archive /path/to/fulcrum-desktop-source.tar.gz
 ```
 
-`--archive-only` imports the verified archive without building or creating a
-checkout. It is useful when preparing a Nix store before a full restore.
-Private GitHub release URLs cannot be fetched anonymously by a Nix builder;
-run the bootstrap after garbage collection removes the fixed-output archive.
-The committed URL and hash, rather than a path in one user's home directory,
-identify the required input.
+`--archive-only` imports only the verified runtime archive without building it.
+Private GitHub release/source URLs cannot be fetched anonymously by a Nix
+builder. Run the bootstrap after garbage collection removes either fixed-output
+input. Keep both archives for offline recovery. The committed revisions and
+hashes identify the inputs independently of paths in a user's home directory.
 
 ## Restore mutable state
 

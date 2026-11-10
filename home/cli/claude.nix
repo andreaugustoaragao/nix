@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  appearance,
   ...
 }:
 
@@ -27,54 +28,56 @@ let
     allowed_origins = [ "chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/" ];
   };
 
-  claudeStatusLine = pkgs.writeShellScript "claude-statusline" ''
-    data=$(${pkgs.coreutils}/bin/cat)
+  claudeStatusLine = pkgs.writeShellScript "claude-statusline" (
+    appearance.render ''
+      data=$(${pkgs.coreutils}/bin/cat)
 
-    model=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.model.display_name // "unknown"')
-    remaining=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.context_window.remaining_percentage // 0 | round')
-    cost=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_cost_usd // 0')
-    duration_ms=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_duration_ms // 0')
-    project_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.project_dir // .workspace.current_dir // "unknown"')
-    current_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.current_dir // .workspace.project_dir // "."')
+      model=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.model.display_name // "unknown"')
+      remaining=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.context_window.remaining_percentage // 0 | round')
+      cost=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_cost_usd // 0')
+      duration_ms=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.cost.total_duration_ms // 0')
+      project_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.project_dir // .workspace.current_dir // "unknown"')
+      current_dir=$(echo "$data" | ${pkgs.jq}/bin/jq -r '.workspace.current_dir // .workspace.project_dir // "."')
 
-    project=$(${pkgs.coreutils}/bin/basename "$project_dir")
+      project=$(${pkgs.coreutils}/bin/basename "$project_dir")
 
-    branch=$(${pkgs.git}/bin/git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+      branch=$(${pkgs.git}/bin/git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
 
-    cost_fmt=$(${pkgs.coreutils}/bin/printf '$%.2f' "$cost")
+      cost_fmt=$(${pkgs.coreutils}/bin/printf '$%.2f' "$cost")
 
-    duration_s=$(( duration_ms / 1000 ))
-    if (( duration_s < 60 )); then
-      duration_fmt="''${duration_s}s"
-    elif (( duration_s < 3600 )); then
-      m=$(( duration_s / 60 ))
-      s=$(( duration_s % 60 ))
-      duration_fmt="''${m}m''${s}s"
-    else
-      h=$(( duration_s / 3600 ))
-      m=$(( (duration_s % 3600) / 60 ))
-      duration_fmt="''${h}h''${m}m"
-    fi
+      duration_s=$(( duration_ms / 1000 ))
+      if (( duration_s < 60 )); then
+        duration_fmt="''${duration_s}s"
+      elif (( duration_s < 3600 )); then
+        m=$(( duration_s / 60 ))
+        s=$(( duration_s % 60 ))
+        duration_fmt="''${m}m''${s}s"
+      else
+        h=$(( duration_s / 3600 ))
+        m=$(( (duration_s % 3600) / 60 ))
+        duration_fmt="''${h}h''${m}m"
+      fi
 
-    if (( remaining > 50 )); then
-      ctx_color="\033[38;2;166;227;161m"
-    elif (( remaining > 20 )); then
-      ctx_color="\033[38;2;249;226;175m"
-    else
-      ctx_color="\033[38;2;243;139;168m"
-    fi
-    reset="\033[0m"
-    dim="\033[2m"
-    branch_color="\033[38;2;137;180;250m"
+      if (( remaining > 50 )); then
+        ctx_color="\033[38;2;166;227;161m"
+      elif (( remaining > 20 )); then
+        ctx_color="\033[38;2;249;226;175m"
+      else
+        ctx_color="\033[38;2;243;139;168m"
+      fi
+      reset="\033[0m"
+      dim="\033[2m"
+      branch_color="\033[38;2;137;180;250m"
 
-    if [ -n "$branch" ]; then
-      branch_fmt=" ''${dim}│''${reset} ''${branch_color}⎇ ''${branch}''${reset}"
-    else
-      branch_fmt=""
-    fi
+      if [ -n "$branch" ]; then
+        branch_fmt=" ''${dim}│''${reset} ''${branch_color}⎇ ''${branch}''${reset}"
+      else
+        branch_fmt=""
+      fi
 
-    echo -e "''${model} ''${dim}│''${reset} ''${ctx_color}''${remaining}% ctx''${reset} ''${dim}│''${reset} ''${cost_fmt} ''${dim}│''${reset} ''${duration_fmt} ''${dim}│''${reset} ''${project}''${branch_fmt}"
-  '';
+      echo -e "''${model} ''${dim}│''${reset} ''${ctx_color}''${remaining}% ctx''${reset} ''${dim}│''${reset} ''${cost_fmt} ''${dim}│''${reset} ''${duration_fmt} ''${dim}│''${reset} ''${project}''${branch_fmt}"
+    ''
+  );
 
   # Model changes: update the model value below, then nixos-rebuild switch.
   settings = pkgs.writeText "claude-settings.json" (

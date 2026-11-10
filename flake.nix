@@ -132,8 +132,24 @@
 
       homePrefixFor = platform: if isDarwinPlatform platform then "/Users" else "/home";
 
+      desktopShellFor =
+        host:
+        let
+          shell = host.desktopShell or (if host.useDms or false then "dms" else "components");
+        in
+        assert builtins.elem shell [
+          "dms"
+          "noctalia"
+          "components"
+        ];
+        shell;
+
       # Set special args for each machine
       setSpecialArgs = host: {
+        appearance = import ./home/appearance/palette.nix {
+          inherit (nixpkgs) lib;
+          colorScheme = host.colorScheme or "catppuccin";
+        };
         # Shared alternate-nixpkgs instances, instantiated ONCE per host
         # eval and threaded to every consumer through specialArgs /
         # extraSpecialArgs. Modules must take `unstable-pkgs` (or
@@ -187,7 +203,8 @@
         # Enable DankMaterialShell on this host. When true, conflicting
         # daemons (waybar, mako, hyprpaper, swayidle, swayosd,
         # hyprpolkitagent) are not autostarted so DMS owns the screen.
-        useDms = host.useDms or false;
+        useDms = desktopShellFor host == "dms";
+        useNoctalia = desktopShellFor host == "noctalia";
         # Per-host connector name map. The DMS config (and anywhere else
         # this flake references monitor outputs by name) thinks in
         # canonical dp1/dp2 slots — landscape primary on the right,
@@ -388,6 +405,9 @@
           graphify = inputs.nixpkgs-unstable.legacyPackages.${system}.callPackage ./pkgs/graphify.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          gruvbox-trial = pkgs.callPackage ./pkgs/gruvbox-trial.nix {
+            inherit (inputs.nixpkgs-unstable.legacyPackages.${system}) noctalia;
+          };
           chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
           herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
           orca-ide = pkgs.callPackage ./pkgs/orca-ide.nix { };
@@ -743,6 +763,13 @@
             ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-host-context.test.py
             touch "$out"
           '';
+          gruvbox-trial = pkgs.runCommand "check-gruvbox-trial" { } ''
+            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/desktop/gruvbox-trial.test.py
+            touch "$out"
+          '';
+          gruvbox-appearance =
+            assert import ./home/appearance/startup.test.nix { inherit (nixpkgs) lib; };
+            pkgs.callPackage ./pkgs/gruvbox-appearance-check.nix { };
           agent-json-configure = pkgs.runCommand "check-agent-json-configure" { } ''
             PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-json-configure.test.py
             touch "$out"
@@ -794,6 +821,9 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-bootstrap.test.py
                 touch "$out"
               '';
+          fulcrum-packaged-runtime = import ./home/services/fulcrum-release-check.nix {
+            inherit pkgs home-manager;
+          };
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
             inherit pkgs home-manager;
           };
@@ -817,6 +847,7 @@
               {
                 nativeBuildInputs = [
                   pkgs.bash
+                  pkgs.nodejs
                   (pkgs.python3.withPackages (ps: [ ps.json5 ]))
                 ];
               }

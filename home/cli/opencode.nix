@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   personalOnly,
   isServer ? false,
   ...
@@ -40,6 +41,39 @@ in
 {
   config = lib.mkIf (!isServer) {
     xdg.configFile."opencode/AGENTS.md".text = import ./browser-instructions.nix;
+
+    # Keep CLI preferences writable for OpenCode and terminal integrations.
+    home.activation.opencodeCliSettings =
+      lib.hm.dag.entryAfter
+        [
+          "linkGeneration"
+          "herdrIntegrations"
+        ]
+        ''
+          run ${lib.getExe pkgs.python3} - ${lib.escapeShellArg "${config.xdg.configHome}/opencode/cli.json"} <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          import tempfile
+
+          path = Path(sys.argv[1])
+          settings = json.loads(path.read_text()) if path.exists() else {}
+          settings.setdefault("$schema", "https://opencode.ai/v2/cli.json")
+          settings.setdefault("session", {})["sidebar"] = "hide"
+          settings.setdefault("tabs", {})["mode"] = "off"
+          content = json.dumps(settings, indent=2) + "\n"
+          if not path.exists() or path.read_text() != content:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              descriptor, temporary = tempfile.mkstemp(prefix=".cli.json.", dir=path.parent)
+              try:
+                  with os.fdopen(descriptor, "w") as output:
+                      output.write(content)
+                  os.replace(temporary, path)
+              finally:
+                  Path(temporary).unlink(missing_ok=True)
+          PY
+        '';
 
     xdg.configFile."opencode/opencode.jsonc".text = builtins.toJSON {
       "$schema" = "https://opencode.ai/config.json";

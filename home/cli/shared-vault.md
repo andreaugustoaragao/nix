@@ -19,7 +19,8 @@ The `prl-dev-vm` deployment pins a certified archive in the private Fulcrum
 GitHub releases through `home/services/shared-vault-prl-dev-vm-release.json`.
 Run `python3 home/cli/shared-vault-bootstrap.py` from the Nix checkout to fetch
 and verify that archive, import it into Nix, build the runtime package and
-restore its exact Git source checkout. The bootstrap also accepts `--archive`
+verify its packaged application identity. It also imports the separately pinned
+desktop source archive. The bootstrap accepts `--archive` and `--desktop-archive`
 for offline recovery. See [environment recovery](../../docs/shared-vault-recovery.md)
 for credentials, mutable-state restoration and installed verification.
 

@@ -3,9 +3,90 @@
   pkgs,
   inputs,
   unstable-pkgs,
+  lib,
+  appearance,
   ...
 }:
 
+let
+  chromeColors =
+    mode:
+    let
+      c = appearance.${mode};
+    in
+    ''
+      @media (prefers-color-scheme: ${mode}) {
+        :root {
+          --lwt-accent-color: ${c.base} !important;
+          --lwt-text-color: ${c.text} !important;
+          --toolbar-bgcolor: ${c.base} !important;
+          --toolbar-color: ${c.text} !important;
+          --toolbar-field-background-color: ${c.mantle} !important;
+          --toolbar-field-color: ${c.text} !important;
+          --toolbar-field-focus-background-color: ${c.surface0} !important;
+          --toolbar-field-focus-color: ${c.text} !important;
+          --toolbar-field-focus-border-color: ${c.yellow} !important;
+          --lwt-selected-tab-background-color: ${c.surface0} !important;
+          --lwt-tab-text: ${c.text} !important;
+          --arrowpanel-background: ${c.mantle} !important;
+          --arrowpanel-color: ${c.text} !important;
+          --arrowpanel-border-color: ${c.surface2} !important;
+          --sidebar-background-color: ${c.mantle} !important;
+          --sidebar-text-color: ${c.text} !important;
+          --tab-selected-bgcolor: ${c.surface0} !important;
+          --tab-selected-textcolor: ${c.text} !important;
+          --tab-loading-fill: ${c.yellow} !important;
+          --focus-outline-color: ${c.yellow} !important;
+        }
+        #navigator-toolbox, #nav-bar, #PersonalToolbar {
+          background-color: ${c.base} !important;
+          color: ${c.text} !important;
+        }
+      }
+    '';
+  gruvboxChrome = lib.optionalString appearance.isGruvbox (
+    chromeColors "dark" + chromeColors "light"
+  );
+  gruvboxContent = lib.optionalString appearance.isGruvbox (
+    lib.concatMapStrings
+      (
+        mode:
+        let
+          c = appearance.${mode};
+        in
+        ''
+          @-moz-document url-prefix("about:") {
+            @media (prefers-color-scheme: ${mode}) {
+              :root {
+                --in-content-page-background: ${c.base} !important;
+                --in-content-page-color: ${c.text} !important;
+                --in-content-box-background: ${c.mantle} !important;
+                --in-content-box-border-color: ${c.surface2} !important;
+                --in-content-primary-button-background: ${c.yellow} !important;
+                --in-content-primary-button-text-color: ${c.base} !important;
+                --in-content-link-color: ${c.blue} !important;
+                --newtab-background-color: ${c.base} !important;
+                --newtab-text-primary-color: ${c.text} !important;
+                --background-color-canvas: ${c.base} !important;
+                --text-color: ${c.text} !important;
+                background-color: ${c.base} !important;
+                color: ${c.text} !important;
+              }
+            }
+          }
+        ''
+      )
+      [
+        "dark"
+        "light"
+      ]
+  );
+  gruvboxSettings = lib.optionalAttrs appearance.isGruvbox {
+    # The built-in system theme leaves scheme detection to the desktop.
+    "extensions.activeThemeID" = "default-theme@mozilla.org";
+    "layout.css.prefers-color-scheme.content-override" = 2;
+  };
+in
 {
   # Firefox Browser configuration using unstable version
   programs.firefox = {
@@ -49,11 +130,17 @@
           permissions = [ "<all_urls>" ];
         };
         # Catppuccin Mocha Theme
-        "{7aa7c68a-141f-45c9-a1c6-6e7382debbe1}" = {
-          installation_mode = "force_installed";
-          allowed_types = [ "theme" ];
-          install_url = "https://addons.mozilla.org/firefox/downloads/file/4147586/catppuccin_mocha-1.0.xpi";
-        };
+        "{7aa7c68a-141f-45c9-a1c6-6e7382debbe1}" =
+          if appearance.isGruvbox then
+            {
+              installation_mode = "blocked";
+            }
+          else
+            {
+              installation_mode = "force_installed";
+              allowed_types = [ "theme" ];
+              install_url = "https://addons.mozilla.org/firefox/downloads/file/4147586/catppuccin_mocha-1.0.xpi";
+            };
         # Disable configuration prompts and setup wizard
         "*" = {
           installation_mode = "blocked";
@@ -90,7 +177,7 @@
           darkreader
         ];
 
-        settings = {
+        settings = gruvboxSettings // {
           # Enable userChrome.css
           "toolkit.legacyUserProfileCustomizations.stylesheets" = true;
 
@@ -164,7 +251,7 @@
           "browser.download.useDownloadDir" = true; # Don't prompt for each download
         };
 
-        userChrome = ''
+        userChrome = gruvboxChrome + ''
           /* Hide the navigation toolbar and bookmarks bar by default */
           #nav-bar {
             margin-top: -50px !important;
@@ -223,6 +310,7 @@
             pointer-events: auto !important;
           }
         '';
+        userContent = gruvboxContent;
       };
 
       app = {
@@ -236,7 +324,7 @@
           vimium
         ];
 
-        settings = {
+        settings = gruvboxSettings // {
           # Enable userChrome.css
           "toolkit.legacyUserProfileCustomizations.stylesheets" = true;
 
@@ -317,7 +405,7 @@
           "browser.download.useDownloadDir" = true; # Don't prompt for each download
         };
 
-        userChrome = ''
+        userChrome = gruvboxChrome + ''
           /* Hide the navigation toolbar and bookmarks bar by default */
           #nav-bar {
             margin-top: -55px !important;
@@ -379,6 +467,7 @@
             pointer-events: auto !important;
           }
         '';
+        userContent = gruvboxContent;
       };
     };
   };

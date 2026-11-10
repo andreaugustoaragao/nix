@@ -2,6 +2,7 @@
   pkgs,
   lib,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -17,7 +18,7 @@
 # (see home/desktop/niri.nix). Wallpaper swap is handled by DMS itself
 # via SessionData.syncWallpaperForCurrentMode(); darkman does not
 # affect wallpapers (DMS has no listener for portal SettingChanged).
-lib.mkIf useDms {
+lib.mkIf (useDms || useNoctalia) {
   services.darkman = {
     enable = true;
     settings = {

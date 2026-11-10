@@ -1,10 +1,12 @@
 {
   pkgs,
+  appearance,
   inputs,
   isWorkMachine,
   lib,
   lockScreen ? false,
   useDms ? false,
+  useNoctalia ? false,
   ...
 }:
 
@@ -24,7 +26,7 @@ let
     exec ${pkgs.swaylock-effects}/bin/swaylock -f
   '';
 
-  wantLock = lockScreen && !useDms;
+  wantLock = lockScreen && !useDms && !useNoctalia;
 in
 
 {
@@ -37,7 +39,7 @@ in
 
   # Swaylock configuration with Catppuccin Mocha theme
   xdg.configFile."swaylock/config" = lib.mkIf wantLock {
-    text = ''
+    text = appearance.render ''
       # Catppuccin-themed lock screen with screenshot background
       screenshots
       clock

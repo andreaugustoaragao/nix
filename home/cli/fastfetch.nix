@@ -3,6 +3,7 @@
   unstable-pkgs,
   lib,
   personalOnly,
+  appearance,
   # wallpapers is exposed via _module.args by home/desktop/wallpapers.nix,
   # which is only loaded on graphical hosts. On tala (server) and mac-work
   # (darwin), the desktop module is skipped, so wallpapers is absent —
@@ -152,7 +153,7 @@ in
           "type": "custom",
           "key": "󰸌 Icons",
           "keyColor": "blue",
-          "format": "Catppuccin Mocha"
+          "format": "${if appearance.isGruvbox then "Papirus-Dark" else "Catppuccin Mocha"}"
         },
         {
           "type": "terminalfont",

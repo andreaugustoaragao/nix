@@ -1,8 +1,12 @@
 {
   unstable-pkgs,
+  appearance,
   ...
 }:
 
+let
+  skinName = if appearance.isGruvbox then "gruvbox-dark" else "catppuccin-mocha";
+in
 {
   home.packages = [
     unstable-pkgs.k9s
@@ -22,11 +26,11 @@
     "k9s/config.yaml".text = ''
       k9s:
         ui:
-          skin: catppuccin-mocha
+          skin: ${skinName}
     '';
 
     # Catppuccin Mocha skin. Static — doesn't follow system mode.
-    "k9s/skins/catppuccin-mocha.yaml".text = ''
+    "k9s/skins/${skinName}.yaml".text = appearance.render ''
       k9s:
         body:
           fgColor:    "#cdd6f4"

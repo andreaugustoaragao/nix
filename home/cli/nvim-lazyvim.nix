@@ -3,10 +3,20 @@
   pkgs,
   lib,
   unstable-pkgs,
+  appearance,
   ...
 }:
 
 let
+  colorscheme = if appearance.isGruvbox then "gruvbox" else "catppuccin";
+  originalPalette = (import ../appearance/palette.nix { inherit lib; }).dark;
+  luaPalette =
+    mode:
+    "{ "
+    + lib.concatStringsSep ", " (
+      lib.mapAttrsToList (key: value: "${key} = \"${value}\"") appearance.${mode}
+    )
+    + " }";
   # Neovim 0.12 + its plugin set come from nixpkgs-unstable so the
   # treesitter parser ABI stays paired with the runtime. Nixpkgs 25.11
   # is still on neovim 0.11, and the nvim-treesitter `main` branch (now
@@ -123,6 +133,16 @@ in
       ];
 
     initLua = ''
+      local function theme_color(color)
+        if not ${lib.boolToString appearance.isGruvbox} then return color end
+        local palette = vim.o.background == "light" and ${luaPalette "light"} or ${luaPalette "dark"}
+        return ({
+          ${lib.concatStringsSep ",\n          " (
+            lib.mapAttrsToList (key: value: ''["${value}"] = palette.${key}'') originalPalette
+          )}
+        })[string.lower(color)] or color
+      end
+
       -- lazy.nvim itself comes from the read-only Nix store. Its managed
       -- plugins are pinned by the Home Manager-deployed lazy-lock.json.
       local lazypath = "${unstable-pkgs.vimPlugins.lazy-nvim}"
@@ -153,7 +173,7 @@ in
         vim.g.neovide_scale_factor = 1.0
         vim.g.neovide_opacity = 0.0  -- For unified transparency
         vim.g.transparency = 0.95    -- Set transparency level
-        vim.g.neovide_background_color = "#1e1e2e" .. string.format("%x", math.floor(255 * (vim.g.transparency or 0.95)))
+        vim.g.neovide_background_color = theme_color("#1e1e2e") .. string.format("%x", math.floor(255 * (vim.g.transparency or 0.95)))
       end
       vim.opt.ignorecase = true
       vim.opt.smartcase = true
@@ -173,7 +193,7 @@ in
       vim.opt.undofile = true
 
       -- Hide the EndOfBuffer "~" markers, give the window-split
-      -- separator a solid Catppuccin mauve line (replaces what
+      -- separator a solid accent line (replaces what
       -- colorful-winsep.nvim used to render).
       vim.opt.fillchars = { eob = " ", vert = "│" }
 
@@ -344,39 +364,57 @@ in
             end,
           },
           
-          -- Colorscheme. Catppuccin Mocha for dark / Latte for light;
+          -- Colorscheme follows the system background preference.
           -- auto-dark-mode.nvim below flips background and reloads the
           -- right variant when the system color-scheme changes.
-          {
-            "catppuccin/nvim",
-            name = "catppuccin",
-            priority = 1000,
-            lazy = false,
-            config = function()
-              require("catppuccin").setup({
-                flavour = "mocha",
-                background = {
-                  light = "latte",
-                  dark = "mocha",
+          ${
+            if appearance.isGruvbox then
+              ''
+                {
+                  "ellisonleao/gruvbox.nvim",
+                  dir = "${unstable-pkgs.vimPlugins.gruvbox-nvim}",
+                  name = "gruvbox.nvim",
+                  priority = 1000,
+                  lazy = false,
+                  config = function()
+                    require("gruvbox").setup({ contrast = "", transparent_mode = false })
+                    vim.cmd.colorscheme("gruvbox")
+                  end,
                 },
-                transparent = false,
-                term_colors = true,
-                styles = {
-                  comments = { "italic" },
-                  keywords = { "italic" },
+              ''
+            else
+              ''
+                {
+                  "catppuccin/nvim",
+                  name = "catppuccin",
+                  priority = 1000,
+                  lazy = false,
+                  config = function()
+                    require("catppuccin").setup({
+                      flavour = "mocha",
+                      background = {
+                        light = "latte",
+                        dark = "mocha",
+                      },
+                      transparent = false,
+                      term_colors = true,
+                      styles = {
+                        comments = { "italic" },
+                        keywords = { "italic" },
+                      },
+                    })
+                    -- Pick the variant matching the current system mode so the
+                    -- editor opens in sync. auto-dark-mode.nvim takes over from
+                    -- here for live switching.
+                    vim.cmd.colorscheme("catppuccin")
+                  end,
                 },
-              })
-              -- Pick the variant matching the current system mode so the
-              -- editor opens in sync. auto-dark-mode.nvim takes over from
-              -- here for live switching.
-              vim.cmd.colorscheme("catppuccin")
-            end,
-          },
-
+              ''
+          }
           -- Live light/dark switching driven by the freedesktop portal
           -- color-scheme preference (set by DMS — see
           -- home/desktop/quickshell.nix). Polls dbus every 3s; flips
-          -- vim.o.background and reloads the matching Catppuccin variant.
+          -- vim.o.background and reloads the matching theme variant.
           {
             "f-person/auto-dark-mode.nvim",
             priority = 999,
@@ -385,11 +423,11 @@ in
               update_interval = 3000,
               set_dark_mode = function()
                 vim.o.background = "dark"
-                vim.cmd.colorscheme("catppuccin")
+                vim.cmd.colorscheme("${colorscheme}")
               end,
               set_light_mode = function()
                 vim.o.background = "light"
-                vim.cmd.colorscheme("catppuccin")
+                vim.cmd.colorscheme("${colorscheme}")
               end,
             },
           },
@@ -479,7 +517,9 @@ in
                     "  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║ ",
                     "  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝ ",
                     "",
-                    "           Catppuccin Mocha / Latte Theme             ",
+                    "           ${
+                      if appearance.isGruvbox then "Gruvbox Dark / Light" else "Catppuccin Mocha / Latte"
+                    } Theme             ",
                     "",
                   }, "\n"),
                   keys = {
@@ -502,9 +542,16 @@ in
                   {
                     text = {
                       { "", hl = "Comment" },
-                      { "Soothing pastel colors for focused editing", hl = "SnacksDashboardFooter" },
+                      { "${
+                        if appearance.isGruvbox then
+                          "Warm colors for focused editing"
+                        else
+                          "Soothing pastel colors for focused editing"
+                      }", hl = "SnacksDashboardFooter" },
                       { "", hl = "Comment" },
-                      { "~ Catppuccin ~", hl = "SnacksDashboardFooter" },
+                      { "~ ${
+                        if appearance.isGruvbox then "Gruvbox" else "Catppuccin"
+                      } ~", hl = "SnacksDashboardFooter" },
                     },
                     align = "center",
                   },
@@ -549,10 +596,10 @@ in
               vim.api.nvim_create_autocmd("ColorScheme", {
                 pattern = "*",
                 callback = function()
-                  vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { fg = "#cba6f7" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardKey",    { fg = "#89b4fa" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardDesc",   { fg = "#cdd6f4" })
-                  vim.api.nvim_set_hl(0, "SnacksDashboardFooter", { fg = "#6c7086", italic = true })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardHeader", { fg = theme_color("#cba6f7") })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardKey",    { fg = theme_color("#89b4fa") })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardDesc",   { fg = theme_color("#cdd6f4") })
+                  vim.api.nvim_set_hl(0, "SnacksDashboardFooter", { fg = theme_color("#6c7086"), italic = true })
                 end,
               })
             end,
@@ -984,7 +1031,7 @@ in
                   -- `vim.g.colors_name` and re-derives colors on every
                   -- :colorscheme reload, so it follows auto-dark-mode's
                   -- mocha↔latte swap without manual intervention.
-                  theme = "catppuccin-nvim",
+                  theme = "${if appearance.isGruvbox then "gruvbox" else "catppuccin-nvim"}",
                   globalstatus = true,
                   component_separators = { left = "", right = "" },
                   section_separators = { left = "", right = "" },
@@ -1028,7 +1075,7 @@ in
                     {
                       require("lazy.status").updates,
                       cond = require("lazy.status").has_updates,
-                      color = { fg = "#fab387" },
+                      color = { fg = theme_color("#fab387") },
                     },
                     -- Git diff
                     {
@@ -1276,16 +1323,16 @@ in
               -- Set up custom highlight groups for Catppuccin theme
               local function setup_markdown_highlights()
                 local colors = {
-                  h1 = "#cba6f7", -- Mauve
-                  h2 = "#89b4fa", -- Blue
-                  h3 = "#89dceb", -- Sky
-                  h4 = "#94e2d5", -- Teal
-                  h5 = "#a6e3a1", -- Green
-                  h6 = "#f9e2af", -- Yellow
-                  code_bg = "#313244",
-                  table_head = "#45475a",
-                  table_row = "#1e1e2e",
-                  quote = "#94e2d5",
+                  h1 = theme_color("#cba6f7"),
+                  h2 = theme_color("#89b4fa"),
+                  h3 = theme_color("#89dceb"),
+                  h4 = theme_color("#94e2d5"),
+                  h5 = theme_color("#a6e3a1"),
+                  h6 = theme_color("#f9e2af"),
+                  code_bg = theme_color("#313244"),
+                  table_head = theme_color("#45475a"),
+                  table_row = theme_color("#1e1e2e"),
+                  quote = theme_color("#94e2d5"),
                 }
                 
                 vim.api.nvim_set_hl(0, "RenderMarkdownH1", { fg = colors.h1, bold = true })
@@ -1499,8 +1546,8 @@ in
             dependencies = { "MunifTanjim/nui.nvim" },
             opts = {
               colors = {
-                up_to_date = "#45475a",
-                outdated = "#fab387",
+                up_to_date = theme_color("#45475a"),
+                outdated = theme_color("#fab387"),
               },
               icons = {
                 enable = true,
@@ -1547,7 +1594,7 @@ in
           lazy = false, -- Should plugins be lazy-loaded by default?
           version = false, -- Always use the latest git commit
         },
-        install = { colorscheme = { "catppuccin" } },
+        install = { colorscheme = { "${colorscheme}" } },
         checker = { enabled = false }, -- Don't check for plugin updates automatically
         performance = {
           rtp = {
@@ -1636,10 +1683,10 @@ in
       -- dimming was removed (uncommon, distracting on inactive windows);
       -- the active/inactive distinction comes from NormalNC instead.
       local function setup_window_highlights()
-        local violet = "#CBA6F7" -- Catppuccin mauve
-        local crystal_blue = "#89B4FA"
-        local wave_bg = "#1E1E2E"
-        local sumi_bg = "#11111B"
+        local violet = theme_color("#CBA6F7")
+        local crystal_blue = theme_color("#89B4FA")
+        local wave_bg = theme_color("#1E1E2E")
+        local sumi_bg = theme_color("#11111B")
 
         vim.api.nvim_set_hl(0, "NormalFloat", { bg = wave_bg })
         vim.api.nvim_set_hl(0, "FloatBorder", { fg = crystal_blue, bg = wave_bg })

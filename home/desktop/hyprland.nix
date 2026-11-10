@@ -1,14 +1,18 @@
 {
   pkgs,
+  appearance,
+  unstable-pkgs,
   lib,
   personalOnly,
   useDms ? false,
+  useNoctalia ? false,
   lockScreen ? false,
   isVm ? false,
   ...
 }:
 
 let
+  noctalia = lib.getExe unstable-pkgs.noctalia;
   # Daily-driver terminal selection (see ./default-terminal.nix). VMs
   # fall back to kitty because ghostty's OpenGL renderer needs a GL
   # version the guest 3D driver doesn't expose.
@@ -47,13 +51,17 @@ let
   ];
 
   powerMenuBind =
-    if useDms then
+    if useNoctalia then
+      "$mainMod, Escape, exec, ${noctalia} msg panel-toggle session"
+    else if useDms then
       "$mainMod, Escape, exec, dms ipc call powermenu toggle"
     else
       "$mainMod, Escape, exec, wlogout";
 
   notepadBind =
-    if useDms || personalOnly then
+    if useNoctalia then
+      "$mainMod, N, exec, ${if personalOnly then "codium" else "notes"}"
+    else if useDms || personalOnly then
       "$mainMod, N, exec, dms ipc call notepad toggle"
     else
       "$mainMod, N, exec, notes";
@@ -61,7 +69,9 @@ let
   # Lock binding (only when lockScreen is enabled).
   lockBind = lib.optionals lockScreen [
     (
-      if useDms then
+      if useNoctalia then
+        "$mainMod CTRL, L, exec, ${noctalia} msg session lock"
+      else if useDms then
         "$mainMod CTRL, L, exec, dms ipc call lock lock"
       else
         "$mainMod CTRL, L, exec, swaylock -f"
@@ -71,16 +81,38 @@ let
   # DMS surface toggles. Theme toggle pairs with darkman so the
   # xdg-desktop-portal color-scheme reflects the new mode (DMS skips
   # the gsettings write when matugen is active — see niri.nix).
-  dmsSurfaceBinds = lib.optionals useDms [
-    "$mainMod, comma, exec, dms ipc call dash toggle overview"
-    "$mainMod, period, exec, dms ipc call control-center toggle"
-    "$mainMod SHIFT, D, exec, sh -c 'dms ipc call theme toggle; darkman toggle'"
-  ];
+  shellSurfaceBinds =
+    if useNoctalia then
+      [
+        "$mainMod, comma, exec, ${noctalia} msg settings-toggle"
+        "$mainMod, period, exec, ${noctalia} msg panel-toggle control-center"
+        "$mainMod SHIFT, D, exec, ${noctalia} msg theme-mode-toggle"
+        "$mainMod ALT, V, exec, ${noctalia} msg panel-toggle clipboard"
+      ]
+    else
+      lib.optionals useDms [
+        "$mainMod, comma, exec, dms ipc call dash toggle overview"
+        "$mainMod, period, exec, dms ipc call control-center toggle"
+        "$mainMod SHIFT, D, exec, sh -c 'dms ipc call theme toggle; darkman toggle'"
+      ];
 
   # Media keys: DMS shows its own OSD via pipewire monitoring, so call
   # wpctl/brightnessctl directly. Without DMS, route through SwayOSD.
   mediaBindel =
-    if useDms then
+    if useNoctalia then
+      [
+        ", XF86AudioRaiseVolume, exec, ${noctalia} msg volume-up"
+        ", XF86AudioLowerVolume, exec, ${noctalia} msg volume-down"
+        ", XF86AudioMute, exec, ${noctalia} msg volume-mute"
+        ", XF86AudioMicMute, exec, ${noctalia} msg mic-mute"
+        ", XF86MonBrightnessUp, exec, ${noctalia} msg brightness-up"
+        ", XF86MonBrightnessDown, exec, ${noctalia} msg brightness-down"
+        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
+        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
+        "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
+        "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
+      ]
+    else if useDms then
       [
         ", XF86AudioRaiseVolume, exec, wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"
         ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
@@ -115,7 +147,7 @@ in
     # is written as a structured hyprlang attrset, so pin the old type.
     configType = "hyprlang";
 
-    settings = {
+    settings = appearance.mapColors {
       # Monitor configuration (mirrors home/desktop/niri.nix output blocks).
       # DP-2 is the Dell S2725QS in portrait (left of DP-1); DP-1 is the
       # 32M2V landscape. transform=3 == niri's transform "270" (counter-
@@ -434,8 +466,18 @@ in
         "$mainMod, S, exec, window-switcher"
 
         # Launcher
-        "$mainMod, Space, exec, fuzzel"
-        "$mainMod, D, exec, fuzzel"
+        (
+          if useNoctalia then
+            "$mainMod, Space, exec, ${noctalia} msg panel-toggle launcher"
+          else
+            "$mainMod, Space, exec, fuzzel"
+        )
+        (
+          if useNoctalia then
+            "$mainMod, D, exec, ${noctalia} msg panel-toggle launcher"
+          else
+            "$mainMod, D, exec, fuzzel"
+        )
 
         # Window management. Niri: Mod+F = maximize-column (keeps bar),
         # Mod+F9 / Mod+Ctrl+F = fullscreen-window (covers everything).
@@ -532,11 +574,26 @@ in
         "$mainMod CTRL, S, exec, screensaver"
 
         # Notifications
-        "$mainMod, semicolon, exec, makoctl restore"
+        (
+          if useNoctalia then
+            "$mainMod, semicolon, exec, ${noctalia} msg panel-toggle notifications"
+          else
+            "$mainMod, semicolon, exec, makoctl restore"
+        )
 
         # Bar toggles (systemd-managed, same scripts as niri.nix)
-        "$mainMod, Y, exec, sh -c 'systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar'"
-        "$mainMod SHIFT, Y, exec, sh -c 'systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww'"
+        (
+          if useNoctalia then
+            "$mainMod, Y, exec, ${noctalia} msg bar-toggle"
+          else
+            "$mainMod, Y, exec, sh -c 'systemctl --user is-active --quiet wl-waybar && systemctl --user stop wl-waybar || systemctl --user start wl-waybar'"
+        )
+        (
+          if useNoctalia then
+            "$mainMod SHIFT, Y, exec, ${noctalia} msg desktop-widgets-toggle"
+          else
+            "$mainMod SHIFT, Y, exec, sh -c 'systemctl --user is-active --quiet wl-eww && systemctl --user stop wl-eww || systemctl --user start wl-eww'"
+        )
       ]
       ++ [
         # Power menu / notepad — swap targets when DMS owns the shell.
@@ -548,7 +605,7 @@ in
         "$mainMod SHIFT, N, exec, notes"
       ]
       ++ lockBind
-      ++ dmsSurfaceBinds;
+      ++ shellSurfaceBinds;
 
       # Media keys: SwayOSD by default, direct wpctl/brightnessctl when
       # DMS owns the OSD (DMS shows its own via pipewire monitoring).

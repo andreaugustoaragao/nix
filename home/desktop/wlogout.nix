@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, appearance, ... }:
 
 {
   # wlogout configuration (for sway)
@@ -51,12 +51,16 @@
       }
 
       window {
-        background-color: rgba(46, 52, 64, 0.9);
+        background-color: ${
+          if appearance.isGruvbox then "${appearance.dark.base}e6" else "rgba(46, 52, 64, 0.9)"
+        };
       }
 
       button {
-        color: #eceff4;
-        background-color: rgba(59, 66, 82, 0.9);
+        color: ${if appearance.isGruvbox then appearance.dark.text else "#eceff4"};
+        background-color: ${
+          if appearance.isGruvbox then "${appearance.dark.surface0}e6" else "rgba(59, 66, 82, 0.9)"
+        };
         margin: 10px;
         padding: 20px;
         border-radius: 6px;
@@ -69,7 +73,9 @@
       button:hover,
       button:focus,
       button:active {
-        background-color: rgba(67, 76, 94, 0.9);
+        background-color: ${
+          if appearance.isGruvbox then "${appearance.dark.surface1}e6" else "rgba(67, 76, 94, 0.9)"
+        };
       }
 
       /* Icon backgrounds (same names as upstream) */
