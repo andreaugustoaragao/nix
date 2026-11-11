@@ -272,7 +272,7 @@ in
         }
 
         focus-ring {
-            width 4
+            width 6
             active-color "#cdd6f4"  // Catppuccin Mocha text
             inactive-color "#595959"
         }
@@ -334,6 +334,21 @@ in
     window-rule {
         match app-id="${term.appId}"
         default-column-width { proportion 0.5; }
+    }
+
+    window-rule {
+        match app-id="^io\\.github\\.yazi_rune\\.Picker$"
+        open-floating true
+        default-column-width { fixed 1000; }
+        default-window-height { fixed 680; }
+    }
+
+    // Portal choosers may have no parent; new floating windows open centered.
+    window-rule {
+        match app-id="^xdg-desktop-portal-gtk$"
+        open-floating true
+        default-column-width { fixed 960; }
+        default-window-height { fixed 680; }
     }
 
     window-rule {

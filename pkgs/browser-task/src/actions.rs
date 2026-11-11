@@ -67,6 +67,11 @@ pub enum WaitState {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
+    #[serde(skip)]
+    #[schemars(skip)]
+    Assistance {
+        request: crate::assistance::UserAction,
+    },
     Navigate {
         url: String,
     },
@@ -108,6 +113,7 @@ pub enum Action {
 impl Action {
     pub fn kind(&self) -> &'static str {
         match self {
+            Self::Assistance { request } => request.kind(),
             Self::Navigate { .. } => "navigate",
             Self::Snapshot { .. } => "snapshot",
             Self::Evaluate { .. } => "evaluate",
@@ -866,6 +872,9 @@ pub fn execute(
     cancel: &AtomicBool,
 ) -> Result<ActionOutput, String> {
     match action {
+        Action::Assistance { request } => {
+            user_action(cdp, session, request, refs, viewport, deadline, cancel)
+        }
         Action::Navigate { url } => {
             refs.clear();
             validate_url(url)?;
@@ -1015,5 +1024,156 @@ pub fn execute(
         Action::Screenshot { full_page } => {
             screenshot(cdp, session, full_page.unwrap_or(false), deadline, cancel)
         }
+    }
+}
+
+fn user_action(
+    cdp: &mut Cdp,
+    session: &str,
+    request: &crate::assistance::UserAction,
+    refs: &mut BTreeMap<String, RefRecord>,
+    viewport: &mut Option<Viewport>,
+    deadline: Instant,
+    cancel: &AtomicBool,
+) -> Result<ActionOutput, String> {
+    use crate::assistance::UserAction;
+    let document = loader_id(cdp, session, deadline, cancel)?;
+    let location = evaluate_internal(cdp, session, "({origin:location.origin,url:location.href,title:document.title,width:innerWidth,height:innerHeight})", deadline, cancel)?;
+    if let Some((expected_document, expected_origin)) = request.binding() {
+        if expected_document != document || location["origin"].as_str() != Some(expected_origin) {
+            return Err("The page changed. Refresh the screenshot before entering input.".into());
+        }
+    }
+    match request {
+        UserAction::Frame => {
+            snapshot(
+                cdp,
+                session,
+                refs,
+                SnapshotLimits {
+                    max_nodes: Some(1500),
+                    max_chars: Some(40_000),
+                    depth: Some(20),
+                },
+                deadline,
+                cancel,
+            )?;
+            let mut controls = Vec::new();
+            for node in ax_nodes(cdp, session, deadline, cancel)? {
+                let role = ax_value(&node, "role");
+                let field = matches!(role, "textbox" | "searchbox" | "combobox" | "spinbutton");
+                if ax_ignored(&node)
+                    || (!field && !matches!(role, "button" | "link" | "checkbox" | "radio"))
+                {
+                    continue;
+                }
+                let Some(backend) = node.get("backendDOMNodeId").and_then(Value::as_u64) else {
+                    continue;
+                };
+                let Some((reference, _)) = refs
+                    .iter()
+                    .find(|(_, record)| record.backend_node_id == backend)
+                else {
+                    continue;
+                };
+                let Ok(inspected) = inspect_node(cdp, session, backend, deadline, cancel) else {
+                    continue;
+                };
+                if inspected["visible"] != true
+                    || inspected["enabled"] != true
+                    || inspected["hit"] != true
+                {
+                    continue;
+                }
+                controls.push(json!({"reference": reference, "label": truncate(ax_value(&node, "name"), 200), "role":role, "field":field && inspected["editable"] == true,"x":inspected["x"],"y":inspected["y"]}));
+                if controls.len() == 60 {
+                    break;
+                }
+            }
+            let mut output = screenshot(cdp, session, false, deadline, cancel)?;
+            if loader_id(cdp, session, deadline, cancel)? != document {
+                return Err("The page changed during capture. Refresh the screenshot.".into());
+            }
+            output.result["document"] = json!(document);
+            output.result["location"] = location;
+            output.result["controls"] = json!(controls);
+            Ok(output)
+        }
+        UserAction::Click { x, y, .. } => {
+            let width = location["width"].as_f64().unwrap_or(0.0);
+            let height = location["height"].as_f64().unwrap_or(0.0);
+            if !x.is_finite()
+                || !y.is_finite()
+                || *x < 0.0
+                || *y < 0.0
+                || *x >= width
+                || *y >= height
+            {
+                return Err("Click lies outside the browser viewport".into());
+            }
+            mouse_click(cdp, session, *x, *y, deadline, cancel)?;
+            Ok(ActionOutput::value(json!({"ok":true})))
+        }
+        UserAction::Fill {
+            reference, text, ..
+        } => execute(
+            cdp,
+            session,
+            &Action::Fill {
+                target: Target::Ref(RefTarget {
+                    r#ref: reference.clone(),
+                }),
+                text: text.clone(),
+            },
+            refs,
+            viewport,
+            deadline,
+            cancel,
+        ),
+        UserAction::Press { reference, .. } => execute(
+            cdp,
+            session,
+            &Action::Click {
+                target: Target::Ref(RefTarget {
+                    r#ref: reference.clone(),
+                }),
+            },
+            refs,
+            viewport,
+            deadline,
+            cancel,
+        ),
+        UserAction::Text { text, .. } => {
+            if text.len() > MAX_TEXT {
+                return Err("Input exceeds 64 KiB".into());
+            }
+            checked_call(
+                cdp,
+                "Input.insertText",
+                json!({"text":text}),
+                session,
+                deadline,
+                cancel,
+            )?;
+            Ok(ActionOutput::value(json!({"ok":true})))
+        }
+        UserAction::Key { key, .. } => execute(
+            cdp,
+            session,
+            &Action::Key { key: key.clone() },
+            refs,
+            viewport,
+            deadline,
+            cancel,
+        ),
+        UserAction::Scroll { y, .. } => execute(
+            cdp,
+            session,
+            &Action::Scroll { x: 0, y: *y },
+            refs,
+            viewport,
+            deadline,
+            cancel,
+        ),
     }
 }

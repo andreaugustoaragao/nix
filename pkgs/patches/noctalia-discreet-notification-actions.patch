@@ -1,0 +1,53 @@
+--- a/src/ui/controls/button.h
++++ b/src/ui/controls/button.h
+@@ -168,5 +168,6 @@
+ // Populates a container column with row sub-containers, applying layout alignment,
+ // gaps, setFlexGrow(1.0F), and setMaxWidth for single-button rows.
+ void populateRowContainer(
+-    Flex& container, std::vector<std::vector<std::unique_ptr<Button>>> rows, float maxWidth, float gap
++    Flex& container, std::vector<std::vector<std::unique_ptr<Button>>> rows, float maxWidth, float gap,
++    bool expandButtons = true
+ );
+--- a/src/ui/controls/button.cpp
++++ b/src/ui/controls/button.cpp
+@@ -889,7 +889,8 @@
+ }
+ 
+ void populateRowContainer(
+-    Flex& container, std::vector<std::vector<std::unique_ptr<Button>>> rows, float maxWidth, float gap
++    Flex& container, std::vector<std::vector<std::unique_ptr<Button>>> rows, float maxWidth, float gap,
++    bool expandButtons
+ ) {
+   for (auto& rowButtons : rows) {
+     auto row = std::make_unique<Flex>();
+@@ -903,7 +904,7 @@
+       } else {
+         btn->setMaxWidth(0.0F);
+       }
+-      btn->setFlexGrow(1.0F);
++      btn->setFlexGrow(expandButtons ? 1.0F : 0.0F);
+       row->addChild(std::move(btn));
+     }
+     container.addChild(std::move(row));
+--- a/src/shell/notification/notification_toast.cpp
++++ b/src/shell/notification/notification_toast.cpp
+@@ -331,7 +331,9 @@
+     return ui::button({
+         .text = std::string(label),
+         .fontSize = Style::fontSizeCaption * scale,
+-        .variant = ButtonVariant::Default,
++        .controlHeight = 24.0F * scale,
++        .variant = ButtonVariant::Ghost,
++        .paddingH = 8.0F * scale,
+     });
+   }
+ 
+@@ -380,7 +382,7 @@
+     const float maxRowWidth = notificationTextMaxWidth(scale, width, true);
+ 
+     auto rows = wrapButtonsIntoRows(renderer, buttons, maxRowWidth, actionGap(scale));
+-    populateRowContainer(container, std::move(rows), maxRowWidth, actionGap(scale));
++    populateRowContainer(container, std::move(rows), maxRowWidth, actionGap(scale), false);
+ 
+     container.setSize(maxRowWidth, 0.0F);
+     container.layout(renderer);

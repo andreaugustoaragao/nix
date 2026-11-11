@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::assistance::{Handoff, UserRequest};
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -110,6 +112,7 @@ impl std::fmt::Display for TaskId {
 #[serde(rename_all = "lowercase")]
 pub enum TaskState {
     Active,
+    Assisting,
     Kept,
     Finished,
 }
@@ -117,6 +120,7 @@ impl TaskState {
     fn as_str(self) -> &'static str {
         match self {
             Self::Active => "active",
+            Self::Assisting => "assisting",
             Self::Kept => "kept",
             Self::Finished => "finished",
         }
@@ -135,6 +139,8 @@ pub struct Task {
     pub resume_after: Option<f64>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub viewports: BTreeMap<String, Viewport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assistance: Option<Handoff>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -357,6 +363,14 @@ impl Registry {
                 .len()
                 != task.pages.len()
             || (task.state == TaskState::Finished) != task.finished_at.is_some()
+            || (task.state == TaskState::Assisting && task.assistance.is_none())
+            || task.assistance.as_ref().is_some_and(|handoff| {
+                !matches!(task.state, TaskState::Assisting | TaskState::Kept)
+                    || !task.pages.contains_key(handoff.page.as_str())
+                    || handoff.prompt.len() > 2000
+                    || handoff.token.len() != 64
+                    || !handoff.token.bytes().all(|b| b.is_ascii_hexdigit())
+            })
             || [task.finished_at, task.resume_after]
                 .into_iter()
                 .flatten()
@@ -364,7 +378,9 @@ impl Registry {
         {
             return Err("Invalid task record; leaving its tabs untouched".to_owned());
         }
-        if guard.directory.join("journal.json").exists() && task.state == TaskState::Active {
+        if guard.directory.join("journal.json").exists()
+            && matches!(task.state, TaskState::Active | TaskState::Assisting)
+        {
             task.state = TaskState::Kept;
         }
         Ok(task)
@@ -376,6 +392,9 @@ impl Registry {
 
     pub fn view(&self, task: &Task) -> Value {
         let mut value = serde_json::to_value(task).unwrap_or_else(|_| json!({}));
+        if let Some(assistance) = value.get_mut("assistance").and_then(Value::as_object_mut) {
+            assistance.remove("token");
+        }
         value["cleanup_at"] = task
             .finished_at
             .map(|time| json!(time + RETENTION))
@@ -648,6 +667,7 @@ impl Registry {
             finished_at: None,
             resume_after: None,
             viewports: BTreeMap::new(),
+            assistance: None,
         };
         self.save(&task)?;
         self.ensure_page(&mut task, &mut { browser }, "main", url, deadline, cancel)
@@ -707,6 +727,12 @@ impl Registry {
     ) -> Result<Value, String> {
         let guard = self.lock(id, deadline, true)?;
         let mut task = self.load(&guard)?;
+        if task.assistance.is_some() {
+            return Err(
+                "The user controls this task in browser-assist; wait for them to return control"
+                    .to_owned(),
+            );
+        }
         match change {
             "keep" => {
                 task.state = TaskState::Kept;
@@ -798,9 +824,41 @@ impl Registry {
         deadline: Instant,
         cancel: &AtomicBool,
     ) -> Result<Value, String> {
+        self.action_inner(id, page, action, None, deadline, cancel)
+    }
+
+    fn action_inner(
+        &self,
+        id: &str,
+        page: &str,
+        action: &Action,
+        token: Option<&str>,
+        deadline: Instant,
+        cancel: &AtomicBool,
+    ) -> Result<Value, String> {
         let guard = self.lock_cancellable(id, deadline, cancel)?;
         let mut task = self.load(&guard)?;
-        require_active(&task)?;
+        if let Some(token) = token {
+            if !task
+                .assistance
+                .as_ref()
+                .is_some_and(|handoff| handoff.token == token && handoff.page == page)
+            {
+                return Err("Assistance session has expired".to_owned());
+            }
+            if task.state != TaskState::Assisting {
+                return Err(
+                    "An interrupted action needs recovery; cancel assistance before resuming"
+                        .into(),
+                );
+            }
+            let mut automation = task.clone();
+            automation.state = TaskState::Active;
+            automation.assistance = None;
+            require_active(&automation)?;
+        } else {
+            require_active(&task)?;
+        }
         let target = task
             .pages
             .get(page)
@@ -821,6 +879,16 @@ impl Registry {
                 deadline,
                 cancel,
             )?;
+            if token.is_some() {
+                // Headless tabs still need an active compositor for repeated captures.
+                browser.call(
+                    "Page.bringToFront",
+                    json!({}),
+                    Some(&session),
+                    deadline,
+                    cancel,
+                )?;
+            }
         }
         let refs_path = guard.directory.join(format!("refs-{page}.json"));
         let mut refs: BTreeMap<String, RefRecord> = if refs_path.exists() {
@@ -882,24 +950,29 @@ impl Registry {
                     if png.len() > 16 * 1024 * 1024 {
                         return Err("Screenshot exceeds 16 MiB".to_owned());
                     }
-                    let name = random_bytes::<16>()?
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>();
-                    let path = guard.directory.join(format!("screenshot-{name}.png"));
-                    let mut file = OpenOptions::new()
-                        .create_new(true)
-                        .write(true)
-                        .mode(0o600)
-                        .open(&path)
-                        .map_err(|error| error.to_string())?;
-                    file.write_all(&png)
-                        .and_then(|_| file.sync_all())
-                        .map_err(|error| error.to_string())?;
-                    result["path"] = json!(path);
-                    result["mime"] = json!("image/png");
-                    result["bytes"] = json!(png.len());
-                    prune_artifacts(&guard.directory, &path)?;
+                    if token.is_some() {
+                        result["png"] =
+                            json!(base64::engine::general_purpose::STANDARD.encode(&png));
+                    } else {
+                        let name = random_bytes::<16>()?
+                            .iter()
+                            .map(|byte| format!("{byte:02x}"))
+                            .collect::<String>();
+                        let path = guard.directory.join(format!("screenshot-{name}.png"));
+                        let mut file = OpenOptions::new()
+                            .create_new(true)
+                            .write(true)
+                            .mode(0o600)
+                            .open(&path)
+                            .map_err(|error| error.to_string())?;
+                        file.write_all(&png)
+                            .and_then(|_| file.sync_all())
+                            .map_err(|error| error.to_string())?;
+                        result["path"] = json!(path);
+                        result["mime"] = json!("image/png");
+                        result["bytes"] = json!(png.len());
+                        prune_artifacts(&guard.directory, &path)?;
+                    }
                 }
                 fs::remove_file(guard.directory.join("journal.json"))
                     .map_err(|error| error.to_string())?;
@@ -925,6 +998,104 @@ impl Registry {
                 Err(error)
             }
         }
+    }
+
+    pub fn assist_begin(
+        &self,
+        id: &str,
+        page: &str,
+        prompt: &str,
+        deadline: Instant,
+    ) -> Result<Handoff, String> {
+        if prompt.len() > 2000 {
+            return Err("Assistance prompt exceeds 2000 bytes".into());
+        }
+        let guard = self.lock(id, deadline, true)?;
+        let mut task = self.load(&guard)?;
+        require_active(&task)?;
+        if !task.pages.contains_key(page) {
+            return Err("Page is not registered on this task".into());
+        }
+        self.connect(&task, deadline)?;
+        let handoff = Handoff {
+            token: random_bytes::<32>()?
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            page: page.to_owned(),
+            prompt: prompt.to_owned(),
+        };
+        task.state = TaskState::Assisting;
+        task.assistance = Some(handoff.clone());
+        self.save(&task)?;
+        self.discard_connection(id);
+        Ok(handoff)
+    }
+
+    pub fn assist_action(
+        &self,
+        id: &str,
+        request: &UserRequest,
+        deadline: Instant,
+        cancel: &AtomicBool,
+    ) -> Result<Value, String> {
+        let page = {
+            let guard = self.lock(id, deadline, true)?;
+            let task = self.load(&guard)?;
+            task.assistance
+                .as_ref()
+                .filter(|handoff| handoff.token == request.token)
+                .ok_or("Assistance session has expired")?
+                .page
+                .clone()
+        };
+        // Only action kinds are journaled; input values never enter the task record.
+        self.action_inner(
+            id,
+            &page,
+            &Action::Assistance {
+                request: request.action.clone(),
+            },
+            Some(&request.token),
+            deadline,
+            cancel,
+        )
+    }
+
+    pub fn assist_end(
+        &self,
+        id: &str,
+        token: Option<&str>,
+        resume: bool,
+        deadline: Instant,
+    ) -> Result<Value, String> {
+        let guard = self.lock(id, deadline, true)?;
+        let mut task = self.load(&guard)?;
+        let handoff = task
+            .assistance
+            .as_ref()
+            .ok_or("No assistance session is active")?;
+        if token.is_some_and(|token| token != handoff.token) {
+            return Err("Assistance session has expired".into());
+        }
+        if resume
+            && (task.state != TaskState::Assisting || guard.directory.join("journal.json").exists())
+        {
+            return Err("An interrupted action needs recovery; cancel assistance and explicitly resume the task".into());
+        }
+        task.assistance = None;
+        task.state = if resume {
+            TaskState::Active
+        } else {
+            TaskState::Kept
+        };
+        task.finished_at = None;
+        for page in task.pages.keys() {
+            let _ = fs::remove_file(guard.directory.join(format!("refs-{page}.json")));
+        }
+        self.save(&task)?;
+        self.discard_connection(id);
+        Ok(self.view(&task))
     }
 
     pub fn cleanup(&self, deadline: Instant, cancel: &AtomicBool) -> Value {
@@ -1005,6 +1176,9 @@ impl Registry {
     ) -> Result<(String, String, String), String> {
         let guard = self.lock(id, deadline, true)?;
         let mut task = self.load(&guard)?;
+        if task.assistance.is_some() {
+            return Err("The user controls this task in browser-assist".into());
+        }
         self.profiles[&task.profile].require_window()?;
         let target = task
             .pages
@@ -1069,6 +1243,9 @@ impl Registry {
                 && task.instance.0 == instance
                 && task.pages.values().any(|owned| owned.0 == target)
             {
+                if task.assistance.is_some() {
+                    return Err("The user controls this task in browser-assist".into());
+                }
                 task.state = TaskState::Kept;
                 task.finished_at = None;
                 self.save(&task)?;
@@ -1080,6 +1257,12 @@ impl Registry {
 }
 
 fn require_active(task: &Task) -> Result<(), String> {
+    if task.assistance.is_some() {
+        return Err(
+            "The user controls this task in browser-assist; wait for them to return control"
+                .to_owned(),
+        );
+    }
     if task.state != TaskState::Active {
         return Err(format!(
             "Task is {}; use browser-task resume before further automation",
@@ -1165,6 +1348,7 @@ mod tests {
             finished_at: None,
             resume_after: Some(now() - 3600.0),
             viewports: BTreeMap::new(),
+            assistance: None,
         };
         registry.save(&task).unwrap();
         save_json(
@@ -1216,6 +1400,7 @@ mod tests {
             finished_at: Some(1793117612.8829427),
             resume_after: None,
             viewports: BTreeMap::new(),
+            assistance: None,
         };
         registry.save(&task).unwrap();
         let guard = registry
@@ -1248,6 +1433,7 @@ mod tests {
             finished_at: None,
             resume_after: None,
             viewports: BTreeMap::new(),
+            assistance: None,
         };
         registry.save(&task).unwrap();
         let guard = registry
@@ -1298,6 +1484,7 @@ mod tests {
                 finished_at,
                 resume_after: None,
                 viewports: BTreeMap::new(),
+                assistance: None,
             };
             registry.save(&task).unwrap();
             let record = root.join(&id).join("task.json");

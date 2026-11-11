@@ -14,6 +14,7 @@ let
     ];
     center = [ ];
     end = [
+      "herdr"
       "clipboard"
       "notifications"
       "control-center"
@@ -37,6 +38,7 @@ in
     ];
     center = [ ];
     end = [
+      "herdr"
       "clipboard"
       "cpu"
       "ram"
@@ -86,8 +88,8 @@ in
       show_all_outputs = false;
     };
     active_window = {
-      min_length = 40;
-      max_length = 120;
+      min_length = 180;
+      max_length = 180;
     };
     media = {
       min_length = 40;
@@ -114,6 +116,7 @@ in
     inline-volume.type = "aragao/dms-toolbar:volume";
     recorder.type = "aragao/dms-toolbar:recorder";
     nix-rebuild.type = "aragao/nix-rebuild:rebuild";
+    herdr.type = "aragao/herdr:radar";
     download = {
       type = "sysmon";
       stat = "net_rx";
@@ -152,6 +155,7 @@ in
     enabled = [
       "aragao/dms-toolbar"
       "aragao/nix-rebuild"
+      "aragao/herdr"
     ];
     auto_update = "none";
     source = [

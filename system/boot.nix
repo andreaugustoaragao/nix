@@ -1,12 +1,37 @@
 {
+  config,
   inputs,
   pkgs,
   lib,
   isWorkstation,
+  isLaptop,
+  isVm,
+  isServer,
   ...
 }:
 
 {
+  imports = [ inputs.bootvine.nixosModules.default ];
+
+  services.bootvine = {
+    enable = lib.mkDefault (isWorkstation || isLaptop || (isVm && !isServer));
+    settings = lib.mkIf config.services.bootvine.enable {
+      colors = {
+        tree.current-stage = "light-yellow";
+        tree.running-marker = "light-yellow";
+        timeline.running = "light-yellow";
+        footer.running = "light-yellow";
+        password.frame = "light-yellow";
+      };
+    };
+  };
+
+  # Use the sample VM's readable font in the boot console, including the initrd.
+  console = lib.mkIf config.services.bootvine.enable {
+    earlySetup = lib.mkDefault true;
+    font = lib.mkDefault "${pkgs.terminus_font}/share/consolefonts/ter-v20n.psf.gz";
+  };
+
   boot = {
     loader = lib.mkMerge [
       # Default systemd-boot configuration for non-workstation machines

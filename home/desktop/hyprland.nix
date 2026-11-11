@@ -224,7 +224,7 @@ in
       general = {
         gaps_in = 5;
         gaps_out = 10; # Omarchy style smaller outer gaps
-        border_size = 2;
+        border_size = 6;
         "col.active_border" = "rgb(cdd6f4)"; # Catppuccin Mocha text
         "col.inactive_border" = "rgba(595959aa)";
         layout = "scrolling";
@@ -396,6 +396,12 @@ in
               float = true;
               center = true;
             };
+            gtk_file_chooser = {
+              "match:class" = "^xdg-desktop-portal-gtk$";
+              float = true;
+              center = true;
+              size = "960 680";
+            };
 
             floating_window_tag = {
               "match:class" =
@@ -444,6 +450,7 @@ in
           "hidden_parallels_clipboard"
           "bitwarden_extension"
           "main_picker"
+          "gtk_file_chooser"
           "pavucontrol"
         ]
         ++ dmsWindowRules

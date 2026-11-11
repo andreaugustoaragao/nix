@@ -13,8 +13,6 @@
       { id = "nngceckbapebfimnlniiiahkandclblb"; }
       # Vimium
       { id = "dbepggeogbaibhgnhhndojpepiihcmeb"; }
-      # Claude in Chrome
-      { id = "fcoeoabgfenejglbffodgkkbkcdhcgfn"; }
       # Markdown Viewer
       { id = "ckkdlimhmcjmikdlpkmbgfkaikojcbjk"; }
     ];

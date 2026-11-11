@@ -1,5 +1,29 @@
 {
   "nodes": {
+    "bootvine": {
+      "inputs": {
+        "crane": "crane",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": [
+          "rust-overlay"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794257658,
+        "narHash": "sha256-aPJtMiIqt8tb+ZsgKhVH3zmGWjRRzukUzXj64X1mhpI=",
+        "ref": "refs/heads/main",
+        "rev": "a7e33b453a82ecfe9e98d060008b3b20b6924f62",
+        "revCount": 101,
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/bootvine"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/bootvine"
+      }
+    },
     "cachyos-kernel": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -23,40 +47,35 @@
         "type": "github"
       }
     },
-    "claude-code": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "systems": "systems"
-      },
+    "crane": {
       "locked": {
-        "lastModified": 1794253360,
-        "narHash": "sha256-/a6BDNT687BMsWHiobSSO9GiWNmp4sLzUYg8ukEeSPo=",
-        "owner": "sadjow",
-        "repo": "claude-code-nix",
-        "rev": "7408fb1fbd27a75e8acd655b826ec7d66c54bf68",
+        "lastModified": 1790899423,
+        "narHash": "sha256-THGtz65UGJU+sonZidRboyCMk+9DclpMF7pwL4uDV4M=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "47b6b27ed9a3a9181415e4367d0c30ab2a0e0250",
         "type": "github"
       },
       "original": {
-        "owner": "sadjow",
-        "repo": "claude-code-nix",
+        "owner": "ipetkov",
+        "repo": "crane",
         "type": "github"
       }
     },
     "dank-greeter": {
       "inputs": {
         "dank-qml-common": "dank-qml-common",
+        "dux-qt-base": "dux-qt-base",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1794151165,
-        "narHash": "sha256-DQIF135cPpdyv34BL9MuNLt93JbCeDze+Z8T11ys2kc=",
+        "lastModified": 1794345051,
+        "narHash": "sha256-u/1vBsN7bc7t/l5O4rXy6ocEj1dmhTphu63fHX3uqXE=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "a3aa55f7269a36bed66dcf3e0d244da83244d3a2",
+        "rev": "83f318bf94600b61cb37880160e2f827c8f4be64",
         "type": "github"
       },
       "original": {
@@ -68,11 +87,11 @@
     "dank-qml-common": {
       "flake": false,
       "locked": {
-        "lastModified": 1794151087,
-        "narHash": "sha256-U8tfltFSLjvb+FqbRbydohaMFUt1MiHJqBMrcWCr6t4=",
+        "lastModified": 1794333549,
+        "narHash": "sha256-FYXaBnvHH2JW4GJdgumPYwtnuRm2YgIATK9M42Cz66Q=",
         "owner": "duxlabs-dev",
         "repo": "dux-qml-common",
-        "rev": "b78c6fc861bcf1955d3db0c016779886add1f207",
+        "rev": "0e924de9e3282143cfa7f30e4ac55382b711882c",
         "type": "github"
       },
       "original": {
@@ -120,6 +139,27 @@
         "type": "github"
       }
     },
+    "dux-qt-base": {
+      "inputs": {
+        "nixpkgs": [
+          "dank-greeter",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794334112,
+        "narHash": "sha256-adRc+Y6S2QgS2UBGcrFmyMmQ1t9a7xQB0pnbzUXzA9I=",
+        "owner": "duxlabs-dev",
+        "repo": "dux-qt-base",
+        "rev": "cabe7237e985617e985b5a3dcfc6b174c6e53a21",
+        "type": "github"
+      },
+      "original": {
+        "owner": "duxlabs-dev",
+        "repo": "dux-qt-base",
+        "type": "github"
+      }
+    },
     "firefox-addons": {
       "inputs": {
         "nixpkgs": [
@@ -128,11 +168,11 @@
       },
       "locked": {
         "dir": "pkgs/firefox-addons",
-        "lastModified": 1794197002,
-        "narHash": "sha256-CdD6KXKeGLfiSEIYOwcHcgRvLy6VvzED5KVb43pybRw=",
+        "lastModified": 1794369833,
+        "narHash": "sha256-k32WXXKOMgzEHmOx2IZp8JDj0XBYww/ZRw1gJlB6Ylw=",
         "owner": "rycee",
         "repo": "nur-expressions",
-        "rev": "dc6207afc8093b4d167b5a56e661e65ff54894f9",
+        "rev": "8ef6b34fb11380476b0b431b2373a9bdf29f462c",
         "type": "gitlab"
       },
       "original": {
@@ -352,8 +392,8 @@
     },
     "root": {
       "inputs": {
+        "bootvine": "bootvine",
         "cachyos-kernel": "cachyos-kernel",
-        "claude-code": "claude-code",
         "dank-greeter": "dank-greeter",
         "dms": "dms",
         "firefox-addons": "firefox-addons",
@@ -379,11 +419,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794216702,
-        "narHash": "sha256-J+4v+Olc/2mN/bSc9CuAQ/PB7c0w1mzDJK8JvS7rKmM=",
+        "lastModified": 1794388042,
+        "narHash": "sha256-rsskkiDNmuZGK6Xk3JvWUxWENjuX4Jf0hOSFYujGC0s=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "b70538330f20adc9665afa2976471eb5b85ebd1f",
+        "rev": "0070500a3d72ade21323092e7bdd7125c5268482",
         "type": "github"
       },
       "original": {
@@ -399,11 +439,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793995029,
-        "narHash": "sha256-ZlE4BtMjWhfC6rFXLO9Qimn36Ene1INqCgKDDvazjhc=",
+        "lastModified": 1794261845,
+        "narHash": "sha256-Ivif/kuD68yEOKcZZG3zSwNMFUuIgzUgeJuzcHrQy+8=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "89a234ce2daf6e568a7d4b4fe250afdd23d84e20",
+        "rev": "fe7b4228405aeac2ce7192c2049a6e2bc8637082",
         "type": "github"
       },
       "original": {
@@ -443,21 +483,6 @@
         "owner": "lgse",
         "ref": "v0.21.0",
         "repo": "strata",
-        "type": "github"
-      }
-    },
-    "systems": {
-      "locked": {
-        "lastModified": 1791244623,
-        "narHash": "sha256-uuanbkFk8a313Zfrxdcz8Us/yQtaxNnKJtX8v0ZPpd8=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "d36eeed142f88b5a636f2e3856a53c61654cf29b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-systems",
-        "repo": "default",
         "type": "github"
       }
     },

@@ -1,4 +1,5 @@
 mod actions;
+mod assistance;
 mod cdp;
 mod registry;
 
@@ -8,6 +9,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, Read, Write};
 use std::os::fd::FromRawFd;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -210,6 +212,64 @@ fn cli(options: &Options, registry: &Registry) -> Result<Option<Value>, String> 
             let request = action_from_stdin(id()?, args)?;
             execute(registry, &request, &INTERRUPTED)?
         }
+        "assist" => {
+            let handoff = registry.assist_begin(
+                id()?,
+                option(args, "--page").unwrap_or("main"),
+                option(args, "--prompt")
+                    .unwrap_or("Complete the sign-in, then return control to the agent."),
+                deadline,
+            )?;
+            let launched = (|| -> Result<(), String> {
+                let mut child = Command::new("browser-assist")
+                    .process_group(0)
+                    .arg("--request")
+                    .args(["--config", options.config.as_ref().unwrap().to_str().ok_or("Invalid config path")?])
+                    .arg("--state-dir").arg(&registry.root)
+                    .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null())
+                    .spawn().map_err(|_| "Cannot launch browser-assist; install the desktop package or run browser-task assist-cancel TASK".to_owned())?;
+                let input = json!({"task": id()?, "token": handoff.token, "page": handoff.page, "prompt": handoff.prompt});
+                child
+                    .stdin
+                    .take()
+                    .ok_or("Assistance input unavailable")?
+                    .write_all(input.to_string().as_bytes())
+                    .map_err(|_| "Cannot initialize browser assistance".to_owned())?;
+                Ok(())
+            })();
+            if let Err(error) = launched {
+                registry.assist_end(id()?, None, false, deadline)?;
+                return Err(error);
+            }
+            json!({"task":id()?,"assistance":"requested","page":handoff.page})
+        }
+        "assist-begin" => serde_json::to_value(
+            registry.assist_begin(
+                id()?,
+                option(args, "--page").unwrap_or("main"),
+                option(args, "--prompt")
+                    .unwrap_or("Complete the sign-in, then return control to the agent."),
+                deadline,
+            )?,
+        )
+        .map_err(|_| "Cannot start assistance")?,
+        "assist-action" => {
+            let request: assistance::UserRequest =
+                serde_json::from_reader(io::stdin().take(256 * 1024))
+                    .map_err(|_| "Invalid assistance request".to_owned())?;
+            registry.assist_action(id()?, &request, deadline, &INTERRUPTED)?
+        }
+        "assist-end" => {
+            let token: String = serde_json::from_reader(io::stdin().take(1024))
+                .map_err(|_| "Invalid assistance session".to_owned())?;
+            registry.assist_end(
+                id()?,
+                Some(&token),
+                option(args, "--result") == Some("continue"),
+                deadline,
+            )?
+        }
+        "assist-cancel" => registry.assist_end(id()?, None, false, deadline)?,
         "show" => {
             show(options, registry, args)?;
             return Ok(None);
@@ -708,7 +768,7 @@ fn main() {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
         {
-            println!("browser-task [--config FILE] [--state-dir DIR] COMMAND\n\nCommands: start PROFILE --label LABEL [--url URL], open TASK [--page NAME] [--url URL], info TASK, list, keep TASK, resume TASK, finish TASK, cleanup, show [TASK] [--page NAME] [--profile PROFILE], action TASK [--page NAME] [--timeout SECONDS], schema, mcp\n\nThe action command reads one typed JSON action from stdin. Use schema to inspect accepted action types and fields. Timeout is 1..300 seconds.");
+            println!("browser-task [--config FILE] [--state-dir DIR] COMMAND\n\nCommands: start PROFILE --label LABEL [--url URL], open TASK [--page NAME] [--url URL], info TASK, list, keep TASK, resume TASK, finish TASK, cleanup, assist TASK [--page NAME] [--prompt TEXT], assist-cancel TASK, show [TASK] [--page NAME] [--profile PROFILE], action TASK [--page NAME] [--timeout SECONDS], schema, mcp\n\nThe action command reads one typed JSON action from stdin. Use schema to inspect accepted action types and fields. Timeout is 1..300 seconds.");
             return Ok::<(), String>(());
         }
         if options

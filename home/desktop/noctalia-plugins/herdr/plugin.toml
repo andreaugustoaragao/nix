@@ -1,0 +1,24 @@
+id = "aragao/herdr"
+name = "Herdr agents"
+version = "1.0.0"
+plugin_api = 42
+author = "aragao"
+description = "Agent progress and attention, with a shortcut into each Herdr terminal."
+dependencies = ["herdr-app", "hc"]
+
+[[service]]
+id = "status"
+entry = "service.luau"
+
+[[widget]]
+id = "radar"
+entry = "widget.luau"
+
+[[panel]]
+id = "agents"
+entry = "panel.luau"
+width = 480
+height = "content"
+max_height = 620
+placement = "attached"
+position = "auto"

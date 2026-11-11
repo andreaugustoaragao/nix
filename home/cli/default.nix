@@ -34,7 +34,6 @@ in
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
-    ./claude.nix
     ./codex.nix
     ./opencode.nix
     ./shared-vault.nix

@@ -74,9 +74,6 @@ in
         cursor = {
           type = "registry";
         };
-        claude-acp = {
-          type = "registry";
-        };
       };
       session = {
         trust_all_worktrees = true;

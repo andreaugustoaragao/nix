@@ -47,15 +47,40 @@
   registered pages. An action ending, idle time, and an agent turn ending
   do not mean the task is complete. Active tasks have no expiry.
 
-  For user review or a handoff, capture a screenshot, then run
-  `browser-task keep TASK` to protect the task indefinitely. Both managed
-  profiles are headless, so `show` is unavailable. Interactive login needs
-  a deliberate headed profile configuration and rebuild by the operator.
+  Both profiles run headless by default. When the user asks to see a browser
+  for login or other input, run `agent-browser-mode ROLE visible`.
+  This applies a temporary desktop-session override to that profile's service.
+  It preserves the profile data and restores tabs. Its JSON result reports
+  `restarted` and a `config` path for browser-task. If it restarted the browser,
+  start a new task at the requested application's URL; old task IDs are stale.
+  Capture a screenshot, then run
+  `browser-task --config CONFIG_PATH show TASK --page main` with the returned path.
+  This keeps the task and focuses the real browser window.
+  Wait for the user to finish signing in and return control in chat.
+  Then run `agent-browser-mode ROLE headless` to restore background operation.
+  Start a new task after that restart and verify the login before continuing.
+  Do not ask for passwords or codes in chat or pass them through agent tools.
+
+  Use the Browser assistance app only when the user requests it. Run
+  `browser-task assist TASK --page main --prompt "Explain what the user needs to do"`.
+  This opens the native Rune Browser assistance app with an interactive screenshot
+  and private input fields. Agent actions and lifecycle changes are blocked while the
+  user has control. Wait until `browser-task info TASK` no longer reports
+  `assistance`, then take a fresh snapshot before continuing. Returning control
+  does not itself prove a login succeeded; check the page. Closing the app keeps
+  the task paused. If the app crashed, the user can run `browser-task assist-cancel
+  TASK`, then explicitly resume; never cancel a user's handoff to bypass the pause.
+  Some authentication challenges require browser or OS dialogs that the assistance
+  app cannot display. Report that limitation without attaching to another profile.
+
+  For user review without interaction, capture a screenshot, then run
+  `browser-task keep TASK` to protect the task indefinitely. `show` requires
+  a visible browser and the config returned by `agent-browser-mode`.
   Use `browser-task resume TASK` before further automation or `finish` on
   a kept task. Resume completed tasks before continuing them as well.
 
   If a managed profile or task is unavailable, report the specific failure.
-  Do not fall back to an everyday browser, install browsers, or change its
-  profile or launch flags. Fulcrum's built-in browser is separate from this
+  Do not fall back to an everyday browser, install browsers, or make persistent
+  profile or launch changes for a temporary handoff. Fulcrum's built-in browser is separate from this
   workflow.
 ''

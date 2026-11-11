@@ -1,10 +1,12 @@
 {
   lib,
+  callPackage,
   rustPlatform,
   pkg-config,
   makeWrapper,
   zig,
   glib,
+  fontconfig,
   gvfs,
   wayland,
   libxkbcommon,
@@ -19,6 +21,7 @@
   gdb,
 }:
 let
+  runeSource = callPackage ./sources/rune-source.nix { };
   libraries = [
     glib
     wayland
@@ -41,8 +44,10 @@ rustPlatform.buildRustPackage {
   sourceRoot = "source/rune-app";
   cargoLock = {
     lockFile = ./sources/yazi-rune-Cargo.lock;
-    outputHashes."rune-0.0.1" = "sha256-e6f1kr0qvTT13YKZIGhiFee33RwydeVX60Yz23j/cQA=";
   };
+  postPatch = ''
+    ln -s ${runeSource} .rune-source
+  '';
   buildType = "debug";
   dontUseZigConfigure = true;
   dontUseZigBuild = true;
@@ -62,12 +67,17 @@ rustPlatform.buildRustPackage {
       --replace-fail '@out@' "$out"
     substituteInPlace "$out/share/dbus-1/services/org.freedesktop.FileManager1.service" \
       --replace-fail '@out@' "$out"
+    substituteInPlace "$out/share/dbus-1/services/org.freedesktop.impl.portal.desktop.rune.service" \
+      --replace-fail '@out@' "$out"
+    substituteInPlace "$out/share/systemd/user/xdg-desktop-portal-rune.service" \
+      --replace-fail '@out@' "$out"
     wrapProgram "$out/bin/yazi-rune" \
       --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath libraries}" \
       --prefix GIO_EXTRA_MODULES : "${gvfs}/lib/gio/modules" \
       --prefix PATH : "${
         lib.makeBinPath [
           glib
+          fontconfig
           xdg-utils
           poppler-utils
           gdb

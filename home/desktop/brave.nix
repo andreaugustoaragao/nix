@@ -191,12 +191,6 @@ in
     # ExtensionSettings policy, which auto-installs them, blocks
     # uninstall, and force-pins their toolbar icon across both
     # profiles.
-    extensions = [
-      # Claude in Chrome
-      {
-        id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
-      }
-    ];
   };
 
 }

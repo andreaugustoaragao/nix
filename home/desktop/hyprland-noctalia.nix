@@ -15,7 +15,7 @@ let
   # The stable package uses Qt 6.11; the unstable Qt 6.12 build fails in
   # Noctalia's Hyprland IPC types.
   noctalia = pkgs.noctalia-shell;
-  nativeNoctalia = unstable-pkgs.noctalia;
+  nativeNoctalia = unstable-pkgs.callPackage ../../pkgs/noctalia.nix { };
   previewSettings = (pkgs.formats.toml { }).generate "noctalia-preview.toml" (
     import ./noctalia-settings.nix {
       inherit

@@ -14,6 +14,11 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    bootvine = {
+      url = "git+https://codeberg.org/wvhulle/bootvine";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.rust-overlay.follows = "rust-overlay";
+    };
     # Tracks nixpkgs-unstable for packages we want fresher than 26.05
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
@@ -76,15 +81,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    claude-code = {
-      url = "github:sadjow/claude-code-nix";
-      # Follow our nixpkgs so the lock doesn't carry a second, independently
-      # versioned nixpkgs node. The overlay builds claude-code with
-      # final.callPackage against the host's nixpkgs, and the package is a
-      # sha256-pinned prebuilt fetch, so following changes no built byte.
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     dms = {
       url = "github:AvengeMedia/DankMaterialShell/stable";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -115,7 +111,6 @@
       home-manager,
       nix-darwin,
       sops-nix,
-      claude-code,
 
       ...
     }@inputs:
@@ -304,7 +299,6 @@
                 {
                   nixpkgs.overlays = [
                     inputs.rust-overlay.overlays.default
-                    claude-code.overlays.default
                     # See nixpkgs-gnome48 input above for the why.
                     (_final: prev: {
                       inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
@@ -341,7 +335,6 @@
                 {
                   nixpkgs.overlays = [
                     inputs.rust-overlay.overlays.default
-                    claude-code.overlays.default
                     # edencommon runs its test executables during the build
                     # to discover GoogleTest cases. The upstream nixpkgs
                     # package already raises the 5-second timeout on Intel
@@ -405,11 +398,18 @@
           graphify = inputs.nixpkgs-unstable.legacyPackages.${system}.callPackage ./pkgs/graphify.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          noctalia = pkgs.callPackage ./pkgs/noctalia.nix {
+            inherit (inputs.nixpkgs-unstable.legacyPackages.${system}) noctalia;
+          };
+          browser-assist = pkgs.callPackage ./pkgs/browser-assist.nix {
+            browser-task = self.packages.${system}.browser-task;
+            zig = inputs.nixpkgs-unstable.legacyPackages.${system}.zig_0_17;
+          };
           rebuild-log-rune = pkgs.callPackage ./pkgs/rebuild-log-rune.nix {
             zig = inputs.nixpkgs-unstable.legacyPackages.${system}.zig_0_17;
           };
           gruvbox-trial = pkgs.callPackage ./pkgs/gruvbox-trial.nix {
-            inherit (inputs.nixpkgs-unstable.legacyPackages.${system}) noctalia;
+            noctalia = self.packages.${system}.noctalia;
           };
           chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
           herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
@@ -782,6 +782,18 @@
               ''
                 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/noctalia-nix-rebuild.test.py
+                touch "$out"
+              '';
+          noctalia-herdr =
+            pkgs.runCommand "check-noctalia-herdr"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.luau
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/noctalia-herdr.test.py
                 touch "$out"
               '';
           gruvbox-trial = pkgs.runCommand "check-gruvbox-trial" { } ''

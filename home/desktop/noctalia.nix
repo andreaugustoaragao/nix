@@ -12,7 +12,7 @@
   ...
 }:
 let
-  package = unstable-pkgs.noctalia;
+  package = unstable-pkgs.callPackage ../../pkgs/noctalia.nix { };
   rebuild = pkgs.callPackage ./noctalia-nix-rebuild.nix {
     inherit hostName;
     logViewer = pkgs.callPackage ../../pkgs/rebuild-log-rune.nix {

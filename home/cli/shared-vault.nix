@@ -58,12 +58,6 @@ let
       startup_timeout_sec = 20;
       tool_timeout_sec = 120;
     };
-    claude = {
-      inherit command;
-      args = [ ];
-      type = "stdio";
-      env = { };
-    };
     cursor = {
       inherit command;
       args = [ ];
@@ -97,9 +91,10 @@ let
           desired = entryFor "codex";
         }
         {
+          # Retire registrations owned by earlier generations.
           kind = "claude";
           target = "${config.home.homeDirectory}/.claude.json";
-          desired = entryFor "claude";
+          desired = null;
         }
         {
           kind = "cursor";
@@ -163,7 +158,6 @@ in
       type = lib.types.listOf (
         lib.types.enum [
           "codex"
-          "claude"
           "cursor"
           "pi"
           "opencode"
@@ -171,7 +165,6 @@ in
       );
       default = [
         "codex"
-        "claude"
         "cursor"
         "pi"
         "opencode"

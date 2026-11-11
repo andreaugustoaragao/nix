@@ -1571,23 +1571,6 @@ in
             },
           },
 
-          -- Claude Code IDE integration via MCP. Reuses the OAuth login
-          -- that the `claude` CLI already has — no API key needed. Same
-          -- WebSocket MCP protocol the official VSCode/JetBrains plugins
-          -- use, so you get inline diff approvals + selection-send.
-          {
-            "coder/claudecode.nvim",
-            dependencies = { "folke/snacks.nvim" },
-            event = "VeryLazy",
-            opts = {},
-            keys = {
-              { "<C-,>",      "<cmd>ClaudeCode<cr>",        desc = "Toggle Claude Code" },
-              { "<leader>cF", "<cmd>ClaudeCodeFocus<cr>",   desc = "Focus Claude" },
-              { "<leader>cs", "<cmd>ClaudeCodeSend<cr>",    desc = "Send selection to Claude", mode = { "n", "v" } },
-              { "<leader>ca", "<cmd>ClaudeCodeAdd<cr>",     desc = "Add file to Claude context" },
-              { "<leader>cm", "<cmd>ClaudeCodeSelectModel<cr>", desc = "Select Claude model" },
-            },
-          },
 
         },
         defaults = {

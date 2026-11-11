@@ -1,0 +1,46 @@
+--- a/crates/rune/src/text.rs
++++ b/crates/rune/src/text.rs
+@@ -265,6 +265,8 @@
+             registered.extend(added);
+         }
+         let mut font_files = LoadedFiles::new();
++        system_fonts::load_requested(&mut collection, &mut font_files, families.0);
++        system_fonts::load_requested(&mut collection, &mut font_files, families.1);
+         register_cjk_fallbacks(&mut collection, &mut font_files, &registered, families);
+         let symbol_families = load_families(&mut collection, SYMBOL_FONT_FILES, SYMBOL_FAMILIES);
+         let emoji = symbol_families.iter().copied().find(|f| f.contains("Emoji"));
+--- a/crates/rune/src/text/families.rs
++++ b/crates/rune/src/text/families.rs
+@@ -60,6 +60,8 @@
+         if self.families.0 == sans && self.families.1 == mono {
+             return false;
+         }
++        super::system_fonts::load_requested(&mut self.font_cx.collection, &mut self.font_files, sans);
++        super::system_fonts::load_requested(&mut self.font_cx.collection, &mut self.font_files, mono);
+         measure::note_families(sans, mono);
+         self.families = (sans.to_owned(), mono.to_owned());
+         (self.sans, self.mono) = slots(sans, mono);
+--- a/crates/rune/src/text/system_fonts.rs
++++ b/crates/rune/src/text/system_fonts.rs
+@@ -258,3 +258,21 @@
+     let name = path.file_name()?.to_string_lossy().to_lowercase();
+     [".ttf", ".otf", ".ttc", ".otc"].iter().any(|ext| name.ends_with(ext)).then(|| name.replace([' ', '.'], ""))
+ }
++
++
++/// Loads installed faces for the requested app slots once per text system.
++pub(super) fn load_requested(collection: &mut Collection, loaded: &mut LoadedFiles, list: &str) {
++    #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
++    for family in FontFamilyName::parse_css_list(list).flatten() {
++        let FontFamilyName::Named(name) = family else { continue };
++        if collection.family_id(&name).is_some() { continue; }
++        let Ok(output) = std::process::Command::new("fc-list")
++            .arg("--format=%{file}\n").arg(name.as_ref()).output() else { continue };
++        if !output.status.success() { continue; }
++        let paths: std::collections::BTreeSet<std::path::PathBuf> = String::from_utf8_lossy(&output.stdout)
++            .lines().filter(|path| !path.is_empty()).map(Into::into).collect();
++        load_files(collection, loaded, paths);
++    }
++    #[cfg(not(all(unix, not(target_vendor = "apple"), not(target_os = "android"))))]
++    let _ = (collection, loaded, list);
++}

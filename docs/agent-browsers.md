@@ -18,8 +18,41 @@ Check the services:
 systemctl --user status agent-browser-accounts agent-browser-development agent-browser-cleanup.timer
 ```
 
-Both browsers run headless, with no desktop windows or launcher entries.
-Use screenshots to inspect their pages. To sign in interactively or renew a login, set that profile's `headless` field to `false` in `pkgs/browser-profiles.nix`, rebuild, and restart its browser service. The headed profile regains its launcher and compositor workspace. A restart requires new task IDs because old IDs cannot adopt restored tabs.
+Both browsers run headless by default. When you ask to see a browser for sign-in, the agent temporarily switches that profile to a real Chromium window:
+
+```sh
+agent-browser-mode accounts visible
+```
+
+The command returns JSON with a `config` path and a `restarted` flag. A mode change restarts that profile's browser with the same cookies and storage, and restores its tabs. After a restart, the agent starts a new task at the application's URL because old task IDs cannot adopt restored tabs.
+
+The agent focuses the sign-in page with the returned configuration:
+
+```sh
+browser-task --config CONFIG_PATH show TASK --page main
+```
+
+Sign in directly in Chromium, then tell the agent to continue. The agent restores headless operation with:
+
+```sh
+agent-browser-mode accounts headless
+```
+
+Both modes use temporary overrides under `$XDG_RUNTIME_DIR`. The Nix defaults stay headless. Repeating the current mode does not restart an already running browser. Use `development` instead of `accounts` for test applications.
+
+If you explicitly request **Browser assistance**, the agent can open the native screenshot app instead:
+
+```sh
+browser-task assist TASK --page main --prompt "Sign in to the test app, then return control."
+```
+
+The native Rune window displays the current domain, page URL, and screenshot. Click the screenshot, scroll, use keyboard navigation, or select a discovered field and enter a value in **Private input**. **Send input to page** fills the selected field or types into the focused page element. Discovered buttons and links update after each action. Screenshots refresh automatically every two seconds while you are not editing; turn that off or refresh manually when needed.
+
+Agent actions and task lifecycle changes are blocked for the whole handoff. Choose **Return control to agent** when finished. **Keep paused** or closing the window keeps the task protected; the agent must explicitly resume it later. If the app crashes, run `browser-task assist-cancel TASK`, then inspect and resume the task. This never closes its tabs.
+
+Input values pass through local pipes and are not written to the task registry, command arguments, or agent transcripts. Assistance screenshots stay in memory. The live website still receives entered values, and the agent can inspect the page again after you return control. Requests are bound to the page document and origin; a redirect requires a fresh screenshot before more input.
+
+Google may reject automated browsers. CAPTCHAs can be handled visually when supported by the page, but browser/OS dialogs, passkeys, and security keys may need a separate supported sign-in method. The app does not bypass provider restrictions or adopt unrelated popups. OAuth API access does not create a signed-in browser session.
 Use test accounts in development.
 The profiles keep separate cookies and storage. Closing a task's tabs preserves its profile's login sessions.
 These profiles run as your desktop user. They are not a security sandbox against other processes running as you.
@@ -83,7 +116,7 @@ printf '%s\n' '{"type":"screenshot","full_page":true}' \
   | browser-task action TASK --page main --timeout 30
 ```
 
-Capture the screenshot before keeping the task. Run `browser-task keep TASK` to protect it indefinitely. Kept tasks block further automation until resumed. `show` works only for profiles configured as headed; the default headless profiles return screenshot guidance without changing task state.
+Capture the screenshot before keeping the task. Run `browser-task keep TASK` to protect it indefinitely. Kept tasks block further automation until resumed. To see a real browser window, ask the agent to switch that profile temporarily with `agent-browser-mode`, then use `browser-task --config CONFIG_PATH show TASK --page main`.
 
 To continue the agent's work or start a new cleanup deadline:
 

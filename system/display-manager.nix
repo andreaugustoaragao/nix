@@ -22,7 +22,6 @@
   programs.dms-greeter = {
     enable = true;
     compositor.name = "niri";
-    quickshell.package = unstable-pkgs.quickshell;
     # Sync the user's DMS theme/wallpaper into the greeter cache so
     # the login screen mirrors the desktop. The greetd preStart copies
     # settings.json + session.json + dms-colors.json from this home.

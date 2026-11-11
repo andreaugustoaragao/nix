@@ -14,7 +14,6 @@ let
   '';
   skillRoots = [
     ".agents/skills"
-    ".claude/skills"
     ".cursor/skills"
     ".grok/skills"
     ".gemini/skills"
@@ -115,7 +114,6 @@ in
     {
       ".codex/AGENTS.md".text = lib.mkAfter instructions;
       ".pi/agent/AGENTS.md".text = lib.mkAfter instructions;
-      ".claude/rules/terminal-host.md".text = instructions;
     }
   ];
 

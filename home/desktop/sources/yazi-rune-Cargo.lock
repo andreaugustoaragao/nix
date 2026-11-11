@@ -869,6 +869,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e0e367e4e7da84520dedcac1901e4da967309406d1e51017ae1abfb97adbd38"
 dependencies = [
  "bitflags 2.13.2",
+ "block2 0.6.2",
+ "libc",
  "objc2 0.6.5",
 ]
 
@@ -2477,6 +2479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c"
 dependencies = [
  "bitflags 2.13.2",
+ "block2 0.6.2",
  "objc2 0.6.5",
  "objc2-core-graphics",
  "objc2-foundation 0.3.2",
@@ -3462,6 +3465,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "rfd"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20dafead71c16a34e1ff357ddefc8afc11e7d51d6d2b9fbd07eaa48e3e540220"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "js-sys",
+ "libc",
+ "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "percent-encoding",
+ "raw-window-handle",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rgb"
 version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3479,7 +3505,6 @@ checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 [[package]]
 name = "rune"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -3515,6 +3540,7 @@ dependencies = [
  "portable-atomic",
  "raw-window-handle",
  "resvg",
+ "rfd",
  "rune-motion",
  "rune-staging",
  "rune-taffy",
@@ -3548,7 +3574,6 @@ dependencies = [
 [[package]]
 name = "rune-kit"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 dependencies = [
  "pulldown-cmark",
  "rune",
@@ -3560,7 +3585,6 @@ dependencies = [
 [[package]]
 name = "rune-mermaid"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 dependencies = [
  "rune",
 ]
@@ -3568,12 +3592,10 @@ dependencies = [
 [[package]]
 name = "rune-motion"
 version = "0.1.0"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 
 [[package]]
 name = "rune-staging"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 dependencies = [
  "wgpu",
 ]
@@ -3581,7 +3603,6 @@ dependencies = [
 [[package]]
 name = "rune-taffy"
 version = "0.0.1"
-source = "git+https://github.com/anomalyco/rune?rev=7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b#7ead7d63fcf6f9dd9669385a8b90e2ae80015d7b"
 dependencies = [
  "taffy",
 ]
@@ -4295,6 +4316,7 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 
@@ -5481,12 +5503,15 @@ dependencies = [
  "fff-search",
  "filetime",
  "flate2",
+ "futures-util",
  "gio",
+ "globset",
  "html5ever",
  "image",
  "libc",
  "markup5ever_rcdom",
  "natord",
+ "neo_frizbee",
  "notify 7.0.0",
  "pkg-config",
  "raw-window-handle",
@@ -5500,6 +5525,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "toml_edit",
  "two-face",
  "url",
  "walkdir",

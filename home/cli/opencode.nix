@@ -33,7 +33,7 @@ let
       }) provider.models
     );
 
-  # Snapshot of the gateway's /model/info, 2026-09-26. Contains public
+  # Snapshot of the gateway's /model/info, 2026-11-10. Contains public
   # model aliases/capabilities only. GPT entries select the Responses
   # runtime used by Codex; other entries use Pi's Chat Completions route.
   gatewayModels = builtins.fromJSON (builtins.readFile ./opencode-litellm-models.json);
@@ -96,7 +96,7 @@ in
               baseURL = "{file:/run/secrets/litellm_base_url}";
               apiKey = "{file:/run/secrets/litellm_api_key}";
             };
-            models = piModels piProviders.litellm // gatewayModels;
+            models = gatewayModels;
           };
 
           # Pi routes Claude directly to Anthropic, rather than LiteLLM.

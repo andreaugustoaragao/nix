@@ -24,11 +24,11 @@ assert connection["socketPath"] == expected_socket
 expected_arguments = ["--socket", expected_socket, "--vault", connection["vaultId"]]
 entries = {client["kind"]: client["desired"] for client in manifest["clients"]}
 mcp = str(launcher_path / "bin/vault-mcp")
-assert all(entry["command"] == ([mcp] if kind == "opencode" else mcp) for kind, entry in entries.items())
+assert all(entry["command"] == ([mcp] if kind == "opencode" else mcp) for kind, entry in entries.items() if entry is not None)
 assert entries["opencode"]["timeout"] == {"startup": 20000, "catalog": 20000, "execution": 120000}
 assert entries["opencode"]["disabled"] is False
 assert entries["pi"]["timeout"] == entries["codex"]["tool_timeout_sec"] == 120
-assert entries["claude"]["type"] == "stdio"
+assert entries["claude"] is None, "Claude Code registrations must remain retired"
 assert entries["codex"]["startup_timeout_sec"] == 20
 assert json.loads(opencode_path.read_text())["mcp"]["servers"]["shared-vault"] == entries["opencode"]
 
@@ -55,8 +55,17 @@ with tempfile.TemporaryDirectory(prefix="shared-vault-module-") as scratch:
         if native["kind"] == "opencode":
             Path(native["target"]).symlink_to(opencode_path)
             native["overlay"] = str(root / "extra-opencode.json")
+        if native["kind"] == "claude":
+            Path(native["target"]).write_text('{"preferences": {"keep": true}}')
+            former = dict(native, desired={"type": "stdio", "command": "retired-client", "args": []})
+            configure.reconcile(former, manifest["name"], state, "apply")
         configure.reconcile(native, manifest["name"], state, "apply")
-        assert configure.reconcile(native, manifest["name"], state) == "configured"
+        expected = "configured" if native["desired"] is not None else "absent"
+        assert configure.reconcile(native, manifest["name"], state) == expected
+        if native["kind"] == "claude":
+            preserved = json.loads(Path(native["target"]).read_text())
+            assert preserved["preferences"] == {"keep": True}
+            assert manifest["name"] not in preserved.get("mcpServers", {})
         native["desired"] = None
         if native["kind"] == "opencode":
             Path(native["target"]).unlink()
@@ -166,4 +175,4 @@ for name, scenario in scenarios:
         except AssertionError as error:
             failures.append(name + ": " + str(error))
 assert not failures, "\n".join(failures)
-print("Five native serializations, canonical socket, argument binding, registration and eight activation scenarios pass")
+print("Four native serializations, retired Claude registration, canonical socket, argument binding, registration and eight activation scenarios pass")

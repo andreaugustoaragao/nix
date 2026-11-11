@@ -12,7 +12,6 @@ let
   assets = "${herdr}/share/herdr/integrations";
   # These paths are also inspected by `herdr integration status`.
   integrations = {
-    ".claude/hooks/herdr-agent-state.sh" = "claude/herdr-agent-state.sh";
     ".codex/herdr-agent-state.sh" = "codex/herdr-agent-state.sh";
     ".cursor/herdr-agent-state.sh" = "cursor/herdr-agent-state.sh";
     ".grok/hooks/herdr-agent-state.sh" = "grok/herdr-agent-state.sh";

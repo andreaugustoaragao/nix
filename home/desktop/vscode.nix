@@ -41,9 +41,6 @@ in
 
     profiles.default = {
       extensions = with pkgs.vscode-extensions; [
-        # AI
-        anthropic.claude-code # Claude Code
-
         # Rust
         rust-lang.rust-analyzer # Rust language server
         tamasfe.even-better-toml # TOML support (Cargo.toml)
@@ -397,11 +394,6 @@ in
         "git.confirmSync" = false;
         "git.autofetch" = true;
         "gitlens.codeLens.enabled" = false;
-
-        # Claude Code
-        "claudeCode.allowDangerouslySkipPermissions" = true;
-        "claudeCode.initialPermissionMode" = "bypassPermissions";
-        "claudeCode.preferredLocation" = "sidebar";
 
         # Auto-preview
         "workbench.editorAssociations" = {

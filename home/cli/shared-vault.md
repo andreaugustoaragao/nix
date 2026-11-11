@@ -1,7 +1,7 @@
 # Shared vault client configuration
 
 `my.sharedVault` supplies one vault identity, Unix socket and immutable release
-to Codex, Claude, Cursor, Pi, OpenCode and the `vault` CLI. It is disabled by
+to Codex, Cursor, Pi, OpenCode and the `vault` CLI. It is disabled by
 default. This module installs clients; it does not start a vault service,
 initialize a catalog or resume scheduled work.
 
@@ -97,7 +97,6 @@ vault. The CLI preserves arguments after `--` as positional input.
 | Client | Owned entry | Native timeout units |
 | --- | --- | --- |
 | Codex | `~/.codex/config.toml`, `mcp_servers.shared-vault` | Seconds |
-| Claude | `~/.claude.json`, `mcpServers.shared-vault` | Client default |
 | Cursor | `~/.cursor/mcp.json`, `mcpServers.shared-vault` | Client default |
 | Pi | `~/.pi/agent/mcp.json`, `mcpServers.shared-vault` | Seconds |
 | OpenCode 2 | Existing generated `opencode/opencode.jsonc`, `mcp.servers.shared-vault` | Milliseconds: `startup`, `catalog`, `execution` |

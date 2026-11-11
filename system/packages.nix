@@ -14,7 +14,6 @@
   environment.systemPackages =
     with pkgs;
     [
-      claude-code
       lua-language-server
       vim
       git

@@ -51,13 +51,14 @@ let
     BookmarkBarEnabled = false;
     PasswordManagerEnabled = false;
     PasswordManagerPasskeysEnabled = false;
+    ExtensionSettings."fcoeoabgfenejglbffodgkkbkcdhcgfn".installation_mode = "removed";
   };
 
   # Brave-specific kill switches. Each maps to a feature surfaced in
   # the toolbar, NTP, or sidebar; turning them off via policy removes
   # the corresponding UI affordance (rather than just hiding it
   # cosmetically) and survives Brave updates.
-  bravePolicies = commonPolicies // {
+  bravePolicies = lib.recursiveUpdate commonPolicies {
     BraveRewardsDisabled = true;
     BraveAIChatEnabled = false; # Leo
     BraveVPNDisabled = true;
@@ -77,8 +78,7 @@ let
     # Force-install + force-pin Bitwarden, Vimium, Markdown Viewer in
     # every profile. Stronger than home-manager's programs.brave.
     # extensions (which only drops an External Extensions JSON and
-    # lets the user disable/remove afterwards). The Claude-in-Chrome
-    # extension stays in the HM list because we don't need it pinned.
+    # lets the user disable/remove afterwards).
     ExtensionSettings = lib.genAttrs (lib.attrValues extensionIds) (_: forceInstalledAndPinned);
 
     # Bitwarden's own managed-storage schema only exposes environment

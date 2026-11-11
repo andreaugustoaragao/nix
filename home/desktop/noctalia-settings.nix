@@ -8,6 +8,10 @@
   appearance ? null,
   preview ? false,
 }:
+let
+  barScale = 0.825;
+  portraitBarScale = barScale * 1.1;
+in
 lib.recursiveUpdate (lib.recursiveUpdate
   (builtins.fromTOML (builtins.readFile ./noctalia-personal.toml))
   {
@@ -30,7 +34,11 @@ lib.recursiveUpdate (lib.recursiveUpdate
       font_weight = 500;
       thickness = 32;
       radius = 16;
-      scale = 0.825;
+      scale = barScale;
+      monitor = {
+        portrait.scale = portraitBarScale;
+        third.scale = portraitBarScale;
+      };
       font_scale = 1.0;
       widget_spacing = 5;
       capsule_padding = 4.5;

@@ -214,6 +214,7 @@ let
     inlineVolume = cfg.widget."inline-volume".type;
     recorder = cfg.widget.recorder.type;
     rebuild = cfg.widget."nix-rebuild".type;
+    herdr = cfg.widget.herdr.type;
     plugins = cfg.plugins.enabled;
     bluetooth = cfg.widget.bluetooth;
     privacy = cfg.widget.privacy;
@@ -244,6 +245,7 @@ in {
         )
         rendered = json.loads(result.stdout)
         primary = [
+            "herdr",
             "clipboard",
             "cpu",
             "ram",
@@ -262,6 +264,7 @@ in {
             "tray",
         ]
         secondary = [
+            "herdr",
             "clipboard",
             "notifications",
             "control-center",
@@ -306,7 +309,8 @@ in {
             self.assertEqual(output["inlineVolume"], "aragao/dms-toolbar:volume")
             self.assertEqual(output["recorder"], "aragao/dms-toolbar:recorder")
             self.assertEqual(output["rebuild"], "aragao/nix-rebuild:rebuild")
-            self.assertEqual(output["plugins"], ["aragao/dms-toolbar", "aragao/nix-rebuild"])
+            self.assertEqual(output["herdr"], "aragao/herdr:radar")
+            self.assertEqual(output["plugins"], ["aragao/dms-toolbar", "aragao/nix-rebuild", "aragao/herdr"])
             self.assertEqual(output["bluetooth"], {"hide_when_adapter_off": True})
             self.assertEqual(output["privacy"], {"hide_inactive": True})
             self.assertEqual(output["launcher"], "floating")
@@ -410,6 +414,7 @@ in {
         )
         rendered = json.loads(result.stdout)
         primary = [
+            "herdr",
             "clipboard",
             "cpu",
             "ram",
@@ -428,6 +433,7 @@ in {
             "tray",
         ]
         secondary = [
+            "herdr",
             "clipboard",
             "notifications",
             "control-center",
