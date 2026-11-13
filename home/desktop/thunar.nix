@@ -9,18 +9,7 @@
 
 let
   term = import ./default-terminal.nix { inherit isVm; };
-in
-{
-  # Thunar and thumbnailing packages
-  home.packages = with pkgs; [
-    thunar
-    tumbler # Thumbnail service for Thunar
-    ffmpegthumbnailer # Video thumbnails
-    poppler-utils # PDF thumbnails
-  ];
-
-  # GTK bookmarks for Thunar sidebar
-  xdg.configFile."gtk-3.0/bookmarks".text = ''
+  bookmarkDefaults = pkgs.writeText "gtk-bookmarks-defaults" ''
     file://${config.home.homeDirectory}/downloads downloads
     ${lib.optionalString (!personalOnly) ''
       file://${config.home.homeDirectory}/projects/work work
@@ -34,6 +23,37 @@ in
       file://${config.home.homeDirectory}/projects/work/infinity-core infinity-core
     ''}
   '';
+in
+{
+  # Thunar and thumbnailing packages
+  home.packages = with pkgs; [
+    thunar
+    tumbler # Thumbnail service for Thunar
+    ffmpegthumbnailer # Video thumbnails
+    poppler-utils # PDF thumbnails
+  ];
+
+  home.activation.initializeGtkBookmarks =
+    lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
+      ''
+        bookmarks_dir=${lib.escapeShellArg "${config.xdg.configHome}/gtk-3.0"}
+        bookmarks_path="$bookmarks_dir/bookmarks"
+        if [[ -L "$bookmarks_path" || ! -e "$bookmarks_path" ]]; then
+          if [[ -n "''${DRY_RUN_CMD:-}" ]]; then
+            echo "Initialize writable GTK bookmarks: $bookmarks_path"
+          else
+            mkdir -p "$bookmarks_dir"
+            bookmarks_source=${bookmarkDefaults}
+            if [[ -L "$bookmarks_path" ]]; then
+              bookmarks_source="$bookmarks_path"
+            fi
+            bookmarks_tmp=$(mktemp "$bookmarks_dir/.bookmarks.XXXXXX")
+            cp -L -- "$bookmarks_source" "$bookmarks_tmp"
+            chmod 600 "$bookmarks_tmp"
+            mv -Tf -- "$bookmarks_tmp" "$bookmarks_path"
+          fi
+        fi
+      '';
 
   # Thunar file manager configuration via home-manager activation
   home.activation.configureThunar = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

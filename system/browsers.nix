@@ -100,4 +100,7 @@ in
 
   # Brave reads /etc/brave/policies/managed/*.json.
   environment.etc."brave/policies/managed/00-default.json".text = builtins.toJSON bravePolicies;
+  # The Chromium module also writes Brave's extra.json, which would override
+  # the complete ExtensionSettings policy above with commonPolicies alone.
+  environment.etc."brave/policies/managed/extra.json".enable = false;
 }

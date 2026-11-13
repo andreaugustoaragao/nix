@@ -5,7 +5,7 @@ end
 
 local function render(snapshot)
     local ready = snapshot ~= nil and snapshot.phase == "ready"
-    local attentionColor = "outline"
+    local attentionColor = "on_surface_variant"
     if ready and snapshot.attention > 0 then
         attentionColor = snapshot.errors > 0 and "error" or "tertiary"
     end
@@ -18,15 +18,15 @@ local function render(snapshot)
     end
     barWidget.setTooltip(tooltip)
     barWidget.render(ui.row({ gap = 6, align = "center" }, {
-        ui.glyph({ name = "terminal-2", size = 15, color = attentionColor }),
-        ui.label({ text = "Herdr" }),
+        ui.glyph({ name = "terminal-2", size = 15, color = "on_surface" }),
+        ui.label({ text = "Herdr", baseline = "inkCentered" }),
         ui.row({ gap = 3, align = "center", width = 39 }, {
-            ui.glyph({ name = "loader", size = 13, color = ready and snapshot.working > 0 and "primary" or "outline" }),
-            ui.label({ text = count(ready and snapshot.working or nil), width = 23 }),
+            ui.glyph({ name = "loader", size = 13, color = ready and snapshot.working > 0 and "primary" or "on_surface_variant" }),
+            ui.label({ text = count(ready and snapshot.working or nil), width = 23, baseline = "inkCentered" }),
         }),
         ui.row({ gap = 3, align = "center", width = 39 }, {
             ui.glyph({ name = "alert-circle", size = 13, color = attentionColor }),
-            ui.label({ text = count(ready and snapshot.attention or nil), width = 23, color = attentionColor }),
+            ui.label({ text = count(ready and snapshot.attention or nil), width = 23, color = "on_surface", baseline = "inkCentered" }),
         }),
     }))
 end
