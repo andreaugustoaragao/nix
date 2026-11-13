@@ -67,6 +67,12 @@ in
         After = [ "dms.service" ];
       };
       Service = {
+        Slice = "session.slice";
+        CPUWeight = 1000;
+        IOWeight = 1000;
+        MemoryMin = "512M";
+        MemoryLow = "1G";
+        OOMScoreAdjust = 100;
         RestartSec = 2;
         Environment = [
           "PATH=${

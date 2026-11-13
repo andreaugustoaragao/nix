@@ -154,8 +154,14 @@ in
         if shared.enable then "Nix release" else "source"
       })";
       Documentation = [ "file://${projectRoot}/docs/README.md" ];
-      After = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
-      Wants = [ "network-online.target" ] ++ lib.optional shared.enable "shared-vault.service";
+      After = [
+        "network-online.target"
+      ]
+      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service";
+      Wants = [
+        "network-online.target"
+      ]
+      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service";
       # Development checkouts are optional; packaged releases are Nix dependencies.
       ConditionPathExists = lib.mkIf (!shared.enable) projectRoot;
     };

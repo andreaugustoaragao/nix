@@ -301,6 +301,31 @@ def check(launcher):
             assert task_id in result["stale"], result
             assert set(peer.targets) == before
             assert "manual" in peer.targets
+
+            # Unfinished tasks on the current browser instance never expire,
+            # while unfinished tasks orphaned by a browser restart are swept
+            # into stale after the 1-hour retention window.
+            live_kept = run("start", "development", "--label", "Live kept task")["task"]
+            run("keep", live_kept)
+            old_mtime = time.time() - 3601
+            for item in (root / "tasks" / live_kept).iterdir():
+                os.utime(item, (old_mtime, old_mtime))
+            assert live_kept not in run("cleanup")["stale"]
+            assert (root / "tasks" / live_kept).exists()
+
+            peer.instance = "fixture-instance-3"
+            fresh_mtime = time.time() - 60
+            for item in (root / "tasks" / live_kept).iterdir():
+                os.utime(item, (fresh_mtime, fresh_mtime))
+            assert live_kept not in run("cleanup")["stale"], "Recent post-restart record must stay inspectable"
+            assert (root / "tasks" / live_kept).exists()
+
+            for item in (root / "tasks" / live_kept).iterdir():
+                os.utime(item, (old_mtime, old_mtime))
+            swept = run("cleanup")
+            assert live_kept in swept["stale"], swept
+            assert not (root / "tasks" / live_kept).exists()
+            assert "manual" in peer.targets
     finally:
         peer.close()
     print("Native CDP cancellation, crash recovery, screenshot timeout, closed-page and restart ownership passed")

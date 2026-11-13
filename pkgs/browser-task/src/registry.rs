@@ -221,6 +221,29 @@ fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     result
 }
 
+fn modified_secs(path: &Path) -> Option<f64> {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs_f64())
+}
+
+fn directory_last_modified(directory: &Path) -> Option<f64> {
+    let mut latest = modified_secs(&directory.join("task.json"))?;
+    if let Ok(entries) = fs::read_dir(directory) {
+        for entry in entries.flatten() {
+            if entry.file_name() == "lock" {
+                continue;
+            }
+            if let Some(time) = modified_secs(&entry.path()) {
+                latest = latest.max(time);
+            }
+        }
+    }
+    Some(latest)
+}
+
 fn prune_artifacts(directory: &Path, newest: &Path) -> Result<(), String> {
     let mut old = fs::read_dir(directory)
         .map_err(|error| error.to_string())?
@@ -1125,9 +1148,31 @@ impl Registry {
                     continue;
                 }
             };
-            if task.state != TaskState::Finished
-                || task.finished_at.is_none_or(|at| now() < at + RETENTION)
-            {
+            let finished_expired = task.state == TaskState::Finished
+                && task.finished_at.is_some_and(|at| now() >= at + RETENTION);
+            let restart_candidate = task.state != TaskState::Finished
+                && directory_last_modified(&guard.directory)
+                    .is_some_and(|modified| now() >= modified + RETENTION);
+            if !finished_expired && !restart_candidate {
+                continue;
+            }
+            if restart_candidate {
+                match Cdp::current_instance(self.profiles[&task.profile].port, deadline) {
+                    Ok(instance) if instance == task.instance.0 => continue,
+                    Ok(_) => match fs::remove_dir_all(&guard.directory) {
+                        Ok(()) => report["stale"].as_array_mut().unwrap().push(json!(id)),
+                        Err(error) => report["retry"]
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!({"task":id,"error":error.to_string()})),
+                    },
+                    Err(error) => {
+                        report["retry"]
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!({"task":id,"error":error}));
+                    }
+                }
                 continue;
             }
             let result = (|| {

@@ -24,7 +24,7 @@ Both browsers run headless by default. When you ask to see a browser for sign-in
 agent-browser-mode accounts visible
 ```
 
-The command returns JSON with a `config` path and a `restarted` flag. A mode change restarts that profile's browser with the same cookies and storage, and restores its tabs. After a restart, the agent starts a new task at the application's URL because old task IDs cannot adopt restored tabs.
+The command returns JSON with a `config` path and a `restarted` flag. A mode change restarts that profile's browser with the same cookies and storage, starting a clean window without restoring previous tabs. After a restart, the agent starts a new task at the application's URL because old task IDs are stale.
 
 The agent focuses the sign-in page with the returned configuration:
 

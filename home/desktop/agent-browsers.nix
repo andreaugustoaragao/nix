@@ -23,11 +23,9 @@ let
       ${pkgs.coreutils}/bin/install -d -m 0700 "$profile_dir"
       exec ${chromium}/bin/chromium \
         ${
-          if profile.headless then
-            "--headless --restore-last-session"
-          else
-            "--ozone-platform=wayland --class=${profile.appId} --restore-last-session"
+          if profile.headless then "--headless" else "--ozone-platform=wayland --class=${profile.appId}"
         } \
+        --hide-crash-restore-bubble \
         --password-store=gnome-libsecret \
         --no-first-run \
         --no-default-browser-check \
@@ -60,6 +58,7 @@ let
               (
                 mode:
                 let
+                  isDefault = (mode == "headless") == profiles.${role}.headless;
                   profile = profiles.${role} // {
                     headless = mode == "headless";
                   };
@@ -69,6 +68,7 @@ let
                 in
                 ''
                   ${role}:${mode})
+                    is_default=${lib.boolToString isDefault}
                     launcher=${launch role profile}
                     profile_config=${pkgs.writeText "browser-profiles-${role}-${mode}.json" (builtins.toJSON modeProfiles)}
                     ;;
@@ -99,10 +99,15 @@ let
         restarted=false
       fi
 
-      pending=$(mktemp "$override_dir/.browser-mode.XXXXXX")
-      trap 'rm -f "$pending"' EXIT
-      printf '[Service]\nExecStart=\nExecStart=%s\n' "$launcher" > "$pending"
-      mv "$pending" "$override"
+      if [[ $is_default == true ]]; then
+        rm -f "$override"
+        rmdir --ignore-fail-on-non-empty "$override_dir" 2>/dev/null || true
+      else
+        pending=$(mktemp "$override_dir/.browser-mode.XXXXXX")
+        trap 'rm -f "$pending"' EXIT
+        printf '[Service]\nExecStart=\nExecStart=%s\n' "$launcher" > "$pending"
+        mv "$pending" "$override"
+      fi
       install -m 0600 "$profile_config" "$mode_dir/profiles.json"
       systemctl --user daemon-reload
       if [[ $restarted == true ]]; then
@@ -122,6 +127,8 @@ let
       ConditionEnvironment = "WAYLAND_DISPLAY";
     };
     Service = {
+      Slice = "background.slice";
+      OOMScoreAdjust = 300;
       ExecStart = "${launch role profile}";
       Restart = "always";
       RestartSec = 2;

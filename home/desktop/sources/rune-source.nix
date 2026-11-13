@@ -8,5 +8,8 @@ applyPatches {
     hash = "sha256-e6f1kr0qvTT13YKZIGhiFee33RwydeVX60Yz23j/cQA=";
     fetchSubmodules = true;
   };
-  patches = [ ./rune-font-loading.patch ];
+  patches = [
+    ./rune-font-loading.patch
+    ./rune-gles.patch
+  ];
 }
