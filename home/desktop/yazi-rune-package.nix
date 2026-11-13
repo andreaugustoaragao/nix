@@ -6,6 +6,9 @@
   makeWrapper,
   zig,
   glib,
+  cairo,
+  pango,
+  gdk-pixbuf,
   fontconfig,
   gvfs,
   wayland,
@@ -24,6 +27,9 @@ let
   runeSource = callPackage ./sources/rune-source.nix { };
   libraries = [
     glib
+    cairo
+    pango
+    gdk-pixbuf
     wayland
     libxkbcommon
     vulkan-loader
