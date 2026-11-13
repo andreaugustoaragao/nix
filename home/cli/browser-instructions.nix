@@ -50,7 +50,7 @@
   Both profiles run headless by default. When the user asks to see a browser
   for login or other input, run `agent-browser-mode ROLE visible`.
   This applies a temporary desktop-session override to that profile's service.
-  It preserves the profile data and restores tabs. Its JSON result reports
+  It preserves the profile data and starts a clean window. Its JSON result reports
   `restarted` and a `config` path for browser-task. If it restarted the browser,
   start a new task at the requested application's URL; old task IDs are stale.
   Capture a screenshot, then run
