@@ -64,6 +64,7 @@ COMMAND_ENVIRONMENT_KEYS = set(MANAGED_CONTROL_VARIABLES) | {
     "PATH", "HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TMPDIR", "LANG", "NIX_CONFIG",
     "BUN_CONFIG_NO_CLEAR_TERMINAL", "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
     "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_OPTIONAL_LOCKS",
+    "CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "NOSYSBASHRC",
 }
 
 
@@ -288,10 +289,18 @@ def managed_command_environment() -> dict[str, str]:
 
 
 def command(args: list[str], cwd: Path, phase: str, timeout: int = 900,
-            environment: dict[str, str] | None = None) -> bytes:
+            environment: dict[str, str] | None = None,
+            build_paths: tuple[Path, Path, Path] | None = None) -> bytes:
     if not sys.platform.startswith("linux"):
         raise ReleaseError("release verifier supervision requires Linux")
     environment = dict(managed_command_environment() if environment is None else environment)
+    flag_names = ("CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS")
+    if build_paths is None:
+        if any(name in environment for name in flag_names) or "NOSYSBASHRC" in environment:
+            raise ReleaseError("build flags are only allowed for the derived native build")
+    elif (phase != "certified native Cargo build" or environment.get("NOSYSBASHRC") != "1"
+          or {name: environment.get(name) for name in flag_names} != native_build_path_flags(*build_paths)):
+        raise ReleaseError("native build flags differ from the derived paths")
     if (set(environment) - COMMAND_ENVIRONMENT_KEYS or environment.get("PATH") != managed_path()
             or environment.get("FULCRUM_CERT_BUN_BIN") != os.environ.get("FULCRUM_CERT_BUN_BIN")
             or environment.get("NIX_CONFIG") not in (None, "experimental-features = nix-command flakes\n")):
@@ -675,6 +684,21 @@ def verify_dependencies(root: Path, bun: Path) -> None:
                 f"installed dependency verification ({script})")
 
 
+def native_build_path_flags(source_root: Path, cargo_home: Path, cargo_target_dir: Path) -> dict[str, str]:
+    mappings = ((source_root, "/src/fulcrum"), (cargo_home, "/cargo-home"),
+                (cargo_target_dir, "/cargo-target"))
+    for path, _ in mappings:
+        text = str(path)
+        if (not path.is_absolute() or re.search(r"[=\x00-\x1f\x7f]", text)
+                or path.resolve(strict=True) != path or not path.is_dir()):
+            raise ReleaseError("native build path is not a canonical safe directory")
+    encoded = "\x1f".join(f"--remap-path-prefix={path}={destination}" for path, destination in mappings)
+    def quote(argument: str) -> str:
+        return "'" + argument.replace("'", "'\"'\"'") + "'"
+    cflags = " ".join(quote(f"-ffile-prefix-map={path}={destination}") for path, destination in mappings)
+    return {"CARGO_ENCODED_RUSTFLAGS": encoded, "CFLAGS": cflags, "CXXFLAGS": cflags}
+
+
 def checked_cache_directory(path: Path) -> None:
     if not path.is_absolute() or path.resolve(strict=True) != path:
         raise ReleaseError("Cargo registry cache path is not canonical")
@@ -857,7 +881,10 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         "TMPDIR": str(scratch),
         "LANG": "C.UTF-8",
         "NIX_CONFIG": "experimental-features = nix-command flakes\n",
+        "NOSYSBASHRC": "1",
     }
+    flags = native_build_path_flags(app, cargo_home, target_dir)
+    environment.update(flags)
     if "FULCRUM_CERT_BUN_BIN" in os.environ:
         environment["FULCRUM_CERT_BUN_BIN"] = os.environ["FULCRUM_CERT_BUN_BIN"]
     shell = (
@@ -875,9 +902,10 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
     )
     target_variable = "X86_64_UNKNOWN_LINUX_GNU" if native_target()[0] == "x86_64-linux" else "AARCH64_UNKNOWN_LINUX_GNU"
     command([str(nix), "develop", "--no-write-lock-file", f"path:{app / 'services/shared-vault'}",
-             "--command", "sh", "-eu", "-c", shell, "sh", str(cargo_home), str(target_dir),
+             "--command", "env", "NOSYSBASHRC=1", *(f"{name}={value}" for name, value in flags.items()),
+             "sh", "-eu", "-c", shell, "sh", str(cargo_home), str(target_dir),
              target_variable, str(app / "Cargo.toml"), str(cwd)], cwd, "certified native Cargo build",
-            timeout=3600, environment=environment)
+            timeout=3600, environment=environment, build_paths=(app, cargo_home, target_dir))
     reject_ancestor_cargo_configuration(cwd)
     built = {name: target_dir / "release" / name for name in NATIVE_BINARIES}
     entries = {name: checked_native_binary(path, binaries[name]) for name, path in built.items()}

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import signal
 import struct
@@ -137,8 +138,14 @@ class ReleaseFixture(unittest.TestCase):
         struct.pack_into("<HH", header, 16, 2, MODULE.native_target()[1])
         return bytes(header) + name.encode()
 
-    def fixture_command(self, args, cwd, phase, timeout=900, environment=None):
+    def fixture_command(self, args, cwd, phase, timeout=900, environment=None, build_paths=None):
         if phase == "certified native Cargo build":
+            self.assertIsNotNone(build_paths)
+            flags = MODULE.native_build_path_flags(*build_paths)
+            self.assertEqual({name: environment.get(name) for name in flags}, flags)
+            self.assertEqual(environment["NOSYSBASHRC"], "1")
+            self.assertEqual(args[args.index("--command") + 1:args.index("sh", args.index("--command"))],
+                             ["env", "NOSYSBASHRC=1", *(f"{name}={value}" for name, value in flags.items())])
             target = Path(args[-4])
             for name in MODULE.NATIVE_BINARIES:
                 binary = target / "release" / name
@@ -157,7 +164,8 @@ class ReleaseFixture(unittest.TestCase):
                 expected.add("FULCRUM_CERT_BUN_BIN")
             self.assertEqual(set(environment), expected)
             return b""
-        return self.real_command(args, cwd, phase, timeout=timeout, environment=environment)
+        return self.real_command(args, cwd, phase, timeout=timeout, environment=environment,
+                                 build_paths=build_paths)
 
     def create(self, state=None, name="release.tar.gz"):
         state = state or self.state
@@ -260,8 +268,9 @@ class ReleaseFixture(unittest.TestCase):
         selected.chmod(0o555)
         with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store), patch.dict(os.environ, {
                 "FULCRUM_CERT_BUN_BIN": str(selected)}):
-            with self.assertRaisesRegex(MODULE.ReleaseError, "only immutable executable bun"):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "release packaging failed at source") as failure:
                 self.create()
+            self.assertIn("only immutable executable bun", str(failure.exception.__cause__))
         self.assertFalse(marker.exists())
         self.assertFalse(self.log.exists())
 
@@ -315,11 +324,44 @@ class ReleaseFixture(unittest.TestCase):
         binary.chmod(0o555)
         with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store), patch.dict(os.environ, {
                 "FULCRUM_CERT_BUN_BIN": str(selected)}):
-            with self.assertRaisesRegex(MODULE.ReleaseError, "differs from the project pin"):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "release packaging failed at certificate") as failure:
                 self.create()
+            self.assertIn("differs from the project pin", str(failure.exception.__cause__))
             with self.assertRaisesRegex(MODULE.ReleaseError, "differs from the project pin"):
                 MODULE.verify_dependencies(self.repo, self.repo / "node_modules/bun/bin/bun.exe")
         self.assertFalse(self.log.exists())
+
+    def test_native_build_flags_remap_private_paths_and_quote_c_compiler_values(self):
+        paths = [self.base / "source with ' quote", self.base / "cargo home", self.base / 'target "double"']
+        for path in paths:
+            path.mkdir()
+        flags = MODULE.native_build_path_flags(*paths)
+        destinations = ("/src/fulcrum", "/cargo-home", "/cargo-target")
+        self.assertEqual(flags["CARGO_ENCODED_RUSTFLAGS"].split("\x1f"),
+                         [f"--remap-path-prefix={path}={destination}"
+                          for path, destination in zip(paths, destinations)])
+        expected_c = [f"-ffile-prefix-map={path}={destination}"
+                      for path, destination in zip(paths, destinations)]
+        self.assertEqual(shlex.split(flags["CFLAGS"]), expected_c)
+        self.assertEqual(shlex.split(flags["CXXFLAGS"]), expected_c)
+        for unsafe in (self.base / "bad=source", self.base / "bad\nsource"):
+            unsafe.mkdir()
+            with self.assertRaisesRegex(MODULE.ReleaseError, "canonical safe directory"):
+                MODULE.native_build_path_flags(unsafe, paths[1], paths[2])
+
+    def test_native_build_command_refuses_missing_or_changed_derived_flags(self):
+        paths = [self.base / name for name in ("source", "cargo-home", "cargo-target")]
+        for path in paths:
+            path.mkdir()
+        flags = MODULE.native_build_path_flags(*paths)
+        environment = MODULE.managed_command_environment()
+        environment.update(flags)
+        environment["NOSYSBASHRC"] = "1"
+        for changed in ({**environment, "CFLAGS": "-ffile-prefix-map=/rogue=/src/fulcrum"},
+                        {key: value for key, value in environment.items() if key != "CXXFLAGS"}):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "differ from the derived paths"):
+                MODULE.command(["/bin/true"], self.repo, "certified native Cargo build",
+                               environment=changed, build_paths=tuple(paths))
 
     def test_native_receipt_must_bind_exact_commit_target_and_binary_hashes(self):
         original = json.loads(self.receipt.read_text())
