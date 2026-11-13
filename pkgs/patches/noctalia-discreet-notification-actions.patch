@@ -31,18 +31,19 @@
      container.addChild(std::move(row));
 --- a/src/shell/notification/notification_toast.cpp
 +++ b/src/shell/notification/notification_toast.cpp
-@@ -331,7 +331,9 @@
+@@ -331,7 +331,10 @@
      return ui::button({
          .text = std::string(label),
          .fontSize = Style::fontSizeCaption * scale,
 -        .variant = ButtonVariant::Default,
 +        .controlHeight = 24.0F * scale,
 +        .variant = ButtonVariant::Ghost,
++        .paddingV = 4.0F * scale,
 +        .paddingH = 8.0F * scale,
      });
    }
  
-@@ -380,7 +382,7 @@
+@@ -380,7 +383,7 @@
      const float maxRowWidth = notificationTextMaxWidth(scale, width, true);
  
      auto rows = wrapButtonsIntoRows(renderer, buttons, maxRowWidth, actionGap(scale));
