@@ -344,6 +344,7 @@ class ReleaseFixture(unittest.TestCase):
                       for path, destination in zip(paths, destinations)]
         self.assertEqual(shlex.split(flags["CFLAGS"]), expected_c)
         self.assertEqual(shlex.split(flags["CXXFLAGS"]), expected_c)
+        self.assertEqual(flags["CC_SHELL_ESCAPED_FLAGS"], "1")
         for unsafe in (self.base / "bad=source", self.base / "bad\nsource"):
             unsafe.mkdir()
             with self.assertRaisesRegex(MODULE.ReleaseError, "canonical safe directory"):
@@ -358,7 +359,9 @@ class ReleaseFixture(unittest.TestCase):
         environment.update(flags)
         environment["NOSYSBASHRC"] = "1"
         for changed in ({**environment, "CFLAGS": "-ffile-prefix-map=/rogue=/src/fulcrum"},
-                        {key: value for key, value in environment.items() if key != "CXXFLAGS"}):
+                        {key: value for key, value in environment.items() if key != "CXXFLAGS"},
+                        {**environment, "CC_SHELL_ESCAPED_FLAGS": "0"},
+                        {key: value for key, value in environment.items() if key != "CC_SHELL_ESCAPED_FLAGS"}):
             with self.assertRaisesRegex(MODULE.ReleaseError, "differ from the derived paths"):
                 MODULE.command(["/bin/true"], self.repo, "certified native Cargo build",
                                environment=changed, build_paths=tuple(paths))

@@ -64,7 +64,7 @@ COMMAND_ENVIRONMENT_KEYS = set(MANAGED_CONTROL_VARIABLES) | {
     "PATH", "HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TMPDIR", "LANG", "NIX_CONFIG",
     "BUN_CONFIG_NO_CLEAR_TERMINAL", "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
     "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_OPTIONAL_LOCKS",
-    "CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "NOSYSBASHRC",
+    "CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "CC_SHELL_ESCAPED_FLAGS", "NOSYSBASHRC",
 }
 
 
@@ -294,7 +294,7 @@ def command(args: list[str], cwd: Path, phase: str, timeout: int = 900,
     if not sys.platform.startswith("linux"):
         raise ReleaseError("release verifier supervision requires Linux")
     environment = dict(managed_command_environment() if environment is None else environment)
-    flag_names = ("CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS")
+    flag_names = ("CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "CC_SHELL_ESCAPED_FLAGS")
     if build_paths is None:
         if any(name in environment for name in flag_names) or "NOSYSBASHRC" in environment:
             raise ReleaseError("build flags are only allowed for the derived native build")
@@ -696,7 +696,8 @@ def native_build_path_flags(source_root: Path, cargo_home: Path, cargo_target_di
     def quote(argument: str) -> str:
         return "'" + argument.replace("'", "'\"'\"'") + "'"
     cflags = " ".join(quote(f"-ffile-prefix-map={path}={destination}") for path, destination in mappings)
-    return {"CARGO_ENCODED_RUSTFLAGS": encoded, "CFLAGS": cflags, "CXXFLAGS": cflags}
+    return {"CARGO_ENCODED_RUSTFLAGS": encoded, "CFLAGS": cflags, "CXXFLAGS": cflags,
+            "CC_SHELL_ESCAPED_FLAGS": "1"}
 
 
 def checked_cache_directory(path: Path) -> None:
