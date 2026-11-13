@@ -27,8 +27,8 @@ in
     release = pkgs.callPackage ../../pkgs/shared-vault-release.nix pin;
     releaseId = pin.sourceRevision;
     service = {
-      # Keep disabled until the Rust migration passes installed acceptance.
-      enable = false;
+      # Verified Rust candidate; installed acceptance gates the final cutover.
+      enable = true;
       notesDir = "${config.home.homeDirectory}/projects/work/notes";
       stateDir = "${config.xdg.dataHome}/shared-vault/work-notes";
       recordingsDirectory = "${config.home.homeDirectory}/recordings/calls";
