@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   unstable-pkgs,
   ...
@@ -11,10 +12,12 @@ let
   '';
 in
 {
-  systemd.user.services.shared-vault.Service = {
-    RuntimeDirectory = "shared-vault";
-    RuntimeDirectoryMode = "0700";
-    RuntimeDirectoryPreserve = "yes";
+  systemd.user.services.shared-vault = lib.mkIf config.my.sharedVault.service.enable {
+    Service = {
+      RuntimeDirectory = "shared-vault";
+      RuntimeDirectoryMode = "0700";
+      RuntimeDirectoryPreserve = "yes";
+    };
   };
 
   my.sharedVault = {
@@ -24,7 +27,8 @@ in
     release = pkgs.callPackage ../../pkgs/shared-vault-release.nix pin;
     releaseId = pin.sourceRevision;
     service = {
-      enable = true;
+      # Keep disabled until the Rust migration passes installed acceptance.
+      enable = false;
       notesDir = "${config.home.homeDirectory}/projects/work/notes";
       stateDir = "${config.xdg.dataHome}/shared-vault/work-notes";
       recordingsDirectory = "${config.home.homeDirectory}/recordings/calls";

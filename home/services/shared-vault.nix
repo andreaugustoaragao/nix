@@ -321,6 +321,8 @@ in
         After = [ "network-online.target" ];
         Wants = [ "network-online.target" ];
         Before = [ "fulcrum.service" ];
+        StartLimitIntervalSec = 300;
+        StartLimitBurst = 3;
       };
       Service = {
         Type = "exec";
@@ -329,7 +331,7 @@ in
         Environment = lib.mapAttrsToList (name: value: "${name}=${value}") nativeEnvironment;
         UMask = "0077";
         Restart = "on-failure";
-        RestartSec = 5;
+        RestartSec = 60;
         TimeoutStopSec = 180;
         KillMode = "control-group";
       };
