@@ -233,6 +233,7 @@ in
     home.file = lib.mkIf cfg.enable {
       ".local/bin/vault".source = "${launchers}/bin/vault";
       ".local/bin/vault-mcp".source = "${launchers}/bin/vault-mcp";
+      ".local/bin/vault-client-config".source = "${diagnostics}/bin/vault-client-config";
     };
     xdg.configFile."shared-vault/connection.json" = lib.mkIf cfg.enable {
       text = builtins.toJSON connection;
