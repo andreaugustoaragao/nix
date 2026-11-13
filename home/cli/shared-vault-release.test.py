@@ -457,7 +457,7 @@ class ReleaseFixture(unittest.TestCase):
         self.revision = self.git("rev-parse", "HEAD").stdout.strip()
         self.write_receipt()
         original = self.fixture_command
-        def inspect_build(args, cwd, phase, timeout=900, environment=None):
+        def inspect_build(args, cwd, phase, timeout=900, environment=None, build_paths=None):
             if phase == "certified native Cargo build":
                 self.assertTrue(cwd.is_relative_to(self.state))
                 self.assertFalse(cwd.is_relative_to(self.repo))
@@ -470,7 +470,7 @@ class ReleaseFixture(unittest.TestCase):
                 private_home = Path(args[-5])
                 self.assertFalse((private_home / "config.toml").exists())
                 self.assertEqual((private_home / "registry/cache" / MODULE.CARGO_REGISTRY / crate.name).read_bytes(), crate_bytes)
-            return original(args, cwd, phase, timeout, environment)
+            return original(args, cwd, phase, timeout, environment, build_paths)
         with patch.dict(os.environ, {"CARGO_HOME": str(cache_home), "RUSTC_WRAPPER": "/tmp/external-wrapper",
                                        "CARGO_BUILD_RUSTC": "/tmp/external-rustc", "CC": "/tmp/external-cc",
                                        "NIX_CONFIG": "substituters = https://invalid.example"}):
