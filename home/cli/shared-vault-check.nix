@@ -2,20 +2,31 @@
 let
   inherit (pkgs) lib;
   revision = "0123456789abcdef0123456789abcdef01234567";
+  embeddingCache = "/home/fixture/.cache/fulcrum/embeddings";
   release =
     pkgs.runCommand "shared-vault-inert-test-release"
       {
         version = "0.224.2";
-        passthru.sharedVaultSourceRevision = revision;
+        passthru = {
+          sharedVaultSourceRevision = revision;
+        }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          sharedVaultSdkCcLib = pkgs.stdenv.cc.cc.lib;
+          sharedVaultSdkIcu = pkgs.icu;
+        };
       }
       ''
-        mkdir -p "$out/bin"
+        mkdir -p "$out/bin" "$out/share/vault-services"
         cat > "$out/bin/vault-client" <<'SH'
         #!${pkgs.runtimeShell}
         exec ${lib.getExe pkgs.python3} -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@"
         SH
         chmod +x "$out/bin/vault-client"
         cp "$out/bin/vault-client" "$out/bin/vault-mcp"
+        cp "$out/bin/vault-client" "$out/bin/vault-service"
+        cat > "$out/share/vault-services/release.json" <<JSON
+        {"packageVersion":"$version","source":{"kind":"artifact","revision":"${revision}"}}
+        JSON
       '';
   evaluate =
     settings:
@@ -66,10 +77,20 @@ let
           stateDir = "/tmp/shared-vault-fixture-state";
           recordingsDirectory = "/tmp/shared-vault-fixture-recordings";
           vector.namespace = "fixture-vault";
+          environment.FULCRUM_EMBEDDING_CACHE_DIR = embeddingCache;
         };
       }
     )).config;
-  serviceInvalid = (evaluate (settings // { service.enable = true; })).config;
+  serviceInvalid =
+    (evaluate (
+      settings
+      // {
+        service = {
+          enable = true;
+          environment.FULCRUM_EMBEDDING_CACHE_DIR = embeddingCache;
+        };
+      }
+    )).config;
   recordingService =
     intake:
     (evaluate (
@@ -81,6 +102,7 @@ let
           stateDir = "/tmp/shared-vault-fixture-state";
           recordingsDirectory = "/tmp/shared-vault-fixture-recordings";
           vector.namespace = "fixture-vault";
+          environment.FULCRUM_EMBEDDING_CACHE_DIR = embeddingCache;
           automation = {
             enable = true;
             executable = "/fixture/bin/codex";
@@ -154,7 +176,9 @@ let
           enable = true;
           notesDir = "/tmp/shared-vault-fixture-notes";
           stateDir = "/tmp/shared-vault-fixture-state";
+          recordingsDirectory = "/tmp/shared-vault-fixture-recordings";
           vector.namespace = "fixture-vault";
+          environment.FULCRUM_EMBEDDING_CACHE_DIR = embeddingCache;
           recordingIntake.agentName = "exec-assistant";
         };
       }
@@ -234,8 +258,20 @@ assert
   !pkgs.stdenv.hostPlatform.isLinux || (builtins.tryEval (toString serviceDiagnostics)).success;
 assert
   !pkgs.stdenv.hostPlatform.isLinux
+  || lib.elem
+    "FULCRUM_EMBEDDING_CACHE_DIR=${embeddingCache}"
+    serviceEnabled.systemd.user.services.shared-vault.Service.Environment;
+assert
+  !pkgs.stdenv.hostPlatform.isLinux
+  || lib.any
+    (lib.hasPrefix "${release}/bin/vault-service --config ")
+    serviceEnabled.systemd.user.services.shared-vault.Service.ExecStart;
+assert
+  !pkgs.stdenv.hostPlatform.isLinux
   || lib.any (lib.hasInfix "--release-manifest ") serviceEnabled.systemd.user.services.shared-vault.Service.ExecStart;
 pkgs.runCommand "check-shared-vault-module" { } ''
+  test -x ${release}/bin/vault-service
+  test -s ${release}/share/vault-services/release.json
   cp ${./shared-vault-configure.py} shared-vault-configure.py
   cp ${./shared-vault-module.test.py} shared-vault-module.test.py
   PYTHONDONTWRITEBYTECODE=1 ${lib.getExe python} shared-vault-module.test.py \
