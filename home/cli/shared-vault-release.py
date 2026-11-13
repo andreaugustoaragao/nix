@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import pwd
 import re
 import shutil
 import signal
@@ -19,18 +20,27 @@ import sys
 import tarfile
 import tempfile
 import time
+import tomllib
 import uuid
 
 
 ROOT_NAME = "shared-vault-release"
 SCRIPTS = {
-    "vault-service": "vault-service.ts",
     "vault-client": "vault.ts",
     "vault-mcp": "vault-mcp.ts",
 }
+NATIVE_BINARIES = ("shared-vault", "shared-vault-grammar")
 REQUIRED_SOURCE = {
     "package.json",
     "bun.lock",
+    "Cargo.toml",
+    "Cargo.lock",
+    "services/shared-vault/Cargo.toml",
+    "services/shared-vault/flake.nix",
+    "services/shared-vault/flake.lock",
+    "services/shared-vault/src/main.rs",
+    "services/shared-vault/src/bin/shared-vault-grammar.rs",
+    "services/shared-vault/helpers/document-extraction.ts",
     "scripts/development-certification.ts",
     "scripts/verify-installed-dependencies.ts",
     "scripts/verify-installed-patches.ts",
@@ -40,6 +50,22 @@ REQUIRED_SOURCE = {
 DENIED_NAMES = {".git", ".cache", ".npmrc", ".netrc", ".pypirc", "auth.json", "credentials.json"}
 DENIED_ROOTS = {"secrets", "backups", "data", ".fulcrum"}
 INVENTORY_PREFIX = b"fulcrum-installed-dependencies-v1\0"
+CARGO_REGISTRY = "index.crates.io-1949cf8c6b5b557f"
+CARGO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+SDK_REVISION = "4fe25e12eb9f4c744966dd3de5a05246cf098601"
+SDK_NAR_HASH = "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8="
+CERT_BUN_STORE_ROOT = Path("/nix/store")
+MANAGED_CONTROL_VARIABLES = (
+    "PLAYWRIGHT_BROWSERS_PATH", "CHROMIUM_BIN", "FULCRUM_CHROMIUM_PATH", "FULCRUM_TRIVY_BIN",
+    "FULCRUM_OCR_EXEC", "FULCRUM_OFFICE_EXEC", "TESSDATA_PREFIX", "FULCRUM_CERT_BUN_BIN",
+    "LOG_LEVEL", "CI", "TZ",
+)
+COMMAND_ENVIRONMENT_KEYS = set(MANAGED_CONTROL_VARIABLES) | {
+    "PATH", "HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TMPDIR", "LANG", "NIX_CONFIG",
+    "BUN_CONFIG_NO_CLEAR_TERMINAL", "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
+    "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_OPTIONAL_LOCKS",
+    "CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "CC_SHELL_ESCAPED_FLAGS", "NOSYSBASHRC",
+}
 
 
 class ReleaseError(Exception):
@@ -102,7 +128,8 @@ def drain_descendants() -> bool:
 
 
 def supervise_command(args: list[str], cwd: Path, timeout: int, stdout, stderr,
-                      ready_fd: int, previous_mask: set[signal.Signals]) -> int:
+                      ready_fd: int, previous_mask: set[signal.Signals],
+                      environment: dict[str, str]) -> int:
     process = None
     try:
         libc = ctypes.CDLL(None, use_errno=True)
@@ -123,7 +150,7 @@ def supervise_command(args: list[str], cwd: Path, timeout: int, stdout, stderr,
         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         if cancelled:
             return 130
-        process = subprocess.Popen(args, cwd=cwd, stdout=stdout, stderr=stderr,
+        process = subprocess.Popen(args, cwd=cwd, env=environment, stdout=stdout, stderr=stderr,
                                    start_new_session=True)
         deadline = time.monotonic() + timeout
         while process.poll() is None and not cancelled and time.monotonic() < deadline:
@@ -160,9 +187,124 @@ def wait_supervisor(pid: int, deadline: float) -> int | None:
         time.sleep(0.05)
 
 
-def command(args: list[str], cwd: Path, phase: str, timeout: int = 900) -> bytes:
+def selected_bun_directory() -> Path | None:
+    raw = os.environ.get("FULCRUM_CERT_BUN_BIN")
+    if raw is None:
+        return None
+    selected = Path(raw)
+    if not selected.is_absolute() or selected.parent != CERT_BUN_STORE_ROOT:
+        raise ReleaseError("certified Bun selector must name a Nix store directory")
+    try:
+        for parent in (CERT_BUN_STORE_ROOT.parent, CERT_BUN_STORE_ROOT):
+            if parent.resolve(strict=True) != parent or not parent.is_dir() or os.access(parent, os.W_OK):
+                raise ReleaseError("certified Bun store parents are not immutable")
+        if selected.resolve(strict=True) != selected:
+            raise ReleaseError("certified Bun directory is not canonical")
+        directory = selected.lstat()
+        entries = list(selected.iterdir())
+        binary = (selected / "bun").lstat()
+    except (OSError, RuntimeError) as error:
+        raise ReleaseError("certified Bun directory is unavailable") from error
+    if (not stat.S_ISDIR(directory.st_mode) or directory.st_mode & 0o222
+            or os.access(selected, os.W_OK) or len(entries) != 1 or entries[0].name != "bun"
+            or not stat.S_ISREG(binary.st_mode) or binary.st_mode & 0o222
+            or not binary.st_mode & 0o111 or not os.access(selected / "bun", os.X_OK)):
+        raise ReleaseError("certified Bun directory must contain only immutable executable bun")
+    return selected
+
+
+def require_selected_bun_matches(root: Path) -> None:
+    selected = selected_bun_directory()
+    if selected is None:
+        return
+    pinned = root / "node_modules" / "bun" / "bin" / "bun.exe"
+    try:
+        matches = (not pinned.is_symlink() and pinned.is_file()
+                   and file_digest(selected / "bun") == file_digest(pinned))
+    except OSError as error:
+        raise ReleaseError("certified Bun selector or project pin is unreadable") from error
+    if not matches:
+        raise ReleaseError("certified Bun selector differs from the project pin")
+
+
+def managed_path() -> str:
+    def immutable_directory(path: Path) -> str | None:
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        if (not str(resolved).startswith("/nix/store/") or not resolved.is_dir()
+                or resolved.stat().st_mode & 0o222):
+            return None
+        return str(resolved)
+
+    try:
+        user_name = pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        user_name = None
+    profile = Path("/etc/profiles/per-user") / user_name / "bin" if user_name else None
+    system = Path("/run/current-system/sw/bin")
+    if profile is not None and profile.exists() and system.exists():
+        selected = [immutable_directory(profile), immutable_directory(system)]
+        if any(value is None for value in selected):
+            raise ReleaseError("managed executable profiles are not immutable")
+        directories = selected
+
+    else:
+        # A Nix sandbox exposes its declared tools as direct store paths.
+        directories = []
+        for component in os.environ.get("PATH", "").split(":"):
+            if not component or not component.startswith("/"):
+                continue
+            name = immutable_directory(Path(component))
+            if name is None:
+                continue
+            if name not in directories:
+                directories.append(name)
+        if not directories:
+            raise ReleaseError("no immutable managed executable path is available")
+
+    bun = selected_bun_directory()
+    if bun is not None:
+        directories = [str(bun), *(directory for directory in directories if directory != str(bun))]
+    return ":".join(directories)
+
+
+def managed_command_environment() -> dict[str, str]:
+    environment = {key: os.environ[key] for key in MANAGED_CONTROL_VARIABLES if key in os.environ}
+    environment.update({
+        "PATH": managed_path(),
+        "HOME": "/var/empty",
+        "XDG_CONFIG_HOME": "/var/empty",
+        "XDG_CACHE_HOME": "/var/empty",
+        "TMPDIR": "/tmp",
+        "LANG": "C.UTF-8",
+        "BUN_CONFIG_NO_CLEAR_TERMINAL": "1",
+        "BUN_RUNTIME_TRANSPILER_CACHE_PATH": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_OPTIONAL_LOCKS": "0",
+    })
+    return environment
+
+
+def command(args: list[str], cwd: Path, phase: str, timeout: int = 900,
+            environment: dict[str, str] | None = None,
+            build_paths: tuple[Path, Path, Path] | None = None) -> bytes:
     if not sys.platform.startswith("linux"):
         raise ReleaseError("release verifier supervision requires Linux")
+    environment = dict(managed_command_environment() if environment is None else environment)
+    flag_names = ("CARGO_ENCODED_RUSTFLAGS", "CFLAGS", "CXXFLAGS", "CC_SHELL_ESCAPED_FLAGS")
+    if build_paths is None:
+        if any(name in environment for name in flag_names) or "NOSYSBASHRC" in environment:
+            raise ReleaseError("build flags are only allowed for the derived native build")
+    elif (phase != "certified native Cargo build" or environment.get("NOSYSBASHRC") != "1"
+          or {name: environment.get(name) for name in flag_names} != native_build_path_flags(*build_paths)):
+        raise ReleaseError("native build flags differ from the derived paths")
+    if (set(environment) - COMMAND_ENVIRONMENT_KEYS or environment.get("PATH") != managed_path()
+            or environment.get("FULCRUM_CERT_BUN_BIN") != os.environ.get("FULCRUM_CERT_BUN_BIN")
+            or environment.get("NIX_CONFIG") not in (None, "experimental-features = nix-command flakes\n")):
+        raise ReleaseError("supervised command has an unsupported environment override")
     pid = None
     status = None
     read_fd, write_fd = os.pipe()
@@ -173,7 +315,7 @@ def command(args: list[str], cwd: Path, phase: str, timeout: int = 900) -> bytes
                 if pid == 0:
                     os.close(read_fd)
                     result = supervise_command(args, cwd, timeout, stdout, stderr,
-                                               write_fd, previous_mask)
+                                               write_fd, previous_mask, environment)
                     os._exit(result)
                 os.close(write_fd)
                 write_fd = -1
@@ -266,9 +408,36 @@ def clean_revision(worktree: Path) -> str:
     return revision
 
 
-def certificate(worktree: Path, receipt: Path, bun: Path, revision: str) -> tuple[str, str, str]:
+def native_target() -> tuple[str, int]:
+    if not sys.platform.startswith("linux"):
+        raise ReleaseError("native shared vault release requires Linux")
+    machine = {"x86_64": ("x86_64-linux", 62), "aarch64": ("aarch64-linux", 183)}.get(os.uname().machine)
+    if machine is None:
+        raise ReleaseError("unsupported native shared vault target")
+    return machine
+
+
+def certified_native(raw: dict, checked: dict, revision: str) -> dict[str, str]:
+    evidence = raw.get("nativeArtifacts")
+    if not isinstance(evidence, dict) or checked.get("nativeArtifacts") != evidence:
+        raise ReleaseError("receipt check did not bind native artifacts")
+    if set(evidence) != {"schema", "candidate", "target", "binaries"}:
+        raise ReleaseError("native artifact evidence has unexpected fields")
+    if (evidence["schema"] != "fulcrum.shared-vault.native.v1"
+            or evidence["candidate"] != revision or evidence["target"] != native_target()[0]):
+        raise ReleaseError("native artifact evidence is not for this source and target")
+    binaries = evidence["binaries"]
+    if (not isinstance(binaries, dict) or set(binaries) != set(NATIVE_BINARIES)
+            or any(not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value)
+                   for value in binaries.values())):
+        raise ReleaseError("native artifact hashes are missing or invalid")
+    return binaries
+
+
+def certificate(worktree: Path, receipt: Path, bun: Path, revision: str) -> tuple[str, str, str, dict[str, str]]:
     if bun.is_symlink() or not bun.is_file() or not os.access(bun, os.X_OK):
         raise ReleaseError("pinned Bun executable is unavailable")
+    require_selected_bun_matches(worktree)
     package = json.loads((worktree / "package.json").read_text())
     version = package.get("version")
     bun_version = package.get("packageManager")
@@ -303,7 +472,8 @@ def certificate(worktree: Path, receipt: Path, bun: Path, revision: str) -> tupl
     if (not isinstance(dependency_sha, str) or not re.fullmatch(r"[a-f0-9]{64}", dependency_sha)
             or checked.get("installedDependenciesSha256") != dependency_sha):
         raise ReleaseError("receipt does not bind the installed dependency bytes")
-    return version, hashlib.sha256(receipt_bytes).hexdigest(), dependency_sha
+    native_hashes = certified_native(raw, checked, revision)
+    return version, hashlib.sha256(receipt_bytes).hexdigest(), dependency_sha, native_hashes
 
 
 def allowed_path(name: str) -> bool:
@@ -508,19 +678,286 @@ def copy_dependencies(source: Path, destination: Path) -> None:
 
 
 def verify_dependencies(root: Path, bun: Path) -> None:
+    require_selected_bun_matches(root)
     for script in ("verify-installed-dependencies.ts", "verify-installed-patches.ts"):
         command([str(bun), "--no-env-file", f"scripts/{script}"], root,
                 f"installed dependency verification ({script})")
 
 
+def native_build_path_flags(source_root: Path, cargo_home: Path, cargo_target_dir: Path) -> dict[str, str]:
+    mappings = ((source_root, "/src/fulcrum"), (cargo_home, "/cargo-home"),
+                (cargo_target_dir, "/cargo-target"))
+    for path, _ in mappings:
+        text = str(path)
+        if (not path.is_absolute() or re.search(r"[=\x00-\x1f\x7f]", text)
+                or path.resolve(strict=True) != path or not path.is_dir()):
+            raise ReleaseError("native build path is not a canonical safe directory")
+    encoded = "\x1f".join(f"--remap-path-prefix={path}={destination}" for path, destination in mappings)
+    def quote(argument: str) -> str:
+        return "'" + argument.replace("'", "'\"'\"'") + "'"
+    cflags = " ".join(quote(f"-ffile-prefix-map={path}={destination}") for path, destination in mappings)
+    return {"CARGO_ENCODED_RUSTFLAGS": encoded, "CFLAGS": cflags, "CXXFLAGS": cflags,
+            "CC_SHELL_ESCAPED_FLAGS": "1"}
+
+
+def checked_cache_directory(path: Path) -> None:
+    if not path.is_absolute() or path.resolve(strict=True) != path:
+        raise ReleaseError("Cargo registry cache path is not canonical")
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
+        raise ReleaseError("Cargo registry cache directory is unsafe")
+
+
+def reject_ancestor_cargo_configuration(cwd: Path) -> None:
+    for ancestor in (cwd, *cwd.parents):
+        cargo_directory = ancestor / ".cargo"
+        if cargo_directory.is_symlink():
+            raise ReleaseError("Cargo build cwd has a linked ancestor configuration directory")
+        for name in ("config", "config.toml"):
+            path = cargo_directory / name
+            if path.exists() or path.is_symlink():
+                raise ReleaseError("Cargo build cwd has an ancestor configuration override")
+
+
+def copy_cache_file(source: Path, target: Path, expected_hash: str | None, maximum: int,
+                    capture: bool = False) -> bytes:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum or before.st_mode & 0o6000:
+            raise ReleaseError("Cargo registry cache file is unsafe")
+        digest = hashlib.sha256()
+        contents = bytearray()
+        copied = 0
+        with target.open("xb") as output:
+            while block := os.read(descriptor, 1024 * 1024):
+                copied += len(block)
+                if copied > maximum:
+                    raise ReleaseError("Cargo registry cache file exceeds bound")
+                if capture:
+                    contents.extend(block)
+                digest.update(block)
+                output.write(block)
+        after = os.fstat(descriptor)
+        named = source.lstat()
+        identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+                                 info.st_ctime_ns, info.st_mode)
+        if identity(before) != identity(after) or identity(before) != identity(named):
+            raise ReleaseError("Cargo registry cache file changed during copy")
+        if expected_hash is not None and digest.hexdigest() != expected_hash:
+            raise ReleaseError("Cargo crate bytes differ from committed Cargo.lock")
+        target.chmod(0o644)
+        return bytes(contents)
+    finally:
+        os.close(descriptor)
+
+
+def cargo_index_path(name: str) -> Path:
+    if len(name) == 1:
+        return Path("1") / name
+    if len(name) == 2:
+        return Path("2") / name
+    if len(name) == 3:
+        return Path("3") / name[0] / name
+    return Path(name[:2]) / name[2:4] / name
+
+
+def prepare_cargo_home(app: Path, destination: Path) -> None:
+    sdk_lock = json.loads((app / "services/shared-vault/flake.lock").read_text())
+    locked = sdk_lock["nodes"]["nixpkgs"]["locked"]
+    if (locked.get("rev") != SDK_REVISION or locked.get("narHash") != SDK_NAR_HASH
+            or f"github:NixOS/nixpkgs/{SDK_REVISION}" not in (app / "services/shared-vault/flake.nix").read_text()):
+        raise ReleaseError("native SDK differs from the reviewed pinned toolchain")
+    cargo_lock = tomllib.loads((app / "Cargo.lock").read_text())
+    if cargo_lock.get("version") != 4 or not isinstance(cargo_lock.get("package"), list):
+        raise ReleaseError("Cargo.lock is missing a supported locked dependency inventory")
+    cache_home = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")))
+    checked_cache_directory(cache_home)
+    source_cache = cache_home / "registry" / "cache" / CARGO_REGISTRY
+    source_index = cache_home / "registry" / "index" / CARGO_REGISTRY
+    for directory in (cache_home / "registry", cache_home / "registry/cache", source_cache,
+                      cache_home / "registry/index", source_index, source_index / ".cache"):
+        checked_cache_directory(directory)
+    if destination.exists() or destination.is_symlink():
+        raise ReleaseError("private Cargo home is not fresh")
+    destination.mkdir(mode=0o700)
+    (destination / "registry/index" / CARGO_REGISTRY).mkdir(parents=True)
+    (destination / "registry/index" / CARGO_REGISTRY / "config.json").write_text(
+        '{"dl":"https://static.crates.io/crates","api":"https://crates.io"}\n')
+    seen = set()
+    for package in cargo_lock["package"]:
+        if not isinstance(package, dict):
+            raise ReleaseError("Cargo.lock package is invalid")
+        if "source" not in package:
+            continue
+        name, version, checksum = (package.get(key) for key in ("name", "version", "checksum"))
+        if (package.get("source") != CARGO_SOURCE or not isinstance(name, str)
+                or not re.fullmatch(r"[A-Za-z0-9_-]+", name) or not isinstance(version, str)
+                or not re.fullmatch(r"[A-Za-z0-9.+_-]+", version) or not isinstance(checksum, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", checksum) or (name, version) in seen):
+            raise ReleaseError("Cargo.lock has an unsupported or duplicate dependency")
+        seen.add((name, version))
+        crate = f"{name}-{version}.crate"
+        copy_cache_file(source_cache / crate, destination / "registry/cache" / CARGO_REGISTRY / crate,
+                        checksum, 128 * 1024 * 1024)
+        index = cargo_index_path(name)
+        index_parent = source_index / ".cache"
+        for component in index.parts[:-1]:
+            index_parent /= component
+            checked_cache_directory(index_parent)
+        index_target = destination / "registry/index" / CARGO_REGISTRY / ".cache" / index
+        if not index_target.exists():
+            data = copy_cache_file(source_index / ".cache" / index, index_target, None,
+                                   8 * 1024 * 1024, capture=True)
+        else:
+            data = index_target.read_bytes()
+        fields = data.split(b"\0")
+        matches = []
+        for position, field in enumerate(fields[:-1]):
+            if field == version.encode():
+                try:
+                    matches.append(json.loads(fields[position + 1]))
+                except ValueError as error:
+                    raise ReleaseError("Cargo registry index record is invalid") from error
+        if (not data.startswith(b"\x03\x02\0\0\0") or len(matches) != 1
+                or matches[0].get("name") != name or matches[0].get("vers") != version
+                or matches[0].get("cksum") != checksum):
+            raise ReleaseError("Cargo registry index differs from committed Cargo.lock")
+
+
+def checked_native_binary(path: Path, expected_hash: str, single_link: bool = False) -> tuple[str, int, int, str]:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(descriptor)
+        named = path.lstat()
+        identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+                                 info.st_ctime_ns, info.st_mode, info.st_nlink)
+        if (not stat.S_ISREG(before.st_mode) or stat.S_IMODE(before.st_mode) != 0o755
+                or before.st_uid != os.getuid() or single_link and before.st_nlink != 1
+                or identity(before) != identity(named)):
+            raise ReleaseError("native binary is missing, linked or has unexpected permissions")
+        header = os.read(descriptor, 20)
+        machine = native_target()[1]
+        if (len(header) != 20 or header[:4] != b"\x7fELF" or header[4:6] != b"\x02\x01"
+                or int.from_bytes(header[16:18], "little") not in (2, 3)
+                or int.from_bytes(header[18:20], "little") != machine):
+            raise ReleaseError("native binary is not an executable for the certified target")
+        digest = hashlib.sha256(header)
+        while block := os.read(descriptor, 1024 * 1024):
+            digest.update(block)
+        after = os.fstat(descriptor)
+        named = path.lstat()
+        if identity(before) != identity(after) or identity(before) != identity(named):
+            raise ReleaseError("native binary changed during hashing")
+        if digest.hexdigest() != expected_hash:
+            raise ReleaseError("native binary bytes differ from certification")
+        return "file", 0o755, before.st_size, expected_hash
+    finally:
+        os.close(descriptor)
+
+
+def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[Path, dict[str, tuple[str, int, int, str]]]:
+    target_dir = temporary / "cargo-target"
+    if target_dir.exists() or target_dir.is_symlink():
+        raise ReleaseError("native build target is not fresh")
+    target_dir.mkdir(mode=0o700)
+    cargo_home = temporary / "cargo-home"
+    prepare_cargo_home(app, cargo_home)
+    cwd = temporary / "cargo-cwd"
+    cwd.mkdir(mode=0o700)
+    reject_ancestor_cargo_configuration(cwd)
+    build_home = temporary / "build-home"
+    build_home.mkdir(mode=0o700)
+    scratch = temporary / "build-tmp"
+    scratch.mkdir(mode=0o700)
+    nix = Path("/run/current-system/sw/bin/nix").resolve(strict=True)
+    if not str(nix).startswith("/nix/store/") or not nix.is_file() or not os.access(nix, os.X_OK):
+        raise ReleaseError("managed Nix command is unavailable")
+    environment = {
+        "PATH": managed_path(),
+        "HOME": str(build_home),
+        "XDG_CONFIG_HOME": str(build_home / ".config"),
+        "XDG_CACHE_HOME": str(build_home / ".cache"),
+        "TMPDIR": str(scratch),
+        "LANG": "C.UTF-8",
+        "NIX_CONFIG": "experimental-features = nix-command flakes\n",
+        "NOSYSBASHRC": "1",
+    }
+    flags = native_build_path_flags(app, cargo_home, target_dir)
+    environment.update(flags)
+    if "FULCRUM_CERT_BUN_BIN" in os.environ:
+        environment["FULCRUM_CERT_BUN_BIN"] = os.environ["FULCRUM_CERT_BUN_BIN"]
+    shell = (
+        'cargo=$(command -v cargo); rustc=$(command -v rustc); linker=$(command -v cc); '
+        'case "$cargo:$rustc:$linker" in /nix/store/*:/nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
+        'test "$("$cargo" --version | cut -d" " -f2)" = 1.99.0; '
+        'test "$("$rustc" --version | cut -d" " -f2)" = 1.99.0; '
+        'test "$(pkg-config --modversion icu-i18n)" = 78.3; '
+        'configured_linker=$(command -v "${CC:-}") || exit 125; '
+        'resolver=$(command -v readlink) || exit 125; '
+        'case "$configured_linker:$resolver" in /nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
+        'linker_real=$("$resolver" -f -- "$linker"); configured_real=$("$resolver" -f -- "$configured_linker"); '
+        'case "$linker_real:$configured_real" in /nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
+        'test "$linker_real" = "$configured_real"; '
+        'test "$(pwd -P)" = "$5"; '
+        'export CARGO_HOME="$1" CARGO_TARGET_DIR="$2" CARGO_NET_OFFLINE=true RUSTC="$rustc"; '
+        'export "CARGO_TARGET_$3_LINKER=$linker"; '
+        'exec "$cargo" build --release --locked --offline --package shared-vault '
+        '--manifest-path "$4" --bin shared-vault --bin shared-vault-grammar'
+    )
+    target_variable = "X86_64_UNKNOWN_LINUX_GNU" if native_target()[0] == "x86_64-linux" else "AARCH64_UNKNOWN_LINUX_GNU"
+    command([str(nix), "develop", "--no-write-lock-file", f"path:{app / 'services/shared-vault'}",
+             "--command", "env", "NOSYSBASHRC=1", *(f"{name}={value}" for name, value in flags.items()),
+             "sh", "-eu", "-c", shell, "sh", str(cargo_home), str(target_dir),
+             target_variable, str(app / "Cargo.toml"), str(cwd)], cwd, "certified native Cargo build",
+            timeout=3600, environment=environment, build_paths=(app, cargo_home, target_dir))
+    reject_ancestor_cargo_configuration(cwd)
+    built = {name: target_dir / "release" / name for name in NATIVE_BINARIES}
+    entries = {name: checked_native_binary(path, binaries[name]) for name, path in built.items()}
+    attested = temporary / "native-attested"
+    attested.mkdir(mode=0o700)
+    for name in NATIVE_BINARIES:
+        shutil.copyfile(built[name], attested / name)
+        (attested / name).chmod(0o755)
+        checked_native_binary(attested / name, binaries[name], single_link=True)
+    completeness_environment = {
+        "PATH": environment["PATH"],
+        "HOME": environment["HOME"],
+        "TMPDIR": environment["TMPDIR"],
+        "LANG": environment["LANG"],
+    }
+    if "FULCRUM_CERT_BUN_BIN" in environment:
+        completeness_environment["FULCRUM_CERT_BUN_BIN"] = environment["FULCRUM_CERT_BUN_BIN"]
+    command([str(attested / "shared-vault"), "--check-complete"], app,
+            "native dispatch completeness", timeout=60, environment=completeness_environment)
+    if {name: checked_native_binary(attested / name, binaries[name], single_link=True)
+            for name in NATIVE_BINARIES} != entries:
+        raise ReleaseError("native binary changed during completeness verification")
+    return attested, entries
+
+
 def write_runtime(staging: Path, version: str, revision: str,
-                  bun_entry: tuple[str, int, int, str]) -> dict[str, tuple[str, int, int, str]]:
+                  bun_entry: tuple[str, int, int, str], native_attested: Path,
+                  native_entries: dict[str, tuple[str, int, int, str]]) -> dict[str, tuple[str, int, int, str]]:
     expected = {"bin/bun": ("file", 0o755, bun_entry[2], bun_entry[3])}
     app = staging / "share" / "vault-services"
     binary = staging / "bin"
     binary.mkdir(parents=True)
     shutil.copyfile(app / "node_modules" / "bun" / "bin" / "bun.exe", binary / "bun")
     (binary / "bun").chmod(0o755)
+    for name in NATIVE_BINARIES:
+        target = binary / name
+        shutil.copyfile(native_attested / name, target)
+        target.chmod(0o755)
+        expected[f"bin/{name}"] = checked_native_binary(target, native_entries[name][3], single_link=True)
+    wrapper = binary / "vault-service"
+    contents = ("#!/bin/sh\nset -eu\n"
+                'script_dir=${0%/*}\nroot=$(CDPATH= cd -- "$script_dir/.." && pwd -P)\n'
+                'exec "$root/bin/shared-vault" "$@"\n')
+    wrapper.write_text(contents)
+    wrapper.chmod(0o755)
+    expected["bin/vault-service"] = ("file", 0o755, len(contents.encode()), hashlib.sha256(contents.encode()).hexdigest())
     for name, script in SCRIPTS.items():
         wrapper = binary / name
         contents = ("#!/bin/sh\nset -eu\n"
@@ -745,7 +1182,7 @@ def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> 
         revision = clean_revision(worktree)
         bun = worktree / "node_modules" / "bun" / "bin" / "bun.exe"
         phase = "certificate"
-        version, receipt_sha, dependency_sha = certificate(worktree, receipt, bun, revision)
+        version, receipt_sha, dependency_sha, native_hashes = certificate(worktree, receipt, bun, revision)
         phase = "dependencies"
         verify_dependencies(worktree, bun)
         if inventory_dependencies(worktree / "node_modules") != dependency_sha:
@@ -759,10 +1196,13 @@ def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> 
             source_entries = export_tracked_source(worktree, revision, app)
             if json.loads((app / "package.json").read_text()).get("version") != version:
                 raise ReleaseError("tracked package version changed")
+            phase = "native-build"
+            native_attested, native_entries = build_native(app, temporary, native_hashes)
             phase = "dependency-copy"
             copy_dependencies(worktree / "node_modules", app / "node_modules")
             dependency_entries = certified_dependency_entries(app / "node_modules", dependency_sha)
-            runtime_entries = write_runtime(staging, version, revision, dependency_entries["bun/bin/bun.exe"])
+            runtime_entries = write_runtime(staging, version, revision,
+                                            dependency_entries["bun/bin/bun.exe"], native_attested, native_entries)
             expected_files = {f"share/vault-services/{name}": entry for name, entry in source_entries.items()}
             expected_files.update({f"share/vault-services/node_modules/{name}": entry for name, entry in dependency_entries.items()})
             if expected_files.keys() & runtime_entries.keys():
@@ -776,8 +1216,9 @@ def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> 
             phase = "source-stability"
             if clean_revision(worktree) != revision or inventory_dependencies(worktree / "node_modules") != dependency_sha:
                 raise ReleaseError("source or dependency tree changed during packaging")
-            checked_version, checked_receipt_sha, checked_dependency_sha = certificate(worktree, receipt, bun, revision)
-            if (checked_version, checked_receipt_sha, checked_dependency_sha) != (version, receipt_sha, dependency_sha):
+            checked_version, checked_receipt_sha, checked_dependency_sha, checked_native_hashes = certificate(worktree, receipt, bun, revision)
+            if ((checked_version, checked_receipt_sha, checked_dependency_sha, checked_native_hashes)
+                    != (version, receipt_sha, dependency_sha, native_hashes)):
                 raise ReleaseError("certified source or receipt changed during packaging")
             if (clean_revision(worktree) != revision or file_digest(receipt) != receipt_sha
                     or inventory_dependencies(worktree / "node_modules") != dependency_sha):
