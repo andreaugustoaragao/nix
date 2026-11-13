@@ -1,0 +1,154 @@
+--- a/crates/rune/src/render.rs
++++ b/crates/rune/src/render.rs
+@@ -115,6 +115,22 @@
+ /// to the shader source.
+ pub const CLIP_WGSL: &str = include_str!("clip.wgsl");
+ 
++pub(crate) fn gles_wgsl<'a>(device: &wgpu::Device, source: &'a str) -> std::borrow::Cow<'a, str> {
++    if device.adapter_info().backend != wgpu::Backend::Gl {
++        return source.into();
++    }
++    let mut source = source.replace("unpack2x16float(", "rune_unpack2x16float(");
++    // Virtual GL drivers can report fragment positions relative to the wrong drawable.
++    if source.contains("i.pos.xy") {
++        source = source
++            .replace("@location(8) @interpolate(flat) fade: vec4<u32>,",
++                "@location(8) @interpolate(flat) fade: vec4<u32>,\n    @location(9) screen: vec2<f32>,")
++            .replace("o.p = p;", "o.p = p;\n    o.screen = screen;")
++            .replace("i.pos.xy", "(floor(i.screen - projection.xy) + vec2<f32>(0.5))");
++    }
++    format!("{source}\n{}", include_str!("clip_gles.wgsl")).into()
++}
++
+ /// Where a compositor is asked to draw an effect slot (`Renderer::draw_range_with`).
+ pub struct EffectSite<'a> {
+     /// The slot's position in the painter stream.
+@@ -375,8 +391,15 @@
+ /// Vulkan loaders crash when two threads create instances or devices at once (seen with
+ /// parallel GPU tests on lavapipe), so Rune creates them one at a time.
+ static GPU_INIT: std::sync::Mutex<()> = std::sync::Mutex::new(());
++#[cfg(target_os = "linux")]
++static GPU_DISPLAY: std::sync::OnceLock<winit::event_loop::OwnedDisplayHandle> = std::sync::OnceLock::new();
+ 
+ impl Gpu {
++    #[cfg(target_os = "linux")]
++    pub(crate) fn set_display(display: winit::event_loop::OwnedDisplayHandle) {
++        let _ = GPU_DISPLAY.set(display);
++    }
++
+     /// Panics without a usable adapter or device; windows use `try_new`.
+     pub fn new(instance: wgpu::Instance, surface: Option<&wgpu::Surface<'_>>) -> Gpu {
+         Self::try_new(instance, surface).unwrap_or_else(|error| panic!("{error}"))
+@@ -447,7 +470,14 @@
+         // A compositor that asks for immediates (`Compositor::features`) gets all the adapter has.
+         let max_immediate_size = if required_features.contains(wgpu::Features::IMMEDIATES) { adapter.limits().max_immediate_size } else { 0 };
+         let adapter_limits = adapter.limits();
+-        let required_limits = if adapter_limits.max_inter_stage_shader_variables < wgpu::Limits::default().max_inter_stage_shader_variables
++        let required_limits = if adapter_limits.max_compute_workgroups_per_dimension == 0 {
++            wgpu::Limits {
++                max_immediate_size,
++                ..wgpu::Limits::downlevel_webgl2_defaults()
++                    .using_resolution(adapter_limits.clone())
++                    .using_alignment(adapter_limits)
++            }
++        } else if adapter_limits.max_inter_stage_shader_variables < wgpu::Limits::default().max_inter_stage_shader_variables
+             || adapter_limits.max_color_attachments < wgpu::Limits::default().max_color_attachments
+             || adapter_limits.max_compute_workgroup_storage_size < wgpu::Limits::default().max_compute_workgroup_storage_size
+         {
+@@ -542,16 +572,22 @@
+     /// One instance per set of backends for the whole process: a new one per device was a new
+     /// DXGI factory and adapter list each time a window or overlay made a device (hex#1268).
+     fn wgpu_instance_on(backends: wgpu::Backends) -> wgpu::Instance {
+-        static MADE: std::sync::Mutex<Vec<(wgpu::Backends, wgpu::Instance)>> = std::sync::Mutex::new(Vec::new());
++        static MADE: std::sync::Mutex<Vec<(wgpu::Backends, bool, wgpu::Instance)>> = std::sync::Mutex::new(Vec::new());
++        #[cfg(target_os = "linux")]
++        let display = GPU_DISPLAY.get().is_some();
++        #[cfg(not(target_os = "linux"))]
++        let display = false;
+         let mut made = MADE.lock().unwrap_or_else(|e| e.into_inner());
+-        if let Some((_, instance)) = made.iter().find(|(made, _)| *made == backends) { return instance.clone(); }
++        if let Some((_, _, instance)) = made.iter().find(|(made, on_display, _)| *made == backends && *on_display == display) { return instance.clone(); }
+         let instance = Self::new_wgpu_instance(backends);
+-        made.push((backends, instance.clone()));
++        made.push((backends, display, instance.clone()));
+         instance
+     }
+ 
+     fn new_wgpu_instance(backends: wgpu::Backends) -> wgpu::Instance {
+         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
++        #[cfg(target_os = "linux")]
++        { descriptor.display = GPU_DISPLAY.get().cloned().map(|display| Box::new(display) as _); }
+         descriptor.backends = backends;
+         descriptor.flags.remove(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL);
+         // An HWND's DXGI swapchain is opaque only; DirectComposition composites alpha on every GPU.
+@@ -571,7 +607,10 @@
+     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+     pub(crate) fn for_surface<'w>(wanted: wgpu::Features, translucent: bool,
+         surface: impl FnOnce(&wgpu::Instance) -> Result<wgpu::Surface<'w>, String>) -> Result<(Gpu, wgpu::Surface<'w>, Option<Renderer>), String> {
+-        Self::for_surface_from(prewarm::take(), wanted, translucent, surface)
++        let early = prewarm::take();
++        #[cfg(target_os = "linux")]
++        let early = early.filter(|(gpu, _)| gpu.instance == Self::instance_for(wanted));
++        Self::for_surface_from(early, wanted, translucent, surface)
+     }
+ 
+     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+@@ -741,7 +780,7 @@
+             let source = format!("{CLIP_WGSL}\n{}\n{}", include_str!("shader.wgsl"), crate::gpu::springs::SHADER);
+             Some(device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                 label: Some("uber"),
+-                source: wgpu::ShaderSource::Wgsl(source.into()),
++                source: wgpu::ShaderSource::Wgsl(gles_wgsl(device, &source)),
+             }))
+         } else {
+             None
+--- a/crates/rune/src/render/metallib.rs
++++ b/crates/rune/src/render/metallib.rs
+@@ -135,7 +135,7 @@
+ fn wgsl_shader(device: &wgpu::Device, wgsl: &str) -> wgpu::ShaderModule {
+     device.create_shader_module(wgpu::ShaderModuleDescriptor {
+         label: Some("uber"),
+-        source: wgpu::ShaderSource::Wgsl(wgsl.into()),
++        source: wgpu::ShaderSource::Wgsl(super::gles_wgsl(device, wgsl)),
+     })
+ }
+ 
+--- a/crates/rune/src/render/backdrop_blur.rs
++++ b/crates/rune/src/render/backdrop_blur.rs
+@@ -154,7 +154,7 @@
+         let (down, up) = (pass("fs_down"), pass("fs_up"));
+         let composite_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+             label: Some("backdrop blur composite"),
+-            source: wgpu::ShaderSource::Wgsl(format!("{CLIP_WGSL}\n{}", include_str!("../backdrop_composite.wgsl")).into()),
++            source: wgpu::ShaderSource::Wgsl(gles_wgsl(device, &format!("{CLIP_WGSL}\n{}", include_str!("../backdrop_composite.wgsl")))),
+         });
+         let composite_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+             label: Some("backdrop blur composite"),
+--- /dev/null
++++ b/crates/rune/src/clip_gles.wgsl
+@@ -0,0 +1,14 @@
++// GLES 3.0 has no unpackHalf2x16. Preserve the packed half-float clip ABI.
++fn rune_unpack_half(h: u32) -> f32 {
++    let sign = (h & 0x8000u) << 16u;
++    let exponent = (h >> 10u) & 31u;
++    let mantissa = h & 1023u;
++    if exponent == 0u {
++        return bitcast<f32>(sign | bitcast<u32>(f32(mantissa) * 0.000000059604644775390625));
++    }
++    let exponent32 = select(exponent + 112u, 255u, exponent == 31u);
++    return bitcast<f32>(sign | (exponent32 << 23u) | (mantissa << 13u));
++}
++fn rune_unpack2x16float(value: u32) -> vec2<f32> {
++    return vec2<f32>(rune_unpack_half(value & 65535u), rune_unpack_half(value >> 16u));
++}
+--- a/crates/rune/src/window/event_loop.rs
++++ b/crates/rune/src/window/event_loop.rs
+@@ -73,6 +73,8 @@
+             .with_activate_ignoring_other_apps(false);
+     }
+     let event_loop = builder.build().inspect_err(|_| crate::render::discard_prewarm()).map_err(event_loop_error)?;
++    #[cfg(target_os = "linux")]
++    crate::render::Gpu::set_display(event_loop.owned_display_handle());
+     event_loop.set_control_flow(ControlFlow::Wait);
+     #[cfg(target_os = "macos")]
+     crate::platform::app_icon::launched();
