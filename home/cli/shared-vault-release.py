@@ -54,9 +54,11 @@ CARGO_REGISTRY = "index.crates.io-1949cf8c6b5b557f"
 CARGO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 SDK_REVISION = "4fe25e12eb9f4c744966dd3de5a05246cf098601"
 SDK_NAR_HASH = "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8="
+CERT_BUN_STORE_ROOT = Path("/nix/store")
 MANAGED_CONTROL_VARIABLES = (
     "PLAYWRIGHT_BROWSERS_PATH", "CHROMIUM_BIN", "FULCRUM_CHROMIUM_PATH", "FULCRUM_TRIVY_BIN",
-    "FULCRUM_OCR_EXEC", "FULCRUM_OFFICE_EXEC", "TESSDATA_PREFIX", "LOG_LEVEL", "CI", "TZ",
+    "FULCRUM_OCR_EXEC", "FULCRUM_OFFICE_EXEC", "TESSDATA_PREFIX", "FULCRUM_CERT_BUN_BIN",
+    "LOG_LEVEL", "CI", "TZ",
 )
 COMMAND_ENVIRONMENT_KEYS = set(MANAGED_CONTROL_VARIABLES) | {
     "PATH", "HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TMPDIR", "LANG", "NIX_CONFIG",
@@ -184,6 +186,46 @@ def wait_supervisor(pid: int, deadline: float) -> int | None:
         time.sleep(0.05)
 
 
+def selected_bun_directory() -> Path | None:
+    raw = os.environ.get("FULCRUM_CERT_BUN_BIN")
+    if raw is None:
+        return None
+    selected = Path(raw)
+    if not selected.is_absolute() or selected.parent != CERT_BUN_STORE_ROOT:
+        raise ReleaseError("certified Bun selector must name a Nix store directory")
+    try:
+        for parent in (CERT_BUN_STORE_ROOT.parent, CERT_BUN_STORE_ROOT):
+            if parent.resolve(strict=True) != parent or not parent.is_dir() or os.access(parent, os.W_OK):
+                raise ReleaseError("certified Bun store parents are not immutable")
+        if selected.resolve(strict=True) != selected:
+            raise ReleaseError("certified Bun directory is not canonical")
+        directory = selected.lstat()
+        entries = list(selected.iterdir())
+        binary = (selected / "bun").lstat()
+    except (OSError, RuntimeError) as error:
+        raise ReleaseError("certified Bun directory is unavailable") from error
+    if (not stat.S_ISDIR(directory.st_mode) or directory.st_mode & 0o222
+            or os.access(selected, os.W_OK) or len(entries) != 1 or entries[0].name != "bun"
+            or not stat.S_ISREG(binary.st_mode) or binary.st_mode & 0o222
+            or not binary.st_mode & 0o111 or not os.access(selected / "bun", os.X_OK)):
+        raise ReleaseError("certified Bun directory must contain only immutable executable bun")
+    return selected
+
+
+def require_selected_bun_matches(root: Path) -> None:
+    selected = selected_bun_directory()
+    if selected is None:
+        return
+    pinned = root / "node_modules" / "bun" / "bin" / "bun.exe"
+    try:
+        matches = (not pinned.is_symlink() and pinned.is_file()
+                   and file_digest(selected / "bun") == file_digest(pinned))
+    except OSError as error:
+        raise ReleaseError("certified Bun selector or project pin is unreadable") from error
+    if not matches:
+        raise ReleaseError("certified Bun selector differs from the project pin")
+
+
 def managed_path() -> str:
     def immutable_directory(path: Path) -> str | None:
         try:
@@ -205,20 +247,25 @@ def managed_path() -> str:
         selected = [immutable_directory(profile), immutable_directory(system)]
         if any(value is None for value in selected):
             raise ReleaseError("managed executable profiles are not immutable")
-        return ":".join(selected)
+        directories = selected
 
-    # A Nix sandbox exposes its declared tools as direct store paths.
-    directories = []
-    for component in os.environ.get("PATH", "").split(":"):
-        if not component or not component.startswith("/"):
-            continue
-        name = immutable_directory(Path(component))
-        if name is None:
-            continue
-        if name not in directories:
-            directories.append(name)
-    if not directories:
-        raise ReleaseError("no immutable managed executable path is available")
+    else:
+        # A Nix sandbox exposes its declared tools as direct store paths.
+        directories = []
+        for component in os.environ.get("PATH", "").split(":"):
+            if not component or not component.startswith("/"):
+                continue
+            name = immutable_directory(Path(component))
+            if name is None:
+                continue
+            if name not in directories:
+                directories.append(name)
+        if not directories:
+            raise ReleaseError("no immutable managed executable path is available")
+
+    bun = selected_bun_directory()
+    if bun is not None:
+        directories = [str(bun), *(directory for directory in directories if directory != str(bun))]
     return ":".join(directories)
 
 
@@ -246,6 +293,7 @@ def command(args: list[str], cwd: Path, phase: str, timeout: int = 900,
         raise ReleaseError("release verifier supervision requires Linux")
     environment = dict(managed_command_environment() if environment is None else environment)
     if (set(environment) - COMMAND_ENVIRONMENT_KEYS or environment.get("PATH") != managed_path()
+            or environment.get("FULCRUM_CERT_BUN_BIN") != os.environ.get("FULCRUM_CERT_BUN_BIN")
             or environment.get("NIX_CONFIG") not in (None, "experimental-features = nix-command flakes\n")):
         raise ReleaseError("supervised command has an unsupported environment override")
     pid = None
@@ -380,6 +428,7 @@ def certified_native(raw: dict, checked: dict, revision: str) -> dict[str, str]:
 def certificate(worktree: Path, receipt: Path, bun: Path, revision: str) -> tuple[str, str, str, dict[str, str]]:
     if bun.is_symlink() or not bun.is_file() or not os.access(bun, os.X_OK):
         raise ReleaseError("pinned Bun executable is unavailable")
+    require_selected_bun_matches(worktree)
     package = json.loads((worktree / "package.json").read_text())
     version = package.get("version")
     bun_version = package.get("packageManager")
@@ -620,6 +669,7 @@ def copy_dependencies(source: Path, destination: Path) -> None:
 
 
 def verify_dependencies(root: Path, bun: Path) -> None:
+    require_selected_bun_matches(root)
     for script in ("verify-installed-dependencies.ts", "verify-installed-patches.ts"):
         command([str(bun), "--no-env-file", f"scripts/{script}"], root,
                 f"installed dependency verification ({script})")
@@ -808,6 +858,8 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         "LANG": "C.UTF-8",
         "NIX_CONFIG": "experimental-features = nix-command flakes\n",
     }
+    if "FULCRUM_CERT_BUN_BIN" in os.environ:
+        environment["FULCRUM_CERT_BUN_BIN"] = os.environ["FULCRUM_CERT_BUN_BIN"]
     shell = (
         'cargo=$(command -v cargo); rustc=$(command -v rustc); linker=$(command -v cc); '
         'case "$cargo:$rustc:$linker" in /nix/store/*:/nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
@@ -841,6 +893,8 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         "TMPDIR": environment["TMPDIR"],
         "LANG": environment["LANG"],
     }
+    if "FULCRUM_CERT_BUN_BIN" in environment:
+        completeness_environment["FULCRUM_CERT_BUN_BIN"] = environment["FULCRUM_CERT_BUN_BIN"]
     command([str(attested / "shared-vault"), "--check-complete"], app,
             "native dispatch completeness", timeout=60, environment=completeness_environment)
     if {name: checked_native_binary(attested / name, binaries[name], single_link=True)

@@ -79,7 +79,7 @@ class ReleaseFixture(unittest.TestCase):
                        "import json,os,sys\n"
                        "a=sys.argv[1:]\n"
                        f"with open({str(self.log)!r},'a') as f:f.write(json.dumps(a)+'\\n')\n"
-                       f"with open({str(self.env_log)!r},'a') as f:f.write(json.dumps({{'args':a,'env':{{k:v for k,v in os.environ.items() if k in ('LD_PRELOAD','LD_LIBRARY_PATH','NIX_LD','BUN_OPTIONS','NODE_OPTIONS','RUSTC_WRAPPER','CARGO_HOME','CC','PATH','HOME','GIT_CONFIG_GLOBAL','BUN_RUNTIME_TRANSPILER_CACHE_PATH')}}}})+'\\n')\n"
+                       f"with open({str(self.env_log)!r},'a') as f:f.write(json.dumps({{'args':a,'env':{{k:v for k,v in os.environ.items() if k in ('LD_PRELOAD','LD_LIBRARY_PATH','NIX_LD','BUN_OPTIONS','NODE_OPTIONS','RUSTC_WRAPPER','CARGO_HOME','CC','PATH','HOME','GIT_CONFIG_GLOBAL','BUN_RUNTIME_TRANSPILER_CACHE_PATH','FULCRUM_CERT_BUN_BIN')}}}})+'\\n')\n"
                        "if a==['--version']:print('1.4.2')\n"
                        "elif len(a)>3 and a[:3]==['--no-env-file','scripts/development-certification.ts','check']:\n"
                        " r=json.load(open(a[4]));print(json.dumps({'status':'PASS','candidate':r['candidate'],'installedDependenciesSha256':r.get('installedDependenciesSha256'),'nativeArtifacts':r.get('nativeArtifacts')}))\n"
@@ -103,6 +103,18 @@ class ReleaseFixture(unittest.TestCase):
         state = self.base / name
         state.mkdir(mode=0o700)
         return state
+
+    def selected_bun_store(self):
+        nix = self.base / "nix"
+        store = nix / "store"
+        selected = store / "certified-bun"
+        selected.mkdir(parents=True)
+        shutil.copyfile(self.repo / "node_modules/bun/bin/bun.exe", selected / "bun")
+        (selected / "bun").chmod(0o555)
+        for directory in (selected, store, nix):
+            directory.chmod(0o555)
+        self.addCleanup(lambda: [directory.chmod(0o755) for directory in (selected, store, nix)])
+        return selected, store
 
     def git(self, *args):
         return subprocess.run(["git", *args], cwd=self.repo, text=True, capture_output=True, check=True)
@@ -140,7 +152,10 @@ class ReleaseFixture(unittest.TestCase):
         if phase == "native dispatch completeness":
             self.assertEqual(Path(args[0]).parent.name, "native-attested")
             self.assertEqual(Path(args[0]).stat().st_nlink, 1)
-            self.assertEqual(set(environment), {"PATH", "HOME", "TMPDIR", "LANG"})
+            expected = {"PATH", "HOME", "TMPDIR", "LANG"}
+            if "FULCRUM_CERT_BUN_BIN" in os.environ:
+                expected.add("FULCRUM_CERT_BUN_BIN")
+            self.assertEqual(set(environment), expected)
             return b""
         return self.real_command(args, cwd, phase, timeout=timeout, environment=environment)
 
@@ -216,6 +231,95 @@ class ReleaseFixture(unittest.TestCase):
                 self.assertFalse((set(injected) - {"PATH"}) & set(call["env"]))
                 self.assertNotIn(str(rogue), call["env"]["PATH"])
         self.assertFalse(marker.exists())
+
+    def test_selected_store_bun_prefixes_managed_profiles_and_matches_project_pin(self):
+        with patch.dict(os.environ, {key: value for key, value in os.environ.items()
+                                    if key != "FULCRUM_CERT_BUN_BIN"}, clear=True):
+            ordinary = MODULE.managed_path()
+        selected, store = self.selected_bun_store()
+        with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store), patch.dict(os.environ, {
+                "FULCRUM_CERT_BUN_BIN": str(selected)}):
+            expected = f"{selected}:{ordinary}"
+            self.assertEqual(MODULE.managed_path(), expected)
+            self.create()
+        calls = [json.loads(line) for line in self.env_log.read_text().splitlines()]
+        checked = [call for call in calls if call["args"][1:3] == ["scripts/development-certification.ts", "check"]
+                   or len(call["args"]) > 1 and "verify-installed-" in call["args"][1]]
+        self.assertEqual(len(checked), 6)
+        for call in checked:
+            self.assertEqual(call["env"]["PATH"], expected)
+            self.assertEqual(call["env"]["FULCRUM_CERT_BUN_BIN"], str(selected))
+
+    def test_selected_store_bun_rejects_extra_git_before_verifiers(self):
+        selected, store = self.selected_bun_store()
+        marker = self.base / "rogue-git-ran"
+        selected.chmod(0o755)
+        rogue = selected / "git"
+        rogue.write_text(f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n")
+        rogue.chmod(0o555)
+        selected.chmod(0o555)
+        with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store), patch.dict(os.environ, {
+                "FULCRUM_CERT_BUN_BIN": str(selected)}):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "only immutable executable bun"):
+                self.create()
+        self.assertFalse(marker.exists())
+        self.assertFalse(self.log.exists())
+
+    def test_selected_store_bun_rejects_symlinks_writable_inputs_and_nonstore_path(self):
+        selected, store = self.selected_bun_store()
+        binary = selected / "bun"
+        with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store):
+            store.chmod(0o755)
+            linked = store / "linked-bun"
+            linked.symlink_to(selected, target_is_directory=True)
+            store.chmod(0o555)
+            with patch.dict(os.environ, {"FULCRUM_CERT_BUN_BIN": str(linked)}):
+                with self.assertRaises(MODULE.ReleaseError):
+                    MODULE.managed_path()
+
+            selected.chmod(0o755)
+            binary.unlink()
+            binary.symlink_to(self.repo / "node_modules/bun/bin/bun.exe")
+            selected.chmod(0o555)
+            with patch.dict(os.environ, {"FULCRUM_CERT_BUN_BIN": str(selected)}):
+                with self.assertRaises(MODULE.ReleaseError):
+                    MODULE.managed_path()
+            selected.chmod(0o755)
+            binary.unlink()
+            shutil.copyfile(self.repo / "node_modules/bun/bin/bun.exe", binary)
+            binary.chmod(0o555)
+            selected.chmod(0o555)
+
+            for writable in (store.parent, store, selected, binary):
+                writable.chmod(0o755)
+                with patch.dict(os.environ, {"FULCRUM_CERT_BUN_BIN": str(selected)}):
+                    with self.assertRaises(MODULE.ReleaseError):
+                        MODULE.managed_path()
+                writable.chmod(0o555)
+
+            outside = self.base / "outside-bun"
+            outside.mkdir()
+            shutil.copyfile(binary, outside / "bun")
+            (outside / "bun").chmod(0o555)
+            outside.chmod(0o555)
+            self.addCleanup(lambda: outside.chmod(0o755))
+            with patch.dict(os.environ, {"FULCRUM_CERT_BUN_BIN": str(outside)}):
+                with self.assertRaises(MODULE.ReleaseError):
+                    MODULE.managed_path()
+
+    def test_selected_store_bun_must_match_bytes_before_receipt_check(self):
+        selected, store = self.selected_bun_store()
+        binary = selected / "bun"
+        binary.chmod(0o755)
+        binary.write_bytes(binary.read_bytes() + b"changed")
+        binary.chmod(0o555)
+        with patch.object(MODULE, "CERT_BUN_STORE_ROOT", store), patch.dict(os.environ, {
+                "FULCRUM_CERT_BUN_BIN": str(selected)}):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "differs from the project pin"):
+                self.create()
+            with self.assertRaisesRegex(MODULE.ReleaseError, "differs from the project pin"):
+                MODULE.verify_dependencies(self.repo, self.repo / "node_modules/bun/bin/bun.exe")
+        self.assertFalse(self.log.exists())
 
     def test_native_receipt_must_bind_exact_commit_target_and_binary_hashes(self):
         original = json.loads(self.receipt.read_text())
