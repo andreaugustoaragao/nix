@@ -7,6 +7,43 @@
 let
   shared = config.my.sharedVault;
   cfg = shared.service;
+  application = "${shared.release}/share/vault-services";
+  onnxArchitecture = if pkgs.stdenv.hostPlatform.isx86_64 then "x64" else "arm64";
+  nativeLibraries = pkgs.buildEnv {
+    name = "shared-vault-native-libraries";
+    paths = [
+      shared.release.sharedVaultSdkCcLib
+      pkgs.zlib
+      pkgs.glib
+      pkgs.libxcb
+      pkgs.openssl
+      shared.release.sharedVaultSdkIcu
+    ];
+    pathsToLink = [ "/lib" ];
+  };
+  nativeFonts = pkgs.buildEnv {
+    name = "shared-vault-native-fonts";
+    paths = [
+      pkgs.fontconfig
+      pkgs.dejavu_fonts
+      pkgs.noto-fonts
+    ];
+    pathsToLink = [
+      "/etc/fonts"
+      "/share/fonts"
+    ];
+  };
+  nativeEnvironment = cfg.environment // {
+    FULCRUM_EMBEDDING_PROFILE = cfg.embeddingProfile;
+    FULCRUM_ONNXRUNTIME_LIBRARY = "${application}/node_modules/onnxruntime-node/bin/napi-v6/linux/${onnxArchitecture}/libonnxruntime.so.1";
+    FULCRUM_PARSER_NATIVE_LIBRARIES = "${nativeLibraries}/lib";
+    FULCRUM_PARSER_FONTS = "${nativeFonts}/etc/fonts";
+    FULCRUM_OFFICE_EXEC = "${pkgs.libreoffice}/lib/libreoffice/program/soffice";
+    FULCRUM_OCR_EXEC = "${pkgs.tesseract}/bin/tesseract";
+    TESSDATA_PREFIX = "${pkgs.tesseract}/share/tessdata";
+    NIX_LD = pkgs.stdenv.cc.bintools.dynamicLinker;
+    LD_LIBRARY_PATH = "${nativeLibraries}/lib";
+  };
   absolutePath = lib.types.strMatching "/[^\n]+";
   # JSON Schema counts Unicode code points. Removing UTF-8 continuation bytes
   # leaves one byte per code point, including supplementary characters.
@@ -202,6 +239,14 @@ in
       default = { };
       description = "Nonsecret native parser and model settings. Credentials belong in runtime secret files.";
     };
+    embeddingProfile = lib.mkOption {
+      type = lib.types.enum [
+        "minilm-fp32-v1"
+        "minilm-q8-v1"
+      ];
+      default = "minilm-fp32-v1";
+      description = "Exact embedding profile already associated with the migrated vector namespace.";
+    };
     automation = {
       enable = lib.mkEnableOption "the reviewed independent automation runner";
       activation = lib.mkOption {
@@ -247,6 +292,10 @@ in
         message = "Shared vault activation requires explicit notes, migrated state and vector namespace.";
       }
       {
+        assertion = cfg.environment ? FULCRUM_EMBEDDING_CACHE_DIR;
+        message = "Native shared vault requires the existing managed embedding cache directory.";
+      }
+      {
         assertion = !cfg.automation.enable || cfg.automation.executable != null;
         message = "Shared automation requires an explicitly reviewed executable.";
       }
@@ -276,7 +325,7 @@ in
         Type = "exec";
         ExecStart = serviceCommand;
         WorkingDirectory = cfg.notesDir;
-        Environment = lib.mapAttrsToList (name: value: "${name}=${value}") cfg.environment;
+        Environment = lib.mapAttrsToList (name: value: "${name}=${value}") nativeEnvironment;
         UMask = "0077";
         Restart = "on-failure";
         RestartSec = 5;

@@ -16,6 +16,23 @@
   sourceRevision,
 }:
 let
+  # Match the committed Rust SDK flake.lock. The host's nixpkgs may carry
+  # ICU 78.3 from a different derivation, which is not the build provider.
+  sdkPkgs =
+    import
+      (builtins.fetchTree {
+        type = "github";
+        owner = "NixOS";
+        repo = "nixpkgs";
+        rev = "4fe25e12eb9f4c744966dd3de5a05246cf098601";
+        narHash = "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8=";
+      })
+      {
+        system = stdenv.hostPlatform.system;
+        config = { };
+        overlays = [ ];
+      };
+  sdkIcu = sdkPkgs.icu;
   artifact =
     if url == null then
       requireFile {
@@ -34,8 +51,16 @@ let
       aarch64-linux = 183;
     }
     .${stdenv.hostPlatform.system} or null;
+  onnxArchitecture = if stdenv.hostPlatform.isx86_64 then "x64" else "arm64";
+  onnxSha256 =
+    if stdenv.hostPlatform.isx86_64 then
+      "ffb75a925ba05e47b235bb66e3e3911714a80b328a9c9425539feb204aa32a23"
+    else
+      "1f549d46250b005580b597f4164984aaf75b3bcb9f3aeb07c7f8a8fe60b23c76";
 in
 assert builtins.match "[a-f0-9]{40}" sourceRevision != null;
+assert stdenv.hostPlatform.isLinux;
+assert lib.getVersion sdkIcu == "78.3";
 stdenv.mkDerivation {
   pname = "shared-vault-release";
   version = packageVersion;
@@ -50,10 +75,11 @@ stdenv.mkDerivation {
     binutils
   ];
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
-    stdenv.cc.cc.lib
+    sdkPkgs.stdenv.cc.cc.lib
     openssl
     zlib
     libxcb
+    sdkIcu
   ];
   dontConfigure = true;
   dontBuild = true;
@@ -125,7 +151,7 @@ stdenv.mkDerivation {
     # The archive is fixed-output and must carry its own reviewed identity.
     # Do not synthesize a revision from the Nix checkout or its Git metadata.
     test -z "$(find "$out" -type l -print -quit)"
-    for executable in vault-service vault-client vault-mcp bun; do
+    for executable in vault-service shared-vault shared-vault-grammar vault-client vault-mcp bun; do
       test -f "$out/bin/$executable" && test -x "$out/bin/$executable"
     done
     patchShebangs --host "$out/bin/vault-service" "$out/bin/vault-client" "$out/bin/vault-mcp"
@@ -142,8 +168,30 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
+  # The encoder verifies the exact onnxruntime-node@1.30.0 bytes before
+  # loading a sealed copy. autoPatchelf may rewrite this library, so restore
+  # its certified archive bytes after patching; the service supplies a managed
+  # library search path for its unmodified libstdc++ dependency.
+  postFixup = lib.optionalString stdenv.hostPlatform.isLinux ''
+    for architecture in x64 arm64; do
+      runtime="share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/$architecture/libonnxruntime.so.1"
+      if test -f "$out/$runtime"; then
+        cp "./$runtime" "$out/$runtime"
+        chmod 0644 "$out/$runtime"
+        cmp "./$runtime" "$out/$runtime"
+      fi
+    done
+  '';
+
   installCheckPhase = ''
     runHook preInstallCheck
+    printf '%s  %s\n' ${lib.escapeShellArg onnxSha256} \
+      "$out/share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/${onnxArchitecture}/libonnxruntime.so.1" | sha256sum -c -
+    "$out/bin/shared-vault" --check-complete
+    test -x "$out/bin/shared-vault-grammar"
+    test -s "$out/share/vault-services/services/shared-vault/helpers/document-extraction.ts"
+    ! grep -F 'scripts/vault-service.ts' "$out/bin/vault-service"
+    grep -F 'bin/shared-vault' "$out/bin/vault-service"
     test -s "$out/share/vault-services/src/index.ts"
     FULCRUM_PACKAGE_ROOT="$out/share/vault-services" "$out/bin/bun" --no-env-file --eval '
       const root = process.env.FULCRUM_PACKAGE_ROOT;
@@ -161,13 +209,14 @@ stdenv.mkDerivation {
   passthru = {
     sharedVaultSourceRevision = sourceRevision;
     sharedVaultArchiveHash = hash;
+    sharedVaultSdkIcu = sdkIcu;
+    sharedVaultSdkCcLib = sdkPkgs.stdenv.cc.cc.lib;
   };
   meta = {
     description = "Hash-pinned shared vault service, CLI and MCP release";
     platforms = [
       "x86_64-linux"
       "aarch64-linux"
-      "aarch64-darwin"
     ];
   };
 }

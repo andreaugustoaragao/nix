@@ -2,6 +2,7 @@
 """Controlled layout and refusal checks; the fake certificate is not release proof."""
 
 import importlib.util
+import hashlib
 import io
 import json
 import os
@@ -37,15 +38,22 @@ class ReleaseFixture(unittest.TestCase):
         self.state = self.private_state("state")
         self.receipt = self.base / "receipt.json"
         self.log = self.base / "bun-calls.jsonl"
-        self.old_log = os.environ.get("FAKE_BUN_LOG")
-        os.environ["FAKE_BUN_LOG"] = str(self.log)
-        self.addCleanup(self.restore_log)
+        self.env_log = self.base / "bun-environments.jsonl"
 
         files = {
             ".gitignore": "node_modules/\n",
             ".env.example": "SAMPLE=never-archive\n",
             "package.json": json.dumps({"version": "1.2.3", "packageManager": "bun@1.4.2"}) + "\n",
             "bun.lock": "{}\n",
+            "Cargo.toml": "[workspace]\nmembers = ['services/shared-vault']\n",
+            "Cargo.lock": "version = 4\n\n[[package]]\nname = 'shared-vault'\nversion = '0.1.0'\n",
+            "services/shared-vault/Cargo.toml": "[package]\nname = 'shared-vault'\n",
+            "services/shared-vault/flake.nix": "{ inputs.nixpkgs.url = 'github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601'; }\n",
+            "services/shared-vault/flake.lock": json.dumps({"nodes": {"nixpkgs": {"locked": {
+                "rev": MODULE.SDK_REVISION, "narHash": MODULE.SDK_NAR_HASH}}}}) + "\n",
+            "services/shared-vault/src/main.rs": "fn main() {}\n",
+            "services/shared-vault/src/bin/shared-vault-grammar.rs": "fn main() {}\n",
+            "services/shared-vault/helpers/document-extraction.ts": "// fixture\n",
             "scripts/development-certification.ts": "// fixture\n",
             "scripts/verify-installed-dependencies.ts": "// fixture\n",
             "scripts/verify-installed-patches.ts": "// fixture\n",
@@ -70,10 +78,11 @@ class ReleaseFixture(unittest.TestCase):
         bun.write_text(f"#!{sys.executable}\n"
                        "import json,os,sys\n"
                        "a=sys.argv[1:]\n"
-                       "with open(os.environ['FAKE_BUN_LOG'],'a') as f:f.write(json.dumps(a)+'\\n')\n"
+                       f"with open({str(self.log)!r},'a') as f:f.write(json.dumps(a)+'\\n')\n"
+                       f"with open({str(self.env_log)!r},'a') as f:f.write(json.dumps({{'args':a,'env':{{k:v for k,v in os.environ.items() if k in ('LD_PRELOAD','LD_LIBRARY_PATH','NIX_LD','BUN_OPTIONS','NODE_OPTIONS','RUSTC_WRAPPER','CARGO_HOME','CC','PATH','HOME','GIT_CONFIG_GLOBAL','BUN_RUNTIME_TRANSPILER_CACHE_PATH')}}}})+'\\n')\n"
                        "if a==['--version']:print('1.4.2')\n"
                        "elif len(a)>3 and a[:3]==['--no-env-file','scripts/development-certification.ts','check']:\n"
-                       " r=json.load(open(a[4]));print(json.dumps({'status':'PASS','candidate':r['candidate'],'installedDependenciesSha256':r.get('installedDependenciesSha256')}))\n"
+                       " r=json.load(open(a[4]));print(json.dumps({'status':'PASS','candidate':r['candidate'],'installedDependenciesSha256':r.get('installedDependenciesSha256'),'nativeArtifacts':r.get('nativeArtifacts')}))\n"
                        "elif len(a)>1 and a[0]=='--no-env-file' and 'verify-installed-' in a[1]:print('{\"ok\":true}')\n"
                        "elif len(a)>1 and a[0]=='--no-env-file':print(json.dumps(a[1:]))\n"
                        "else:sys.exit(2)\n")
@@ -90,12 +99,6 @@ class ReleaseFixture(unittest.TestCase):
         (cache / "mutable.txt").write_text("discard\n")
         self.write_receipt()
 
-    def restore_log(self):
-        if self.old_log is None:
-            os.environ.pop("FAKE_BUN_LOG", None)
-        else:
-            os.environ["FAKE_BUN_LOG"] = self.old_log
-
     def private_state(self, name):
         state = self.base / name
         state.mkdir(mode=0o700)
@@ -107,14 +110,46 @@ class ReleaseFixture(unittest.TestCase):
     def write_receipt(self, **changes):
         content = {"schema": "fulcrum.certification.v1", "status": "PASS", "profile": "release",
                    "candidate": self.revision, "worktree": str(self.repo),
-                   "installedDependenciesSha256": MODULE.inventory_dependencies(self.repo / "node_modules")}
+                   "installedDependenciesSha256": MODULE.inventory_dependencies(self.repo / "node_modules"),
+                   "nativeArtifacts": {"schema": "fulcrum.shared-vault.native.v1",
+                                       "candidate": self.revision, "target": MODULE.native_target()[0],
+                                       "binaries": {name: hashlib.sha256(self.native_bytes(name)).hexdigest()
+                                                    for name in MODULE.NATIVE_BINARIES}}}
         content.update(changes)
         self.receipt.write_text(json.dumps(content) + "\n")
+
+    @staticmethod
+    def native_bytes(name):
+        header = bytearray(64)
+        header[:6] = b"\x7fELF\x02\x01"
+        struct.pack_into("<HH", header, 16, 2, MODULE.native_target()[1])
+        return bytes(header) + name.encode()
+
+    def fixture_command(self, args, cwd, phase, timeout=900, environment=None):
+        if phase == "certified native Cargo build":
+            target = Path(args[-4])
+            for name in MODULE.NATIVE_BINARIES:
+                binary = target / "release" / name
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_bytes(self.native_bytes(name))
+                binary.chmod(0o755)
+                deps = target / "release/deps" / name
+                deps.parent.mkdir(parents=True, exist_ok=True)
+                os.link(binary, deps)
+            return b""
+        if phase == "native dispatch completeness":
+            self.assertEqual(Path(args[0]).parent.name, "native-attested")
+            self.assertEqual(Path(args[0]).stat().st_nlink, 1)
+            self.assertEqual(set(environment), {"PATH", "HOME", "TMPDIR", "LANG"})
+            return b""
+        return self.real_command(args, cwd, phase, timeout=timeout, environment=environment)
 
     def create(self, state=None, name="release.tar.gz"):
         state = state or self.state
         output = state / name
-        return MODULE.create_release(self.repo, self.receipt, output, state)
+        self.real_command = MODULE.command
+        with patch.object(MODULE, "command", side_effect=self.fixture_command):
+            return MODULE.create_release(self.repo, self.receipt, output, state)
 
     def test_layout_and_determinism(self):
         first = self.create()
@@ -134,8 +169,11 @@ class ReleaseFixture(unittest.TestCase):
             self.assertIn("shared-vault-release/share/vault-services/node_modules/.bin/foo", names)
             manifest = json.load(archive.extractfile("shared-vault-release/share/vault-services/release.json"))
             self.assertEqual(manifest, {"packageVersion": "1.2.3", "source": {"kind": "artifact", "revision": self.revision}})
-            for name in ("bun", "vault-service", "vault-client", "vault-mcp"):
+            for name in ("bun", "vault-service", "shared-vault", "shared-vault-grammar", "vault-client", "vault-mcp"):
                 self.assertIn(f"shared-vault-release/bin/{name}", names)
+            service = archive.extractfile("shared-vault-release/bin/vault-service").read()
+            self.assertIn(b'bin/shared-vault', service)
+            self.assertNotIn(b'vault-service.ts', service)
             unpacked = self.base / "unpacked"
             unpacked.mkdir()
             archive.extractall(unpacked, filter="data")
@@ -149,6 +187,167 @@ class ReleaseFixture(unittest.TestCase):
         self.assertEqual(sum(call[1:3] == ["scripts/development-certification.ts", "check"] for call in calls), 4)
         self.assertTrue(any("verify-installed-dependencies.ts" in " ".join(call) for call in calls))
         self.assertTrue(any("verify-installed-patches.ts" in " ".join(call) for call in calls))
+
+    def test_receipt_checker_and_dependency_verifiers_exclude_loader_overrides(self):
+        rogue = self.base / "rogue-bin"
+        rogue.mkdir()
+        marker = self.base / "rogue-git-ran"
+        (rogue / "git").write_text(f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n")
+        (rogue / "git").chmod(0o755)
+        injected = {
+            "PATH": f"{rogue}:{os.environ['PATH']}",
+            "LD_PRELOAD": str(self.base / "forged-loader.so"),
+            "LD_LIBRARY_PATH": str(self.base / "forged-libraries"),
+            "NIX_LD": str(self.base / "forged-interpreter"),
+            "BUN_OPTIONS": "--preload=forged.ts",
+            "NODE_OPTIONS": "--require=forged.js",
+            "RUSTC_WRAPPER": str(self.base / "forged-rustc-wrapper"),
+            "CC": str(self.base / "forged-cc"),
+        }
+        with patch.dict(os.environ, injected):
+            self.create()
+        calls = [json.loads(line) for line in self.env_log.read_text().splitlines()]
+        checker = [call for call in calls if call["args"][1:3] == ["scripts/development-certification.ts", "check"]]
+        dependencies = [call for call in calls if len(call["args"]) > 1 and "verify-installed-" in call["args"][1]]
+        self.assertEqual(len(checker), 2)
+        self.assertEqual(len(dependencies), 4)
+        for call in checker + dependencies:
+            with self.subTest(args=call["args"]):
+                self.assertFalse((set(injected) - {"PATH"}) & set(call["env"]))
+                self.assertNotIn(str(rogue), call["env"]["PATH"])
+        self.assertFalse(marker.exists())
+
+    def test_native_receipt_must_bind_exact_commit_target_and_binary_hashes(self):
+        original = json.loads(self.receipt.read_text())
+        cases = [
+            None,
+            {**original["nativeArtifacts"], "candidate": "0" * 40},
+            {**original["nativeArtifacts"], "target": "aarch64-linux" if MODULE.native_target()[0] == "x86_64-linux" else "x86_64-linux"},
+            {**original["nativeArtifacts"], "binaries": {"shared-vault": "0" * 64}},
+            {**original["nativeArtifacts"], "binaries": {**original["nativeArtifacts"]["binaries"], "shared-vault": "0" * 64}},
+        ]
+        for evidence in cases:
+            with self.subTest(evidence=evidence):
+                self.write_receipt(nativeArtifacts=evidence)
+                with self.assertRaises(MODULE.ReleaseError):
+                    self.create(self.private_state("bad-native-" + str(cases.index(evidence))))
+        self.assertFalse(list(self.base.glob("bad-native-*/release.tar.gz")))
+
+    def test_missing_committed_native_source_is_refused(self):
+        self.git("rm", "services/shared-vault/src/bin/shared-vault-grammar.rs")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "missing grammar")
+        self.revision = self.git("rev-parse", "HEAD").stdout.strip()
+        self.write_receipt()
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_native_build_rejects_missing_changed_linked_or_nonexecutable_outputs(self):
+        original = self.fixture_command
+        for kind in ("missing", "changed", "linked", "mode", "special"):
+            with self.subTest(kind=kind):
+                def faulty(args, cwd, phase, timeout=900, environment=None):
+                    result = original(args, cwd, phase, timeout, environment)
+                    if phase == "certified native Cargo build":
+                        target = Path(args[-4])
+                        binary = target / "release/shared-vault-grammar"
+                        if kind == "missing":
+                            binary.unlink()
+                        elif kind == "changed":
+                            binary.write_bytes(binary.read_bytes() + b"changed")
+                        elif kind == "linked":
+                            binary.unlink()
+                            binary.symlink_to(target / "release/shared-vault")
+                        elif kind == "special":
+                            binary.chmod(0o4755)
+                        else:
+                            binary.chmod(0o644)
+                    return result
+                with patch.object(self, "fixture_command", side_effect=faulty):
+                    with self.assertRaises(MODULE.ReleaseError):
+                        self.create(self.private_state("bad-build-" + kind))
+        self.assertFalse(list(self.base.glob("bad-build-*/release.tar.gz")))
+
+    def test_incomplete_native_dispatch_cannot_be_packaged(self):
+        original = self.fixture_command
+        def incomplete(args, cwd, phase, timeout=900, environment=None):
+            if phase == "native dispatch completeness":
+                raise MODULE.ReleaseError("native dispatch incomplete")
+            return original(args, cwd, phase, timeout, environment)
+        with patch.object(self, "fixture_command", side_effect=incomplete):
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
+
+    def test_cargo_cache_is_lock_bound_and_ambient_build_overrides_are_excluded(self):
+        cache_home = self.base / "ambient-cargo"
+        cache = cache_home / "registry/cache" / MODULE.CARGO_REGISTRY
+        index_root = cache_home / "registry/index" / MODULE.CARGO_REGISTRY / ".cache"
+        cache.mkdir(parents=True)
+        index_root.mkdir(parents=True)
+        crate_bytes = b"verified crate archive bytes"
+        checksum = hashlib.sha256(crate_bytes).hexdigest()
+        crate = cache / "example-1.0.0.crate"
+        crate.write_bytes(crate_bytes)
+        index = index_root / MODULE.cargo_index_path("example")
+        index.parent.mkdir(parents=True)
+        record = {"name": "example", "vers": "1.0.0", "cksum": checksum, "deps": [], "features": {}}
+        index.write_bytes(b'\x03\x02\0\0\0etag: "fixture"\0' + b"1.0.0\0"
+                          + json.dumps(record).encode() + b"\0")
+        index_bytes = index.read_bytes()
+        (cache_home / "config.toml").write_text('[build]\nrustc-wrapper = "/tmp/external-wrapper"\n')
+        (self.repo / "Cargo.lock").write_text(
+            "version = 4\n\n[[package]]\nname = 'shared-vault'\nversion = '0.1.0'\n"
+            f"\n[[package]]\nname = 'example'\nversion = '1.0.0'\nsource = '{MODULE.CARGO_SOURCE}'\nchecksum = '{checksum}'\n")
+        (self.repo / ".cargo").mkdir()
+        (self.repo / ".cargo/config.toml").write_text('[build]\nrustc-wrapper = "/tmp/source-wrapper"\n')
+        self.git("add", "Cargo.lock", ".cargo/config.toml")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "locked crate fixture")
+        self.revision = self.git("rev-parse", "HEAD").stdout.strip()
+        self.write_receipt()
+        original = self.fixture_command
+        def inspect_build(args, cwd, phase, timeout=900, environment=None):
+            if phase == "certified native Cargo build":
+                self.assertTrue(cwd.is_relative_to(self.state))
+                self.assertFalse(cwd.is_relative_to(self.repo))
+                self.assertEqual(Path(args[-1]), cwd)
+                self.assertTrue(Path(args[-2]).is_absolute())
+                self.assertNotIn("RUSTC_WRAPPER", environment)
+                self.assertNotIn("CARGO_BUILD_RUSTC", environment)
+                self.assertNotIn("CC", environment)
+                self.assertEqual(environment["NIX_CONFIG"], "experimental-features = nix-command flakes\n")
+                private_home = Path(args[-5])
+                self.assertFalse((private_home / "config.toml").exists())
+                self.assertEqual((private_home / "registry/cache" / MODULE.CARGO_REGISTRY / crate.name).read_bytes(), crate_bytes)
+            return original(args, cwd, phase, timeout, environment)
+        with patch.dict(os.environ, {"CARGO_HOME": str(cache_home), "RUSTC_WRAPPER": "/tmp/external-wrapper",
+                                       "CARGO_BUILD_RUSTC": "/tmp/external-rustc", "CC": "/tmp/external-cc",
+                                       "NIX_CONFIG": "substituters = https://invalid.example"}):
+            with patch.object(self, "fixture_command", side_effect=inspect_build):
+                self.create()
+            crate.write_bytes(b"corrupt crate")
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create(self.private_state("bad-crate"))
+            crate.write_bytes(crate_bytes)
+            index.write_bytes(index.read_bytes().replace(checksum.encode(), b"0" * 64))
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create(self.private_state("bad-index"))
+            index.write_bytes(index_bytes)
+            moved = index.parent.with_name("relocated-index")
+            index.parent.rename(moved)
+            index.parent.symlink_to(moved)
+            with self.assertRaises(MODULE.ReleaseError):
+                self.create(self.private_state("linked-index"))
+
+    def test_ancestor_cargo_configuration_is_refused(self):
+        ancestor = self.state / ".cargo"
+        ancestor.mkdir()
+        (ancestor / "config.toml").write_text('[build]\nrustc-wrapper = "/tmp/external-wrapper"\n')
+        with self.assertRaises(MODULE.ReleaseError):
+            self.create()
+        self.assertFalse((self.state / "release.tar.gz").exists())
 
     def test_export_helper_cannot_redefine_the_staging_baseline(self):
         remote = self.base / "promisor.git"
