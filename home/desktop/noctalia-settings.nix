@@ -51,6 +51,10 @@ lib.recursiveUpdate (lib.recursiveUpdate
       capsule_fill = "surface_container";
       capsule_opacity = 1.0;
     };
+    osd = {
+      position = "bottom_center";
+      position_vertical = "bottom_center";
+    };
     dock.reserve_space = false;
     wallpaper = {
       directory = "${wallpapers}/share/wallpapers";

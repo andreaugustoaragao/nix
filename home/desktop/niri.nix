@@ -343,9 +343,9 @@ in
         default-window-height { fixed 680; }
     }
 
-    // Portal choosers may have no parent; new floating windows open centered.
+    // Portal dialogs may have no parent; new floating windows open centered.
     window-rule {
-        match app-id="^xdg-desktop-portal-gtk$"
+        match app-id="^xdg-desktop-portal-(gtk|gnome)$"
         open-floating true
         default-column-width { fixed 960; }
         default-window-height { fixed 680; }

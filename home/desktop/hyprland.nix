@@ -397,7 +397,7 @@ in
               center = true;
             };
             gtk_file_chooser = {
-              "match:class" = "^xdg-desktop-portal-gtk$";
+              "match:class" = "^xdg-desktop-portal-(gtk|gnome)$";
               float = true;
               center = true;
               size = "960 680";
