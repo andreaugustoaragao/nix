@@ -168,23 +168,24 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  # The encoder verifies the exact onnxruntime-node@1.30.0 bytes before
-  # loading a sealed copy. autoPatchelf may rewrite this library, so restore
-  # its certified archive bytes after patching; the service supplies a managed
-  # library search path for its unmodified libstdc++ dependency.
-  postFixup = lib.optionalString stdenv.hostPlatform.isLinux ''
+  # autoPatchelf runs after postFixup, so restore the certified native bytes
+  # once every fixup hook has completed. The service supplies the managed
+  # library search path needed by the unmodified ONNX library.
+  installCheckPhase = ''
+    runHook preInstallCheck
     for architecture in x64 arm64; do
       runtime="share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/$architecture/libonnxruntime.so.1"
       if test -f "$out/$runtime"; then
-        cp "./$runtime" "$out/$runtime"
+        cp -f --remove-destination "./$runtime" "$out/$runtime"
         chmod 0644 "$out/$runtime"
         cmp "./$runtime" "$out/$runtime"
       fi
     done
-  '';
-
-  installCheckPhase = ''
-    runHook preInstallCheck
+    for executable in shared-vault shared-vault-grammar; do
+      cp -f --remove-destination "./bin/$executable" "$out/bin/$executable"
+      chmod 0755 "$out/bin/$executable"
+      cmp "./bin/$executable" "$out/bin/$executable"
+    done
     printf '%s  %s\n' ${lib.escapeShellArg onnxSha256} \
       "$out/share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/${onnxArchitecture}/libonnxruntime.so.1" | sha256sum -c -
     "$out/bin/shared-vault" --check-complete
