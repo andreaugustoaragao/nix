@@ -314,6 +314,7 @@ in
     ];
     xdg.configFile."shared-vault/service.json".source = configurationFile;
     home.packages = [ diagnostics ] ++ lib.optional cfg.cleanup.enable cleanupLauncher;
+    home.file.".local/bin/vault-service-config".source = "${diagnostics}/bin/vault-service-config";
     systemd.user.services.shared-vault = {
       Unit = {
         Description = "Shared vault, document processing and automation";
