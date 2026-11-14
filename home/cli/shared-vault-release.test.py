@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Controlled layout and refusal checks; the fake certificate is not release proof."""
 
+import errno
 import importlib.util
 import hashlib
 import io
@@ -40,6 +41,16 @@ class ReleaseFixture(unittest.TestCase):
         self.receipt = self.base / "receipt.json"
         self.log = self.base / "bun-calls.jsonl"
         self.env_log = self.base / "bun-environments.jsonl"
+        cache_home = self.private_state("fixture-cargo")
+        for directory in ("cache", "index"):
+            registry = cache_home / "registry" / directory / MODULE.CARGO_REGISTRY
+            registry.mkdir(parents=True, mode=0o700)
+            if directory == "index":
+                (registry / ".cache").mkdir(mode=0o700)
+        # Keep the real cache validation; individual cache tests override this default.
+        cargo_environment = patch.dict(os.environ, {"CARGO_HOME": str(cache_home)})
+        cargo_environment.start()
+        self.addCleanup(cargo_environment.stop)
 
         files = {
             ".gitignore": "node_modules/\n",
@@ -140,6 +151,7 @@ class ReleaseFixture(unittest.TestCase):
 
     def fixture_command(self, args, cwd, phase, timeout=900, environment=None, build_paths=None):
         if phase == "certified native Cargo build":
+            self.assertEqual(args[0], str(self.native_build_executable))
             self.assertIsNotNone(build_paths)
             flags = MODULE.native_build_path_flags(*build_paths)
             self.assertEqual({name: environment.get(name) for name in flags}, flags)
@@ -171,7 +183,20 @@ class ReleaseFixture(unittest.TestCase):
         state = state or self.state
         output = state / name
         self.real_command = MODULE.command
-        with patch.object(MODULE, "command", side_effect=self.fixture_command):
+        self.native_build_executable = Path(sys.executable).resolve(strict=True)
+        self.assertTrue(str(self.native_build_executable).startswith("/nix/store/"))
+        self.assertFalse(self.native_build_executable.stat().st_mode & 0o222)
+        real_resolve = Path.resolve
+
+        def fixture_resolve(path, strict=False):
+            # Only the intercepted build's managed Nix lookup needs a stand-in.
+            if path == Path("/run/current-system/sw/bin/nix"):
+                self.assertTrue(strict)
+                return self.native_build_executable
+            return real_resolve(path, strict=strict)
+
+        with patch.object(Path, "resolve", autospec=True, side_effect=fixture_resolve), \
+                patch.object(MODULE, "command", side_effect=self.fixture_command):
             return MODULE.create_release(self.repo, self.receipt, output, state)
 
     def test_layout_and_determinism(self):
@@ -396,8 +421,9 @@ class ReleaseFixture(unittest.TestCase):
         original = self.fixture_command
         for kind in ("missing", "changed", "linked", "mode", "special"):
             with self.subTest(kind=kind):
-                def faulty(args, cwd, phase, timeout=900, environment=None):
-                    result = original(args, cwd, phase, timeout, environment)
+                applied = []
+                def faulty(args, cwd, phase, timeout=900, environment=None, build_paths=None):
+                    result = original(args, cwd, phase, timeout, environment, build_paths)
                     if phase == "certified native Cargo build":
                         target = Path(args[-4])
                         binary = target / "release/shared-vault-grammar"
@@ -409,24 +435,41 @@ class ReleaseFixture(unittest.TestCase):
                             binary.unlink()
                             binary.symlink_to(target / "release/shared-vault")
                         elif kind == "special":
-                            binary.chmod(0o4755)
+                            binary.chmod(0o1755)
                         else:
                             binary.chmod(0o644)
+                        applied.append(kind)
                     return result
                 with patch.object(self, "fixture_command", side_effect=faulty):
-                    with self.assertRaises(MODULE.ReleaseError):
+                    with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                         self.create(self.private_state("bad-build-" + kind))
+                self.assertEqual(applied, [kind])
+                cause = failure.exception.__cause__
+                if kind == "missing":
+                    self.assertIsInstance(cause, FileNotFoundError)
+                elif kind == "linked":
+                    self.assertIsInstance(cause, OSError)
+                    self.assertEqual(cause.errno, errno.ELOOP)
+                else:
+                    self.assertIsInstance(cause, MODULE.ReleaseError)
+                    self.assertIn("bytes differ" if kind == "changed" else "unexpected permissions", str(cause))
         self.assertFalse(list(self.base.glob("bad-build-*/release.tar.gz")))
 
     def test_incomplete_native_dispatch_cannot_be_packaged(self):
         original = self.fixture_command
-        def incomplete(args, cwd, phase, timeout=900, environment=None):
+        reached = []
+        def incomplete(args, cwd, phase, timeout=900, environment=None, build_paths=None):
+            result = original(args, cwd, phase, timeout, environment, build_paths)
             if phase == "native dispatch completeness":
+                reached.append(phase)
                 raise MODULE.ReleaseError("native dispatch incomplete")
-            return original(args, cwd, phase, timeout, environment)
+            return result
         with patch.object(self, "fixture_command", side_effect=incomplete):
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                 self.create()
+        self.assertEqual(reached, ["native dispatch completeness"])
+        self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+        self.assertEqual(str(failure.exception.__cause__), "native dispatch incomplete")
         self.assertFalse((self.state / "release.tar.gz").exists())
 
     def test_cargo_cache_is_lock_bound_and_ambient_build_overrides_are_excluded(self):
@@ -457,6 +500,7 @@ class ReleaseFixture(unittest.TestCase):
         self.revision = self.git("rev-parse", "HEAD").stdout.strip()
         self.write_receipt()
         original = self.fixture_command
+        inspected = []
         def inspect_build(args, cwd, phase, timeout=900, environment=None, build_paths=None):
             if phase == "certified native Cargo build":
                 self.assertTrue(cwd.is_relative_to(self.state))
@@ -470,32 +514,42 @@ class ReleaseFixture(unittest.TestCase):
                 private_home = Path(args[-5])
                 self.assertFalse((private_home / "config.toml").exists())
                 self.assertEqual((private_home / "registry/cache" / MODULE.CARGO_REGISTRY / crate.name).read_bytes(), crate_bytes)
+                inspected.append(phase)
             return original(args, cwd, phase, timeout, environment, build_paths)
         with patch.dict(os.environ, {"CARGO_HOME": str(cache_home), "RUSTC_WRAPPER": "/tmp/external-wrapper",
                                        "CARGO_BUILD_RUSTC": "/tmp/external-rustc", "CC": "/tmp/external-cc",
                                        "NIX_CONFIG": "substituters = https://invalid.example"}):
             with patch.object(self, "fixture_command", side_effect=inspect_build):
                 self.create()
+            self.assertEqual(inspected, ["certified native Cargo build"])
             crate.write_bytes(b"corrupt crate")
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                 self.create(self.private_state("bad-crate"))
+            self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+            self.assertIn("Cargo crate bytes differ", str(failure.exception.__cause__))
             crate.write_bytes(crate_bytes)
             index.write_bytes(index.read_bytes().replace(checksum.encode(), b"0" * 64))
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                 self.create(self.private_state("bad-index"))
+            self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+            self.assertIn("Cargo registry index differs", str(failure.exception.__cause__))
             index.write_bytes(index_bytes)
             moved = index.parent.with_name("relocated-index")
             index.parent.rename(moved)
             index.parent.symlink_to(moved)
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                 self.create(self.private_state("linked-index"))
+            self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+            self.assertIn("Cargo registry cache path is not canonical", str(failure.exception.__cause__))
 
     def test_ancestor_cargo_configuration_is_refused(self):
         ancestor = self.state / ".cargo"
         ancestor.mkdir()
         (ancestor / "config.toml").write_text('[build]\nrustc-wrapper = "/tmp/external-wrapper"\n')
-        with self.assertRaises(MODULE.ReleaseError):
+        with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
             self.create()
+        self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+        self.assertIn("ancestor configuration override", str(failure.exception.__cause__))
         self.assertFalse((self.state / "release.tar.gz").exists())
 
     def test_export_helper_cannot_redefine_the_staging_baseline(self):
@@ -546,14 +600,17 @@ class ReleaseFixture(unittest.TestCase):
         }
         for name, action in actions.items():
             with self.subTest(name=name):
+                marker = self.base / f"staged-{name}-applied"
                 injected = ("a=sys.argv[1:]\nfrom pathlib import Path\nimport shutil\n"
                             f"if os.getcwd() != {str(self.repo)!r} and len(a)>1 and a[1]=='scripts/verify-installed-dependencies.ts':\n"
-                            f" {action}\n")
+                            f" {action}\n Path({str(marker)!r}).write_text('applied')\n")
                 bun.write_text(original_bun.replace("a=sys.argv[1:]\n", injected))
                 self.write_receipt()
                 state = self.private_state(f"staged-{name}")
-                with self.assertRaises(MODULE.ReleaseError):
+                with self.assertRaisesRegex(MODULE.ReleaseError, "failed at staged-dependencies") as failure:
                     self.create(state)
+                self.assertEqual(marker.read_text(), "applied")
+                self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
                 self.assertFalse((state / "release.tar.gz").exists())
                 self.assertFalse((state / "release.tar.gz.sha256").exists())
                 self.assertFalse(list(state.glob("release-stage-*")))
@@ -561,29 +618,39 @@ class ReleaseFixture(unittest.TestCase):
 
     def test_archive_reads_are_checked_against_the_sealed_files(self):
         original = MODULE.deterministic_archive
+        applied = []
 
         def change_during_archive(staging, output, *args):
             source = staging / MODULE.ROOT_NAME / "share/vault-services/src/dependency.ts"
             source.write_bytes(source.read_bytes().replace(b"true", b"null"))
+            applied.append("source")
             return original(staging, output, *args)
 
         with patch.object(MODULE, "deterministic_archive", side_effect=change_during_archive):
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at archive") as failure:
                 self.create()
+        self.assertEqual(applied, ["source"])
+        self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+        self.assertIn("staged files changed before archive construction", str(failure.exception.__cause__))
         self.assertFalse((self.state / "release.tar.gz").exists())
         self.assertFalse(list(self.state.glob("release-stage-*")))
 
     def test_emitted_archive_bytes_must_match_the_seal(self):
         original = tarfile.TarFile.addfile
+        applied = []
 
         def changed_bytes(archive, info, source=None):
             if info.name.endswith("/src/dependency.ts"):
                 source = io.BytesIO(source.read().replace(b"true", b"null"))
+                applied.append(info.name)
             return original(archive, info, source)
 
         with patch.object(tarfile.TarFile, "addfile", new=changed_bytes):
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "failed at archive") as failure:
                 self.create()
+        self.assertEqual(applied, [MODULE.ROOT_NAME + "/share/vault-services/src/dependency.ts"])
+        self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+        self.assertIn("archive bytes differ from approved staging", str(failure.exception.__cause__))
         self.assertFalse((self.state / "release.tar.gz").exists())
         self.assertFalse((self.state / "release.tar.gz.sha256").exists())
         self.assertFalse(list(self.state.glob("release-stage-*")))
@@ -774,13 +841,18 @@ class ReleaseFixture(unittest.TestCase):
         original = os.link
         for target_name in ("release.tar.gz", "release.tar.gz.sha256"):
             with self.subTest(target_name=target_name):
+                applied = []
                 def interrupted(source, destination):
                     original(source, destination)
                     if Path(destination).name == target_name:
+                        applied.append(target_name)
                         raise MODULE.ReleaseError("packaging interrupted after publication link")
                 with patch.object(MODULE.os, "link", side_effect=interrupted):
-                    with self.assertRaises(MODULE.ReleaseError):
+                    with self.assertRaisesRegex(MODULE.ReleaseError, "failed at publish") as failure:
                         self.create()
+                self.assertEqual(applied, [target_name])
+                self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+                self.assertEqual(str(failure.exception.__cause__), "packaging interrupted after publication link")
                 self.assertFalse((self.state / "release.tar.gz").exists())
                 self.assertFalse((self.state / "release.tar.gz.sha256").exists())
                 self.assertFalse(list(self.state.glob("release-stage-*")))
@@ -789,19 +861,24 @@ class ReleaseFixture(unittest.TestCase):
     def test_handled_signal_during_publication_cleans_both_links(self):
         original_link = os.link
         previous = signal.getsignal(signal.SIGTERM)
+        applied = []
         def interrupted(_signal, _frame):
             raise MODULE.ReleaseError("packaging interrupted")
         def linked_then_signalled(source, destination):
             original_link(source, destination)
             if Path(destination).name == "release.tar.gz":
+                applied.append("signal")
                 signal.raise_signal(signal.SIGTERM)
         signal.signal(signal.SIGTERM, interrupted)
         try:
             with patch.object(MODULE.os, "link", side_effect=linked_then_signalled):
-                with self.assertRaises(MODULE.ReleaseError):
+                with self.assertRaisesRegex(MODULE.ReleaseError, "failed at publish") as failure:
                     self.create()
         finally:
             signal.signal(signal.SIGTERM, previous)
+        self.assertEqual(applied, ["signal"])
+        self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
+        self.assertEqual(str(failure.exception.__cause__), "packaging interrupted")
         self.assertFalse((self.state / "release.tar.gz").exists())
         self.assertFalse((self.state / "release.tar.gz.sha256").exists())
         self.assertFalse(list(self.state.glob("release-stage-*")))
@@ -874,15 +951,19 @@ class ReleaseFixture(unittest.TestCase):
 
     def test_unsettled_verifier_retains_staging_for_recovery(self):
         original = MODULE.verify_dependencies
+        reached = []
 
         def unsettled(root, bun):
             if "release-stage-" in str(root):
+                reached.append(str(root))
                 raise MODULE.UnsettledVerifier("fixture closure unproved", 999999)
             return original(root, bun)
 
         with patch.object(MODULE, "verify_dependencies", side_effect=unsettled):
-            with self.assertRaises(MODULE.ReleaseError):
+            with self.assertRaisesRegex(MODULE.ReleaseError, "held at staged-dependencies") as failure:
                 self.create()
+        self.assertEqual(len(reached), 1)
+        self.assertIsInstance(failure.exception.__cause__, MODULE.UnsettledVerifier)
         stages = list(self.state.glob("release-stage-*"))
         self.assertEqual(len(stages), 1)
         self.addCleanup(shutil.rmtree, stages[0])
