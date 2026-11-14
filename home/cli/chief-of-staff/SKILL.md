@@ -95,6 +95,13 @@ or discard them. A missing terminal or `done`/`idle` status is not task success.
 
 ## Intake and scheduling
 
+For routine Git synchronization, use the installed `repo-sync` skill and command
+first. Record its structured result in the task; a deterministic invocation does
+not need a new agent harness. Use a Hydrogen worker for exceptions that need
+interpretation, escalating substantive code conflicts as needed. Existing task
+authorization and shared-checkout serialization still apply. Do not turn a sync
+request into permission to commit unrelated work or force-push.
+
 1. Classify each received user request as a new task, an amendment to a named
    task, or a control/question. Split independently deliverable objectives into
    distinct tasks without creating new goals. A new explicit invocation while

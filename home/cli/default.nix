@@ -30,6 +30,8 @@ in
     ./carapace.nix
     ./pay-respects.nix
     ./git.nix
+    ./repo-sync.nix
+    ./chat-send.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix
@@ -177,7 +179,6 @@ in
       speedtest-cli
       # fastfetch is provided by ./fastfetch.nix (random-logo wrapper on the
       # unstable build); don't add it here or buildEnv sees two copies.
-      screenfetch
       lolcat
       figlet
       toilet
@@ -245,6 +246,7 @@ in
       # - direnv moved to development.nix as a program
     ]
     ++ lib.optionals (hostName != "prl-dev-vm") [
+      screenfetch
       awscli2
       tectonic
       broot

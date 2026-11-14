@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "url": "https://chat.google.com/app/chat/EXAMPLE",
+  "title": "Example Person - Chat",
+  "accounts": ["Google Account: Example Sender (sender@example.com)"],
+  "editors": [{"name":"History is on","text":"","blocks":[],"forbidden":false,"signature_list":false,"mentions":[]}],
+  "send_count": 1,
+  "send_enabled": true,
+  "message_ids": ["before-own", "before-other"],
+  "identities": [{"message_id":"before-own","email":"sender@example.com"},{"message_id":"before-other","email":"other@example.com"}],
+  "messages": [
+    {"id":"before-own","sender_id":"sender-1","body_count":1,"server":true,"body":{"blocks":[{"type":"text","text":"Earlier"}],"text":"Earlier","forbidden":false,"signature_list":false,"mentions":[]}},
+    {"id":"before-other","sender_id":"sender-2","body_count":1,"server":true,"body":{"blocks":[{"type":"text","text":"Earlier reply"}],"text":"Earlier reply","forbidden":false,"signature_list":false,"mentions":[]}}
+  ],
+  "publication_supported": true,
+  "truncated": false
+}

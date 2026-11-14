@@ -32,7 +32,7 @@ profile = "vm"
 stateVersion = "25.05"
 bluetooth = false
 lockScreen = false
-autoLogin = true
+autoLogin = false
 desktopShell = "noctalia"
 colorScheme = "gruvbox"
 # Portrait framebuffer 2160x3840 at Niri scale 1.5 (Retina stays enabled).

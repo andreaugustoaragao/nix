@@ -753,6 +753,32 @@
             PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/chief-of-staff.test.py
             touch "$out"
           '';
+          chat-send =
+            pkgs.runCommand "check-chat-send"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.nodejs
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/chat-send.test.py
+                node ${self.outPath}/home/cli/chat-send/tests/dom-probe.test.js
+                touch "$out"
+              '';
+          repo-sync =
+            pkgs.runCommand "check-repo-sync"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.git
+                ];
+              }
+              ''
+                export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/repo-sync.test.py
+                touch "$out"
+              '';
           noctalia-nix-rebuild =
             pkgs.runCommand "check-noctalia-nix-rebuild"
               {

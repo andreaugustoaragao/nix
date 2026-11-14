@@ -58,15 +58,21 @@ def atomic_write(path: Path, text: str, mode: int = 0o600):
         raise
 
 
+def terminal_addresses(term: dict):
+    if addr := term.get("terminal"):
+        yield addr
+    for sub in term.get("sub_agents") or []:
+        addr = sub if isinstance(sub, str) else sub.get("terminal")
+        if addr:
+            yield addr
+
+
 def find_space_and_tab(app_ls: dict, addr: str):
     for space in app_ls.get("spaces") or []:
         for tab in space.get("tabs") or []:
             for term in tab.get("terminals") or []:
-                if term.get("terminal") == addr:
+                if addr in terminal_addresses(term):
                     return space, tab
-                for sub in term.get("sub_agents") or []:
-                    if sub.get("terminal") == addr:
-                        return space, tab
     return None, None
 
 
@@ -81,15 +87,8 @@ def check_conflict(space: dict | None, my_tab: dict | None, my_addr: str, hc_ter
     my_tab_id = (my_tab or {}).get("id")
     space_addrs = set()
     for tab in space.get("tabs") or []:
-        tab_terms = []
-        for term in tab.get("terminals") or []:
-            if term.get("terminal"):
-                space_addrs.add(term["terminal"])
-                tab_terms.append(term["terminal"])
-            for sub in term.get("sub_agents") or []:
-                if sub.get("terminal"):
-                    space_addrs.add(sub["terminal"])
-                    tab_terms.append(sub["terminal"])
+        tab_terms = [addr for term in tab.get("terminals") or [] for addr in terminal_addresses(term)]
+        space_addrs.update(tab_terms)
         if tab.get("name") == "chief-of-staff" and tab.get("id") != my_tab_id and any(a != my_addr for a in tab_terms):
             return {
                 "reason": "existing_chief_of_staff_tab",

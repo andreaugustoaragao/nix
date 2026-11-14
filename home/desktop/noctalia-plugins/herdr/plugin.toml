@@ -17,8 +17,9 @@ entry = "widget.luau"
 [[panel]]
 id = "agents"
 entry = "panel.luau"
-width = 480
+width = 500
 height = "content"
-max_height = 620
-placement = "attached"
+max_height = 640
+placement = "floating"
 position = "auto"
+open_near_click = true

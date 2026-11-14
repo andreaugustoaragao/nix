@@ -1,4 +1,9 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  lib,
+  hostName,
+  ...
+}:
 
 {
   services = {
@@ -28,7 +33,7 @@
           name = "HP_OfficeJet_3830";
           description = "HP OfficeJet 3830 series";
           location = "Home";
-          deviceUri = "socket://192.168.20.74:9100";
+          deviceUri = "socket://192.168.20.71:9100";
           model = "drv:///hp/hpcups.drv/hp-officejet_3830_series.ppd";
         }
       ];
@@ -39,7 +44,19 @@
     # backend for scanning once the device is reachable.
     sane = {
       enable = true;
-      extraBackends = [ pkgs.hplip ];
+      extraBackends = [
+        pkgs.hplip
+      ]
+      ++ lib.optional (hostName == "prl-dev-vm") (
+        # The VM cannot rely on multicast discovery across the host network.
+        pkgs.writeTextFile {
+          name = "officejet-escl-config";
+          destination = "/etc/sane.d/escl.conf";
+          text = ''
+            device http://192.168.20.71:80 "HP OfficeJet 3830"
+          '';
+        }
+      );
     };
   };
 

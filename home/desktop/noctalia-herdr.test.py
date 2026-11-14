@@ -40,8 +40,9 @@ def run_luau(source):
 HOST = r'''
 local values, watchers, pending, calls, notifications = {}, {}, {}, {}, {}
 local bar, panelTree, tooltip, closed, toggled
+local nowMs = 1000000
 ui = {}
-for _, kind in ipairs({"row", "column", "scroll", "glyph", "label", "button"}) do
+for _, kind in ipairs({"row", "column", "box", "scroll", "glyph", "label", "button", "separator", "spacer"}) do
     ui[kind] = function(props, children) return {kind = kind, props = props, children = children or {}} end
 end
 barWidget = {
@@ -54,6 +55,7 @@ panel = {
 }
 local reject = nil
 noctalia = {
+    nowMs = function() return nowMs end,
     state = {
         get = function(key) return values[key] end,
         set = function(key, value)
@@ -84,10 +86,18 @@ local function reply(result)
     assert(request and request.callback, "missing subprocess callback")
     request.callback(result)
 end
-local function findButtons(node, result)
+local function findNode(node, key)
+    if node.props and node.props.key == key then return node.props end
+    for _, child in ipairs(node.children) do
+        local found = findNode(child, key)
+        if found then return found end
+    end
+    return nil
+end
+local function findLabels(node, result)
     result = result or {}
-    if node.kind == "button" then table.insert(result, node.props) end
-    for _, child in ipairs(node.children) do findButtons(child, result) end
+    if node.kind == "label" then table.insert(result, node.props) end
+    for _, child in ipairs(node.children) do findLabels(child, result) end
     return result
 end
 '''
@@ -107,7 +117,7 @@ local panes = {
     {terminal = "cleared", status = "blocked", app = "codex"},
     {terminal = "finished", status = "working"},
 }
-local window = {spaces = {{name = "nix", tabs = {{name = "widget", terminals = panes},
+local window = {spaces = {{name = "nix", active = true, tabs = {{name = "widget", active = true, terminals = panes},
     {name = "duplicate", terminals = {{terminal = "working", status = "working"}}}}},
     {name = "remote", machine = "vps", tabs = {{name = "api", terminals = {
         {terminal = "t1", status = "blocked", name = "review"}}}}}}}
@@ -117,16 +127,83 @@ for _, pane in ipairs(panes) do
         state = pane.terminal == "finished" and "finished" or "live"})
 end
 table.insert(core.terminals, {address = "hidden", status = "error", state = "live"})
-table.insert(core.terminals, {address = "vps/t1", status = "working", state = "live"})
+table.insert(core.terminals, {address = "vps/t1", status = "working", state = "live", turn = 12})
 local snapshot = model.collect(window, core)
 assert(#snapshot.agents == 6, "shells, hidden agents, finished programs and duplicate panes must not count")
-assert(snapshot.working == 2 and snapshot.attention == 2 and snapshot.errors == 1)
+assert(snapshot.working == 2 and snapshot.attention == 2 and snapshot.errors == 1 and snapshot.done == 1 and snapshot.idle == 1)
 assert(snapshot.agents[1].status == "error" and snapshot.agents[2].status == "blocked")
 assert(snapshot.agents[5].status == "done", "core done must override window idle")
 assert(snapshot.agents[6].status == "idle")
+assert(model.statuses.blocked.color == "secondary", "blocked attention must use warning amber secondary")
+assert(model.statuses.done.color == "tertiary", "done must use calm tertiary")
 assert(snapshot.agents[4].address == "vps/t1", "remote targets must keep their machine")
-assert(snapshot.agents[4].title == "remote / api / review")
+assert(snapshot.agents[4].title == "review" and snapshot.agents[4].subtitle == "remote · api")
+assert(snapshot.agents[4].fullTitle == "remote / api / review")
+assert(snapshot.agents[4].turn == 12)
+assert(snapshot.agents[1].active == true)
 assert(#model.collect({spaces = {}}, {terminals = {}}).agents == 0)
+''')
+
+    def test_display_disambiguation_nesting_and_transitions(self):
+        run_luau(r'''
+local model = require("./model.luau")
+local window = {spaces = {
+    {name = "system", active = true, tabs = {
+        {name = "chief-of-staff", active = true, terminals = {
+            {terminal = "t1", status = "working", app = "codex", sub_agents = {"t2", "t3"}},
+        }},
+        {name = "Runtime adapters", terminals = {
+            {terminal = "t2", status = "working", app = "codex", name = "t014-impl"},
+            {terminal = "t3", status = "blocked", app = "codex", name = "t001-urgent"},
+        }},
+    }},
+    {name = "fulcrum", tabs = {
+        {name = "t001-query-fixture-fix", terminals = {
+            {terminal = "t4", status = "done", app = "codex", name = "t001-query-fixture-fix"},
+        }},
+        {name = "settled-tab", settled = true, terminals = {
+            {terminal = "t5", status = "idle", app = "codex"},
+        }},
+    }},
+}}
+local core = {terminals = {
+    {address = "t1", status = "working", state = "live", turn = 41},
+    {address = "t2", status = "working", state = "live", parent = "t1", turn = 2},
+    {address = "t3", status = "blocked", state = "live", parent = "t1", turn = 1},
+    {address = "t4", status = "done", state = "live", turn = 3},
+    {address = "t5", status = "idle", state = "live", turn = 9},
+}}
+local transitions = {}
+local snap1 = model.collect(window, core, 100000, transitions)
+local byAddr = {}
+for _, a in ipairs(snap1.agents) do byAddr[a.address] = a end
+assert(byAddr.t1.title == "system" and byAddr.t1.subtitle == "chief-of-staff")
+assert(byAddr.t2.title == "t014-impl" and byAddr.t2.subtitle == "system · Runtime adapters")
+assert(byAddr.t4.title == "t001-query-fixture-fix" and byAddr.t4.subtitle == "fulcrum", "redundant tab name must not duplicate")
+assert(byAddr.t1.since == 100000)
+
+-- Transition t4 from done -> working; t1 keeps original since while t4 updates.
+core.terminals[4].status = "working"
+local snap2 = model.collect(window, core, 460000, transitions)
+local byAddr2 = {}
+for _, a in ipairs(snap2.agents) do byAddr2[a.address] = a end
+assert(byAddr2.t1.since == 100000, "unchanged status must preserve transition timestamp")
+assert(byAddr2.t4.since == 460000, "changed status must update transition timestamp")
+assert(model.formatDuration(460000 - byAddr2.t1.since) == "6m")
+assert(model.formatDuration(30000) == "<1m")
+assert(model.formatDuration(7200000) == "2h")
+
+-- Grouping: t2 nests under working parent t1, while blocked child t3 stays root in attention.
+local sections, hidden = model.groupAgents(snap1.agents, false)
+assert(hidden == 0)
+assert(sections[1].id == "attention" and sections[1].rows[1].agent.address == "t3" and sections[1].rows[1].depth == 0)
+assert(sections[2].id == "working" and #sections[2].rows == 2)
+assert(sections[2].rows[1].agent.address == "t1" and sections[2].rows[1].depth == 0)
+assert(sections[2].rows[2].agent.address == "t2" and sections[2].rows[2].depth == 1)
+assert(sections[2].rows[2].sameSpaceParent == true)
+
+local _, activeHidden = model.groupAgents(snap1.agents, true)
+assert(activeHidden == 1, "activeOnly must hide idle agents")
 ''')
 
     def test_polling_recovers_and_never_reports_failed_reads_as_zero_agents(self):
@@ -148,6 +225,7 @@ update()
 assert(#pending == 1)
 reply({exitCode = 0, stdout = "core"})
 assert(values.snapshot.phase == "ready" and values.snapshot.agents[1].status == "done")
+assert(values.snapshot.agents[1].since == 1000000)
 for _, result in ipairs({
     {exitCode = 1}, {exitCode = 0, stdout = "bad-json"},
     {exitCode = 0, stdout = "wrong"}, {exitCode = 0, stdout = "window", timedOut = true},
@@ -167,27 +245,45 @@ reject = "herdr-app"
 update()
 assert(values.snapshot.phase == "unavailable")
 reject = nil
+nowMs = 1120000
 update(); reply({exitCode = 0, stdout = "window"}); reply({exitCode = 0, stdout = "core"})
 assert(values.snapshot.phase == "ready", "a failed read must not stop future polls")
+assert(values.snapshot.agents[1].since == 1000000, "transient failure must preserve transition timestamp")
 ''')
 
-    def test_bar_has_stable_slots_and_distinguishes_unknown_from_zero(self):
+    def test_bar_hides_zero_attention_and_right_click_jumps_to_attention(self):
         run_luau(HOST + (PLUGINS / "widget.luau").read_text() + r'''
 assert(bar.children[3].children[2].props.text == "–")
-noctalia.state.set("snapshot", {phase = "ready", agents = {}, working = 0, attention = 0, errors = 0})
+assert(#bar.children == 3, "loading bar must not reserve an empty attention slot")
+
+noctalia.state.set("snapshot", {phase = "ready", agents = {}, working = 0, attention = 0, errors = 0, done = 0})
 assert(bar.children[3].children[2].props.text == "0")
 assert(bar.children[1].props.color == "on_surface")
-assert(bar.children[3].children[1].props.color == "on_surface_variant")
-assert(bar.children[4].children[1].props.color == "on_surface_variant")
-assert(bar.children[4].children[2].props.color == "on_surface")
-noctalia.state.set("snapshot", {phase = "ready", agents = {}, working = 100, attention = 1, errors = 0})
+assert(bar.children[3].children[1].props.color == "on_surface_variant/0.60")
+assert(bar.children[3].children[2].props.color == "on_surface_variant/0.60")
+assert(#bar.children == 3, "zero attention must stay hidden from the bar pill")
+
+noctalia.state.set("snapshot", {
+    phase = "ready",
+    agents = {{address = "t9", status = "blocked"}},
+    working = 100, attention = 1, errors = 0, done = 0,
+})
+assert(#bar.children == 4, "non-zero attention must appear in the bar pill")
 assert(bar.children[3].children[2].props.text == "99+")
 assert(bar.children[3].children[1].props.color == "primary")
-assert(bar.children[4].children[1].props.color == "tertiary")
-assert(bar.children[4].children[2].props.color == "on_surface")
-assert(bar.children[3].props.width == 39 and bar.children[4].props.width == 39)
-noctalia.state.set("snapshot", {phase = "ready", agents = {}, working = 1, attention = 1, errors = 1})
+assert(bar.children[3].children[2].props.color == "on_surface")
+assert(bar.children[4].children[1].props.color == "secondary")
+assert(bar.children[4].children[2].props.color == "secondary")
+
+onRightClick()
+assert(calls[1][3] == "agent.focus" and calls[1][5] == "t9", "right-click must focus top attention agent")
+reply({exitCode = 0})
+assert(#calls == 2 and calls[2][1] == "herdr-app")
+
+noctalia.state.set("snapshot", {phase = "ready", agents = {{address = "t1", status = "working"}}, working = 1, attention = 1, errors = 1, done = 0})
 assert(bar.children[4].children[1].props.color == "error")
+assert(bar.children[4].children[2].props.color == "error")
+
 noctalia.state.set("snapshot", {phase = "unavailable", message = "Open Herdr, then retry."})
 assert(tooltip == "Open Herdr, then retry.")
 assert(bar.children[3].children[2].props.text == "–")
@@ -195,31 +291,70 @@ onClick()
 assert(toggled == "aragao/herdr:agents")
 ''')
 
-    def test_panel_targets_the_clicked_agent_and_reports_focus_failure(self):
+    def test_panel_targets_agent_supports_hover_collapse_filter_and_unavailable(self):
         run_luau(HOST + (PLUGINS / "panel.luau").read_text() + r'''
-local a = {address = "t1", title = "nix / widget", app = "codex", status = "working"}
-local b = {address = "vps/t2", title = "api / review", app = "pi", status = "blocked"}
-noctalia.state.set("snapshot", {phase = "ready", agents = {a, b}})
+local a = {address = "t1", title = "widget", subtitle = "nix", fullTitle = "nix / widget", app = "codex", status = "working", turn = 15, since = 700000, active = true}
+local b = {address = "vps/t2", title = "review", subtitle = "remote · api", fullTitle = "remote / api / review", app = "pi", status = "blocked", turn = 4, since = 940000}
+local c = {address = "t3", title = "idle-space", subtitle = "chief-of-staff", fullTitle = "idle-space / chief-of-staff", app = "codex", status = "idle", since = 400000}
+noctalia.state.set("snapshot", {phase = "ready", agents = {b, a, c}, working = 1, attention = 1, errors = 0, done = 0, idle = 1})
 assert(panelTree == nil, "closed panels must not redraw")
 onOpen()
-local buttons = findButtons(panelTree)
-assert(#buttons == 3 and buttons[2].text == b.title, "needs-you rows must come first")
-buttons[2].onClick()
+
+-- Idle starts collapsed, so t3 focus button is not rendered until expanded.
+assert(panelTree.props.fill == "surface" and panelTree.props.radius == nil)
+local rowA = findNode(panelTree, "t1")
+local rowB = findNode(panelTree, "vps/t2")
+local btnA = findNode(panelTree, "focus-t1")
+local btnB = findNode(panelTree, "focus-vps/t2")
+assert(rowA ~= nil and rowB ~= nil and btnA ~= nil and btnB ~= nil)
+assert(findNode(panelTree, "focus-t3") == nil, "idle group should start collapsed")
+
+-- Active row highlights with surface_container_low + primary/0.40 border; non-active row uses transparent fill.
+assert(rowA.fill == "surface_container_low" and rowA.border == "primary/0.40" and rowA.borderWidth == 1)
+assert(rowB.fill == "#00000000" and rowB.border == "#00000000")
+
+-- Section header does not repeat "Working" on rows; urgent badge appears on blocked rows.
+local labels = findLabels(panelTree)
+local sawWorkingLabel, sawInputBadge, sawMeta = false, false, false
+for _, lbl in ipairs(labels) do
+    if lbl.text == "Working" then sawWorkingLabel = true end
+    if lbl.text == "Input" then sawInputBadge = true end
+    if lbl.text and string.find(lbl.text, "codex · t15 · 5m · t1", 1, true) then sawMeta = true end
+end
+assert(not sawWorkingLabel, "rows must not repeat Working")
+assert(sawInputBadge, "attention row must display Input badge")
+assert(sawMeta, "row metadata must include app, turn, elapsed and address")
+
+-- Expanding idle reveals t3.
+findNode(panelTree, "group-idle").onClick()
+assert(findNode(panelTree, "focus-t3") ~= nil)
+
+-- Active-only filter hides idle group and shows the unhide button.
+findNode(panelTree, "toggle-active").onClick()
+assert(findNode(panelTree, "group-idle") == nil)
+assert(findNode(panelTree, "show-all-hidden") ~= nil)
+findNode(panelTree, "show-all-hidden").onClick()
+assert(findNode(panelTree, "group-idle") ~= nil)
+
+-- Focusing an agent closes panel, focuses terminal, and raises Herdr.
+findNode(panelTree, "focus-vps/t2").onClick()
 assert(closed)
 assert(calls[1][3] == "agent.focus" and calls[1][4] == "--terminal" and calls[1][5] == "vps/t2")
 reply({exitCode = 0})
 assert(#calls == 2 and #calls[2] == 1 and calls[2][1] == "herdr-app", "focus must raise Herdr")
 table.remove(pending, 1)
-buttons[3].onClick()
+
+findNode(panelTree, "focus-t1").onClick()
 assert(calls[3][5] == "t1", "each handler must keep its own terminal")
 reply({exitCode = 1})
 assert(#notifications == 1 and #calls == 3, "failed focus must not launch another window")
+
 noctalia.state.set("snapshot", {phase = "unavailable", message = "Open Herdr, then retry."})
-assert(#findButtons(panelTree) == 1, "failed snapshots must clear stale agent targets")
+assert(findNode(panelTree, "focus-t1") == nil, "failed snapshots must clear stale agent targets")
 onClose()
-noctalia.state.set("snapshot", {phase = "ready", agents = {}})
+noctalia.state.set("snapshot", {phase = "ready", agents = {}, working = 0, attention = 0, errors = 0, done = 0, idle = 0})
 onOpen()
-assert(#findButtons(panelTree) == 1)
+assert(findNode(panelTree, "open-herdr") ~= nil)
 ''')
 
 
@@ -229,9 +364,16 @@ def verify_live():
     run_luau("local model = require('./model.luau')\n"
              f"local snapshot = model.collect({literal(window)}, {literal(core)})\n"
              "assert(snapshot.phase == 'ready')\n"
-             "for _, agent in ipairs(snapshot.agents) do\n"
-             " print(agent.status .. '\\t' .. agent.address .. '\\t' .. agent.title)\nend\n"
-             "print(string.format('%d working, %d need you, %d agents', snapshot.working, snapshot.attention, #snapshot.agents))\n")
+             "local sections = model.groupAgents(snapshot.agents, false)\n"
+             "for _, section in ipairs(sections) do\n"
+             "  print('[' .. section.title .. ' ' .. section.count .. ']')\n"
+             "  for _, row in ipairs(section.rows) do\n"
+             "    local a = row.agent\n"
+             "    local indent = string.rep('  ', row.depth)\n"
+             "    print(string.format('%s%s | %s | %s | %s', indent, a.title, a.subtitle or '', a.app, a.address))\n"
+             "  end\n"
+             "end\n"
+             "print(string.format('%d working, %d need you, %d done, %d idle (%d total)', snapshot.working, snapshot.attention, snapshot.done, snapshot.idle, #snapshot.agents))\n")
 
 
 if __name__ == "__main__":

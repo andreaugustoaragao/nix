@@ -23,7 +23,6 @@
     ./gtk.nix
     ./qt.nix
     ./kitty.nix
-    ./swayosd.nix
     ./hyprpaper.nix
     ./uwsm.nix
     ./screenshot.nix
@@ -39,7 +38,6 @@
     ./folio.nix
     ./waybar.nix
     ./wallpapers.nix
-    ./fcitx.nix
     ./thunar.nix
     ./vereda.nix
     ./xresources.nix
@@ -53,6 +51,8 @@
     ./matugen.nix
   ]
   ++ lib.optionals (hostName != "prl-dev-vm") [
+    ./swayosd.nix
+    ./fcitx.nix
     ./wofi.nix
     ./eww.nix
     ./vscode.nix
@@ -88,7 +88,7 @@
     [
       pavucontrol
       unstable-pkgs.telegram-desktop
-      bitwarden-desktop
+      (if hostName == "prl-dev-vm" then unstable-pkgs.bitwarden-desktop else bitwarden-desktop)
       unstable-pkgs.code-cursor
       sniffnet
       qt6.qttools
@@ -115,6 +115,9 @@
     ]
     ++ lib.optionals (hostName == "prl-dev-vm") [
       playerctl
+      prometheus.cli
+      simple-scan
+      seahorse
       (pkgs.callPackage ../../pkgs/herdr-app.nix { })
       (pkgs.callPackage ../../pkgs/herdr-core.nix { })
       (pkgs.callPackage ../../pkgs/vitals.nix { })

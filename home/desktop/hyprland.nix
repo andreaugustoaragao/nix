@@ -5,6 +5,7 @@
   unstable-pkgs,
   lib,
   personalOnly,
+  hostName,
   useDms ? false,
   useNoctalia ? false,
   lockScreen ? false,
@@ -189,6 +190,8 @@ in
         # Memory optimization environment variables
         "HYPRLAND_LOG_WLR,1" # Enable WLR logging for debugging
         "WLR_RENDERER,vulkan" # Use Vulkan renderer for better memory management
+      ]
+      ++ lib.optionals (hostName != "prl-dev-vm") [
         # fcitx5 input method variables
         "INPUT_METHOD,fcitx"
         "QT_IM_MODULE,fcitx"

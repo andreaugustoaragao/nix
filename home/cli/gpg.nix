@@ -2,6 +2,7 @@
   pkgs,
   lib,
   owner,
+  hostName,
   ...
 }:
 
@@ -228,12 +229,14 @@ in
   '';
 
   # Install GPG-related packages
-  home.packages = with pkgs; [
-    gnupg
-    paperkey # For backing up GPG keys to paper
-    kdePackages.ksshaskpass # For SSH passphrase prompts in GUI
-    pinentry-qt # For GPG passphrase prompts in GUI
-  ];
+  home.packages =
+    with pkgs;
+    [
+      gnupg
+      kdePackages.ksshaskpass # For SSH passphrase prompts in GUI
+      pinentry-qt # For GPG passphrase prompts in GUI
+    ]
+    ++ lib.optional (hostName != "prl-dev-vm") pkgs.paperkey;
 
   # Auto-import GPG keys from sops-managed secrets (if available)
   home.activation.importGPG = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

@@ -101,9 +101,9 @@
     };
   };
 
-  home.file."${config.xdg.configHome}/user-dirs.dirs".force = lib.mkIf (!isDarwinHost) (
-    lib.mkForce true
-  );
+  home.file = lib.mkIf (!isDarwinHost) {
+    "${config.xdg.configHome}/user-dirs.dirs".force = lib.mkForce true;
+  };
 
 }
 # verify Fri Sep 12 04:54:13 PM MDT 2025

@@ -1,5 +1,6 @@
 local model = require("./model.luau")
 local polling = false
+local transitions = {}
 
 local function publish(snapshot)
     polling = false
@@ -32,7 +33,7 @@ local function poll()
                 unavailable("Could not read agent status from Herdr core. Retry in a moment.")
                 return
             end
-            local ok, snapshot = pcall(model.collect, window, core)
+            local ok, snapshot = pcall(model.collect, window, core, noctalia.nowMs(), transitions)
             if ok then publish(snapshot) else unavailable("Herdr returned an unreadable agent list.") end
         end)
         if not coreAccepted then unavailable("Could not query Herdr core.") end

@@ -106,6 +106,42 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
         self.assertIn("$chief-of-staff", metadata)
         self.assertIn("allow_implicit_invocation: false", metadata)
 
+    def test_discovery_handles_string_and_legacy_subagents(self):
+        init_mod = load_script("init.py")
+        for children in (
+            ["t-other", "t-child"],
+            [{"terminal": "t-other"}, {"terminal": "t-child"}],
+            ["t-other", {"terminal": "t-child"}],
+        ):
+            with self.subTest(children=children):
+                worker = {"id": "workers", "terminals": [{"terminal": "t-parent", "sub_agents": children}]}
+                chief = {"id": "chief", "terminals": [{"terminal": "t-chief"}]}
+                space = {"id": "space", "tabs": [worker, chief]}
+                app = {"spaces": [space]}
+                self.assertEqual(init_mod.find_space_and_tab(app, "t-child"), (space, worker))
+                self.assertEqual(init_mod.find_space_and_tab(app, "t-chief"), (space, chief))
+                self.assertEqual(init_mod.find_space_and_tab(app, "missing"), (None, None))
+
+    def test_conflicts_detect_string_and_legacy_child_addresses(self):
+        init_mod = load_script("init.py")
+        for child in ("t-child", {"terminal": "t-child"}):
+            with self.subTest(child=child):
+                chief = {"id": "mine", "name": "chief-of-staff", "terminals": [{"terminal": "t-me"}]}
+                worker = {"id": "other", "name": "Workers", "terminals": [
+                    {"terminal": "t-parent", "sub_agents": [child]},
+                ]}
+                space = {"id": "space", "tabs": [chief, worker]}
+                live = [{"address": "t-child", "state": "live", "labels": {"herdr.role": "chief-of-staff"}}]
+                conflict = init_mod.check_conflict(space, chief, "t-me", live)
+                self.assertEqual(conflict["reason"], "existing_chief_of_staff_terminal")
+                self.assertEqual(conflict["terminal"], "t-child")
+                live[0]["address"] = "outside-space"
+                self.assertIsNone(init_mod.check_conflict(space, chief, "t-me", live))
+                worker["name"] = "chief-of-staff"
+                conflict = init_mod.check_conflict(space, chief, "t-me", [])
+                self.assertEqual(conflict["reason"], "existing_chief_of_staff_tab")
+                self.assertIn("t-child", conflict["terminals"])
+
     def test_init_and_spawn_helpers_end_to_end(self):
         init_mod = load_script("init.py")
         spawn_mod = load_script("spawn.py")

@@ -70,7 +70,7 @@
     };
 
     # SwayOSD LibInput backend needs to run as system service for proper D-Bus access
-    services.swayosd-libinput-backend = {
+    services.swayosd-libinput-backend = lib.mkIf (hostName != "prl-dev-vm") {
       description = "SwayOSD LibInput backend for input device events";
       wantedBy = [ "multi-user.target" ];
       after = [ "dbus.service" ];
@@ -88,13 +88,25 @@
 
   services = {
     upower.enable = true;
-    power-profiles-daemon.enable = true;
-    fwupd.enable = true;
-    gvfs.enable = lib.mkIf (hostName == "prl-dev-vm") true;
+    # Power policy and firmware are managed by the Mac host on this VM.
+    power-profiles-daemon.enable = hostName != "prl-dev-vm";
+    fwupd.enable = hostName != "prl-dev-vm";
+    gvfs = lib.mkIf (hostName == "prl-dev-vm") {
+      enable = true;
+      package = (pkgs.gvfs.override { gnomeSupport = true; }).overrideAttrs (old: {
+        mesonFlags = (old.mesonFlags or [ ]) ++ [
+          "-Dafc=false"
+          "-Dgphoto2=false"
+          "-Dmtp=false"
+          "-Dgoa=false"
+          "-Donedrive=false"
+        ];
+      });
+    };
 
     flatpak.enable = lib.mkForce false;
 
     # SwayOSD D-Bus policy (required for libinput backend)
-    dbus.packages = [ pkgs.swayosd ];
+    dbus.packages = lib.optionals (hostName != "prl-dev-vm") [ pkgs.swayosd ];
   };
 }

@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  hostName,
   useDms ? false,
   useNoctalia ? false,
   ...
@@ -100,7 +101,7 @@ in
       };
     };
 
-    wl-fcitx5 = {
+    wl-fcitx5 = lib.mkIf (hostName != "prl-dev-vm") {
       Unit = {
         Description = "Wayland: fcitx5 input method";
         After = [ "graphical-session.target" ];

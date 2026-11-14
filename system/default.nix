@@ -36,9 +36,11 @@
     ./lockscreen.nix
     ./browsers.nix
     ./printing.nix
+    ./fonts.nix
+  ]
+  ++ lib.optionals (!isServer && hostName != "prl-dev-vm") [
     ./accounts.nix
     ./kmscon.nix
-    ./fonts.nix
   ]
   ++ lib.optionals (!personalOnly && hostName != "workstation" && !isServer) [
     ./loki.nix
