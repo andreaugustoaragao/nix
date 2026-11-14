@@ -16,7 +16,7 @@
 
 let
   fileManager =
-    if config.programs.yazi-rune.enable then lib.getExe config.programs.yazi-rune.package else "thunar";
+    if config.programs.vereda.enable then lib.getExe config.programs.vereda.package else "thunar";
   noctalia = lib.getExe unstable-pkgs.noctalia;
   # Canonical dp1 (landscape) / dp2 (portrait) slot metadata — typed
   # my.displays.* options declared in ./display-options.nix, values
@@ -362,12 +362,6 @@ in
         match app-id="Bitwarden"
         open-floating true
         default-column-width { fixed 800; }
-        open-on-output "current"
-    }
-
-    window-rule {
-        match title="Extension: (Bitwarden Password Manager) - Bitwarden — Mozilla Firefox"
-        open-floating true
         open-on-output "current"
     }
 

@@ -160,28 +160,6 @@
         "type": "github"
       }
     },
-    "firefox-addons": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "dir": "pkgs/firefox-addons",
-        "lastModified": 1794369833,
-        "narHash": "sha256-k32WXXKOMgzEHmOx2IZp8JDj0XBYww/ZRw1gJlB6Ylw=",
-        "owner": "rycee",
-        "repo": "nur-expressions",
-        "rev": "8ef6b34fb11380476b0b431b2373a9bdf29f462c",
-        "type": "gitlab"
-      },
-      "original": {
-        "dir": "pkgs/firefox-addons",
-        "owner": "rycee",
-        "repo": "nur-expressions",
-        "type": "gitlab"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -359,11 +337,11 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1793977579,
-        "narHash": "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8=",
+        "lastModified": 1794495034,
+        "narHash": "sha256-E0hYoioqUtM2XmPPvYYpJgdADF5AW9oOoPSEiM9dTHQ=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4fe25e12eb9f4c744966dd3de5a05246cf098601",
+        "rev": "2074cc672349f14240fb7ea90d509e0b643e9dd4",
         "type": "github"
       },
       "original": {
@@ -396,7 +374,6 @@
         "cachyos-kernel": "cachyos-kernel",
         "dank-greeter": "dank-greeter",
         "dms": "dms",
-        "firefox-addons": "firefox-addons",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nix-index-database": "nix-index-database",
@@ -407,8 +384,6 @@
         "prism-llama": "prism-llama",
         "rust-overlay": "rust-overlay",
         "sops-nix": "sops-nix",
-        "strata-package-src": "strata-package-src",
-        "strata-src": "strata-src",
         "ttfx-src": "ttfx-src"
       }
     },
@@ -449,40 +424,6 @@
       "original": {
         "owner": "Mic92",
         "repo": "sops-nix",
-        "type": "github"
-      }
-    },
-    "strata-package-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1791114890,
-        "narHash": "sha256-zbKzUSfAt/1CLMg4xw+1xKuAuh/+/Hq7AQR43i9TWIE=",
-        "owner": "Shangshui0302",
-        "repo": "nixpkgs",
-        "rev": "e7095c7d23897f76fbdae73a819d8c79fd9e68d4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Shangshui0302",
-        "repo": "nixpkgs",
-        "rev": "e7095c7d23897f76fbdae73a819d8c79fd9e68d4",
-        "type": "github"
-      }
-    },
-    "strata-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1791091121,
-        "narHash": "sha256-RSTEgtfDYYGxXef1J22NMGpmgjObg3T6APZqfSyfNPY=",
-        "owner": "lgse",
-        "repo": "strata",
-        "rev": "870fec8e022ff8d29a5a5c1bf1174698bc0b6b09",
-        "type": "github"
-      },
-      "original": {
-        "owner": "lgse",
-        "ref": "v0.21.0",
-        "repo": "strata",
         "type": "github"
       }
     },

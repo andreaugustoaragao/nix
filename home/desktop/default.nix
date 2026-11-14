@@ -16,17 +16,13 @@
     ./niri.nix
     ./portal.nix
     ./wayland-services.nix
-    ./wofi.nix
     ./fuzzel.nix
     ./wlogout.nix
     ./lockscreen.nix
     ./mako.nix
     ./gtk.nix
     ./qt.nix
-    ./ghostty.nix
-    ./foot.nix
     ./kitty.nix
-    ./alacritty.nix
     ./swayosd.nix
     ./hyprpaper.nix
     ./uwsm.nix
@@ -39,20 +35,13 @@
     # header for the workflow.
     ./brave-profiles.nix
     ./google-chrome.nix
-    ./firefox.nix
-    ./qutebrowser.nix
-    ./vscode.nix
     ./zed.nix
-    ./grok-bot.nix
-    ./chatgpt.nix
     ./folio.nix
     ./waybar.nix
-    ./eww.nix
     ./wallpapers.nix
     ./fcitx.nix
     ./thunar.nix
-    ./strata.nix
-    ./yazi-rune.nix
+    ./vereda.nix
     ./xresources.nix
     ./cursors.nix
     ./mimeapps.nix
@@ -63,6 +52,14 @@
     ./noctalia.nix
     ./matugen.nix
   ]
+  ++ lib.optionals (hostName != "prl-dev-vm") [
+    ./wofi.nix
+    ./eww.nix
+    ./vscode.nix
+    ./ghostty.nix
+    ./foot.nix
+    ./alacritty.nix
+  ]
   ++ lib.optionals (!personalOnly) [
     ./fulcrum.nix
     ./notes.nix
@@ -70,7 +67,6 @@
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./herdr-layouts.nix
     ./parallels-displays.nix
-    ./hyprland-noctalia.nix
   ];
 
   # Install extensions for Cursor (not managed by programs.vscode)
@@ -91,16 +87,11 @@
     with pkgs;
     [
       pavucontrol
-      easyeffects
       unstable-pkgs.telegram-desktop
       bitwarden-desktop
       unstable-pkgs.code-cursor
-      neovide
       sniffnet
-      swayimg
-      obsidian
       qt6.qttools
-      freelens-bin
       (pkgs.callPackage ../../pkgs/pdfcraft.nix { })
 
       # Video-related packages
@@ -110,15 +101,22 @@
       obs-studio-plugins.advanced-scene-switcher
       kdePackages.kdenlive
     ]
-    ++ lib.optionals (!personalOnly) [ teams-for-linux ]
+    ++ lib.optionals (hostName != "prl-dev-vm") [
+      easyeffects
+      freelens-bin
+      neovide
+      obsidian
+      swayimg
+    ]
+    ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ teams-for-linux ]
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
       aptakube
     ]
     ++ lib.optionals (hostName == "prl-dev-vm") [
+      playerctl
       (pkgs.callPackage ../../pkgs/herdr-app.nix { })
       (pkgs.callPackage ../../pkgs/herdr-core.nix { })
-      (pkgs.callPackage ../../pkgs/opencode2-desktop.nix { })
-      (pkgs.callPackage ../../pkgs/orca-ide.nix { })
+      (pkgs.callPackage ../../pkgs/vitals.nix { })
     ];
 }

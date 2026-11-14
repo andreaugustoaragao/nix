@@ -10,11 +10,11 @@ _:
       };
       "auth.anonymous" = {
         enabled = true;
-        org_role = "Admin";
+        org_role = "Viewer";
       };
       auth.disable_login_form = true;
       # 26.05 dropped the built-in default for secret_key. This instance runs
-      # anonymous-admin with a single credential-less Loki datasource, so its DB
+      # anonymous viewing with a single credential-less Loki datasource, so its DB
       # holds nothing worth protecting; we pin the old public default so any
       # pre-existing DB entries stay decryptable (changelog-sanctioned path for
       # setups with no sensitive secrets).

@@ -5,7 +5,7 @@ Declarative NixOS + Home Manager setup for multiple machines (x86_64 and aarch64
 ### Highlights
 - **Wayland**: Hyprland and Niri (scrollable-tiling) via UWSM
 - **Status bar**: Waybar with Kanagawa theme and rich modules
-- **Apps**: Firefox, Brave, Qutebrowser, Ghostty, Foot, Alacritty, VS Code, Neovim (LazyVim)
+- **Apps**: Brave, Ghostty, Foot, Alacritty, VS Code, Neovim (LazyVim)
 - **Services**: Mako, Wofi, Wlogout, SwayOSD, Hyprpaper, Fcitx5
 - **Dev tooling**: Node.js 22, Python, Go, Java 21, Nix; LSPs; Docker/Podman, k8s, cloud CLIs
 - **Secrets**: sops-nix + age recipients

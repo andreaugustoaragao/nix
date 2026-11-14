@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   useDms ? false,
@@ -55,10 +56,10 @@ lib.mkIf (useDms || useNoctalia) {
     # Flip foot between [colors] (Mocha) and [colors2] (Latte) — see
     # home/desktop/foot.nix. SIGUSR1/2 to the server updates all
     # footclient windows; foot does not read the portal on its own.
-    darkModeScripts.foot = ''
+    darkModeScripts.foot = lib.mkIf config.programs.foot.enable ''
       ${pkgs.procps}/bin/pkill -SIGUSR1 -x foot 2>/dev/null || true
     '';
-    lightModeScripts.foot = ''
+    lightModeScripts.foot = lib.mkIf config.programs.foot.enable ''
       ${pkgs.procps}/bin/pkill -SIGUSR2 -x foot 2>/dev/null || true
     '';
   };

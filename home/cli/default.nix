@@ -4,6 +4,7 @@
   unstable-pkgs,
   personalOnly,
   appearance,
+  hostName,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -26,7 +27,6 @@ in
     ./starship.nix
     ./zoxide.nix
     ./atuin.nix
-    ./mise.nix
     ./carapace.nix
     ./pay-respects.nix
     ./git.nix
@@ -42,6 +42,7 @@ in
     ./agent-projects.nix
     ./herdr-coordinate.nix
     ./pstack.nix
+    ./grill-me.nix
     ./graphify.nix
     ./cursor.nix
     ./k9s.nix
@@ -54,6 +55,7 @@ in
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
     # platform-specific (see gpg.nix on Linux).
   ]
+  ++ lib.optionals (hostName != "prl-dev-vm") [ ./mise.nix ]
   ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
   ++ lib.optionals personalOnly [ ./personal-identity.nix ]
   ++ lib.optionals (!isDarwinHost) [
@@ -136,7 +138,6 @@ in
 
       # Cloud packages
       azure-cli
-      awscli2
       databricks-cli
       google-cloud-sdk
       kubectl
@@ -164,7 +165,6 @@ in
       openssh
       mosh
       tmux
-      screen
       htop
       nmap
       tcpdump
@@ -210,7 +210,6 @@ in
       dog
       tokei
       uutils-coreutils
-      broot
       sd
       choose
       hexyl
@@ -230,17 +229,14 @@ in
       ouch
       unzip
       zip
-      yazi
       inkscape
       imagemagick # provides convert command
 
       # Snacks.image inline-render dependencies (nvim opens images
       # rendered through these CLIs via the kitty graphics protocol):
       #   - ghostscript → `gs` for embedded PDF rendering
-      #   - tectonic    → lightweight LaTeX engine for math expressions
       #   - mermaid-cli → `mmdc` for Mermaid diagrams (pulls Chromium)
       ghostscript
-      tectonic
       mermaid-cli
 
       # Development tools that moved to development.nix:
@@ -248,18 +244,25 @@ in
       # - cargo-*, gitui, jq, httpie moved to development.nix
       # - direnv moved to development.nix as a program
     ]
-    ++ [
+    ++ lib.optionals (hostName != "prl-dev-vm") [
+      awscli2
+      tectonic
+      broot
+      yazi
+      screen
       # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
       # channel ships 1.91.1; use unstable until the channel revert
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
     ]
-    ++ lib.optionals isLinux [
+    ++ lib.optionals (isLinux && hostName != "prl-dev-vm") [
       # Terminal Winamp — only in unstable for now.
       # Linux-only: cliamp's IPC test binds a unix socket under
       # /nix/var/nix/builds/... which exceeds macOS's sun_path limit
       # (104 bytes) and fails with EINVAL in the Darwin build sandbox.
       unstable-pkgs.cliamp
+      podman-compose
+      lorri
     ]
     ++ lib.optionals isDarwinHost [
       # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS
@@ -283,9 +286,7 @@ in
         sl
         dfc
         inotify-tools
-        lorri
         mesa-demos # glxinfo for OpenGL debugging
-        podman-compose
         # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
         # build is Linux-only.
         traceroute

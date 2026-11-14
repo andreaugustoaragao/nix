@@ -2,6 +2,7 @@
   pkgs,
   lib,
   isServer,
+  hostName,
   ...
 }:
 
@@ -59,7 +60,6 @@
       uutils-coreutils
 
       duf
-      broot
       sd
       choose
       hexyl
@@ -83,13 +83,14 @@
 
       # Development tools moved to home configuration
     ]
+    ++ lib.optionals (hostName != "prl-dev-vm") [ broot ]
+    ++ lib.optionals (!isServer && hostName != "prl-dev-vm") [ nautilus ]
     ++ lib.optionals (!isServer) [
       libinput
       pamixer
       brightnessctl
       alsa-utils # provides aplay, arecord, amixer
       pulseaudio # provides pactl for PulseAudio compatibility diagnostics
-      nautilus
     ]
     # Office suite - OnlyOffice for x86_64, LibreOffice for ARM
     ++ lib.optionals (!isServer && pkgs.stdenv.hostPlatform.system == "x86_64-linux") [

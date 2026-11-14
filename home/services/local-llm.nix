@@ -7,6 +7,7 @@
   # decoding). See the nixpkgs-llama input comment in flake.nix.
   llama-pkgs,
   isWorkstation,
+  hostName,
   isDarwinHost ? false,
   ...
 }:
@@ -187,6 +188,8 @@ in
           ${ensureLocalLlm}
           exec pi --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
         '')
+      ]
+      ++ lib.optionals (hostName != "prl-dev-vm") [
         (pkgs.writeShellScriptBin "local-qwen-code" ''
           ${ensureLocalLlm}
 

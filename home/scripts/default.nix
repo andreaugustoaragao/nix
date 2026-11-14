@@ -4,6 +4,7 @@
   isWorkMachine,
   lib,
   personalOnly,
+  hostName,
   ...
 }:
 
@@ -38,8 +39,8 @@ in
   imports = [
     ./browser-app.nix
     ./browser-default.nix
-    ./eww.nix
   ]
+  ++ lib.optionals (hostName != "prl-dev-vm") [ ./eww.nix ]
   ++ lib.optionals (!personalOnly) [
     ./bw-query.nix
     ./bookmarks.nix

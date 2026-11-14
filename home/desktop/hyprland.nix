@@ -14,7 +14,7 @@
 
 let
   fileManager =
-    if config.programs.yazi-rune.enable then lib.getExe config.programs.yazi-rune.package else "thunar";
+    if config.programs.vereda.enable then lib.getExe config.programs.vereda.package else "thunar";
   noctalia = lib.getExe unstable-pkgs.noctalia;
   # Daily-driver terminal selection (see ./default-terminal.nix). VMs
   # fall back to kitty because ghostty's OpenGL renderer needs a GL
@@ -172,8 +172,8 @@ in
       exec-once = [
         "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
         "uwsm app -- ${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
-        "uwsm app -- alacritty --daemon" # Terminal daemon for faster startup
-      ];
+      ]
+      ++ lib.optional config.programs.alacritty.enable "uwsm app -- alacritty --daemon";
       # DMS is started as a systemd user unit bound to graphical-session.target
       # (see home/desktop/quickshell.nix), so no exec-once entry is needed here.
 
@@ -386,11 +386,6 @@ in
               workspace = "special:hidden";
             };
 
-            bitwarden_extension = {
-              "match:title" = "^(Extension: [(]Bitwarden Password Manager[)] - Bitwarden — Mozilla Firefox)$";
-              float = true;
-              center = true;
-            };
             main_picker = {
               "match:title" = "^(MainPicker)$";
               float = true;
@@ -448,7 +443,6 @@ in
           "steam_friends"
           "bitwarden"
           "hidden_parallels_clipboard"
-          "bitwarden_extension"
           "main_picker"
           "gtk_file_chooser"
           "pavucontrol"

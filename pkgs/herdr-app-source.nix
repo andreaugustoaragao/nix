@@ -21,7 +21,7 @@
   herdr-core,
 }:
 let
-  version = "0.1.12";
+  version = "0.1.15";
   rustToolchain = callPackage ./rust-toolchain.nix { };
   rustPlatform = makeRustPlatform {
     cargo = rustToolchain;
@@ -30,9 +30,9 @@ let
   src = fetchFromGitHub {
     owner = "herdrdev";
     repo = "herdr-app";
-    rev = "4aa3460749947e7771aa39a8a2cec58d46649926";
+    rev = "9950887361af3ba218b9ce7a347cb8ec7b66c71d";
     fetchSubmodules = true;
-    hash = "sha256-sFuggPKc3hsFD6YSqQB3gNoDFZsj49zaiaNiQBS5cAA=";
+    hash = "sha256-CNktD+tQrMMN4vpzFPZkZWnwDalaTkUV0A2UiLVeO3E=";
   };
   zigDeps =
     runCommand "herdr-app-${version}-zig-deps"
@@ -59,8 +59,11 @@ in
 rustPlatform.buildRustPackage {
   pname = "herdr-app";
   inherit version src;
-  patches = [ ./patches/herdr-app-virgl.patch ];
-  cargoHash = "sha256-yij8NJni+VtIvtMXxpsj1E/izo90RiY6VeV8Czs8nQk=";
+  patches = [
+    ./patches/herdr-app-virgl.patch
+    ./patches/herdr-app-markdown-links.patch
+  ];
+  cargoHash = "sha256-usCdairGam65XVKtb1jJpRC0tNXnoafAnMFQjPgvgqQ=";
   env.ZIG = lib.getExe zig_0_16;
 
   nativeBuildInputs = [

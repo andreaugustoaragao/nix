@@ -36,17 +36,6 @@
       url = "github:PrismML-Eng/llama.cpp/prism-b10709-9a9394a";
       flake = false;
     };
-    # Strata is not in nixpkgs yet. Pin both its source and the package
-    # recipe from nixpkgs PR #570118; replace these with
-    # `unstable-pkgs.strata` after that PR reaches nixpkgs-unstable.
-    strata-src = {
-      url = "github:lgse/strata/v0.21.0";
-      flake = false;
-    };
-    strata-package-src = {
-      url = "github:Shangshui0302/nixpkgs/e7095c7d23897f76fbdae73a819d8c79fd9e68d4";
-      flake = false;
-    };
     # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
     # version 48.x. GNOME 49 added a hard requirement on
     # org.gnome.Mutter.ServiceChannel that the niri 26.04 in nixpkgs
@@ -63,11 +52,6 @@
 
     nix-darwin = {
       url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    firefox-addons = {
-      url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -300,9 +284,8 @@
                   nixpkgs.overlays = [
                     inputs.rust-overlay.overlays.default
                     # See nixpkgs-gnome48 input above for the why.
-                    (_final: prev: {
+                    (_final: _prev: {
                       inherit (inputs.nixpkgs-gnome48.legacyPackages.${host.platform}) xdg-desktop-portal-gnome;
-                      grok-bot = prev.callPackage ./pkgs/grok-bot.nix { };
                     })
                   ];
                 }
@@ -411,10 +394,10 @@
           gruvbox-trial = pkgs.callPackage ./pkgs/gruvbox-trial.nix {
             noctalia = self.packages.${system}.noctalia;
           };
-          chatgpt-desktop = pkgs.callPackage ./pkgs/chatgpt-desktop.nix { };
           herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
           orca-ide = pkgs.callPackage ./pkgs/orca-ide.nix { };
           pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
+          vitals = pkgs.callPackage ./pkgs/vitals.nix { };
         }
 
       );
@@ -799,6 +782,10 @@
           gruvbox-trial = pkgs.runCommand "check-gruvbox-trial" { } ''
             PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/desktop/gruvbox-trial.test.py
             touch "$out"
+          '';
+          browser-system-theme = pkgs.runCommand "check-browser-system-theme" { } ''
+            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/pkgs/browser-system-theme.test.py
+            touch $out
           '';
           gruvbox-appearance =
             assert import ./home/appearance/startup.test.nix { inherit (nixpkgs) lib; };

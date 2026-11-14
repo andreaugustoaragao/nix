@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  hostName,
   ...
 }:
 
@@ -26,10 +27,10 @@ let
       hooks = {
         sessionStart = [
           agentHubHook
-          {
-            command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
-          }
-        ];
+        ]
+        ++ lib.optional (hostName != "prl-dev-vm") {
+          command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
+        };
         sessionEnd = [ agentHubHook ];
         beforeSubmitPrompt = [ agentHubHook ];
         afterAgentResponse = [ agentHubHook ];
@@ -61,7 +62,7 @@ in
   home.activation.cursorHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] (configureHooks "");
 
   # cursor-agent stores runtime state (model picker, auth) in
-  # ~/.cursor/cli-config.json. Merge vimMode on activation so we do not
+  # ~/.cursor/cli-config.json. Merge requested defaults on activation so we do not
   # overwrite fields the CLI manages itself.
   home.activation.cursorCliConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.cursor/cli-config.json"
@@ -72,7 +73,12 @@ in
       existing='{"permissions":{"allow":[],"deny":[]},"version":1}'
     fi
     printf '%s' "$existing" \
-      | ${pkgs.jq}/bin/jq '.editor = ((.editor // {}) + {vimMode: true})' \
+      | ${pkgs.jq}/bin/jq '
+          .editor = ((.editor // {}) + {vimMode: true})
+          | .approvalMode = "unrestricted"
+          | .autoAcceptWebSearch = true
+          | .sandbox = ((.sandbox // {}) + {mode: "disabled"})
+        ' \
       > "$target.tmp"
     mv "$target.tmp" "$target"
     chmod 0600 "$target"

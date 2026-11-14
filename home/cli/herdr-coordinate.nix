@@ -43,10 +43,10 @@ let
         echo 'Usage: herdr-cursor MODEL TASK' >&2
         exit 1
       fi
-      case "$1" in
-        grok-4.7-high|grok-4.7-xhigh|composer-2.5) ;;
-        *) echo "Unsupported development worker model: $1" >&2; exit 1 ;;
-      esac
+      if [[ "$1" == auto ]] || ! cursor-agent models | cut -d' ' -f1 | grep -Fxq -- "$1"; then
+        echo "Unavailable explicit Cursor worker model: $1" >&2
+        exit 1
+      fi
       if [[ -z "''${HC_TERMINAL_ID:-}" ]]; then
         echo 'herdr-cursor must be launched in a herdr-core terminal with hc run.' >&2
         exit 1
@@ -60,11 +60,35 @@ let
       cursor-agent --plugin-dir ${cursorPlugin} --model "$1" "$instructions"$'\n\n'"$2"
     '';
   };
+  codexName = pkgs.writeShellApplication {
+    name = "herdr-codex-name";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${./herdr-coordinate/codex-name.py} "$@"
+    '';
+  };
+  chiefOfStaffInit = pkgs.writeShellApplication {
+    name = "chief-of-staff-init";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${skill}/scripts/init.py "$@"
+    '';
+  };
+  chiefOfStaffSpawn = pkgs.writeShellApplication {
+    name = "chief-of-staff-spawn";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${skill}/scripts/spawn.py "$@"
+    '';
+  };
 in
 {
   home.packages = [
     cursor
     cursorStatus
+    codexName
+    chiefOfStaffInit
+    chiefOfStaffSpawn
   ];
 
   home.file = {
@@ -79,8 +103,8 @@ in
   xdg.configFile = {
     "herdr-core/templates/dev-review.md".text = ''
       ---
-      description: Independent read-only code review with Codex Astra, xhigh effort.
-      command: codex --model gpt-6-astra -c 'model_reasoning_effort="xhigh"' --sandbox read-only
+      description: Independent read-only code review with Codex OpenAI Astra, xhigh effort.
+      command: codex-openai --model gpt-6-astra -c 'model_reasoning_effort="xhigh"' --sandbox read-only
       ---
       ${builtins.readFile ./herdr-coordinate/reviewer.md}
     '';

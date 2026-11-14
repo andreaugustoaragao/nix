@@ -12,7 +12,10 @@ let
     zig = unstable-pkgs.zig_0_17;
     browser-task = browserTask;
   };
-  inherit (unstable-pkgs) chromium;
+  chromium = import ../../pkgs/chromium-ahead.nix {
+    inherit (pkgs) lib;
+    inherit (unstable-pkgs) chromium;
+  };
 
   launch =
     role: profile:

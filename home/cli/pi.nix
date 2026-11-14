@@ -708,7 +708,8 @@ in
 
   # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
   # with a vim-modal editor. Seed the package into settings.json so pi
-  # auto-loads it on startup.
+  # auto-loads it on startup. Pi already runs tools without approvals; trust
+  # project resources by default as requested for unattended workers.
   home.activation.piVimMode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.pi/agent/settings.json"
     mkdir -p "$(dirname "$target")"
@@ -721,6 +722,7 @@ in
     printf '%s' "$existing" \
       | ${pkgs.jq}/bin/jq --arg pkg "$pkg" '
           .packages = ((.packages // []) + [$pkg] | unique)
+          | .defaultProjectTrust = "always"
         ' \
       > "$target.tmp"
     mv "$target.tmp" "$target"
@@ -756,34 +758,21 @@ in
   # Master cycle list for Ctrl+P / Shift+Ctrl+P. Seeded into
   # ~/.pi/agent/settings.json -> enabledModels by
   # home/services/pi-models.nix on the first activation that finds
-  # the field unset. After that, pi's /scoped-models interactive UI
-  # owns the field — including any per-model thinking-level overrides
-  # (xhigh for Opus, off for the local Qwen, etc.).
+  # the field unset. Activation maintains the full WebAI wildcard; other
+  # provider scopes remain editable through pi's /scoped-models UI.
   #
   # Provider/id qualification is mandatory here: `claude-opus-4-7`
   # exists both as a built-in Anthropic model AND as a route on the
   # corporate LiteLLM gateway, so we have to be explicit about which
   # path each cycle slot takes. Anthropic models go direct via
   # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the LiteLLM
-  # entries below track the current gateway catalog rather than the
-  # older four-model subset. The local wildcard selects Qwen3.6 on the
-  # workstation and Bonsai 2 on VM hosts that use mac-work.
+  # wildcard includes the complete shared WebAI catalog. The local wildcard
+  # selects Qwen3.6 on the workstation and Bonsai 2 on VM hosts using mac-work.
   services.piModels.enabledModels = [
     "anthropic/claude-opus-4-7"
   ]
   ++ lib.optionals (!personalOnly) [
-    "litellm/gpt-6-sol"
-    "litellm/gpt-6-luna"
-    "litellm/gpt-6.1-sol"
-    "litellm/gpt-5.6-sol"
-    "litellm/gpt-5.6-luna"
-    "litellm/gpt-5.6-terra"
-    "litellm/gpt-5.5"
-    "litellm/gpt-5.4"
-    "litellm/gemini-3.1-pro"
-    "litellm/gemini-3.8-flash"
-    "litellm/gemini-3.5-flash"
-    "litellm/grok-4.7"
+    "litellm/*"
     "llama-cpp/*-local"
   ];
 

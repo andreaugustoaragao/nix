@@ -1,4 +1,9 @@
-_:
+{
+  config,
+  lib,
+  hostName,
+  ...
+}:
 
 # Linux-only module: home-manager's `xdg.desktopEntries` only exists on
 # Linux (the option itself is undefined on Darwin, so we can't just gate
@@ -11,7 +16,7 @@ _:
   # not in the active icon theme (Papirus-Dark). User-local entries win
   # over the package-provided ones in the XDG search path.
   xdg.desktopEntries = {
-    yazi = {
+    yazi = lib.mkIf (hostName != "prl-dev-vm") {
       name = "Yazi";
       comment = "Blazing fast terminal file manager written in Rust";
       exec = "yazi %u";
@@ -40,6 +45,23 @@ _:
         "ConsoleOnly"
       ];
       icon = "office-calendar";
+    };
+
+    # The vitals package installs a binary and no desktop file, so launchers
+    # that scan XDG applications never see it. Papirus has no vitals icon;
+    # org.gnome.SystemMonitor is the system-monitor glyph already in that theme.
+    vitals = lib.mkIf (hostName == "prl-dev-vm") {
+      name = "Vitals";
+      genericName = "System Monitor";
+      comment = "Native Linux system monitor";
+      exec = "vitals";
+      terminal = false;
+      type = "Application";
+      categories = [
+        "System"
+        "Monitor"
+      ];
+      icon = "org.gnome.SystemMonitor";
     };
 
     # blueman ships Icon=blueman-device which isn't in Papirus.
@@ -72,7 +94,7 @@ _:
     in
     {
       vim = hide "Vim";
-      tectonic = hide "Tectonic";
+      tectonic = lib.mkIf (hostName != "prl-dev-vm") (hide "Tectonic");
       "amdgpu_top-tui" = hide "AMDGPU TOP (TUI)";
       bottom = hide "bottom";
       btop = hide "btop++";
@@ -84,8 +106,8 @@ _:
       nvim = hide "Neovim wrapper";
       # Foot terminal — keep the plain `foot.desktop` for at-will use;
       # hide the server/client pair (daemon mode, unused here).
-      footclient = hide "Foot Client";
-      foot-server = hide "Foot Server";
+      footclient = lib.mkIf config.programs.foot.enable (hide "Foot Client");
+      foot-server = lib.mkIf config.programs.foot.enable (hide "Foot Server");
 
       # Moved from home/cli/tmux.nix so the tmux module itself stays
       # cross-platform.

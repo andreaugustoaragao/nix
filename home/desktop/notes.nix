@@ -1,35 +1,44 @@
 {
+  config,
   pkgs,
+  hostName,
   ...
 }:
-
+let
+  picker = if hostName == "prl-dev-vm" then pkgs.fuzzel else pkgs.wofi;
+  pickerName = if hostName == "prl-dev-vm" then "fuzzel" else "wofi";
+  pickerCommand =
+    if hostName == "prl-dev-vm" then
+      "fuzzel --dmenu --prompt='Notes: ' --width=60 --lines=15"
+    else
+      "wofi --dmenu --width=600 --height=400 --prompt=Notes --insensitive --cache-file=/dev/null";
+  terminal = if config.programs.foot.enable then pkgs.foot else pkgs.kitty;
+  terminalCommand = if config.programs.foot.enable then "footclient" else "kitty --single-instance";
+in
 {
-  # Notes management script with wofi integration
+  # Notes management script with a fuzzy picker
   home.packages = [
     (pkgs.writeShellApplication {
       name = "notes";
       runtimeInputs = with pkgs; [
-        wofi
+        picker
         findutils
         coreutils
         gnused
         neovim
-        foot
+        terminal
       ];
       text = ''
         #!/usr/bin/env bash
 
-        # Notes management script with wofi integration
+        # Notes management script with a fuzzy picker
         # Usage: notes
-        # Description: Search, select, and create notes using wofi + nvim
+        # Description: Search, select, and create notes using a fuzzy picker + nvim
 
         set -e
 
         # Configuration
         NOTES_DIR="''${HOME}/projects/work/notes"
-
-        # Colors for wofi (Catppuccin Mocha theme)
-        WOFI_CONFIG=(--width=600 --height=400 --prompt="Notes" --insensitive --cache-file=/dev/null)
 
         # Ensure notes directory exists
         mkdir -p "$NOTES_DIR"
@@ -83,8 +92,8 @@
             # Get existing notes
             existing_notes=$(get_existing_notes)
             
-            # Show wofi menu with existing notes
-            selection=$(echo "$existing_notes" | wofi --dmenu "''${WOFI_CONFIG[@]}")
+            # Show picker with existing notes
+            selection=$(echo "$existing_notes" | ${pickerCommand})
             
             # Exit if nothing selected
             if [[ -z "$selection" ]]; then
@@ -98,9 +107,8 @@
             note_file="$NOTES_DIR/''${note_name}.md"
             
             if [[ -f "$note_file" ]]; then
-                # Open existing note - use footclient directly
                 cd "$NOTES_DIR"
-                exec footclient nvim "$note_file"
+                exec ${terminalCommand} nvim "$note_file"
             else
                 # Create new note with the typed input as the name
                 echo "Creating new note: $note_name"
@@ -115,9 +123,8 @@
                 # Create note template
                 create_note_template "$note_file" "$note_name"
                 
-                # Open in editor - use footclient directly
                 cd "$NOTES_DIR"
-                exec footclient nvim "$note_file"
+                exec ${terminalCommand} nvim "$note_file"
             fi
         }
 
@@ -130,7 +137,7 @@
             notes [OPTIONS]
 
         DESCRIPTION:
-            A script to manage markdown notes using wofi for selection.
+            A script to manage markdown notes using ${pickerName} for selection.
             Notes are stored in ~/projects/work/notes/ as .md files.
 
         OPTIONS:
@@ -142,7 +149,7 @@
             • Create new notes instantly by typing a new name
             • Automatic subdirectory creation (e.g., "projects/web-app" creates projects/ folder)
             • Automatic filename sanitization
-            • Integration with wofi for fuzzy searching
+            • Integration with ${pickerName} for fuzzy searching
             • Opens notes in nvim
 
         NOTES DIRECTORY:
@@ -161,7 +168,7 @@
             • "work/2024/q1-planning" → creates work/2024/q1_planning.md
 
         DEPENDENCIES:
-            • wofi (for menu interface)
+            • ${pickerName} (for menu interface)
             • nvim (text editor)
             • bash (shell)
         EOF

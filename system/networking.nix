@@ -167,12 +167,15 @@
   # first regardless of which link won the network match.
   services.resolved = {
     enable = true;
-    settings.Resolve = lib.mkIf (hostName == "workstation") {
-      DNS = "192.168.40.3";
-      FallbackDNS = "1.1.1.1";
-      Domains = "faragao.net";
-      MulticastDNS = "no";
-    };
+    settings.Resolve = lib.mkMerge [
+      (lib.mkIf (hostName == "prl-dev-vm") { LLMNR = "no"; })
+      (lib.mkIf (hostName == "workstation") {
+        DNS = "192.168.40.3";
+        FallbackDNS = "1.1.1.1";
+        Domains = "faragao.net";
+        MulticastDNS = "no";
+      })
+    ];
   };
 
   # FQDN: hostname --fqdn → workstation.faragao.net.
@@ -224,7 +227,7 @@
   '';
 
   networking.hosts."127.0.0.1" =
-    lib.optionals (!personalOnly && hostName != "workstation") [
+    lib.optionals (!personalOnly && hostName != "workstation" && hostName != "prl-dev-vm") [
       "grafana.local"
       "loki.local"
       "prometheus.local"
@@ -269,17 +272,19 @@
 
     # Allowed TCP ports
     allowedTCPPorts =
-      lib.optionals (!personalOnly) [
-        22 # SSH
+      lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ 22 ] # SSH
+      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm") [
         6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
       ]
       ++ lib.optionals (hostName == "workstation") [
         80 # K3s ingress (istio-ingress via klipper-lb)
         443
       ]
-      ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
+      ++ lib.optionals (hostName == "vmw-dev-vm") [
         80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
         443
+      ]
+      ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
         # Fulcrum HTTPS — source-run unit binds to 0.0.0.0:3100 so the
         # Parallels/VMware host (mac-work) can reach it at
         # https://<hostname>.local:3100.
@@ -307,7 +312,7 @@
     ];
 
     # Trust local interfaces for Docker and K3s
-    trustedInterfaces = lib.optionals (!personalOnly) [
+    trustedInterfaces = lib.optionals (!personalOnly && hostName != "prl-dev-vm") [
       "docker0" # Docker bridge
       "cni0" # K3s CNI bridge
       "flannel.1" # K3s Flannel
@@ -327,6 +332,10 @@
 
       # Allow loopback
       iptables -A INPUT -i lo -j ACCEPT
+    ''
+    + lib.optionalString (hostName == "prl-dev-vm") ''
+      # SSH to this VM is only used by its Parallels Mac host.
+      iptables -w -A nixos-fw -s 10.211.55.2/32 -p tcp --dport 22 -j nixos-fw-accept
     '';
   };
 }

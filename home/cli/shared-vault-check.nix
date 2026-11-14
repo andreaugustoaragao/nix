@@ -258,14 +258,10 @@ assert
   !pkgs.stdenv.hostPlatform.isLinux || (builtins.tryEval (toString serviceDiagnostics)).success;
 assert
   !pkgs.stdenv.hostPlatform.isLinux
-  || lib.elem
-    "FULCRUM_EMBEDDING_CACHE_DIR=${embeddingCache}"
-    serviceEnabled.systemd.user.services.shared-vault.Service.Environment;
+  || lib.elem "FULCRUM_EMBEDDING_CACHE_DIR=${embeddingCache}" serviceEnabled.systemd.user.services.shared-vault.Service.Environment;
 assert
   !pkgs.stdenv.hostPlatform.isLinux
-  || lib.any
-    (lib.hasPrefix "${release}/bin/vault-service --config ")
-    serviceEnabled.systemd.user.services.shared-vault.Service.ExecStart;
+  || lib.any (lib.hasPrefix "${release}/bin/vault-service --config ") serviceEnabled.systemd.user.services.shared-vault.Service.ExecStart;
 assert
   !pkgs.stdenv.hostPlatform.isLinux
   || lib.any (lib.hasInfix "--release-manifest ") serviceEnabled.systemd.user.services.shared-vault.Service.ExecStart;

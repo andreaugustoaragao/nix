@@ -11,8 +11,8 @@ let
   piProviders = config.services.piModels.providers;
   compatiblePackage = "@opencode/ai/providers/openai-compatible";
 
-  # Reuse Pi's host-specific model IDs and limits, including the remote
-  # llama.cpp endpoint on the VMs. Credentials remain runtime file references.
+  # Reuse Pi's WebAI and host-specific models, including protocol and limits.
+  # Credentials remain runtime file references.
   piModels =
     provider:
     lib.listToAttrs (
@@ -24,19 +24,20 @@ let
             tools = true;
             inherit (model) input;
             output = [ "text" ];
-          };
+          }
+          // lib.optionalAttrs (model.reasoning or false) { reasoning.supported = true; };
           limit = {
             context = model.contextWindow;
             output = model.maxTokens;
           };
+        }
+        // lib.optionalAttrs ((model.api or provider.api) == "openai-responses") {
+          package = "@opencode/ai/providers/openai/responses";
+          body.store = false;
         };
       }) provider.models
     );
 
-  # Snapshot of the gateway's /model/info, 2026-11-10. Contains public
-  # model aliases/capabilities only. GPT entries select the Responses
-  # runtime used by Codex; other entries use Pi's Chat Completions route.
-  gatewayModels = builtins.fromJSON (builtins.readFile ./opencode-litellm-models.json);
 in
 {
   config = lib.mkIf (!isServer) {
@@ -61,6 +62,7 @@ in
           settings = json.loads(path.read_text()) if path.exists() else {}
           settings.setdefault("$schema", "https://opencode.ai/v2/cli.json")
           settings.setdefault("session", {})["sidebar"] = "hide"
+          settings["session"]["permissions"] = "autoaccept"
           settings.setdefault("tabs", {})["mode"] = "off"
           content = json.dumps(settings, indent=2) + "\n"
           if not path.exists() or path.read_text() != content:
@@ -79,6 +81,13 @@ in
       "$schema" = "https://opencode.ai/config.json";
       model = if personalOnly then "openai/gpt-6-sol" else "litellm/gpt-6-astra";
       update = "disable"; # The executable is managed by Nix.
+      permissions = [
+        {
+          action = "*";
+          resource = "*";
+          effect = "allow";
+        }
+      ];
       mcp.servers =
         lib.optionalAttrs (!personalOnly) {
           atlassian = {
@@ -96,7 +105,7 @@ in
               baseURL = "{file:/run/secrets/litellm_base_url}";
               apiKey = "{file:/run/secrets/litellm_api_key}";
             };
-            models = gatewayModels;
+            models = piModels piProviders.litellm;
           };
 
           # Pi routes Claude directly to Anthropic, rather than LiteLLM.

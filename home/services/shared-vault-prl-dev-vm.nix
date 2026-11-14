@@ -7,8 +7,12 @@
 }:
 let
   pin = builtins.fromJSON (builtins.readFile ./shared-vault-prl-dev-vm-release.json);
+  browser = import ../../pkgs/chromium-ahead.nix {
+    inherit (pkgs) lib;
+    inherit (unstable-pkgs) chromium;
+  };
   chromium = pkgs.writeShellScript "fulcrum-chromium" ''
-    exec ${pkgs.coreutils}/bin/env -u LD_LIBRARY_PATH ${unstable-pkgs.chromium}/bin/chromium "$@"
+    exec ${pkgs.coreutils}/bin/env -u LD_LIBRARY_PATH ${browser}/bin/chromium "$@"
   '';
 in
 {
@@ -27,8 +31,8 @@ in
     release = pkgs.callPackage ../../pkgs/shared-vault-release.nix pin;
     releaseId = pin.sourceRevision;
     service = {
-      # Keep disabled until the Rust migration and installed verification pass.
-      enable = false;
+      # Certified Rust runtime; installed acceptance remains required for delivery.
+      enable = true;
       notesDir = "${config.home.homeDirectory}/projects/work/notes";
       stateDir = "${config.xdg.dataHome}/shared-vault/work-notes";
       recordingsDirectory = "${config.home.homeDirectory}/recordings/calls";

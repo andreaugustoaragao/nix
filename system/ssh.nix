@@ -1,4 +1,9 @@
-{ lib, owner, ... }:
+{
+  lib,
+  owner,
+  hostName,
+  ...
+}:
 
 let
   # Peer pubkeys live under secrets/ssh_pubkeys/*.pub (plaintext —
@@ -17,6 +22,7 @@ in
 {
   services.openssh = {
     enable = true;
+    openFirewall = hostName != "prl-dev-vm";
     settings = {
       # SECURITY: Disable password authentication - use SSH keys only
       PasswordAuthentication = false;

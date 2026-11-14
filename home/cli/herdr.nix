@@ -3,6 +3,7 @@
   lib,
   pkgs,
   appearance,
+  hostName,
   ...
 }:
 
@@ -19,36 +20,38 @@ let
   };
 in
 {
-  home.packages = [ herdr ];
+  home.packages = lib.optional (hostName != "prl-dev-vm") herdr;
 
-  home.file = lib.mkMerge [
-    (lib.mapAttrs (_: asset: {
-      source = "${assets}/${asset}";
-      executable = lib.hasSuffix ".sh" asset;
-      # Replace previous copies installed by Herdr with the same pinned assets.
-      force = true;
-    }) integrations)
-    {
-      ".grok/hooks/herdr.json" = {
+  home.file = lib.mkIf (hostName != "prl-dev-vm") (
+    lib.mkMerge [
+      (lib.mapAttrs (_: asset: {
+        source = "${assets}/${asset}";
+        executable = lib.hasSuffix ".sh" asset;
+        # Replace previous copies installed by Herdr with the same pinned assets.
         force = true;
-        text = builtins.toJSON {
-          hooks.SessionStart = [
-            {
-              hooks = [
-                {
-                  type = "command";
-                  command = "sh '${config.home.homeDirectory}/.grok/hooks/herdr-agent-state.sh' session";
-                  timeout = 10;
-                }
-              ];
-            }
-          ];
+      }) integrations)
+      {
+        ".grok/hooks/herdr.json" = {
+          force = true;
+          text = builtins.toJSON {
+            hooks.SessionStart = [
+              {
+                hooks = [
+                  {
+                    type = "command";
+                    command = "sh '${config.home.homeDirectory}/.grok/hooks/herdr-agent-state.sh' session";
+                    timeout = 10;
+                  }
+                ];
+              }
+            ];
+          };
         };
-      };
-    }
-  ];
+      }
+    ]
+  );
 
-  xdg.configFile = {
+  xdg.configFile = lib.mkIf (hostName != "prl-dev-vm") {
     "herdr/config.toml" = {
       force = true;
       source = (pkgs.formats.toml { }).generate "herdr-config.toml" {
@@ -102,6 +105,7 @@ in
         run ${lib.getExe python} ${./herdr-configure.py} \
           --home ${lib.escapeShellArg config.home.homeDirectory} \
           --config-home ${lib.escapeShellArg config.xdg.configHome} \
-          --state-home ${lib.escapeShellArg config.xdg.stateHome}
+          --state-home ${lib.escapeShellArg config.xdg.stateHome} \
+          ${lib.optionalString (hostName == "prl-dev-vm") "--retire-legacy"}
       '';
 }

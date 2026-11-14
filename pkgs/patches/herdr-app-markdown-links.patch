@@ -1,0 +1,262 @@
+diff --git a/src/links.rs b/src/links.rs
+index 65999da..bbfda44 100644
+--- a/src/links.rs
++++ b/src/links.rs
+@@ -28,17 +28,31 @@ static PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+     Regex::new(&format!("{scheme_url}|{rooted_path}|{bare_path}")).expect("link pattern")
+ });
+ 
++static BARE_FILE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(r"(?<!\$\d*)(?<![\w~\/.\-])[\w][\w.\-]*(?:\/[\w.\-]+)*(?:\.[\w]+)?(?::\d+(?::\d+)?)?(?:#[\w.\-]+)?(?<!:)")
++        .expect("bare file pattern")
++});
++
+ /// The link in `text` that covers byte `at`.
+ pub fn find(text: &str, at: usize) -> Option<Range<usize>> {
+     for m in PATTERN.find_iter(text) {
+         let m = m.ok()?;
+         if m.start() > at {
+-            return None;
++            break;
+         }
+         if at < m.end() {
+             return Some(m.range());
+         }
+     }
++    for m in BARE_FILE_PATTERN.find_iter(text) {
++        let m = m.ok()?;
++        if m.start() > at {
++            return None;
++        }
++        if at < m.end() && !text[m.end()..].starts_with("://") {
++            return Some(m.range());
++        }
++    }
+     None
+ }
+ 
+@@ -72,11 +86,38 @@ pub enum Target {
+     File(PathBuf),
+ }
+ 
++fn strip_location_suffix(s: &str) -> &str {
++    let mut bare = s.trim_end_matches(['.', ',', ';']);
++    if let Some((head, _frag)) = bare.split_once('#') {
++        bare = head;
++    }
++    for _ in 0..2 {
++        match bare.rsplit_once(':') {
++            Some((head, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => bare = head,
++            _ => break,
++        }
++    }
++    bare
++}
++
++fn existing_file(full: &Path) -> Option<PathBuf> {
++    // Windows ignores a trailing period when checking whether a path exists.
++    if !(cfg!(windows) && full.extension().is_some_and(|ext| ext.is_empty())) && full.exists() {
++        return Some(full.to_path_buf());
++    }
++    // Trailing prose punctuation, `#L42` anchors, or `:42` / `:42:7` naming a place in the file.
++    let bare = strip_location_suffix(full.to_str()?);
++    Path::new(bare).exists().then(|| PathBuf::from(bare))
++}
++
+ /// What a link opens. File paths count only when they exist here; relative
+ /// ones need the terminal's folder.
+ pub fn resolve(link: &str, cwd: Option<&Path>) -> Option<Target> {
+-    let scheme = link.split_once(':').is_some_and(|(s, _)| {
+-        s.len() > 1 && s.starts_with(|c: char| c.is_ascii_alphabetic()) && s.chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
++    let scheme = link.split_once(':').is_some_and(|(s, rest)| {
++        s.len() > 1
++            && s.starts_with(|c: char| c.is_ascii_alphabetic())
++            && s.chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
++            && (rest.starts_with("//") || (!s.contains('.') && !rest.chars().all(|c| c.is_ascii_digit() || c == ':')))
+     });
+     if scheme {
+         // Windows can't open a file URL whose path is percent-encoded, the way programs write them.
+@@ -99,20 +140,20 @@ pub fn resolve(link: &str, cwd: Option<&Path>) -> Option<Target> {
+     } else {
+         PathBuf::from(link)
+     };
+-    let full = if expanded.is_absolute() { expanded } else { cwd?.join(expanded) };
+-    // Windows ignores a trailing period when checking whether a path exists.
+-    if !(cfg!(windows) && full.extension().is_some_and(|ext| ext.is_empty())) && full.exists() {
+-        return Some(Target::File(full));
++    if expanded.is_absolute() {
++        return existing_file(&expanded).map(Target::File);
+     }
+-    // The period ending a sentence, or `:42` / `:42:7` naming a place in the file.
+-    let mut bare = full.to_str()?.strip_suffix('.').unwrap_or(full.to_str()?);
+-    for _ in 0..2 {
+-        match bare.rsplit_once(':') {
+-            Some((head, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => bare = head,
+-            _ => break,
++    let cwd = cwd?;
++    if let Some(found) = existing_file(&cwd.join(&expanded)) {
++        return Some(Target::File(found));
++    }
++    // Agents often share repo-root-relative paths while the shell is in a subdirectory.
++    for ancestor in cwd.ancestors().skip(1) {
++        if ancestor.join(".git").exists() {
++            return existing_file(&ancestor.join(&expanded)).map(Target::File);
+         }
+     }
+-    Path::new(bare).exists().then(|| Target::File(PathBuf::from(bare)))
++    None
+ }
+ 
+ /// The path a `file:` URL names on this computer, percent-decoded.
+@@ -429,4 +470,34 @@ mod tests {
+         }
+         std::fs::remove_dir_all(dir).unwrap();
+     }
++
++    #[test]
++    fn resolves_bare_files_anchors_and_repo_root() {
++        let dir = std::env::temp_dir().join(format!("herdr-bare-links-{}", std::process::id()));
++        let sub = dir.join("nested/sub");
++        let bin = dir.join("bin");
++        std::fs::create_dir_all(&sub).unwrap();
++        std::fs::create_dir_all(&bin).unwrap();
++        std::fs::create_dir_all(dir.join(".git")).unwrap();
++        let readme = dir.join("README.md");
++        let tool = bin.join("deploy");
++        std::fs::write(&readme, "# hi\n").unwrap();
++        std::fs::write(&tool, "#!/bin/sh\n").unwrap();
++
++        let text = "Read README.md, README.md#L10-L20, README.md:42:7, or bin/deploy.";
++        for needle in ["README.md", "README.md#L10-L20", "README.md:42:7", "bin/deploy"] {
++            let at = text.find(needle).unwrap();
++            let range = find(text, at).unwrap_or_else(|| panic!("expected find to match {needle}"));
++            assert_eq!(&text[range.clone()], needle);
++            let expected = if needle == "bin/deploy" { tool.clone() } else { readme.clone() };
++            assert_eq!(resolve(&text[range.clone()], Some(&dir)), Some(Target::File(expected.clone())), "{needle}");
++            assert_eq!(resolve(&text[range], Some(&sub)), Some(Target::File(expected)), "from subdir: {needle}");
++        }
++
++        let dot_http = "dot.http://example.com";
++        assert_eq!(find(dot_http, 0), None);
++        assert_eq!(find(dot_http, dot_http.find("http").unwrap()).map(|r| &dot_http[r]), Some("http://example.com"));
++
++        std::fs::remove_dir_all(dir).unwrap();
++    }
+ }
+diff --git a/src/terminal.rs b/src/terminal.rs
+index b707ea2..3ed9acf 100644
+--- a/src/terminal.rs
++++ b/src/terminal.rs
+@@ -67,6 +67,7 @@ enum LinkTarget {
+ 
+ pub enum TerminalEvent {
+     Peek(String),
++    OpenMarkdown(std::path::PathBuf),
+     TitleChanged,
+     /// The program ended.
+     Ended,
+@@ -1276,6 +1277,12 @@ fn mouse_mods(m: Modifiers) -> GhosttyMods {
+     mods
+ }
+ 
++fn is_markdown_file(path: &std::path::Path) -> bool {
++    path.extension()
++        .and_then(|e| e.to_str())
++        .is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown"))
++}
++
+ fn link_mods(m: &Modifiers) -> bool {
+     let key = if cfg!(target_os = "macos") { m.platform && !m.control } else { m.control && !m.platform };
+     key && !m.alt && !m.shift
+@@ -2187,21 +2194,31 @@ impl Render for TerminalView {
+                 }
+             }))
+             .on_mouse_down(MouseButton::Left, cx.listener(|this, ev: &MouseDownEvent, window, cx| {
+-                this.focus.focus(window, cx);
+-                let g = this.grid.borrow();
+-                if let Some(ch) = g.channel {
+-                    g.core.resize(ch, g.vt.cols, g.vt.rows);
+-                }
+-                drop(g);
+                 if link_mods(&ev.modifiers)
+                     && let Some((target, _)) = this.link_at(ev.position)
+                 {
+                     match target {
+-                        LinkTarget::External(target) => links::open(&target),
+-                        LinkTarget::Terminal(address) => cx.emit(TerminalEvent::Peek(address)),
++                        LinkTarget::External(links::Target::File(path)) if is_markdown_file(&path) => {
++                            cx.emit(TerminalEvent::OpenMarkdown(path));
++                        }
++                        LinkTarget::External(target) => {
++                            this.focus.focus(window, cx);
++                            links::open(&target);
++                        }
++                        LinkTarget::Terminal(address) => {
++                            this.focus.focus(window, cx);
++                            cx.emit(TerminalEvent::Peek(address));
++                        }
+                     }
++                    cx.stop_propagation();
+                     return;
+                 }
++                this.focus.focus(window, cx);
++                let g = this.grid.borrow();
++                if let Some(ch) = g.channel {
++                    g.core.resize(ch, g.vt.cols, g.vt.rows);
++                }
++                drop(g);
+                 let mut g = this.grid.borrow_mut();
+                 if let (Some(track), Some(thumb)) = (g.track, g.thumb)
+                     && track.contains(&ev.position)
+diff --git a/src/window.rs b/src/window.rs
+index 08a4370..3f73825 100644
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -1432,6 +1432,7 @@ impl AppWindow {
+             let (block, addr) = (id.clone(), address.clone());
+             let sub = cx.subscribe_in(&view, window, move |this, _, ev: &TerminalEvent, window, cx| match ev {
+                 TerminalEvent::Peek(address) => this.peek_terminal(address, window, cx),
++                TerminalEvent::OpenMarkdown(path) => this.open_markdown(path, &addr, window, cx),
+                 TerminalEvent::TitleChanged => this.publish(cx),
+                 TerminalEvent::Ended => this.terminal_ended(&block, window, cx),
+                 TerminalEvent::ContextMenu(at) => {
+@@ -3671,6 +3672,39 @@ impl AppWindow {
+         cx.notify();
+     }
+ 
++    fn open_markdown(&mut self, path: &std::path::Path, addr: &str, window: &mut Window, cx: &mut Context<Self>) {
++        static OPEN_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
++        let file = path.to_string_lossy().into_owned();
++        let cwd = self.cwds.get(addr).cloned();
++        let on = addr.split_once('/').map(|(m, _)| m.to_owned());
++        let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
++        let id = format!("link-{ms}-{}", OPEN_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
++        mods::set_shared(
++            "herdr-preview.open".into(),
++            json!({
++                "file": file,
++                "on": on,
++                "cwd": cwd,
++                "id": id,
++            }),
++        );
++        let was_open = !self.chrome.find("panel").is_none_or(|p| p.hidden)
++            && self.chrome.find("panel-body").and_then(|s| s.active_child()).is_some_and(|c| c.id == "preview");
++        if self.chrome.select("panel-body", "preview") {
++            if let Some(panel) = self.chrome.find_mut("panel") {
++                panel.hidden = false;
++            }
++            if !was_open {
++                self.focus_block("preview", window, cx);
++            } else {
++                self.sync(window, cx);
++            }
++            cx.notify();
++        } else {
++            self.open_overlay("mod-preview".into(), json!({ "mod": "preview", "kind": "window", "width": 560, "height": 680 }), window, cx);
++        }
++    }
++
+     fn peek_terminal(&mut self, address: &str, window: &mut Window, cx: &mut Context<Self>) {
+         self.close_overlay("terminal-peek", window, cx);
+         self.open_overlay("terminal-peek".into(), json!({

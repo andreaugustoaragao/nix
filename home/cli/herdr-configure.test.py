@@ -60,6 +60,40 @@ class IntegrationTests(unittest.TestCase):
         config = {"plugins": [["./herdr-opencode", {"custom": True}]]}
         self.assertEqual(configure.plugin_config(config, "plugins", "./herdr-opencode"), config)
 
+    def test_retirement_preserves_desktop_and_agent_hub_integrations(self):
+        codex = self.home / ".codex/hooks.json"
+        script = self.home / ".codex/herdr-agent-state.sh"
+        desktop = {"type": "command", "command": "hc report"}
+        hub = {"type": "command", "command": "agent-hub observe"}
+        configure.write(codex, {"hooks": {"SessionStart": [{"matcher": "keep", "hooks": [
+            desktop, hub,
+            {"command": f"bash {script} session"},
+            {"command": ": orca-agent-hook-form=1; exit 0"},
+        ]}]}})
+        cli = self.config / "opencode/cli.json"
+        desktop_plugin = "/home/test/.config/herdr-app/integrations/opencode"
+        configure.write(cli, {"theme": "keep", "plugins": [
+            "./herdr-opencode", ["./herdr-tui-session.js", {}], desktop_plugin,
+        ]})
+        extension = self.home / ".pi/agent/extensions/orca-prefill.ts"
+        extension.parent.mkdir(parents=True)
+        extension.write_text("legacy extension")
+        configure.retire(self.home, self.config, self.state)
+        self.assertEqual(configure.load(codex)["hooks"]["SessionStart"], [
+            {"matcher": "keep", "hooks": [desktop, hub]},
+        ])
+        self.assertEqual(configure.load(cli), {"theme": "keep", "plugins": [desktop_plugin]})
+        self.assertFalse(extension.exists())
+        backups = list((self.state / "retired-ai-tools/pi-extensions").iterdir())
+        self.assertEqual([p.read_text() for p in backups], ["legacy extension"])
+        before = [p.read_bytes() for p in (codex, cli)]
+        configure.retire(self.home, self.config, self.state)
+        self.assertEqual(before, [p.read_bytes() for p in (codex, cli)])
+
+    def test_retirement_does_not_create_missing_agent_configs(self):
+        configure.retire(self.home, self.config, self.state)
+        self.assertEqual(list(self.home.iterdir()), [])
+
     def test_migration_is_deferred_then_converges(self):
         legacy = self.config / "opencode/tui.json"
         configure.write(legacy, {"theme": "personal"})

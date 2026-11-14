@@ -2,6 +2,7 @@
   pkgs,
   lib,
   isServer,
+  hostName,
   ...
 }:
 
@@ -124,8 +125,9 @@
       # Hide kernel pointers in /proc
       "kernel.kptr_restrict" = 2;
 
-      # Restrict ptrace to parent processes only
-      "kernel.yama.ptrace_scope" = 2;
+      # Allow same-user debugger/profiler attachment on the development VM.
+      # Other hosts require CAP_SYS_PTRACE (scope 2).
+      "kernel.yama.ptrace_scope" = if hostName == "prl-dev-vm" then 0 else 2;
 
       # Disable unprivileged BPF
       "kernel.unprivileged_bpf_disabled" = 1;

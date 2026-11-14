@@ -3,11 +3,13 @@
   pkgs,
   lib,
   unstable-pkgs,
+  hostName,
   isDarwinHost ? false,
   ...
 }:
 
 let
+  extraAiTools = hostName != "prl-dev-vm";
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
 
@@ -51,8 +53,7 @@ let
     export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
     ${pkgs.nodejs_22}/bin/npm install -g \
       @openai/codex@latest \
-      @earendil-works/pi-coding-agent@latest \
-      @xai-official/grok@latest
+      @earendil-works/pi-coding-agent@latest ${lib.optionalString extraAiTools "@xai-official/grok@latest"}
 
     # Use the freshly updated CLI; never reconcile project-local packages
     # based on the working directory of a manual or scheduled invocation.
@@ -174,7 +175,6 @@ in
         # nerdctl is Linux-only (talks to containerd via runc); see the
         # `linuxOnly` block below where we re-add it via lib.optionals.
         tilt # Local Kubernetes development tool
-        lazydocker # Terminal UI for Docker
         sqlite # Database for development
 
         # Database tools
@@ -196,10 +196,6 @@ in
         rclone # Mount Google Drive (and other cloud storage) as local filesystem
         cloudflared # Cloudflare Tunnel client for exposing local services
 
-        # Browser Automation & Testing
-        (pkgs.callPackage ../../pkgs/agent-browser-background.nix { }) # Background browser automation
-        playwright-driver.browsers # Playwright with bundled browsers
-
         # Audio/Video Processing & Speech-to-Text
         ffmpeg # Audio/video conversion (needed for voice message transcription)
         whisper-cpp # Speech-to-text engine (Whisper.cpp - fast, local, ARM-native)
@@ -207,14 +203,21 @@ in
         # Architecture Diagramming (C4 model)
         plantuml-c4 # PlantUML with C4 model library (includes plantuml)
         graphviz # Graph layout engine (required by PlantUML)
-        (pkgs.callPackage ../../pkgs/uml-viewer.nix { }) # Interactive diagrams and uml-ir
 
         # AI/ML Development
-        install-qwen-code # Script to install Qwen Code CLI tool
-        install-gemini-cli # Script to install Google Gemini CLI
         install-pi-coding-agent # Script to install Pi coding agent
-        update-npm-ai-tools # Daily/manual updater for Codex + Pi/packages + Grok Build
+        update-npm-ai-tools # Daily/manual updater for the retained npm agents
         (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
+      ]
+      ++ lib.optionals (hostName != "prl-dev-vm") [
+        pkgs.lazydocker
+        (pkgs.callPackage ../../pkgs/uml-viewer.nix { })
+        (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
+        pkgs.playwright-driver.browsers
+      ]
+      ++ lib.optionals extraAiTools [
+        install-qwen-code
+        install-gemini-cli
       ]
       ++ [
         # Static analysis / SAST — pinned to stable (1.161.0). Unstable's 1.164.0
@@ -243,7 +246,7 @@ in
         ubTools.dryer # Structural duplicate detection
         ubTools.mutator # Mutation testing
       ]
-      ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux (
+      ++ lib.optionals (pkgs.stdenv.hostPlatform.isLinux && hostName != "prl-dev-vm") (
         with pkgs;
         [
           # Linux-only containerd CLI; Darwin uses Docker Desktop /
@@ -256,9 +259,6 @@ in
     sessionVariables = {
       # Node.js
       NODE_OPTIONS = "--max-old-space-size=4096";
-
-      # Playwright (browser automation) - use Nix-provided browsers
-      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
 
       # Go
       GOPATH = "${config.xdg.dataHome}/go";
@@ -279,6 +279,9 @@ in
 
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
+    }
+    // lib.optionalAttrs (hostName != "prl-dev-vm") {
+      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     };
 
     activation = {
@@ -301,11 +304,12 @@ in
         # Add Node.js to PATH so npm post-install scripts can find 'node'
         export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
 
-        # Install Gemini CLI if not present
-        if ! command -v gemini &> /dev/null; then
-          echo "Installing Google Gemini CLI..."
-          ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
-        fi
+        ${lib.optionalString extraAiTools ''
+          if ! command -v gemini &> /dev/null; then
+            echo "Installing Google Gemini CLI..."
+            ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
+          fi
+        ''}
 
         # Bootstrap missing CLIs, but never upgrade them during activation.
         # `update-npm-ai-tools` performs scheduled/manual updates outside
@@ -322,10 +326,12 @@ in
           ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
         fi
 
-        if [[ ! -x "$NPM_CONFIG_PREFIX/bin/grok" ]]; then
-          echo "Installing xAI Grok Build CLI..."
-          ${pkgs.nodejs_22}/bin/npm install -g @xai-official/grok@latest
-        fi
+        ${lib.optionalString extraAiTools ''
+          if [[ ! -x "$NPM_CONFIG_PREFIX/bin/grok" ]]; then
+            echo "Installing xAI Grok Build CLI..."
+            ${pkgs.nodejs_22}/bin/npm install -g @xai-official/grok@latest
+          fi
+        ''}
       '';
 
       # Auto-install Cursor Agent CLI.

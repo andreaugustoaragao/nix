@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  hostName,
   personalOnly,
   ...
 }:
@@ -124,7 +125,7 @@ in
       # Common shortcuts
       c = "clear";
       h = "history";
-      y = "yazi";
+      y = lib.mkIf (hostName != "prl-dev-vm") "yazi";
       grep = "grep --color=auto";
       mkdir = "mkdir -p";
       rm = "rm -i";

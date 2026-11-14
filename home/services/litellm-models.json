@@ -1,0 +1,269 @@
+{
+  "updated": "2026-11-13",
+  "models": [
+    {
+      "id": "codex-auto-review",
+      "name": "codex-auto-review (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1050000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gemini-3.1-pro",
+      "name": "gemini-3.1-pro (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 65536
+    },
+    {
+      "id": "gemini-3.5-flash",
+      "name": "gemini-3.5-flash (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 65536
+    },
+    {
+      "id": "gemini-3.5-flash-lite",
+      "name": "gemini-3.5-flash-lite (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 65536
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "name": "gemini-3.8-flash (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 65536
+    },
+    {
+      "id": "gemini-4-argon",
+      "name": "gemini-4-argon (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 1048576
+    },
+    {
+      "id": "gemini-4-carbon",
+      "name": "gemini-4-carbon (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 1048576
+    },
+    {
+      "id": "gemini-4-hydrogen",
+      "name": "gemini-4-hydrogen (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1048576,
+      "maxTokens": 1048576
+    },
+    {
+      "id": "gemma-4-26b-a4b-it",
+      "name": "gemma-4-26b-a4b-it (WebAI)",
+      "api": "openai-completions",
+      "reasoning": false,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 262144,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-4o",
+      "name": "gpt-4o (WebAI)",
+      "api": "openai-completions",
+      "reasoning": false,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 128000,
+      "maxTokens": 16384
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "name": "gpt-5.6-terra (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1050000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-6-astra",
+      "name": "gpt-6-astra (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 128000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-6-luna",
+      "name": "gpt-6-luna (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 922000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-6-sol",
+      "name": "gpt-6-sol (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 922000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "name": "gpt-6.1-sol (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 922000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "gpt-6.1-terra",
+      "name": "gpt-6.1-terra (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1050000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "grok-4.6",
+      "name": "grok-4.6 (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 524288,
+      "maxTokens": 524288
+    },
+    {
+      "id": "grok-4.7",
+      "name": "grok-4.7 (WebAI)",
+      "api": "openai-completions",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 524288,
+      "maxTokens": 524288
+    },
+    {
+      "id": "webai-gpt-5.6-terra",
+      "name": "webai-gpt-5.6-terra (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1050000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "webai-gpt-6-astra",
+      "name": "webai-gpt-6-astra (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 128000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "webai-gpt-6-luna",
+      "name": "webai-gpt-6-luna (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 922000,
+      "maxTokens": 128000
+    },
+    {
+      "id": "webai-gpt-6.1-sol",
+      "name": "webai-gpt-6.1-sol (WebAI)",
+      "api": "openai-responses",
+      "reasoning": true,
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 922000,
+      "maxTokens": 128000
+    }
+  ]
+}

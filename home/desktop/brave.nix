@@ -182,7 +182,10 @@ in
   # Brave Browser configuration using the pinned upstream release
   programs.brave = {
     enable = true;
-    package = bravePackage;
+    package = (pkgs.callPackage ../../pkgs/browser-system-theme.nix { }) {
+      browser = bravePackage;
+      name = "brave";
+    };
     # Soft extension installs: a JSON manifest is dropped into Brave's
     # External Extensions/ dir, so the extension shows up on first
     # profile creation but the user can disable or remove it later.

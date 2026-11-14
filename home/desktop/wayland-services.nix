@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   useDms ? false,
@@ -82,7 +83,7 @@ in
     #   Install = { WantedBy = [ "graphical-session.target" ]; };
     # };
 
-    wl-foot-server = {
+    wl-foot-server = lib.mkIf config.programs.foot.enable {
       Unit = {
         Description = "Wayland: foot terminal server";
         After = [ "graphical-session.target" ];

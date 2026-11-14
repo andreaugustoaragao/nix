@@ -98,7 +98,7 @@ in
       # Misc shortcuts
       c = "clear";
       h = "history";
-      y = "yazi";
+      y = lib.mkIf (hostName != "prl-dev-vm") "yazi";
     };
 
     # home.sessionVariables only writes hm-session-vars.sh (POSIX

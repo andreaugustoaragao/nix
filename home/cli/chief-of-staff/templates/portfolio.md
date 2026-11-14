@@ -5,7 +5,9 @@
 - Coordinator terminal: <literal HC_TERMINAL_ID>
 - Owning core: <HC_TERMINAL_SOCKET>
 - Mode: active
-- Worker limit: 3 live workers total; at most 2 implementers; reserve review capacity
+- Requested layout / capacity: <tab count, splits per tab or total, coordinator included, and host/session limit>
+- Allowed harnesses/models/subscriptions: <user choices and verified current availability>
+- Subscription headroom: <known allowance/reset/marginal charge per route, checked-at time, or unknown; separate from API cost>
 - Dispatch paused: no
 - Intake paused: no
 - Next action: <specific action or waiting for user input>
@@ -17,8 +19,8 @@
 
 ## Live worker inventory (includes idle and blocked workers)
 
-| Terminal ID / core | Task | Role | Model / effort | Observed status | Worktree |
-| --- | --- | --- | --- | --- | --- |
+| Terminal ID / core | Tab / split | Task | Role | Harness / subscription / model / effort | Observed status | Worktree / resume ID |
+| --- | --- | --- | --- | --- | --- | --- |
 
 ## Other owned resources
 

@@ -1,0 +1,81 @@
+--- a/src/ui/ui_tree_reconciler.cpp
++++ b/src/ui/ui_tree_reconciler.cpp
+@@ -1949,6 +1949,8 @@
+ 
+     if (desired.type == "slider") {
+       auto* slider = static_cast<Slider*>(node);
++      // Applying model state must not enqueue user edits, including range/step clamping.
++      slider->setOnValueChanged({});
+       const double* minV = numProp(desired, "min");
+       const double* maxV = numProp(desired, "max");
+       if (minV != nullptr || maxV != nullptr) {
+@@ -1968,7 +1970,7 @@
+         slider->setEnabled(*enabled);
+       }
+       if (const std::string* onChange = strProp(desired, "onChange");
+-          onChange != nullptr && *onChange != slot.callbackName) {
++          onChange != nullptr && !onChange->empty()) {
+         slot.callbackName = *onChange;
+         slider->setOnValueChanged([this, name = slot.callbackName](double value) {
+           if (m_sink) {
+--- a/tests/ui_tree_reconciler_test.cpp
++++ b/tests/ui_tree_reconciler_test.cpp
+@@ -881,6 +881,58 @@
+                "select options+index applied"
+            )
+           && ok;
++    }
++  }
++
++  // Slider model refreshes, including an unavailable volume, never enqueue user edits.
++  {
++    ui::UiTreeReconciler reconciler;
++    Flex host;
++    std::vector<std::string> changes;
++    reconciler.setCallbackSink([&](const ui::UiTreeReconciler::ControlCallback& cb) {
++      changes.push_back(cb.arg1);
++    });
++    ui::UiTreeNode tree = makeNode("slider");
++    tree.props.emplace("min", 0.0);
++    tree.props.emplace("max", 100.0);
++    tree.props.emplace("step", 1.0);
++    tree.props.emplace("value", 85.0);
++    tree.props.emplace("onChange", std::string("onVolumeChanged"));
++    (void)reconciler.reconcile(host, tree, renderer);
++    auto* slider = dynamic_cast<Slider*>(host.children().front().get());
++    ok = expect(slider != nullptr, "volume slider built") && ok;
++    if (slider != nullptr) {
++      tree.props["value"] = 83.0;
++      (void)reconciler.reconcile(host, tree, renderer);
++      ok = expect(slider->value() == 83.0 && changes.empty(), "volume refresh must not write back") && ok;
++
++      tree.props["value"] = 0.0;
++      tree.props["enabled"] = false;
++      (void)reconciler.reconcile(host, tree, renderer);
++      ok = expect(slider->value() == 0.0 && !slider->enabled() && changes.empty(),
++                  "unavailable volume must not enqueue a write to zero") && ok;
++
++      tree.props["value"] = 83.0;
++      tree.props["enabled"] = true;
++      (void)reconciler.reconcile(host, tree, renderer);
++      ok = expect(slider->value() == 83.0 && changes.empty(), "recovery refresh must remain silent") && ok;
++      slider->setValue(84.0);
++      ok = expect(changes == std::vector<std::string>{"84"}, "user changes still reach the callback") && ok;
++      changes.clear();
++
++      tree.props["max"] = 50.0;
++      tree.props["value"] = 49.0;
++      tree.props["step"] = 2.0;
++      (void)reconciler.reconcile(host, tree, renderer);
++      ok = expect(changes.empty(), "range and step refreshes must not enqueue edits") && ok;
++      slider->setValue(40.0);
++      ok = expect(changes == std::vector<std::string>{"40"}, "callback survives range and step refreshes") && ok;
++      changes.clear();
++
++      tree.props.erase("onChange");
++      (void)reconciler.reconcile(host, tree, renderer);
++      slider->setValue(30.0);
++      ok = expect(changes.empty(), "removed callback must not receive edits") && ok;
+     }
+   }
+ 

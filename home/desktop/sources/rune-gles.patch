@@ -1,6 +1,6 @@
 --- a/crates/rune/src/render.rs
 +++ b/crates/rune/src/render.rs
-@@ -115,6 +115,22 @@
+@@ -115,6 +115,42 @@
  /// to the shader source.
  pub const CLIP_WGSL: &str = include_str!("clip.wgsl");
  
@@ -20,10 +20,30 @@
 +    format!("{source}\n{}", include_str!("clip_gles.wgsl")).into()
 +}
 +
++fn gles_kind_wgsl(source: &str) -> String {
++    let entry = "fn fs(i: Out) -> @location(0) vec4<f32> {";
++    let body = source.find(entry).expect("uber fragment entry") + entry.len();
++    let mut depth = 1;
++    let end = source[body..].char_indices().find_map(|(offset, ch)| {
++        match ch {
++            '{' => depth += 1,
++            '}' => depth -= 1,
++            _ => {}
++        }
++        (depth == 0).then_some(body + offset)
++    }).expect("uber fragment close");
++    let original = &source[body..end];
++    assert_eq!(original.matches("i.params.y").count(), 2);
++    let mut source = source.to_owned();
++    source.replace_range(body..end, &original.replace("i.params.y", "rune_fragment_kind"));
++    source.insert_str(0, "override rune_fragment_kind: f32 = 0.0;\n");
++    source
++}
++
  /// Where a compositor is asked to draw an effect slot (`Renderer::draw_range_with`).
  pub struct EffectSite<'a> {
      /// The slot's position in the painter stream.
-@@ -375,8 +391,15 @@
+@@ -375,8 +411,15 @@
  /// Vulkan loaders crash when two threads create instances or devices at once (seen with
  /// parallel GPU tests on lavapipe), so Rune creates them one at a time.
  static GPU_INIT: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -39,7 +59,7 @@
      /// Panics without a usable adapter or device; windows use `try_new`.
      pub fn new(instance: wgpu::Instance, surface: Option<&wgpu::Surface<'_>>) -> Gpu {
          Self::try_new(instance, surface).unwrap_or_else(|error| panic!("{error}"))
-@@ -447,7 +470,14 @@
+@@ -447,7 +490,14 @@
          // A compositor that asks for immediates (`Compositor::features`) gets all the adapter has.
          let max_immediate_size = if required_features.contains(wgpu::Features::IMMEDIATES) { adapter.limits().max_immediate_size } else { 0 };
          let adapter_limits = adapter.limits();
@@ -55,7 +75,7 @@
              || adapter_limits.max_color_attachments < wgpu::Limits::default().max_color_attachments
              || adapter_limits.max_compute_workgroup_storage_size < wgpu::Limits::default().max_compute_workgroup_storage_size
          {
-@@ -542,16 +572,22 @@
+@@ -542,16 +592,22 @@
      /// One instance per set of backends for the whole process: a new one per device was a new
      /// DXGI factory and adapter list each time a window or overlay made a device (hex#1268).
      fn wgpu_instance_on(backends: wgpu::Backends) -> wgpu::Instance {
@@ -81,7 +101,7 @@
          descriptor.backends = backends;
          descriptor.flags.remove(wgpu::InstanceFlags::VALIDATION_INDIRECT_CALL);
          // An HWND's DXGI swapchain is opaque only; DirectComposition composites alpha on every GPU.
-@@ -571,7 +607,10 @@
+@@ -571,7 +627,10 @@
      #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
      pub(crate) fn for_surface<'w>(wanted: wgpu::Features, translucent: bool,
          surface: impl FnOnce(&wgpu::Instance) -> Result<wgpu::Surface<'w>, String>) -> Result<(Gpu, wgpu::Surface<'w>, Option<Renderer>), String> {
@@ -93,7 +113,32 @@
      }
  
      #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-@@ -741,7 +780,7 @@
+@@ -674,6 +733,14 @@
+     Image(usize),
+     /// Secondary glyph atlas page `usize` (index in `atlas_pages`, i.e. glyph page - 1).
+     Glyph(usize),
++}
++
++struct KindPipeline {
++    format: wgpu::TextureFormat,
++    blend: Blend,
++    kind: u32,
++    layer: bool,
++    pipeline: wgpu::RenderPipeline,
+ }
+ 
+ pub struct Renderer {
+@@ -694,6 +761,9 @@
+     /// Stable image pages; the initial bind group uses a 1×1 stand-in.
+     images: Vec<Option<(wgpu::Texture, wgpu::BindGroup)>>,
+     image_batches: Vec<(std::ops::Range<u32>, BatchBind)>,
++    kind_runs: Vec<(std::ops::Range<u32>, Option<u32>)>,
++    kind_shader: Option<dxbc::Shaders>,
++    kind_pipelines: Vec<KindPipeline>,
+     instances: wgpu::Buffer,
+     capacity: usize,
+     count: u32,
+@@ -741,7 +811,7 @@
              let source = format!("{CLIP_WGSL}\n{}\n{}", include_str!("shader.wgsl"), crate::gpu::springs::SHADER);
              Some(device.create_shader_module(wgpu::ShaderModuleDescriptor {
                  label: Some("uber"),
@@ -102,6 +147,259 @@
              }))
          } else {
              None
+@@ -765,10 +835,23 @@
+             &layouts, properties.is_some(),
+         ));
+         let vertex_entry = if properties.is_some() { "vs_springs" } else { "vs" };
+-        let make_pipeline = |shader: &dxbc::Shaders| Self::pipeline(device, &layout, shader, format, vertex_entry, Blend::SourceOver);
++        let make_pipeline = |shader: &dxbc::Shaders| Self::pipeline(device, &layout, shader, format, vertex_entry, Blend::SourceOver, None);
+         let (shader, pipeline) = match spring_shader {
+             Some(shader) => { let shader = dxbc::Shaders::one(shader); let pipeline = make_pipeline(&shader); (shader, pipeline) }
+             None => metallib::uber_shader_and_pipeline(device, make_pipeline),
++        };
++        let kind_shader = if device.adapter_info().backend == wgpu::Backend::Gl {
++            let source = if properties.is_some() {
++                format!("{CLIP_WGSL}\n{}\n{}", include_str!("shader.wgsl"), crate::gpu::springs::SHADER)
++            } else {
++                metallib::uber_wgsl()
++            };
++            Some(dxbc::Shaders::one(device.create_shader_module(wgpu::ShaderModuleDescriptor {
++                label: Some("uber kinds"),
++                source: wgpu::ShaderSource::Wgsl(gles_wgsl(device, &gles_kind_wgsl(&source))),
++            })))
++        } else {
++            None
+         };
+         let capacity = 256;
+         let instances = Self::instance_buffer(device, capacity);
+@@ -789,6 +872,9 @@
+             atlas_pages: Vec::new(),
+             images: Vec::new(),
+             image_batches: Vec::new(),
++            kind_runs: Vec::new(),
++            kind_shader,
++            kind_pipelines: Vec::new(),
+             instances,
+             capacity,
+             count: 0,
+@@ -811,7 +897,14 @@
+         format: wgpu::TextureFormat,
+         vertex_entry: &str,
+         blend: Blend,
++        kind: Option<u32>,
+     ) -> wgpu::RenderPipeline {
++        let constants = [("rune_fragment_kind", f64::from(kind.unwrap_or(0)))];
++        let fragment_options = if kind.is_some() {
++            wgpu::PipelineCompilationOptions { constants: &constants, ..Default::default() }
++        } else {
++            Default::default()
++        };
+         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+             label: Some("uber"),
+             layout: Some(layout),
+@@ -827,7 +920,7 @@
+             fragment: Some(wgpu::FragmentState {
+                 module: &shader.fragment,
+                 entry_point: Some("fs"),
+-                compilation_options: Default::default(),
++                compilation_options: fragment_options,
+                 targets: &[Some(wgpu::ColorTargetState {
+                     format,
+                     blend: Some(blend.state()),
+@@ -837,6 +930,46 @@
+             multiview_mask: None,
+             cache: None,
+         })
++    }
++
++    fn canonical_kind(kind: f32) -> Option<u32> {
++        (kind.is_finite() && kind >= KIND_RECT && kind <= KIND_RADIAL
++            && kind.fract() == 0.0 && kind != KIND_LAYER_END).then_some(kind as u32)
++    }
++
++    fn kind_pipeline(&self, format: wgpu::TextureFormat, blend: Blend, kind: u32, layer: bool) -> Option<&wgpu::RenderPipeline> {
++        self.kind_pipelines.iter().find(|p| p.format == format && p.blend == blend && p.kind == kind && p.layer == layer)
++            .map(|p| &p.pipeline)
++    }
++
++    fn ensure_kind_pipeline(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat, blend: Blend, kind: u32, layer: bool) {
++        let Some(shader) = &self.kind_shader else { return };
++        if self.kind_pipeline(format, blend, kind, layer).is_some() { return; }
++        let entry = if layer { "vs" } else { self.vertex_entry };
++        let pipeline = Self::pipeline(device, &self.layout, shader, format, entry, blend, Some(kind));
++        self.kind_pipelines.push(KindPipeline { format, blend, kind, layer, pipeline });
++    }
++
++    fn ensure_kind_pipelines(&mut self, device: &wgpu::Device) {
++        if self.kind_shader.is_none() { return; }
++        let mut kinds = Vec::new();
++        for (_, kind) in &self.kind_runs {
++            if let Some(kind) = kind && !kinds.contains(kind) {
++                kinds.push(*kind);
++            }
++        }
++        let mut formats = vec![self.format];
++        formats.extend(self.extra.iter().map(|(format, _)| *format));
++        for format in formats {
++            for &kind in &kinds {
++                self.ensure_kind_pipeline(device, format, Blend::SourceOver, kind, false);
++            }
++        }
++        if self.layers.additive.is_some() {
++            for kind in kinds {
++                self.ensure_kind_pipeline(device, layers::FORMAT, Blend::PlusLighter, kind, false);
++            }
++        }
+     }
+ 
+     fn image_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+@@ -886,7 +1019,7 @@
+     /// Builds the pipeline for another target format (e.g. an `Rgba16Float` layer), once.
+     pub fn add_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+         if format != self.format && !self.extra.iter().any(|(f, _)| *f == format) {
+-            let p = Self::pipeline(device, &self.layout, &self.shader, format, self.vertex_entry, Blend::SourceOver);
++            let p = Self::pipeline(device, &self.layout, &self.shader, format, self.vertex_entry, Blend::SourceOver, None);
+             self.extra.push((format, p));
+         }
+         if self.layer_stats().targets > 0 { self.add_layer_format(device, format); }
+@@ -895,6 +1028,7 @@
+             self.ensure_backdrop(device, format, (vw, vh));
+         }
+         if let Some(s) = &mut self.surfaces { s.add_format(device, format); }
++        self.ensure_kind_pipelines(device);
+     }
+ 
+     /// Switches the frame pass's target format (`!format.is_srgb()` turns `srgb_blend` on),
+@@ -903,7 +1037,7 @@
+         if self.format == format { return; }
+         let next = match self.extra.iter().position(|(f, _)| *f == format) {
+             Some(i) => self.extra.swap_remove(i).1,
+-            None => Self::pipeline(device, &self.layout, &self.shader, format, self.vertex_entry, Blend::SourceOver),
++            None => Self::pipeline(device, &self.layout, &self.shader, format, self.vertex_entry, Blend::SourceOver, None),
+         };
+         let old = std::mem::replace(&mut self.pipeline, next);
+         self.extra.push((self.format, old));
+@@ -918,6 +1052,7 @@
+             s.set_srgb_blend(self.srgb_blend);
+             s.add_format(device, format);
+         }
++        self.ensure_kind_pipelines(device);
+     }
+ 
+     /// Draws uploaded instances `range` into a pass whose target has `format` (the renderer's
+@@ -1047,14 +1182,15 @@
+         if range.is_empty() {
+             return;
+         }
+-        let pipeline = if self.layer_blend(target) == Blend::PlusLighter {
++        let blend = self.layer_blend(target);
++        let fallback = if blend == Blend::PlusLighter {
+             &self.layers.additive.as_ref().expect("prepared dissolve").0
+         } else if format == self.format {
+             &self.pipeline
+         } else {
+             &self.extra.iter().find(|(f, _)| *f == format).expect("Renderer::add_format first").1
+         };
+-        pass.set_pipeline(pipeline);
++        if self.kind_shader.is_none() { pass.set_pipeline(fallback); }
+         if let Some(properties) = &self.springs { pass.set_bind_group(1, &properties.group, &[]); }
+         pass.set_vertex_buffer(0, self.instances.slice(..));
+         let start = self.image_batches.partition_point(|(batch, _)| batch.end <= range.start);
+@@ -1076,7 +1212,17 @@
+                 }
+             };
+             pass.set_bind_group(0, bind, &[]);
+-            pass.draw(0..4, batch.start.max(range.start)..batch.end.min(range.end));
++            let draw = batch.start.max(range.start)..batch.end.min(range.end);
++            if self.kind_shader.is_none() {
++                pass.draw(0..4, draw);
++                continue;
++            }
++            let kind_start = self.kind_runs.partition_point(|(run, _)| run.end <= draw.start);
++            for (run, kind) in self.kind_runs[kind_start..].iter().take_while(|(run, _)| run.start < draw.end) {
++                let pipeline = kind.and_then(|kind| self.kind_pipeline(format, blend, kind, false)).unwrap_or(fallback);
++                pass.set_pipeline(pipeline);
++                pass.draw(0..4, run.start.max(draw.start)..run.end.min(draw.end));
++            }
+         }
+     }
+ 
+--- a/crates/rune/src/render/upload.rs
++++ b/crates/rune/src/render/upload.rs
+@@ -238,6 +238,7 @@
+         }
+         let has_layers = self.uploads.has_layers;
+         self.prepare_layers(device, queue, if has_layers { instances } else { &[] }, viewport);
++        self.ensure_kind_pipelines(device);
+         self.sync_resident_caches(&mut atlas.resident_caches);
+         if self.effects.iter().any(|(_, i)| i.params[0] != 0.0 || i.params[1] == KIND_BACKDROP_BLUR) {
+             self.ensure_backdrop(device, self.format, viewport);
+@@ -325,9 +326,24 @@
+             }
+         }
+         if start < instances.len() as u32 { self.image_batches.push((start..instances.len() as u32, bind)); }
++        if self.kind_shader.is_some() { self.batch_kinds(instances); }
+         self.uploads.has_layers = has_layers;
+         self.uploads.batched = true;
+         #[cfg(test)] { self.uploads.batch_runs += 1; }
++    }
++
++    fn batch_kinds(&mut self, instances: &[Instance]) {
++        self.kind_runs.clear();
++        let (mut start, mut current) = (0, None);
++        for (index, instance) in instances.iter().enumerate() {
++            let next = Self::canonical_kind(instance.params[1]);
++            if index > 0 && next != current {
++                self.kind_runs.push((start..index as u32, current));
++                start = index as u32;
++            }
++            current = next;
++        }
++        if start < instances.len() as u32 { self.kind_runs.push((start..instances.len() as u32, current)); }
+     }
+ 
+     /// Writes the spans of instances that differ from what the buffer holds, comparing a block
+--- a/crates/rune/src/render/layers.rs
++++ b/crates/rune/src/render/layers.rs
+@@ -486,9 +486,10 @@
+         if self.layers.plan.iter().any(|l| l.blend == Blend::PlusLighter) {
+             if self.layers.additive.is_none() {
+                 self.layers.additive = Some((
+-                    Self::pipeline(device, &self.layout, &self.shader, FORMAT, self.vertex_entry, Blend::PlusLighter),
+-                    Self::pipeline(device, &self.layout, &self.shader, FORMAT, "vs", Blend::PlusLighter)));
+-            }
++                    Self::pipeline(device, &self.layout, &self.shader, FORMAT, self.vertex_entry, Blend::PlusLighter, None),
++                    Self::pipeline(device, &self.layout, &self.shader, FORMAT, "vs", Blend::PlusLighter, None)));
++            }
++            self.ensure_kind_pipeline(device, FORMAT, Blend::PlusLighter, KIND_LAYER as u32, true);
+             if let Some(s) = &mut self.surfaces { s.add_plus_lighter(device, FORMAT); }
+         }
+         self.refresh_layer_bindings(device);
+@@ -497,8 +498,9 @@
+ 
+     pub(super) fn add_layer_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
+         if !self.layers.pipelines.iter().any(|(f, _)| *f == format) {
+-            self.layers.pipelines.push((format, Self::pipeline(device, &self.layout, &self.shader, format, "vs", Blend::SourceOver)));
+-        }
++            self.layers.pipelines.push((format, Self::pipeline(device, &self.layout, &self.shader, format, "vs", Blend::SourceOver, None)));
++        }
++        self.ensure_kind_pipeline(device, format, Blend::SourceOver, KIND_LAYER as u32, true);
+     }
+ 
+     fn layer_target(&self, mut layer: Option<usize>) -> Option<usize> {
+@@ -613,9 +615,11 @@
+             assert!(l.end < range.end, "draw_range must not split a layer scope");
+             self.draw_plain(pass, format, cursor..l.begin, target, true, hook);
+             if let Some(t) = &self.layers.targets[index] {
+-                let pipeline = if self.layer_blend(target) == Blend::PlusLighter {
++                let blend = self.layer_blend(target);
++                let fallback = if blend == Blend::PlusLighter {
+                     &self.layers.additive.as_ref().expect("prepared dissolve").1
+                 } else { &self.layers.pipelines.iter().find(|(f, _)| *f == format).expect("Renderer::add_format first").1 };
++                let pipeline = self.kind_pipeline(format, blend, KIND_LAYER as u32, true).unwrap_or(fallback);
+                 pass.set_pipeline(pipeline);
+                 if let Some(properties) = &self.springs { pass.set_bind_group(1, &properties.group, &[]); }
+                 pass.set_bind_group(0, &t.composite, &[]);
 --- a/crates/rune/src/render/metallib.rs
 +++ b/crates/rune/src/render/metallib.rs
 @@ -135,7 +135,7 @@

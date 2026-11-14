@@ -22,7 +22,82 @@
          (self.sans, self.mono) = slots(sans, mono);
 --- a/crates/rune/src/text/system_fonts.rs
 +++ b/crates/rune/src/text/system_fonts.rs
-@@ -258,3 +258,21 @@
+@@ -181,18 +181,25 @@
+ 
+ #[cfg(not(target_arch = "wasm32"))]
+ pub(super) fn system_font_files(fragments: &[&str]) -> Vec<std::path::PathBuf> {
+-    static FILES: std::sync::OnceLock<Vec<(String, std::path::PathBuf)>> = std::sync::OnceLock::new();
+-    let mut files: Vec<_> = FILES
+-        .get_or_init(walk_font_dirs)
++    let mut files: Vec<_> = font_files()
+         .iter()
+-        .filter_map(|(name, path)| Some((fragments.iter().position(|fragment| name.contains(fragment))?, path)))
++        .filter_map(|(name, path, _)| {
++            let name = name.as_deref()?;
++            Some((fragments.iter().position(|fragment| name.contains(fragment))?, path))
++        })
+         .collect();
+     files.sort();
+     files.into_iter().map(|(_, path)| path.clone()).collect()
+ }
+ 
+ #[cfg(not(target_arch = "wasm32"))]
+-fn walk_font_dirs() -> Vec<(String, std::path::PathBuf)> {
++fn font_files() -> &'static [(Option<String>, std::path::PathBuf, Vec<String>)] {
++    static FILES: std::sync::OnceLock<Vec<(Option<String>, std::path::PathBuf, Vec<String>)>> = std::sync::OnceLock::new();
++    FILES.get_or_init(walk_font_dirs)
++}
++
++#[cfg(not(target_arch = "wasm32"))]
++fn walk_font_dirs() -> Vec<(Option<String>, std::path::PathBuf, Vec<String>)> {
+     let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+     if cfg!(target_os = "macos") {
+         dirs.extend(["/System/Library/Fonts", "/Library/Fonts"].map(Into::into));
+@@ -220,8 +227,8 @@
+         let data_dirs = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
+         dirs.extend(data_dirs.split(':').filter(|d| !d.is_empty()).map(|d| std::path::Path::new(d).join("fonts")));
+     }
+-    let mut found: Vec<(String, std::path::PathBuf)> = Vec::new();
+-    let mut seen = std::collections::HashSet::new();
++    let mut found: Vec<(Option<String>, std::path::PathBuf, Vec<String>)> = Vec::new();
++    let mut seen = std::collections::HashMap::new();
+     let mut stack = dirs;
+     let mut visited = std::collections::HashSet::new();
+     while let Some(dir) = stack.pop() {
+@@ -235,18 +242,25 @@
+                 stack.push(path);
+                 continue;
+             }
+-            if let Some(name) = font_file_name(&path) && seen.insert(path.clone()) {
+-                found.push((name, path));
++            if let Some(name) = font_file_name(&path) && !seen.contains_key(&path) {
++                seen.insert(path.clone(), found.len());
++                found.push((Some(name), path, Vec::new()));
+             }
+         }
+     }
+     // Fontconfig knows fonts outside these directories, such as NixOS's store paths.
+     #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
+-    if let Ok(out) = std::process::Command::new("fc-list").arg("--format=%{file}\n").output() {
+-        for path in String::from_utf8_lossy(&out.stdout).lines().map(std::path::PathBuf::from) {
+-            if let Some(name) = font_file_name(&path) && seen.insert(path.clone()) {
+-                found.push((name, path));
+-            }
++    if let Ok(out) = std::process::Command::new("fc-list").arg("--format=%{family}\t%{file}\n").output() {
++        for line in String::from_utf8_lossy(&out.stdout).lines() {
++            let Some((families, path)) = line.rsplit_once('\t') else { continue };
++            let path = std::path::PathBuf::from(path);
++            let name = font_file_name(&path);
++            let index = *seen.entry(path.clone()).or_insert_with(|| {
++                let index = found.len();
++                found.push((name, path, Vec::new()));
++                index
++            });
++            found[index].2.extend(families.split(',').map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned));
+         }
+     }
+     found
+@@ -258,3 +272,26 @@
      let name = path.file_name()?.to_string_lossy().to_lowercase();
      [".ttf", ".otf", ".ttc", ".otc"].iter().any(|ext| name.ends_with(ext)).then(|| name.replace([' ', '.'], ""))
  }
@@ -34,11 +109,16 @@
 +    for family in FontFamilyName::parse_css_list(list).flatten() {
 +        let FontFamilyName::Named(name) = family else { continue };
 +        if collection.family_id(&name).is_some() { continue; }
-+        let Ok(output) = std::process::Command::new("fc-list")
-+            .arg("--format=%{file}\n").arg(name.as_ref()).output() else { continue };
-+        if !output.status.success() { continue; }
-+        let paths: std::collections::BTreeSet<std::path::PathBuf> = String::from_utf8_lossy(&output.stdout)
-+            .lines().filter(|path| !path.is_empty()).map(Into::into).collect();
++        let mut paths: std::collections::BTreeSet<std::path::PathBuf> = font_files().iter()
++            .filter(|(_, _, families)| families.iter().any(|family| family.eq_ignore_ascii_case(name.as_ref())))
++            .map(|(_, path, _)| path.clone()).collect();
++        if paths.is_empty() {
++            let Ok(output) = std::process::Command::new("fc-list")
++                .arg("--format=%{file}\n").arg(name.as_ref()).output() else { continue };
++            if !output.status.success() { continue; }
++            paths.extend(String::from_utf8_lossy(&output.stdout)
++                .lines().filter(|path| !path.is_empty()).map(std::path::PathBuf::from));
++        }
 +        load_files(collection, loaded, paths);
 +    }
 +    #[cfg(not(all(unix, not(target_vendor = "apple"), not(target_os = "android"))))]

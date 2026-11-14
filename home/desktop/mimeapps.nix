@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   hostName,
   pkgs,
   useDms ? false,
@@ -9,19 +10,43 @@
 let
   system = pkgs.stdenv.hostPlatform.system;
   fileManager =
-    if config.programs.yazi-rune.enable then
-      "io.github.yazi_rune.desktop"
-    else if hostName == "prl-dev-vm" then
-      "io.github.lgse.Strata.desktop"
-    else
-      "thunar.desktop";
+    if config.programs.vereda.enable then "io.github.andrearagao.vereda.desktop" else "thunar.desktop";
+  textEditor = if config.programs.vscodium.enable then "codium.desktop" else "dev.zed.Zed.desktop";
+  imageDefaults = lib.genAttrs (
+    [
+      "image/avif"
+      "image/bmp"
+      "image/gif"
+      "image/jpeg"
+      "image/jpg"
+      "image/pjpeg"
+      "image/png"
+      "image/svg+xml"
+      "image/webp"
+      "image/x-bmp"
+      "image/x-png"
+    ]
+    ++ lib.optionals (hostName != "prl-dev-vm") [
+      "image/heif"
+      "image/jxl"
+      "image/pbm"
+      "image/tiff"
+      "image/x-exr"
+      "image/x-portable-anymap"
+      "image/x-portable-bitmap"
+      "image/x-portable-graymap"
+      "image/x-portable-pixmap"
+      "image/x-targa"
+      "image/x-tga"
+    ]
+  ) (_: if hostName == "prl-dev-vm" then "brave-browser.desktop" else "swayimg.desktop");
   textViewer =
     if hostName == "prl-dev-vm" then
       "local.folio.Reader.desktop"
     else if useDms then
       "com.danklinux.dms.notepad.desktop"
     else
-      "codium.desktop";
+      textEditor;
   officeDefaults =
     if system == "aarch64-linux" then
       {
@@ -146,31 +171,7 @@ in
       "x-scheme-handler/unknown" = "brave-browser.desktop";
 
       "text/markdown" = textViewer;
-      "text/plain" = "codium.desktop";
-
-      # Image viewer - swayimg (Wayland-native).
-      "image/avif" = "swayimg.desktop";
-      "image/bmp" = "swayimg.desktop";
-      "image/gif" = "swayimg.desktop";
-      "image/heif" = "swayimg.desktop";
-      "image/jpeg" = "swayimg.desktop";
-      "image/jpg" = "swayimg.desktop";
-      "image/jxl" = "swayimg.desktop";
-      "image/pbm" = "swayimg.desktop";
-      "image/pjpeg" = "swayimg.desktop";
-      "image/png" = "swayimg.desktop";
-      "image/svg+xml" = "swayimg.desktop";
-      "image/tiff" = "swayimg.desktop";
-      "image/webp" = "swayimg.desktop";
-      "image/x-bmp" = "swayimg.desktop";
-      "image/x-exr" = "swayimg.desktop";
-      "image/x-png" = "swayimg.desktop";
-      "image/x-portable-anymap" = "swayimg.desktop";
-      "image/x-portable-bitmap" = "swayimg.desktop";
-      "image/x-portable-graymap" = "swayimg.desktop";
-      "image/x-portable-pixmap" = "swayimg.desktop";
-      "image/x-targa" = "swayimg.desktop";
-      "image/x-tga" = "swayimg.desktop";
+      "text/plain" = textEditor;
 
       # Media playback.
       "audio/aac" = "mpv.desktop";
@@ -187,7 +188,10 @@ in
       "video/webm" = "mpv.desktop";
       "video/x-matroska" = "mpv.desktop";
       "video/x-msvideo" = "mpv.desktop";
-
+    }
+    // officeDefaults
+    // imageDefaults
+    // lib.optionalAttrs (hostName != "prl-dev-vm") {
       # Nautilus provides the installed archive browsing/extraction handler.
       "application/bzip2" = "org.gnome.Nautilus.desktop";
       "application/gzip" = "org.gnome.Nautilus.desktop";
@@ -202,7 +206,6 @@ in
       "application/x-zstd-compressed-tar" = "org.gnome.Nautilus.desktop";
       "application/zip" = "org.gnome.Nautilus.desktop";
       "application/zstd" = "org.gnome.Nautilus.desktop";
-    }
-    // officeDefaults;
+    };
   };
 }

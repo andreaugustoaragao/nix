@@ -2,6 +2,7 @@
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -90,10 +91,51 @@ def configure(home, config_home, state_home):
     write(cli, plugin_config(load(cli), "plugins", "./herdr-opencode"))
 
 
+def retire(home, config_home, state_home):
+    script = str(home / ".codex/herdr-agent-state.sh")
+    codex = home / ".codex/hooks.json"
+    if codex.exists():
+        value = load(codex)
+        for event, groups in value.get("hooks", {}).items():
+            remaining = []
+            for group in groups:
+                kept = [handler for handler in group["hooks"]
+                        if script not in shlex.split(handler.get("command", ""))
+                        and not handler.get("command", "").startswith(": orca-agent-hook-form=1;")]
+                if kept or not group["hooks"]:
+                    remaining.append({**group, "hooks": kept})
+            value["hooks"][event] = remaining
+        write(codex, value)
+
+    legacy_plugins = {"./herdr-opencode", "./herdr-tui-session.js"}
+    for name in ("cli.json", "cli.jsonc", "tui.json", "tui.jsonc"):
+        path = config_home / "opencode" / name
+        if not path.exists():
+            continue
+        value = load(path)
+        for key in ("plugins", "plugin"):
+            if key in value:
+                value[key] = [entry for entry in value[key]
+                              if (entry[0] if isinstance(entry, list) and entry else entry)
+                              not in legacy_plugins]
+        write(path, value)
+
+    archive = state_home / "retired-ai-tools/pi-extensions"
+    for name in ("orca-agent-status.ts", "orca-prefill.ts", "orca-titlebar-spinner.ts"):
+        path = home / ".pi/agent/extensions" / name
+        if not path.exists():
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        archive.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path.replace(archive / f"{name}.{digest}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, required=True)
     parser.add_argument("--config-home", type=Path, required=True)
     parser.add_argument("--state-home", type=Path, required=True)
+    parser.add_argument("--retire-legacy", action="store_true")
     args = parser.parse_args()
-    configure(args.home, args.config_home, args.state_home)
+    action = retire if args.retire_legacy else configure
+    action(args.home, args.config_home, args.state_home)

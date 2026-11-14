@@ -1,8 +1,14 @@
-{ unstable-pkgs, ... }:
+{ pkgs, unstable-pkgs, ... }:
 {
   programs.chromium = {
     enable = true;
-    package = unstable-pkgs.chromium;
+    package = (pkgs.callPackage ../../pkgs/browser-system-theme.nix { }) {
+      browser = import ../../pkgs/chromium-ahead.nix {
+        inherit (pkgs) lib;
+        inherit (unstable-pkgs) chromium;
+      };
+      name = "chromium";
+    };
     commandLineArgs = [
       "--enable-features=UseOzonePlatform"
       "--ozone-platform=wayland"

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  hostName,
   isServer ? false,
   ...
 }:
@@ -15,10 +16,12 @@ let
   skillRoots = [
     ".agents/skills"
     ".cursor/skills"
+    "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
+  ]
+  ++ lib.optionals (hostName != "prl-dev-vm") [
     ".grok/skills"
     ".gemini/skills"
     ".qwen/skills"
-    "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ];
   skills = {
     orca = pkgs.writeTextDir "SKILL.md" ''
@@ -92,6 +95,25 @@ let
       hooks do not provide core status. A program may have no status report.
       Follow the task's delegation scope when using the manual's agent examples.
       Only clean up terminals you created for this task.
+
+      ## Naming & layout rules
+
+      - **Chief-of-staff per space:** allow at most one `chief-of-staff` per
+        space, in a tab named `chief-of-staff` (`herdr.role=chief-of-staff`).
+        Open all child agents of that coordinator on separate worker tabs in the
+        same space with up to 4 splits per tab, never inside `chief-of-staff`.
+      - **Spaces (`herdr-app do space.new --name`):** use `<repo>` for a main
+        checkout, `<repo> · <worktree-or-branch>` for a linked worktree, and
+        disambiguate with `· <topic>` if a space for that repo already exists.
+      - **Tabs (`herdr-app do tab.new --name`):** use a concise topic or task
+        name (e.g. `Auth review`, `T020 · Fast startup`); never leave `"1"` or
+        bare harness names when creating a task tab.
+      - **Terminals & splits (`hc run --name`, `hc label`):** pass a kebab-case
+        `--name <topic-or-task>-<role>` (e.g. `t020-impl`, `auth-review`,
+        `nix-check`) to `hc run`. For splits created via `pane.split` /
+        `terminal.open` / `terminal.keep`, set `hc label <t> herdr.name=<role>`
+        so pane headers and agent lists display the role.
+      - Preserve user-named spaces, tabs, and explicit `herdr.name` labels.
     '';
   };
 in
@@ -105,10 +127,21 @@ in
     (lib.listToAttrs (
       lib.concatMap (
         root:
-        lib.mapAttrsToList (name: source: {
-          name = "${root}/${name}";
-          value = { inherit source; };
-        }) skills
+        lib.mapAttrsToList
+          (name: source: {
+            name = "${root}/${name}";
+            value = { inherit source; };
+          })
+          (
+            lib.filterAttrs (
+              name: _:
+              hostName != "prl-dev-vm"
+              || !(builtins.elem name [
+                "herdr"
+                "orca"
+              ])
+            ) skills
+          )
       ) skillRoots
     ))
     {

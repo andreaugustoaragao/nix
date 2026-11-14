@@ -12,9 +12,30 @@ decomposition, dispatch, review, integration, verification and reporting.
 `herdr-coordinate` is a compatibility alias for this same workflow and backlog.
 
 Read [the Herdr execution contract](references/herdr-workflow.md) before any
-worker launch. It defines host preparation, exact models, worktree isolation,
+worker launch. It defines host preparation, harness selection, worktree isolation,
 permissions, reporting and independent review. Other skills may provide
 technical guidance, but must not start another agent tree.
+
+Read [the compact routing policy](references/routing.md) on activation/resume
+and reuse it for assignments. It defines subscription priorities, connector
+requirements and Google-model UI/UX review. Workers receive only their selected
+route and task context; load historical evidence only when reassessing a choice.
+
+Every space has **at most one `chief-of-staff`**, located in a tab named
+`chief-of-staff`. On activation or resume, run **`chief-of-staff-init`** as
+your first command (pass `--portfolio <path>` when resuming an explicit
+portfolio). It deterministically checks `herdr-app ls` and `hc ls` for an
+existing coordinator in the space, claims `herdr.role=chief-of-staff` and
+`herdr.name=chief-of-staff`, renames your tab to `chief-of-staff`, creates or
+reuses the private `${XDG_STATE_HOME:-$HOME/.local/state}/chief-of-staff/<portfolio-id>/`
+record (`umask 077`), and returns JSON with `portfolio_path`, `space`, `tab`,
+`templates`, and live terminals. If it reports `"status": "conflict"`, do not
+start a second coordinator—point the user to the existing one. When
+`chief-of-staff-init` succeeds, do **not** run extra discovery probes
+(`agent-host-context`, `hc --skill`, `herdr-app --skill`, `--help`, or ad-hoc
+schema scripts) unless a command fails. Open all child agents on **separate
+worker tabs** in the same space (up to 4 splits per tab), never as splits inside
+the `chief-of-staff` tab (prefer `chief-of-staff-spawn`).
 
 ## Scope and lifetime
 
@@ -48,7 +69,8 @@ unique ID. Use `umask 077` when creating it. Copy and fill
 reports in per-task directories. Store references to secrets, never values.
 
 The portfolio records the coordinator's conversation identifier when available,
-literal terminal ID and owning core, mode, worker limit, ordered task table,
+literal terminal ID and owning core, mode, requested tab/split and worker limits,
+chosen harnesses/models and subscription routes, ordered task table,
 live worker inventory and decisions. Each task records its original request,
 acceptance checks, scope, dependencies, baseline, assignments, evidence,
 blockers, integration target and next action. Give tasks stable IDs such as
@@ -87,11 +109,12 @@ or discard them. A missing terminal or `done`/`idle` status is not task success.
    Dependencies must be integrated and verified `done`, not merely reported
    complete. Block dependents of a failed/cancelled prerequisite and ask for a
    revised requirement; never silently skip a dependency.
-4. Start with one implementer. Add a second only when queued work is genuinely
-   independent. Across the ENTIRE portfolio, keep at most TWO implementation
-   workers and THREE live workers total, including reviewers, or a smaller
-   session limit. Blocked, idle and done-but-open workers still consume slots.
-   Reserve the third slot for review; reuse a task's implementer for fixes.
+4. Start with one implementer. Add workers only for genuinely independent work,
+   within the user's requested tab/split limits and the actual host/session
+   capacity. Count the coordinator, reviewers, build terminals, and idle or
+   blocked terminals in the relevant layout limit. Keep review capacity or close
+   a finished implementation harness before launching a reviewer. Reuse the
+   task's implementation session for fixes, reopening it if safely preserved.
    Never create a fresh team or reviewer per incoming message.
 5. Parallelize only with separate writer worktrees and demonstrably compatible
    scopes/baselines. Serialize dependent or overlapping changes and operations
@@ -102,13 +125,15 @@ or discard them. A missing terminal or `done`/`idle` status is not task success.
 6. Refill free slots from ready work after intake or a worker transition. Prefer
    finishing review/fixes/integration of active tasks before opening new work.
    A blocked task does not block unrelated ready tasks, but its live workers
-   still count. Capture their artifacts before any explicit safe retirement.
+   still count until closed. Capture their artifacts and session resume IDs before
+   safely closing finished harnesses; do not keep idle ones open merely in case
+   a review later requests corrections.
    Priority changes reorder undispatched work; do not interrupt running edits
    just because an urgent task arrives. Explain capacity/dependency constraints.
 7. Run slow builds/checks in coordinator-owned Herdr terminals, then use
    `hc wait --children any --timeout 30` to remain reachable. Those non-agent
-   terminals do not consume worker slots, but cannot bypass shared-resource
-   serialization. Read actual reports/artifacts and update the records before
+   terminals occupy layout capacity but not agent worker capacity, and cannot
+   bypass shared-resource serialization. Read actual reports/artifacts and update the records before
    dispatching again. Stop waiting when nothing runnable or working remains;
    report blockers or an empty queue instead of busy-looping.
 
@@ -140,8 +165,11 @@ Serialize all integration through one coordinator-owned checkout per target.
 Recheck the target and user changes before each integration. A task based on
 changes integrated since its baseline needs conflict/impact assessment and
 fresh affected checks before `done`; prior review evidence is not universally
-valid. Clean up only that task's accepted workers. Preserve records, reports
-and worktrees with unintegrated changes. Record all intentionally retained
+valid. Close task-owned harnesses as their assignments finish, after preserving
+reports and any session IDs needed for correction. Remove task-owned worktrees
+and branches after integration and verification, checking for unrelated or
+unintegrated changes first. Preserve records, reports and worktrees with
+unintegrated changes. Record all intentionally retained
 resources. One task finishing does not end the mode or discard queued work.
 
 ## User controls and reporting

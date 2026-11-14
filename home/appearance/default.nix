@@ -67,6 +67,12 @@ let
       };
       "@CONFIG@/herdr-app/settings.json" =
         (json {
+          font = "CaskaydiaMono Nerd Font";
+          font_size = 14.5;
+          font_ligatures = true;
+          ui_font = "Geist";
+          minimum_contrast = 1.6;
+          pane_scrollbars = true;
           theme = {
             dark = "gruvbox-dark";
             light = "gruvbox-light";
@@ -87,13 +93,6 @@ let
     pkgs.writeText "gruvbox-${mode}-settings.json" (
       builtins.toJSON {
         "@CONFIG@/kdeglobals" = ini toolkit.${mode}.kde;
-        "@CONFIG@/strata/settings.toml" = {
-          format = "toml";
-          set = {
-            mode = "theme";
-            theme = "gruvbox-${mode}";
-          };
-        };
       }
     )
   );
@@ -130,6 +129,7 @@ let
     mode:
     let
       c = appearance.${mode};
+      isDark = mode == "dark";
     in
     {
       background = c.base;
@@ -137,7 +137,7 @@ let
       selection = c.surface1;
       cursor = c.text;
       ansi = [
-        c.base
+        (if isDark then c.surface0 else c.text)
         c.red
         c.green
         c.yellow
@@ -155,36 +155,29 @@ let
         c.text
       ];
       colors = {
-        canvas = c.base;
+        canvas = if isDark then c.mantle else c.crust;
         chrome = c.mantle;
-        surface = c.surface0;
-        border = c.surface1;
+        surface = c.base;
+        popover = if isDark then "#32302f" else c.base;
+        raised = c.surface0;
+        hover = if isDark then "${c.surface1}66" else "${c.surface2}40";
+        selected = if isDark then "${c.surface1}a6" else "${c.surface1}99";
+        border = if isDark then c.surface0 else c.surface1;
+        input = if isDark then c.surface1 else c.surface2;
+        foreground = c.text;
+        muted = c.subtext0;
+        dim = c.overlay0;
         accent = c.green;
-        inherit (c) text;
-        muted = c.overlay0;
+        accent_foreground = c.base;
+        solid = c.text;
+        solid_foreground = c.base;
+        ring = c.green;
+        working = c.yellow;
+        blocked = c.peach;
+        done = c.teal;
+        idle = c.surface2;
+        unknown = c.overlay0;
       };
-    };
-  strataTheme =
-    mode:
-    let
-      c = appearance.${mode};
-    in
-    {
-      name = "Gruvbox ${mode}";
-      background = c.base;
-      surface = c.surface0;
-      inherit (c) text;
-      accent = c.green;
-      danger = c.red;
-      muted = c.surface1;
-      highlight = c.surface1;
-      border = c.surface2;
-      dim_text = c.overlay0;
-      syntax_keyword = c.mauve;
-      syntax_string = c.green;
-      syntax_constant = c.peach;
-      syntax_type = c.yellow;
-      syntax_preprocessor = c.teal;
     };
 in
 {
@@ -196,9 +189,6 @@ in
       map
         (mode: {
           "herdr-app/themes/gruvbox-${mode}.json".text = builtins.toJSON (herdrTheme mode);
-          "strata/themes/gruvbox-${mode}.toml".source =
-            (pkgs.formats.toml { }).generate "strata-gruvbox-${mode}.toml"
-              (strataTheme mode);
         })
         [
           "dark"
