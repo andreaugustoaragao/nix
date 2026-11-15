@@ -1,7 +1,9 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -68,6 +70,41 @@ class LayoutAdoption(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.configure(self.root, "absent", "herdr-app")
         self.assertFalse((self.root / "shared.json").exists())
+
+
+class PackagedDependencies(unittest.TestCase):
+    def test_custom_layout_mods_are_in_the_nix_source(self):
+        source = Path(__file__).parent / "herdr"
+        shipped_mods = {"changes", "workspace-status"}
+
+        def mods(node):
+            if isinstance(node, dict):
+                if isinstance(node.get("mod"), str):
+                    yield node["mod"]
+                for value in node.values():
+                    yield from mods(value)
+            elif isinstance(node, list):
+                for value in node:
+                    yield from mods(value)
+
+        for layout in (source / "layouts").glob("*.json"):
+            for mod in mods(json.loads(layout.read_text())):
+                if mod not in shipped_mods:
+                    self.assertTrue((source / "mods" / mod / "main.js").is_file(), f"{layout.name}: {mod}")
+
+    def test_intake_viewer_works_without_a_notes_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "not-cloned-yet"
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "herdr-intake/dashboard.py"), "view"],
+                env=dict(os.environ, HERDR_INTAKE_NOTES_ROOT=str(root)),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIsNone(json.loads(result.stdout)["report"])
+            self.assertEqual(json.loads(result.stdout)["items"], [])
+            self.assertFalse(root.exists())
 
 
 if __name__ == "__main__":

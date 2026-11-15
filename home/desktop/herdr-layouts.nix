@@ -18,9 +18,28 @@ let
     src = layoutSource;
     patches = [ ./herdr-board-theme.patch ];
   };
-  customRoot = builtins.path {
+  customSource = builtins.path {
     name = "herdr-custom";
     path = ./herdr;
+  };
+  intakeMain = pkgs.replaceVars ./herdr/mods/work-intake/main.js {
+    notesRoot = "${config.home.homeDirectory}/projects/work/notes/";
+  };
+  customRoot = pkgs.runCommand "herdr-custom" { } ''
+    cp -r ${customSource} "$out"
+    chmod -R u+w "$out"
+    cp ${intakeMain} "$out/mods/work-intake/main.js"
+  '';
+  intakeSource = builtins.path {
+    name = "herdr-intake-viewer";
+    path = ./herdr-intake;
+  };
+  intake = pkgs.writeShellApplication {
+    name = "herdr-intake-dashboard";
+    text = ''
+      export HERDR_INTAKE_NOTES_ROOT=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes"}
+      exec ${lib.getExe pkgs.python3} ${intakeSource}/dashboard.py "$@"
+    '';
   };
   symlinkMods = [
     "personal-agents"
@@ -38,6 +57,7 @@ let
     "personal-costs"
     "preview"
     "work"
+    "work-intake"
   ];
   customLayouts = [
     "main-flat"
@@ -45,6 +65,11 @@ let
   ];
 in
 {
+  home.packages = [ intake ];
+  home.file.".local/bin/herdr-intake-dashboard" = {
+    source = lib.getExe intake;
+    force = true;
+  };
   xdg.configFile = {
     "herdr-app/layouts/board.json".source = "${layouts}/board/layouts/board.json";
     "herdr-app/layouts/mission.json".source = "${layouts}/mission/layouts/mission.json";
@@ -61,7 +86,7 @@ in
     map (name: {
       name = "herdr-app/layouts/${name}.json";
       value = {
-        source = "${customRoot}/layouts/${name}.json";
+        source = "${customSource}/layouts/${name}.json";
         force = true;
       };
     }) customLayouts
@@ -105,6 +130,9 @@ in
     + lib.concatMapStringsSep "\n" (name: ''
       src=${lib.escapeShellArg "${customRoot}/mods/${name}"}
       dst=${lib.escapeShellArg "${config.xdg.configHome}/herdr-app/mods/${name}"}
+      if [ -L "$dst" ]; then
+        rm -- "$dst"
+      fi
       mkdir -p "$dst"
       # Replace any old store symlinks or backups with writable copies from Nix.
       find "$dst" -maxdepth 4 \( -name '*.hm-backup' -o -type l ! -name 'node_modules' \) -delete

@@ -16,7 +16,8 @@ let
     umask 077
     cd ${state}
     if [ ! -e root.qcow2 ]; then
-      ${pkgs.coreutils}/bin/cp --reflink=auto --sparse=always ${image}/nixos.qcow2 root.qcow2.new
+      ${pkgs.coreutils}/bin/rm -f root.qcow2.new
+      ${pkgs.coreutils}/bin/cp --reflink=auto --sparse=always --no-preserve=mode ${image}/nixos.qcow2 root.qcow2.new
       ${pkgs.qemu_kvm}/bin/qemu-img resize root.qcow2.new 64G
       mv root.qcow2.new root.qcow2
     fi
