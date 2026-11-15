@@ -64,6 +64,9 @@ stdenv.mkDerivation {
     runHook preInstall
     mkdir -p "$out"
     cp -r bin share "$out/"
+    mkdir -p "$out/share/${pname}"
+    mv "$out/share/release.json" "$out/share/${pname}/release.json"
+    mv "$out/share/licenses" "$out/share/${pname}/licenses"
     if [ -d libexec ]; then
       cp -r libexec "$out/"
     fi
