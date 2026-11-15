@@ -71,11 +71,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794345051,
-        "narHash": "sha256-u/1vBsN7bc7t/l5O4rXy6ocEj1dmhTphu63fHX3uqXE=",
+        "lastModified": 1794444904,
+        "narHash": "sha256-DbV66WVE7yvMUaVsxawLkD9VLq6DP2xHKUcpbse7PpE=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "83f318bf94600b61cb37880160e2f827c8f4be64",
+        "rev": "9025c516b8990a03b4432c3423d940adea1d641c",
         "type": "github"
       },
       "original": {
@@ -147,11 +147,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794334112,
-        "narHash": "sha256-adRc+Y6S2QgS2UBGcrFmyMmQ1t9a7xQB0pnbzUXzA9I=",
+        "lastModified": 1794422125,
+        "narHash": "sha256-Ciu5rUOgZaXt8GEmxiC82r5AwKjq4WObjxGVWariFcA=",
         "owner": "duxlabs-dev",
         "repo": "dux-qt-base",
-        "rev": "cabe7237e985617e985b5a3dcfc6b174c6e53a21",
+        "rev": "c15e6fcff77f065e10a6f8dde99b47826dcd667a",
         "type": "github"
       },
       "original": {

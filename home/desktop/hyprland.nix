@@ -142,6 +142,133 @@ let
         "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
         "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
       ];
+
+  # Hyprland workspaces are global by default — one "workspace 1" shared
+  # across all monitors. Pin 10 persistent workspaces per output (mirrors
+  # niri.nix open-on-output) and map Mod+1..0 to the focused monitor.
+  workspacesPerMonitor = 10;
+
+  genPinnedWorkspaceRules =
+    {
+      monitor,
+      startId,
+    }:
+    lib.genList (
+      n:
+      let
+        id = startId + n;
+        extra = lib.optionalString (n == 0) "default:true, ";
+      in
+      "${toString id}, monitor:${monitor}, ${extra}persistent:true"
+    ) workspacesPerMonitor;
+
+  workstationWorkspaceRules =
+    (genPinnedWorkspaceRules {
+      monitor = "DP-1";
+      startId = 1;
+    })
+    ++ (genPinnedWorkspaceRules {
+      monitor = "DP-2";
+      startId = 11;
+    });
+
+  workspaceRules = lib.optionals (hostName == "workstation") workstationWorkspaceRules;
+
+  # Mod+1..0 should land on workspace N of the *focused* monitor, not the
+  # global workspace id. DP-1 → 1..10, DP-2 → 11..20; single-output
+  # hosts fall back to 1..10.
+  hyprMonitorWorkspace = pkgs.writeShellScript "hypr-monitor-workspace" ''
+    set -euo pipefail
+
+    slot="''${1:?usage: hypr-monitor-workspace <1-10> [focus|move]}"
+    action="''${2:-focus}"
+
+    if ! [[ "$slot" =~ ^([1-9]|10)$ ]]; then
+      echo "hypr-monitor-workspace: slot must be 1..10, got: $slot" >&2
+      exit 1
+    fi
+
+    monitor="$(${pkgs.hyprland}/bin/hyprctl activemonitor | ${pkgs.gawk}/bin/awk 'NR==1 { print $2 }')"
+
+    base=0
+    case "$monitor" in
+      DP-1) base=0 ;;
+      DP-2) base=10 ;;
+    esac
+
+    ws=$((base + slot))
+
+    if [[ "$action" == "move" ]]; then
+      ${pkgs.hyprland}/bin/hyprctl dispatch movetoworkspace "$ws"
+    else
+      ${pkgs.hyprland}/bin/hyprctl dispatch workspace "$ws"
+    fi
+  '';
+
+  workspaceSlotKeys = [
+    {
+      key = "1";
+      slot = 1;
+    }
+    {
+      key = "2";
+      slot = 2;
+    }
+    {
+      key = "3";
+      slot = 3;
+    }
+    {
+      key = "4";
+      slot = 4;
+    }
+    {
+      key = "5";
+      slot = 5;
+    }
+    {
+      key = "6";
+      slot = 6;
+    }
+    {
+      key = "7";
+      slot = 7;
+    }
+    {
+      key = "8";
+      slot = 8;
+    }
+    {
+      key = "9";
+      slot = 9;
+    }
+    {
+      key = "0";
+      slot = 10;
+    }
+  ];
+
+  workspaceFocusBinds = map (
+    {
+      key,
+      slot,
+    }:
+    if hostName == "workstation" then
+      "$mainMod, ${key}, exec, ${hyprMonitorWorkspace} ${toString slot}"
+    else
+      "$mainMod, ${key}, workspace, ${toString slot}"
+  ) workspaceSlotKeys;
+
+  workspaceMoveBinds = map (
+    {
+      key,
+      slot,
+    }:
+    if hostName == "workstation" then
+      "$mainMod SHIFT, ${key}, exec, ${hyprMonitorWorkspace} ${toString slot} move"
+    else
+      "$mainMod SHIFT, ${key}, movetoworkspace, ${toString slot}"
+  ) workspaceSlotKeys;
 in
 {
   # Hyprland configuration
@@ -163,6 +290,10 @@ in
         "Virtual-1, preferred, auto, 2.0"
         ", preferred, auto, auto"
       ];
+
+      # 10 persistent workspaces per monitor on the workstation (1–10 on
+      # DP-1, 11–20 on DP-2). Other hosts retain their existing workspaces.
+      workspace = workspaceRules;
 
       # Startup applications (others handled by systemd user services).
       # hyprpolkitagent is launched unconditionally even when DMS owns
@@ -537,32 +668,14 @@ in
         "$mainMod CTRL SHIFT, up, movewindow, mon:u"
         "$mainMod CTRL SHIFT, down, movewindow, mon:d"
 
-        # Workspaces 1..10. Plain digit keys to match niri's layout-
-        # aware "Mod+1".."Mod+0" (niri doesn't use keycodes).
-        "$mainMod, 1, workspace, 1"
-        "$mainMod, 2, workspace, 2"
-        "$mainMod, 3, workspace, 3"
-        "$mainMod, 4, workspace, 4"
-        "$mainMod, 5, workspace, 5"
-        "$mainMod, 6, workspace, 6"
-        "$mainMod, 7, workspace, 7"
-        "$mainMod, 8, workspace, 8"
-        "$mainMod, 9, workspace, 9"
-        "$mainMod, 0, workspace, 10"
-
-        "$mainMod SHIFT, 1, movetoworkspace, 1"
-        "$mainMod SHIFT, 2, movetoworkspace, 2"
-        "$mainMod SHIFT, 3, movetoworkspace, 3"
-        "$mainMod SHIFT, 4, movetoworkspace, 4"
-        "$mainMod SHIFT, 5, movetoworkspace, 5"
-        "$mainMod SHIFT, 6, movetoworkspace, 6"
-        "$mainMod SHIFT, 7, movetoworkspace, 7"
-        "$mainMod SHIFT, 8, movetoworkspace, 8"
-        "$mainMod SHIFT, 9, movetoworkspace, 9"
-        "$mainMod SHIFT, 0, movetoworkspace, 10"
-
-        "$mainMod, Tab, workspace, e+1"
-        "$mainMod SHIFT, Tab, workspace, e-1"
+        # Workspaces 1..10 on the focused monitor (see hyprMonitorWorkspace).
+        # Plain digit keys to match niri's layout-aware Mod+1..Mod+0.
+      ]
+      ++ workspaceFocusBinds
+      ++ workspaceMoveBinds
+      ++ [
+        "$mainMod, Tab, workspace, ${if hostName == "workstation" then "m+1" else "e+1"}"
+        "$mainMod SHIFT, Tab, workspace, ${if hostName == "workstation" then "m-1" else "e-1"}"
 
         # The scrolling layout has Niri's preset-width cycle natively. A
         # 0.05 proportion step is roughly 100–150 logical pixels here.

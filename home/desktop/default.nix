@@ -113,6 +113,9 @@
       zoom-us
       aptakube
     ]
+    ++ lib.optionals (hostName == "workstation") [
+      (pkgs.callPackage ../../pkgs/herdr-app.nix { })
+    ]
     ++ lib.optionals (hostName == "prl-dev-vm") [
       playerctl
       prometheus.cli

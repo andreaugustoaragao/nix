@@ -10,15 +10,20 @@
   ...
 }:
 
+let
+  # The workstation's graphical greeter intermittently draws a blank screen
+  # even though greetd and niri remain running. Keep login usable on tty1.
+  useDmsGreeter = useDms && hostName != "workstation";
+in
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
-  # via lib.mkDefault. Import it on every useDms host, including autologin, so
+  # via lib.mkDefault. Import it for hosts using the graphical greeter so
   # a user-session exit while greetd is still running still has that greeter.
-  # !useDms hosts use the tuigreet command below. Autologin must not replace
+  # Other hosts use the tuigreet command below. Autologin must not replace
   # default_session: greetd starts that command as a logind greeter.
-  imports = lib.optionals useDms [ inputs.dank-greeter.nixosModules.default ];
+  imports = lib.optionals useDmsGreeter [ inputs.dank-greeter.nixosModules.default ];
 }
-// lib.optionalAttrs useDms {
+// lib.optionalAttrs useDmsGreeter {
   programs.dms-greeter = {
     enable = true;
     compositor.name = "niri";
@@ -46,8 +51,8 @@
       default_session = {
         user = "greeter";
       }
-      // lib.optionalAttrs (!useDms) {
-        # Interactive tuigreet — replaced by DMS greeter when useDms.
+      // lib.optionalAttrs (!useDmsGreeter) {
+        # Interactive tuigreet for hosts without the DMS greeter.
         command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${unstable-pkgs.niri}/bin/niri --session'";
       };
     }
@@ -65,6 +70,18 @@
   # https://gitlab.gnome.org/GNOME/gnome-keyring/-/merge_requests/112
   nixpkgs.overlays = [
     (final: prev: {
+      # dms-greeter 2.1.0's go.mod requires go >= 1.27.3. This nixpkgs pin
+      # only ships go_1_27 1.27.1, and the unstable Go binary is linked
+      # against a newer glibc than this system, so rebuild the patch release
+      # with the pinned stdenv. The greeter selects pkgs.go_1_27 from the
+      # major.minor in go.mod.
+      go_1_27 = prev.go_1_27.overrideAttrs (_: {
+        version = "1.27.3";
+        src = prev.fetchurl {
+          url = "https://go.dev/dl/go1.27.3.src.tar.gz";
+          hash = "sha256-bndJA1zzYPBrJXXRYup535/ajvZxiJ5cN1+OUHd/Jrs=";
+        };
+      });
       gnome-keyring = prev.gnome-keyring.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           (prev.fetchurl {
@@ -120,29 +137,6 @@
   security.pam.services.greetd.enableGnomeKeyring = true;
 
   environment = {
-    # DMS greeter spawns niri with a minimal config that has no output
-    # blocks, so the login screen ignores per-monitor mode/scale/position
-    # and falls back to default geometry. The greeter script appends
-    # `include "/etc/greetd/niri_overrides.kdl"` to its temp config when
-    # that file exists — mirror the user's home-manager niri outputs
-    # here so the greeter renders with the same layout as the session.
-    etc = lib.optionalAttrs (useDms && hostName == "workstation") {
-      "greetd/niri_overrides.kdl".text = ''
-        output "DP-2" {
-            mode "3840x2160@120.000"
-            scale 1.5
-            transform "270"
-            position x=0 y=0
-        }
-
-        output "DP-1" {
-            mode "3840x2160@144.000"
-            scale 1.25
-            position x=1440 y=0
-        }
-      '';
-    };
-
     # Override niri's bundled `niri-session` script.
     #
     # The upstream script does `systemctl --user --wait start niri.service`,
@@ -153,7 +147,7 @@
     # so any agent spawned by niri (DMS PolkitAuthModal, hyprpolkitagent)
     # fails with "No session for pid X" and never gets the slot.
     #
-    # On useDms hosts the DMS greeter sends `niri-session` back to greetd
+    # On graphical DMS greeter hosts it sends `niri-session` back to greetd
     # as the chosen session command (from wayland-sessions/niri.desktop's
     # `Exec=`), so this hiPrio wrapper wins and niri runs directly inside
     # the logind session-N.scope. niri's children (DMS via spawn-at-startup)
