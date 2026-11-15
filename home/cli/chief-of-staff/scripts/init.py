@@ -12,6 +12,8 @@ import sys
 import tempfile
 import uuid
 
+from work import RecordError, register
+
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 PORTFOLIO_TEMPLATE = SKILL_ROOT / "templates" / "portfolio.md"
 
@@ -316,6 +318,16 @@ def main() -> int:
         for name in ("codex", "pi", "opencode", "herdr-cursor", "cursor-agent")
     }
 
+    try:
+        work_snapshot = register(
+            portfolio_dir,
+            (space or {}).get("id") or lsid,
+            allow_transfer=args.portfolio is not None,
+        )
+    except (RecordError, OSError, ValueError) as exc:
+        print(json.dumps({"status": "error", "error": "work_registration_failed", "message": str(exc)}))
+        return 1
+
     print(json.dumps({
         "status": "ok",
         "reused": reused,
@@ -323,6 +335,8 @@ def main() -> int:
         "portfolio_dir": str(portfolio_dir),
         "portfolio_path": str(portfolio_file),
         "tasks_dir": str(tasks_dir),
+        "work_snapshot": str(portfolio_dir / "work" / "snapshot.json"),
+        "work_sequence": work_snapshot["seq"],
         "coordinator": my_addr,
         "owning_core": core_socket,
         "conversation_id": conversation_id(),

@@ -50,13 +50,12 @@
     ./noctalia.nix
     ./matugen.nix
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm") [
+  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+    ./vscode.nix
     ./swayosd.nix
     ./fcitx.nix
     ./wofi.nix
     ./eww.nix
-    ./vscode.nix
-    ./ghostty.nix
     ./foot.nix
     ./alacritty.nix
   ]
@@ -64,6 +63,7 @@
     ./fulcrum.nix
     ./notes.nix
   ]
+  ++ lib.optionals (hostName != "prl-dev-vm") [ ./ghostty.nix ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./herdr-layouts.nix
     ./parallels-displays.nix
@@ -88,7 +88,12 @@
     [
       pavucontrol
       unstable-pkgs.telegram-desktop
-      (if hostName == "prl-dev-vm" then unstable-pkgs.bitwarden-desktop else bitwarden-desktop)
+      (
+        if (hostName == "prl-dev-vm" || hostName == "workstation") then
+          unstable-pkgs.bitwarden-desktop
+        else
+          bitwarden-desktop
+      )
       unstable-pkgs.code-cursor
       sniffnet
       qt6.qttools
@@ -101,19 +106,21 @@
       obs-studio-plugins.advanced-scene-switcher
       kdePackages.kdenlive
     ]
-    ++ lib.optionals (hostName != "prl-dev-vm") [
+    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
       easyeffects
       freelens-bin
       neovide
       obsidian
       swayimg
     ]
-    ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ teams-for-linux ]
+    ++ lib.optionals (!personalOnly && (hostName != "prl-dev-vm" && hostName != "workstation")) [
+      teams-for-linux
+    ]
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
       aptakube
     ]
-    ++ lib.optionals (hostName == "prl-dev-vm") [
+    ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "workstation") [
       playerctl
       prometheus.cli
       simple-scan

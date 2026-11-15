@@ -83,8 +83,10 @@
 
       # Development tools moved to home configuration
     ]
-    ++ lib.optionals (hostName != "prl-dev-vm") [ broot ]
-    ++ lib.optionals (!isServer && hostName != "prl-dev-vm") [ nautilus ]
+    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [ broot ]
+    ++ lib.optionals (!isServer && (hostName != "prl-dev-vm" && hostName != "workstation")) [
+      nautilus
+    ]
     ++ lib.optionals (!isServer) [
       libinput
       pamixer
@@ -93,10 +95,16 @@
       pulseaudio # provides pactl for PulseAudio compatibility diagnostics
     ]
     # Office suite - OnlyOffice for x86_64, LibreOffice for ARM
-    ++ lib.optionals (!isServer && pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
-      onlyoffice-desktopeditors
-    ]
-    ++ lib.optionals (!isServer && pkgs.stdenv.hostPlatform.system == "aarch64-linux") [
-      libreoffice
-    ];
+    ++
+      lib.optionals
+        (!isServer && hostName != "workstation" && pkgs.stdenv.hostPlatform.system == "x86_64-linux")
+        [
+          onlyoffice-desktopeditors
+        ]
+    ++
+      lib.optionals
+        (!isServer && (hostName == "workstation" || pkgs.stdenv.hostPlatform.system == "aarch64-linux"))
+        [
+          libreoffice
+        ];
 }

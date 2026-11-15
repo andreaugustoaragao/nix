@@ -12,6 +12,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
 CANONICAL = ROOT / "chief-of-staff"
@@ -26,7 +27,8 @@ def load_script(name: str):
     path = CANONICAL / "scripts" / name
     spec = importlib.util.spec_from_file_location(name.removesuffix(".py"), path)
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    with patch.object(sys, "path", [str(path.parent), *sys.path]):
+        spec.loader.exec_module(mod)
     return mod
 
 
@@ -56,6 +58,7 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
             CANONICAL / "references/herdr-workflow.md",
             CANONICAL / "references/routing.md",
             CANONICAL / "references/routing-evidence.md",
+            CANONICAL / "references/work-records.md",
             CANONICAL / "templates/portfolio.md",
             CANONICAL / "templates/task.md",
         })
@@ -145,6 +148,7 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
     def test_init_and_spawn_helpers_end_to_end(self):
         init_mod = load_script("init.py")
         spawn_mod = load_script("spawn.py")
+        work_mod = load_script("work.py")
 
         space = {
             "id": "sp1",
@@ -264,6 +268,16 @@ print(json.dumps({{"address": sys.argv[1], "named": True, "thread_id": "thr_123"
 
                 # Spawn two tasks into worker tab tb2.
                 for idx in (1, 2):
+                    task_id = f"T00{idx}"
+                    for kind, fields in (
+                        ("task", {"outcome": f"Goal {idx}", "next_action": "Implement"}),
+                        ("plan", {"checkpoints": [{"id": "implement", "title": "Implement goal",
+                                                  "depends": [], "acceptance": "Goal verified"}]}),
+                        ("lifecycle", {"state": "active", "next_action": "Implement"}),
+                    ):
+                        work_mod.publish(portfolio_dir, {
+                            "id": f"{task_id}-{kind}", "kind": kind, "task": task_id, **fields,
+                        })
                     sys.argv = [
                         "chief-of-staff-spawn",
                         "--portfolio", str(portfolio_dir),

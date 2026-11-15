@@ -1,0 +1,26 @@
+{
+  "folio": {
+    "version": "0.1.0",
+    "sourceRevision": "b5cadbb1c4bc9522cb0098a0e099edb13732c77c",
+    "hashes": {
+      "aarch64-linux": "sha256-p9QgjgDglNO95iWwhAzAXmKYjFFTPwQMCo69yPOeftU=",
+      "x86_64-linux": "sha256-wd5O+wzlCEEmsr4i2K7Cru+r7d8e1SHtvq99Ehtpya8="
+    }
+  },
+  "vereda": {
+    "version": "0.1.0",
+    "sourceRevision": "626ad3f50b01efd23fc89f2cc3cda53b5fe9702a",
+    "hashes": {
+      "aarch64-linux": "sha256-kx7RNlvEgnkZDN/l7duFTcsnojLCPd8gYDUAU0Ewgkw=",
+      "x86_64-linux": "sha256-sEv7DnsYsn2Fo2WIDXpEe0bzR9ESL/AKHeu3AWV4b0c="
+    }
+  },
+  "vitals": {
+    "version": "0.1.0",
+    "sourceRevision": "cd9b7c0221554ac96bee52cd3e1d85e45ddb0403",
+    "hashes": {
+      "aarch64-linux": "sha256-de20ssv8VqWzFfzcDO5u0u8exdrCirZGi+ZYshjhkp8=",
+      "x86_64-linux": "sha256-YtL7iQmC24neGBbzrTRYffEudwFg7C6xyIjKAL8b4vw="
+    }
+  }
+}

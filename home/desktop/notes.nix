@@ -1,19 +1,34 @@
 {
   config,
   pkgs,
+  unstable-pkgs,
   hostName,
+  isVm,
   ...
 }:
 let
-  picker = if hostName == "prl-dev-vm" then pkgs.fuzzel else pkgs.wofi;
-  pickerName = if hostName == "prl-dev-vm" then "fuzzel" else "wofi";
+  picker = if (hostName == "prl-dev-vm" || hostName == "workstation") then pkgs.fuzzel else pkgs.wofi;
+  pickerName = if (hostName == "prl-dev-vm" || hostName == "workstation") then "fuzzel" else "wofi";
   pickerCommand =
-    if hostName == "prl-dev-vm" then
+    if (hostName == "prl-dev-vm" || hostName == "workstation") then
       "fuzzel --dmenu --prompt='Notes: ' --width=60 --lines=15"
     else
       "wofi --dmenu --width=600 --height=400 --prompt=Notes --insensitive --cache-file=/dev/null";
-  terminal = if config.programs.foot.enable then pkgs.foot else pkgs.kitty;
-  terminalCommand = if config.programs.foot.enable then "footclient" else "kitty --single-instance";
+  term = import ./default-terminal.nix { inherit isVm; };
+  terminal =
+    if hostName == "workstation" then
+      unstable-pkgs.ghostty
+    else if config.programs.foot.enable then
+      pkgs.foot
+    else
+      pkgs.kitty;
+  terminalCommand =
+    if hostName == "workstation" then
+      term.launcherCommand
+    else if config.programs.foot.enable then
+      "footclient"
+    else
+      "kitty --single-instance";
 in
 {
   # Notes management script with a fuzzy picker

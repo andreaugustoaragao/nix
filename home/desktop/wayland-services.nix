@@ -101,7 +101,7 @@ in
       };
     };
 
-    wl-fcitx5 = lib.mkIf (hostName != "prl-dev-vm") {
+    wl-fcitx5 = lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation") {
       Unit = {
         Description = "Wayland: fcitx5 input method";
         After = [ "graphical-session.target" ];

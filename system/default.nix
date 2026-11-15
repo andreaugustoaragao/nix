@@ -38,7 +38,7 @@
     ./printing.nix
     ./fonts.nix
   ]
-  ++ lib.optionals (!isServer && hostName != "prl-dev-vm") [
+  ++ lib.optionals (!isServer && (hostName != "prl-dev-vm" && hostName != "workstation")) [
     ./accounts.nix
     ./kmscon.nix
   ]

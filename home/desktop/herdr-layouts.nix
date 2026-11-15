@@ -36,6 +36,7 @@ let
     "auto-namer"
     "personal-costs"
     "preview"
+    "work"
   ];
   customLayouts = [
     "main-flat"

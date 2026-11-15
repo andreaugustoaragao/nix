@@ -9,6 +9,7 @@ model/task fit, then harness tools. Do not balance subscriptions by task count.
 
 | Work | Preferred route | Model |
 | --- | --- | --- |
+| Routine Google Chat drafting from supplied facts and delivery | `chat-send-task`, fresh minimal Pi/WebAI session, only its delivery tool | `litellm/gpt-6.1-terra`, low effort |
 | Email, Google Drive or calendar tasks, including review needing those connectors | `codex-openai`; keep execution on its configured connectors | `gpt-6.1-sol`, or `gpt-6-astra` for difficult synthesis/reasoning |
 | General implementation, fixes, refactoring, tests and routine review | `codex-openai` | `gpt-6.1-sol` |
 | Complex diagnosis, architecture, high-risk changes and deep review | `codex-openai` | `gpt-6-astra` |
@@ -19,8 +20,13 @@ Codex–OpenAI is the user's cheapest Astra/Sol 6.1 option. Use it for substanti
 implementation and review, not just a token share of the backlog. Cursor remains
 available for explicit requests or a task-specific capability/allowance reason;
 it must not displace a healthy Codex–OpenAI Astra/Sol route merely for balancing.
-Terra, Hydrogen and other models are opt-in or need a documented task-specific
-reason; the old benchmark defaults do not automatically select them.
+The Chat row is the user's approved task-specific default after matched full-send
+trials. Pass only a self-contained brief and the configured route; keep research
+and source retrieval in the caller. Exact supplied or reviewed content uses the
+deterministic `chat-send` command with no model. Preserve its operation ID on
+uncertainty and escalate browser exceptions without a second submission.
+Other Terra/Hydrogen tasks remain opt-in or need a documented task-specific
+reason; the Chat default does not change unrelated model routes.
 
 Use the explicit `codex-openai`/`codex-webai` launchers, not bare `codex` with an
 assumed provider. Verify the installed route, exact model, effort and needed

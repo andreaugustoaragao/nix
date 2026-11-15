@@ -20,7 +20,6 @@ SIGNATURE = "- sent by Fulcrum"
 MARKER = "\u200b"
 EXIT = {"preview": 0, "sent": 0, "needs_attention": 2, "uncertain": 3, "failed": 1}
 EDITOR = {"role": "textbox", "name": "History is on", "exact": True}
-SEND = {"role": "button", "name": "Send message", "exact": True}
 PROBE = Path(__file__).with_name("dom_probe.js").read_text()
 TOKEN = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}\Z")
 URL = re.compile(r"https://chat\.google\.com/(?:u/[0-9]+/)?app/(?:chat|space)/[a-zA-Z0-9_-]+\Z")
@@ -236,7 +235,7 @@ class Browser:
     def __init__(self, record, persist):
         self.record, self.persist = record, persist
 
-    def call(self, *args, action=None):
+    def call(self, *args, action=None, phase=None):
         label = action["type"] if action else args[0]
         start = time.monotonic()
         try:
@@ -259,13 +258,15 @@ class Browser:
         finally:
             timings = self.record.setdefault("actions", [])
             timings.append({"action": label, "ms": round((time.monotonic() - start) * 1000)})
+            if phase:
+                timings[-1].update(phase=phase, key=action.get("key"))
             self.record["actions"] = timings[-200:]
             self.record["action_count"] = self.record.get("action_count", 0) + 1
             self.record["action_ms"] = self.record.get("action_ms", 0) + timings[-1]["ms"]
             self.persist()
 
-    def action(self, kind, **values):
-        return self.call("action", self.record["task"], "--page", "main", "--timeout", "30", action={"type": kind, **values})
+    def action(self, kind, phase=None, **values):
+        return self.call("action", self.record["task"], "--page", "main", "--timeout", "30", action={"type": kind, **values}, phase=phase)
 
     def ownership(self, resume=False):
         info = self.call("info", self.record["task"])
@@ -292,6 +293,7 @@ class Operation:
         self.record = read_json(self.path, private=True) if self.path.exists() else {"operation_id": operation_id}
         self.browser = Browser(self.record, self.save)
         self.owner_path = self.root / ("route-" + route_key(self.record["request"]["route"]) + ".json") if "request" in self.record else None
+        self.reloaded = False
 
     def save(self):
         atomic(self.path, self.record)
@@ -353,6 +355,9 @@ class Operation:
                 if ready:
                     return dom
             if time.monotonic() >= deadline:
+                if publication and self.refresh_publication(dom):
+                    deadline = time.monotonic() + 12
+                    continue
                 raise Stop("publication_not_confirmed" if publication else "markdown_did_not_settle", "uncertain" if publication else "needs_attention")
             time.sleep(0.2)
 
@@ -384,17 +389,50 @@ class Operation:
         self.record["mention_inserted"] = True
         self.save()
 
-    def publication(self, dom):
+    def publication(self, dom, local_only=False):
         baseline = self.record.get("baseline_ids", [])
         own = self.record.get("sender_id")
         ids = dom.get("message_ids", [])
         if not baseline or baseline[-1] not in ids or not empty(dom["editors"][0]):
             return None
         tail = ids.index(baseline[-1])
-        matches = [m for m in dom.get("messages", []) if m.get("id") in ids[tail + 1:] and m["id"] not in baseline and m.get("sender_id") == own and m.get("server") is True and m.get("body_count") == 1 and self.expected(m.get("body"), published=True)]
+        matches = [m for m in dom.get("messages", []) if m.get("id") in ids[tail + 1:] and m["id"] not in baseline and m.get("sender_id") == own and m.get("body_count") == 1 and self.expected(m.get("body"), published=True)]
         if len(matches) > 1:
             raise Stop("multiple_new_matching_messages", "uncertain")
-        return matches[0] if len(matches) == 1 else None
+        if not matches:
+            return None
+        message = matches[0]
+        self.record["publication_diagnostics"] = {key: message.get(key) for key in ("id", "topic_id", "local_only", "pending", "error")}
+        bound = self.record.get("reconciliation_candidate_id")
+        if bound is not None and message["id"] != bound:
+            return None
+        if message.get("pending") is not False or message.get("error") is not False:
+            return None
+        if local_only:
+            return message if message.get("local_only") == "true" and message.get("topic_id") else None
+        return message if message.get("local_only") == "false" and message.get("server") is True else None
+
+    def refresh_publication(self, dom):
+        if self.reloaded:
+            return False
+        candidate = self.publication(dom, local_only=True)
+        if candidate is None:
+            return False
+        self.reserve()
+        self.browser.ownership()
+        # Revalidate the route/account, empty composer, and exact local candidate
+        # immediately before navigating. Never reload a draft to seek confirmation.
+        fresh = self.checked()
+        checked = self.publication(fresh, local_only=True)
+        if checked is None or checked["id"] != candidate["id"]:
+            return False
+        self.reloaded = True
+        self.record["reconciliation_candidate_id"] = candidate["id"]
+        self.record["reconciliation_reloads"] = self.record.get("reconciliation_reloads", 0) + 1
+        self.save()
+        self.browser.action("navigate", url=self.record["request"]["route"]["url"])
+        self.browser.action("wait", target=EDITOR, state="visible")
+        return True
 
     def screenshot(self):
         result = self.browser.action("screenshot", full_page=False)
@@ -449,6 +487,29 @@ class Operation:
         if len(senders) != 1 or not dom.get("publication_supported"):
             raise Stop("publication_identity_not_supported")
         return senders.pop()
+
+    def focus_send(self):
+        # Grounded keyboard path starts outside code; Tab in a code article can
+        # indent the draft. Verify the final plain signature before traversing.
+        self.browser.action("click", target=EDITOR)
+        self.browser.action("key", key="Control+End")
+        dom = self.checked()
+        if not self.expected(dom["editors"][0]) or not dom.get("editor_focused") or not dom.get("caret_at_plain_end"):
+            raise Stop("safe_plain_caret_not_confirmed")
+        for _ in range(12):
+            self.browser.action("key", key="Tab")
+            dom = self.checked()
+            if not self.expected(dom["editors"][0]) or not dom.get("send_enabled"):
+                raise Stop("draft_changed_or_send_disabled")
+            if dom.get("editor_focused") and not dom.get("caret_at_plain_end"):
+                raise Stop("safe_plain_caret_not_confirmed")
+            if dom.get("send_focused"):
+                self.browser.ownership()
+                dom = self.checked()
+                if not dom.get("send_focused") or not dom.get("send_enabled") or not self.expected(dom["editors"][0]):
+                    raise Stop("send_focus_or_draft_changed")
+                return dom
+        raise Stop("send_focus_not_reached")
 
     def execute(self, mode, send=False):
         if self.record.get("outcome") == "sent":
@@ -524,13 +585,14 @@ class Operation:
         dom = self.checked()
         if not self.expected(dom["editors"][0]) or not dom.get("send_enabled"):
             raise Stop("draft_changed_or_send_disabled")
+        dom = self.focus_send()
         sender = self.sender(dom)
         baseline = dom.get("message_ids")
         if not isinstance(baseline, list) or not all(isinstance(i, str) and i for i in baseline) or len(baseline) != len(set(baseline)):
             raise Stop("publication_ids_ambiguous")
-        self.record.update(send_attempted=True, attempted_at=time.time(), baseline_ids=baseline, sender_id=sender, outcome="uncertain", reason="send_attempt_recorded")
-        self.save()  # Never move this write after the click or reset it on failure.
-        self.browser.action("click", target=SEND)
+        self.record.update(send_attempted=True, submit_method="focused_button_space", attempted_at=time.time(), baseline_ids=baseline, sender_id=sender, outcome="uncertain", reason="send_attempt_recorded")
+        self.save()  # Never move this write after activation or reset it on failure.
+        self.browser.action("key", key="Space", phase="submit")
         _, message = self.settle(publication=True)
         self.confirm(message)
 

@@ -83,23 +83,36 @@
   const messages = groups.slice(-40).map(group => {
     const bodies = all(group, '[jsname="bgckF"]');
     const topic = group.closest('[data-topic-id]');
-    const pending = !!group.querySelector('[role="progressbar"],[role="alert"],[aria-busy="true"]') ||
-      !!group.closest('[aria-busy="true"]');
+    const busyAncestor = group.closest('[aria-busy="true"]');
+    const pending = all(group, '[role="progressbar"],[aria-busy="true"]').some(visible) ||
+      !!(busyAncestor && visible(busyAncestor));
+    const error = all(group, '[role="alert"],[role="alertdialog"]').some(visible);
+    const localOnly = topic?.getAttribute('data-is-local-only') ?? null;
     return {
       id: group.getAttribute('data-id'), sender_id: group.getAttribute('data-user-id'),
       body_count: bodies.length,
-      server: topic?.getAttribute('data-is-local-only') === 'false' && !pending,
+      topic_id: topic?.getAttribute('data-topic-id') ?? null,
+      local_only: localOnly, pending, error,
+      server: localOnly === 'false' && !pending && !error,
       body: bodies.length === 1 ? semantic(bodies[0]) : null
     };
   });
   const editors = all(document, '[role="textbox"][contenteditable="true"]').filter(visible);
   const send = all(document, 'button,[role="button"]').filter(e => visible(e) && e.getAttribute('aria-label') === 'Send message');
+  const selection = document.getSelection?.();
+  const anchor = selection?.anchorNode;
   return {
     version: 1, url: location.href, title: document.title,
     accounts: all(document, '[aria-label]').filter(e => visible(e) && e.getAttribute('aria-label').startsWith('Google Account:')).map(e => e.getAttribute('aria-label')),
     editors: editors.map(e => ({name: e.getAttribute('aria-label'), ...semantic(e)})),
     send_count: send.length,
     send_enabled: send.length === 1 && !send[0].disabled && send[0].getAttribute('aria-disabled') !== 'true',
+    send_focused: send.length === 1 && document.activeElement === send[0],
+    editor_focused: editors.length === 1 && document.activeElement === editors[0],
+    caret_at_plain_end: editors.length === 1 && !!anchor && selection.isCollapsed &&
+      editors[0].contains(anchor) && anchor.nodeType === Node.TEXT_NODE &&
+      anchor.nodeValue === '\u200b' + signature && selection.anchorOffset === anchor.nodeValue.length &&
+      !anchor.parentElement.closest('article[role="code"]'),
     // Historical attachment cards expose nonmodal dialogs inside real message groups.
     dialogs: all(document, '[role="dialog"],[role="alertdialog"]').filter(visible).filter(blockingDialog).length,
     options: all(document, '[role="option"]').filter(visible).map(e => ({

@@ -81,6 +81,13 @@ let
       exec python3 ${skill}/scripts/spawn.py "$@"
     '';
   };
+  chiefOfStaffWork = pkgs.writeShellApplication {
+    name = "chief-of-staff-work";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${skill}/scripts/work.py "$@"
+    '';
+  };
 in
 {
   home.packages = [
@@ -89,10 +96,26 @@ in
     codexName
     chiefOfStaffInit
     chiefOfStaffSpawn
+    chiefOfStaffWork
   ];
 
   home.file = {
-    ".agents/skills/chief-of-staff".source = skill;
+    ".agents/skills/chief-of-staff" = {
+      source = skill;
+      force = true;
+    };
+    ".local/bin/chief-of-staff-init" = {
+      source = lib.getExe chiefOfStaffInit;
+      force = true;
+    };
+    ".local/bin/chief-of-staff-spawn" = {
+      source = lib.getExe chiefOfStaffSpawn;
+      force = true;
+    };
+    ".local/bin/chief-of-staff-work" = {
+      source = lib.getExe chiefOfStaffWork;
+      force = true;
+    };
     # Preserve the old invocation without a second coordinator or worker pool.
     ".agents/skills/herdr-coordinate".source = builtins.path {
       name = "herdr-coordinate-compatibility-skill";

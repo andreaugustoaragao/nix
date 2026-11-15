@@ -34,6 +34,14 @@ fallback. For GUI/UI/UX, record the Google review model and chosen stage
 
 ## Reports and evidence
 
+Publish the structured Work baseline before implementation dispatch. Record its
+event ID, checkpoint IDs and acceptance evidence references here. Keep the
+current step, next action and expected check-in current with coordinator-owned
+`chief-of-staff-work` events; default five minutes, longer quiet periods declared.
+Record revisions with reasons; preserve the original baseline. Worker activity
+does not verify checkpoints or satisfy check-ins. Older tasks may explicitly
+have no structured baseline; do not reconstruct completion from prose.
+
 Reference implementation artifacts, actual changes, check commands/results,
 independent review findings and accepted fixes. Keep worker reports separate
 from coordinator acceptance. Secrets must remain outside these records.

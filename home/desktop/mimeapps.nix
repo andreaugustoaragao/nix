@@ -12,43 +12,52 @@ let
   fileManager =
     if config.programs.vereda.enable then "io.github.andrearagao.vereda.desktop" else "thunar.desktop";
   textEditor = if config.programs.vscodium.enable then "codium.desktop" else "dev.zed.Zed.desktop";
-  imageDefaults = lib.genAttrs (
-    [
-      "image/avif"
-      "image/bmp"
-      "image/gif"
-      "image/jpeg"
-      "image/jpg"
-      "image/pjpeg"
-      "image/png"
-      "image/svg+xml"
-      "image/webp"
-      "image/x-bmp"
-      "image/x-png"
-    ]
-    ++ lib.optionals (hostName != "prl-dev-vm") [
-      "image/heif"
-      "image/jxl"
-      "image/pbm"
-      "image/tiff"
-      "image/x-exr"
-      "image/x-portable-anymap"
-      "image/x-portable-bitmap"
-      "image/x-portable-graymap"
-      "image/x-portable-pixmap"
-      "image/x-targa"
-      "image/x-tga"
-    ]
-  ) (_: if hostName == "prl-dev-vm" then "brave-browser.desktop" else "swayimg.desktop");
+  imageDefaults =
+    lib.genAttrs
+      (
+        [
+          "image/avif"
+          "image/bmp"
+          "image/gif"
+          "image/jpeg"
+          "image/jpg"
+          "image/pjpeg"
+          "image/png"
+          "image/svg+xml"
+          "image/webp"
+          "image/x-bmp"
+          "image/x-png"
+        ]
+        ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+          "image/heif"
+          "image/jxl"
+          "image/pbm"
+          "image/tiff"
+          "image/x-exr"
+          "image/x-portable-anymap"
+          "image/x-portable-bitmap"
+          "image/x-portable-graymap"
+          "image/x-portable-pixmap"
+          "image/x-targa"
+          "image/x-tga"
+        ]
+      )
+      (
+        _:
+        if (hostName == "prl-dev-vm" || hostName == "workstation") then
+          "brave-browser.desktop"
+        else
+          "swayimg.desktop"
+      );
   textViewer =
-    if hostName == "prl-dev-vm" then
+    if (hostName == "prl-dev-vm" || hostName == "workstation") then
       "local.folio.Reader.desktop"
     else if useDms then
       "com.danklinux.dms.notepad.desktop"
     else
       textEditor;
   officeDefaults =
-    if system == "aarch64-linux" then
+    if system == "aarch64-linux" || hostName == "workstation" then
       {
         "application/msword" = "writer.desktop";
         "application/rtf" = "writer.desktop";
@@ -191,7 +200,7 @@ in
     }
     // officeDefaults
     // imageDefaults
-    // lib.optionalAttrs (hostName != "prl-dev-vm") {
+    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation") {
       # Nautilus provides the installed archive browsing/extraction handler.
       "application/bzip2" = "org.gnome.Nautilus.desktop";
       "application/gzip" = "org.gnome.Nautilus.desktop";

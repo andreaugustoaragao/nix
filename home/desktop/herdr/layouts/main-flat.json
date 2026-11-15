@@ -216,6 +216,13 @@
                       "content": {
                         "mod": "personal-costs"
                       }
+                    },
+                    {
+                      "id": "work-progress",
+                      "type": "block",
+                      "content": {
+                        "mod": "work"
+                      }
                     }
                   ],
                   "active": "files"
@@ -232,16 +239,40 @@
         },
         {
           "id": "status",
-          "type": "block",
-          "content": {
-            "mod": "personal-status",
-            "props": {
-              "flat": true
-            }
-          },
+          "type": "row",
           "size": {
             "px": 28
-          }
+          },
+          "resizable": false,
+          "children": [
+            {
+              "id": "status-existing",
+              "type": "block",
+              "content": {
+                "mod": "personal-status",
+                "props": {
+                  "flat": true
+                }
+              },
+              "size": {
+                "weight": 1
+              }
+            },
+            {
+              "id": "work-indicator",
+              "type": "block",
+              "content": {
+                "mod": "work",
+                "props": {
+                  "compact": true
+                }
+              },
+              "size": {
+                "px": 288
+              },
+              "min": 160
+            }
+          ]
         },
         {
           "id": "auto-namer",

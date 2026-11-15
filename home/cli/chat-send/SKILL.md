@@ -1,9 +1,13 @@
 ---
 name: chat-send
-description: Prepare, preview, or send a Google Chat message to a configured route using the managed accounts browser.
+description: Draft and send Google Chat messages through a minimal Terra/Pi worker, or deliver exact supplied text with the managed accounts browser.
 ---
 
-Read only the relevant section of `~/projects/work/notes/.claude/communication-style.md` when authoring the message. Do not load the notes vault. Prepare version 1 text/code JSON using [the payload reference](references/payload.md), then invoke `chat-send --route ALIAS --message FILE` once. A draft request stops at preview. An explicit user request to send authorizes adding `--send --operation STABLE_ID` without a redundant approval round. Reuse that ID when checking or retrying this operation; identical intentional messages need different IDs.
+For routine drafting from supplied facts, use `chat-send-task --route ALIAS --brief FILE --operation STABLE_ID`. This is the task-specific default: a fresh Pi session, WebAI `gpt-6.1-terra`, low effort, and only the fixed delivery tool. Put the recipient's name, requested action, relevant facts and exact code in a short self-contained brief. Keep research and source retrieval in the caller; do not give the worker the backlog, notes vault or full conversation. Read [the worker reference](references/worker.md) for lifecycle, private results and chief-of-staff tracking.
+
+An explicit user request to send authorizes `--send` without a redundant approval round. Otherwise the worker stops at preview. Reuse the operation ID to check status; never relaunch an uncertain operation under a new ID. Missing facts or a browser failure return to the caller for attention.
+
+For exact supplied or already reviewed content, skip inference. Prepare version 1 text/code JSON using [the payload reference](references/payload.md), then invoke `chat-send --route ALIAS --message FILE [--send --operation STABLE_ID]`. To send a worker preview after approval, use its returned payload and the same operation ID with this deterministic command. Read only the relevant section of `~/projects/work/notes/.claude/communication-style.md` when the caller needs additional writing guidance.
 
 The command uses only task-owned pages in the existing managed accounts browser. Corporate Google OAuth/API integration, gog, cookies, private endpoints, raw CDP, and browser/profile changes are outside this workflow. Do not replace the command's checks with improvised browser actions.
 

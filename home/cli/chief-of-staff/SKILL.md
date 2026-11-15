@@ -95,6 +95,17 @@ or discard them. A missing terminal or `done`/`idle` status is not task success.
 
 ## Intake and scheduling
 
+Read [the Work publication contract](references/work-records.md) before
+dispatching a long task. Publish its task, immutable checkpoint baseline and
+active lifecycle with `chief-of-staff-work`; implementation dispatch enforces
+this requirement. Publish a check-in at meaningful transitions and within five
+minutes unless a longer quiet window is explicitly declared. Accept checkpoints
+only after checking evidence. Keep worker reports separate from check-ins and
+verification; revise scope explicitly, preserving the original baseline.
+Only the coordinator runs Work writes. Bootstrap research/review/check workers
+can run before a plan exists. Legacy narrative records remain valid and visibly
+lack a baseline until one is published. Panel visibility never resumes work.
+
 For routine Git synchronization, use the installed `repo-sync` skill and command
 first. Record its structured result in the task; a deterministic invocation does
 not need a new agent harness. Use a Hydrogen worker for exceptions that need

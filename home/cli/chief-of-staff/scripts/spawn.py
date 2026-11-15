@@ -11,6 +11,8 @@ import sys
 import tempfile
 import time
 
+from work import RecordError, require_plan
+
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 TASK_TEMPLATE = SKILL_ROOT / "templates" / "task.md"
 MAX_SPLITS_PER_TAB = 4
@@ -185,6 +187,14 @@ def main() -> int:
     tasks_dir = portfolio_dir / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     task_id = args.task_id or next_task_id(tasks_dir)
+
+    # Research/review/check can establish the facts needed to publish a baseline.
+    if args.role not in ("research", "review", "check"):
+        try:
+            require_plan(portfolio_dir, task_id)
+        except (RecordError, OSError, ValueError) as exc:
+            print(json.dumps({"status": "error", "error": "baseline_required", "message": str(exc)}))
+            return 2
 
     try:
         app_ls = run_json(["herdr-app", "ls"])

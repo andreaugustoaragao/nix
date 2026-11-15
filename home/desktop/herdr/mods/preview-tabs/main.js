@@ -194,7 +194,7 @@ export default class Tabs extends View {
         : baseLeft;
     const panel = find(root, "panel");
     const body = find(root, "panel-body");
-    const enabled = [...new Set(["files", ...(shared("workspace.panels") ?? ["files", "changes"]), "preview", "costs"])];
+    const enabled = [...new Set(["files", ...(shared("workspace.panels") ?? ["files", "changes"]), "preview", "costs", "work-progress"])];
     this.syncPanel(space, panel, body, enabled);
 
     const panelButton = (id, label, iconPath) => {
@@ -264,6 +264,7 @@ export default class Tabs extends View {
       .when(enabled.includes("changes"), (el) => el.child(panelButton("changes", "Changes", "mods/preview-tabs/git-compare.svg")))
       .child(panelButton("preview", "Preview", "mods/preview-tabs/file-text.svg"))
       .child(panelButton("costs", "Costs", "mods/personal-costs/dollar.svg"))
+      .child(panelButton("work-progress", "Work", "mods/work/work.svg"))
       .when(w?.buttons && p.windowControls !== false, (el) =>
         el
           .child(button("minimize", w.platform === "windows" ? svg("mods/tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))

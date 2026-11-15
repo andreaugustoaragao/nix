@@ -75,7 +75,7 @@ def fake_browser():
         output(state["task"])
     elif command == "info":
         task = copy.deepcopy(state["task"])
-        if state.get("foreign_task"):
+        if state.get("foreign_task") or (state.get("foreign_task_after_click") and state.get("clicks")):
             task["pages"] = {"main": "foreign-page"}
         output(task)
     elif command in ("resume", "keep", "finish"):
@@ -87,6 +87,15 @@ def fake_browser():
             output({"state": "visible"})
         elif kind == "viewport":
             state["viewport"] = [action["width"], action["height"]]
+            output({})
+        elif kind == "navigate":
+            receipt = json.loads(Path(os.environ["CHAT_SEND_RECEIPT"]).read_text())
+            if not receipt.get("send_attempted") or not receipt.get("reconciliation_candidate_id") or action["url"] != receipt["request"]["route"]["url"]:
+                return 8
+            if state["composer"]["text"].strip():
+                return 8
+            state["reloads"] = state.get("reloads", 0) + 1
+            state["reloaded"] = True
             output({})
         elif kind == "fill":
             state["fills"] = state.get("fills", 0) + 1
@@ -109,23 +118,34 @@ def fake_browser():
                 state["mention_selected"] = True
                 output({})
                 return 0
-            # The real command must durably mark the operation before dispatching.
-            receipt = json.loads(Path(os.environ["CHAT_SEND_RECEIPT"]).read_text())
-            if not receipt.get("send_attempted"):
-                return 8
-            state["clicks"] = state.get("clicks", 0) + 1
-            state["composer"] = {"blocks": [], "text": "", "forbidden": False, "signature_list": False, "mentions": []}
-            state["published"] = not state.get("no_publication", False)
-            save()
-            if state.get("kill_parent"):
-                os.kill(os.getppid(), signal.SIGKILL)
-                return 0
-            if state.get("crash_after_click"):
-                return 9
-            output({})
+            raise AssertionError("Pointer Send is forbidden")
         elif kind == "key":
-            if action["key"] not in ("Control+Home", "Space", "ArrowLeft"):
-                state["mention_keys"] = state.get("mention_keys", "") + action["key"]
+            key = action["key"]
+            if key == "Control+End":
+                state["focus"] = "editor"
+            elif key == "Tab":
+                state["tabs"] = state.get("tabs", 0) + 1
+                state["focus"] = "other" if state.get("focus_unreachable") else "send"
+                if state.get("draft_during_focus"):
+                    state["composer"]["text"] += " changed"
+                    state["composer"]["blocks"][0]["text"] += " changed"
+            elif key == "Space" and state.get("focus") == "send":
+                receipt = json.loads(Path(os.environ["CHAT_SEND_RECEIPT"]).read_text())
+                if not receipt.get("send_attempted") or receipt.get("submit_method") != "focused_button_space":
+                    return 8
+                state["clicks"] = state.get("clicks", 0) + 1
+                state["composer"] = {"blocks": [], "text": "", "forbidden": False, "signature_list": False, "mentions": []}
+                if state.get("nonempty_after_click"):
+                    state["composer"] = copy.deepcopy(BODY)
+                state["published"] = not state.get("no_publication", False)
+                save()
+                if state.get("kill_parent"):
+                    os.kill(os.getppid(), signal.SIGKILL)
+                    return 0
+                if state.get("crash_after_click"):
+                    return 9
+            elif key not in ("Control+Home", "Space", "ArrowLeft"):
+                state["mention_keys"] = state.get("mention_keys", "") + key
             output({})
         elif kind == "evaluate":
             if state.get("published") and state.get("malformed_after_click"):
@@ -134,6 +154,10 @@ def fake_browser():
                 return 0
             dom = json.loads((BASE / "tests/dom.json").read_text())
             editor = copy.deepcopy(state.get("composer", dom["editors"][0]))
+            if state.get("clicks"):
+                state["postclick_probes"] = state.get("postclick_probes", 0) + 1
+                if state.get("draft_on_recheck") and state["postclick_probes"] > 1:
+                    editor = copy.deepcopy(BODY)
             if state.get("pending_probes", 0):
                 state["pending_probes"] -= 1
                 editor = {"blocks": [{"type": "text", "text": state["rendered"]}], "text": state["rendered"], "forbidden": False, "signature_list": False, "mentions": []}
@@ -144,6 +168,13 @@ def fake_browser():
             if state.get("foreign_draft"):
                 editor = {"text": "Foreign draft", "blocks": [{"type": "text", "text": "Foreign draft"}], "forbidden": False, "mentions": []}
             dom["editors"] = [{"name": "History is on", **editor}]
+            dom["editor_focused"] = state.get("focus") == "editor"
+            dom["caret_at_plain_end"] = not state.get("caret_in_code", False)
+            dom["send_focused"] = state.get("focus") == "send"
+            if dom["send_focused"]:
+                state["focus_probes"] = state.get("focus_probes", 0) + 1
+                if state.get("focus_lost_at_guard") and state["focus_probes"] > 1:
+                    dom["send_focused"] = False
             if state.get("mention_keys") and not state.get("mention_selected"):
                 option = {"email": "other@example.com", "id": "other@example.com", "chip_type": "2", "name": "Example Person other@example.com"}
                 dom["options"] = [option, copy.deepcopy(option)] if state.get("ambiguous_mention") else [option]
@@ -158,11 +189,25 @@ def fake_browser():
                     dom[key] = value
             if state.get("clicks") and state.get("postclick_wrong_title"):
                 dom["title"] = "Wrong after click"
+            if state.get("clicks") and state.get("postclick_probes", 0) > 1:
+                if state.get("account_on_recheck"):
+                    dom["accounts"] = []
+                if state.get("route_on_recheck"):
+                    dom["url"] = "https://chat.google.com/app/chat/WRONG"
             if state.get("published"):
-                dom["message_ids"].append("new-own")
-                dom["messages"].append({"id": "new-own", "sender_id": "sender-2" if state.get("wrong_sender") else "sender-1", "server": not state.get("pending_publication", False), "body_count": 1, "body": mentioned_body(published=True) if state.get("mention_selected") else copy.deepcopy(BODY)})
+                message_id = "different-own" if state.get("reloaded") and state.get("id_after_reload") else "new-own"
+                body = mentioned_body(published=True) if state.get("mention_selected") else copy.deepcopy(BODY)
+                if state.get("reloaded") and state.get("content_after_reload"):
+                    body["blocks"][0]["text"] += " Changed"
+                local = state.get("stale_local_only", False) and (not state.get("reloaded") or state.get("local_stays_true"))
+                pending, error = state.get("pending_publication", False), state.get("publication_error", False)
+                dom["message_ids"].append(message_id)
+                if state.get("reloaded") and state.get("anchor_after_reload"):
+                    dom["message_ids"].remove("before-other")
+                dom["messages"].append({"id": message_id, "sender_id": "sender-2" if state.get("wrong_sender") else "sender-1", "topic_id": "topic-1", "local_only": "true" if local else "false", "pending": pending, "error": error, "server": not (local or pending or error), "body_count": 1, "body": body})
             if state.get("duplicate_publication") and state.get("published"):
                 dom["messages"].append({**dom["messages"][-1], "id": "second-new-own"})
+                dom["message_ids"].append("second-new-own")
             output({"value": dom})
         elif kind == "screenshot":
             screenshot = path.with_suffix(".png")
@@ -206,7 +251,7 @@ class SenderTests(unittest.TestCase):
     def browser(self):
         return json.loads(self.fixture.read_text())
 
-    def call(self, *args, send=False, operation="one", status=None):
+    def call(self, *args, send=False, operation="one", status=None, fast=False):
         command = [sys.executable, str(SCRIPT)]
         if status:
             command += [status, "--operation", operation]
@@ -216,6 +261,8 @@ class SenderTests(unittest.TestCase):
                 command += ["--operation", operation]
             if send:
                 command += ["--send"]
+        if fast:
+            command = [sys.executable, str(Path(__file__).resolve()), "--fast-cli", *command[2:]]
         result = subprocess.run(command + ["--state-dir", str(self.state)] + list(args), env=self.env, text=True, capture_output=True, timeout=20)
         self.assertLess(len(result.stdout), 2048)
         self.assertNotIn(TEXT, result.stdout + result.stderr)
@@ -280,6 +327,84 @@ class SenderTests(unittest.TestCase):
         self.assertEqual(len(self.browser()["calls"]), before)
         self.assertEqual(self.browser()["task"]["state"], "finished")
         self.assertEqual(self.receipt()["publication_id"], "new-own")
+
+    def test_focused_keyboard_submit_has_no_pointer_send_and_one_durable_attempt(self):
+        self.assertEqual(self.call(send=True)["outcome"], "sent")
+        actions = [c["action"] for c in self.browser()["calls"] if c.get("action")]
+        self.assertFalse(any(a["type"] == "click" and a["target"].get("name") == "Send message" for a in actions))
+        self.assertEqual(self.receipt()["submit_method"], "focused_button_space")
+        self.assertEqual(sum(a.get("phase") == "submit" for a in self.receipt()["actions"]), 1)
+
+    def test_unsafe_caret_focus_or_changed_draft_never_submits(self):
+        for flag in ("caret_in_code", "focus_unreachable", "draft_during_focus", "focus_lost_at_guard"):
+            with self.subTest(flag=flag):
+                self.state = self.root / ("state-" + flag)
+                self.env["CHAT_SEND_RECEIPT"] = str(self.state / "one/receipt.json")
+                self.fixture.write_text(json.dumps({flag: True}))
+                self.assertEqual(self.call(send=True)["outcome"], "needs_attention")
+                self.assertFalse(self.receipt().get("send_attempted", False))
+                self.assertEqual(self.browser().get("clicks", 0), 0)
+
+    def test_stale_local_publication_refreshes_once_without_second_click(self):
+        self.change(stale_local_only=True)
+        self.assertEqual(self.call(send=True, fast=True)["outcome"], "sent")
+        self.assertEqual(self.browser()["clicks"], 1)
+        self.assertEqual(self.browser()["reloads"], 1)
+        receipt = self.receipt()
+        self.assertEqual(receipt["reconciliation_candidate_id"], "new-own")
+        self.assertEqual(receipt["publication_diagnostics"], {"id": "new-own", "topic_id": "topic-1", "local_only": "false", "pending": False, "error": False})
+        self.assertTrue(receipt["send_attempted"])
+
+    def test_status_reconciles_stale_local_publication_without_send_or_fill(self):
+        self.change(stale_local_only=True, crash_after_click=True)
+        self.assertEqual(self.call(send=True, fast=True)["outcome"], "uncertain")
+        fingerprint = self.receipt()["fingerprint"]
+        before = len(self.browser()["calls"])
+        self.change(crash_after_click=False)
+        self.assertEqual(self.call(status="status", fast=True)["outcome"], "sent")
+        actions = [(c.get("action") or {}).get("type") for c in self.browser()["calls"][before:]]
+        self.assertNotIn("click", actions)
+        self.assertNotIn("fill", actions)
+        self.assertNotIn("key", actions)
+        self.assertEqual(self.browser()["clicks"], 1)
+        self.assertEqual(self.browser()["reloads"], 1)
+        self.assertEqual(self.receipt()["fingerprint"], fingerprint)
+
+    def test_foreign_nonempty_pending_error_missing_or_ambiguous_publication_never_reloads(self):
+        for flag in ("wrong_sender", "nonempty_after_click", "pending_publication", "publication_error", "no_publication", "duplicate_publication"):
+            with self.subTest(flag=flag):
+                self.state = self.root / ("state-" + flag)
+                self.env["CHAT_SEND_RECEIPT"] = str(self.state / "one/receipt.json")
+                self.fixture.write_text(json.dumps({"stale_local_only": True, flag: True}))
+                self.assertEqual(self.call(send=True, fast=True)["outcome"], "uncertain")
+                self.assertEqual(self.browser().get("reloads", 0), 0)
+                self.assertEqual(self.browser()["clicks"], 1)
+
+    def test_refresh_rechecks_draft_account_route_and_task_ownership(self):
+        for flag in ("draft_on_recheck", "account_on_recheck", "route_on_recheck", "foreign_task_after_click"):
+            with self.subTest(flag=flag):
+                self.state = self.root / ("state-" + flag)
+                self.env["CHAT_SEND_RECEIPT"] = str(self.state / "one/receipt.json")
+                self.fixture.write_text(json.dumps({"stale_local_only": True, flag: True}))
+                self.assertEqual(self.call(send=True, fast=True)["outcome"], "uncertain")
+                self.assertEqual(self.browser().get("reloads", 0), 0)
+                self.assertEqual(self.browser()["clicks"], 1)
+
+    def test_changed_id_content_anchor_or_still_local_after_refresh_stays_uncertain(self):
+        for flag in ("id_after_reload", "content_after_reload", "anchor_after_reload", "local_stays_true"):
+            with self.subTest(flag=flag):
+                self.state = self.root / ("state-" + flag)
+                self.env["CHAT_SEND_RECEIPT"] = str(self.state / "one/receipt.json")
+                self.fixture.write_text(json.dumps({"stale_local_only": True, flag: True}))
+                self.assertEqual(self.call(send=True, fast=True)["outcome"], "uncertain")
+                self.assertEqual(self.browser()["reloads"], 1)
+                self.assertEqual(self.browser()["clicks"], 1)
+                self.assertEqual(self.receipt()["reconciliation_candidate_id"], "new-own")
+                if flag == "id_after_reload":
+                    # A later invocation cannot silently rebind to another publication.
+                    self.assertEqual(self.call(status="status", fast=True)["outcome"], "uncertain")
+                    self.assertEqual(self.browser()["reloads"], 1)
+                    self.assertEqual(self.browser()["clicks"], 1)
 
     def test_crash_after_dispatch_reconciles_without_click(self):
         self.change(crash_after_click=True)
@@ -498,6 +623,20 @@ class SenderTests(unittest.TestCase):
                 with self.subTest(kind=kind, stage=stage):
                     self.assertEqual(SENDER.matching(body, expected, published=stage == "publication"), kind in ("plain", "body-bold"))
 
+    def test_actual_probe_hidden_spinner_allows_exact_server_publication(self):
+        self.payload.write_text(json.dumps({"version": 1, "blocks": [{"type": "text", "text": "hello"}]}))
+        payload, rendered, expected = SENDER.payload_config(self.payload)
+        root = SENDER.private_dir(self.state)
+        operation = SENDER.Operation(root, "one")
+        operation.bind({"alias": "example", "route": SENDER.route_config(self.routes, "example"), "payload": payload, "rendered": rendered, "expected": expected})
+        operation.record.update(baseline_ids=["before-own"], sender_id="sender-1")
+        result = subprocess.run(["node", str(BASE / "tests/dom-probe.test.js"), "--publication-bodies"], capture_output=True, text=True, check=True)
+        for kind, message in json.loads(result.stdout).items():
+            with self.subTest(kind=kind):
+                dom = {"editors": [{"text": "", "blocks": []}], "message_ids": ["before-own", "message-1"], "messages": [message]}
+                self.assertTrue(SENDER.matching(message["body"], expected))
+                self.assertEqual(operation.publication(dom) is not None, kind in ("hidden", "hiddenAlert", "hiddenBusy"))
+
     def test_signature_consolidation_does_not_change_code(self):
         payload = json.loads(self.payload.read_text())
         payload["blocks"][0]["text"] += "\n\n" + SIGNATURE + "\n" + SIGNATURE
@@ -532,7 +671,7 @@ class SenderTests(unittest.TestCase):
         operation = SENDER.Operation(self.state, "one")
         operation.record.update(sender_id="sender-1", baseline_ids=["before-own", "before-other"])
         dom = json.loads((BASE / "tests/dom.json").read_text())
-        candidate = {"id": "new-own", "sender_id": "sender-1", "server": True, "body_count": 1, "body": BODY}
+        candidate = {"id": "new-own", "sender_id": "sender-1", "topic_id": "topic-1", "local_only": "false", "pending": False, "error": False, "server": True, "body_count": 1, "body": BODY}
         dom["messages"] = [candidate]
         dom["message_ids"].append("new-own")
         self.assertIsNotNone(operation.publication(dom))
@@ -555,4 +694,11 @@ class SenderTests(unittest.TestCase):
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--fake-browser":
         sys.exit(fake_browser())
+    if len(sys.argv) > 1 and sys.argv[1] == "--fast-cli":
+        # Only the fixture clock changes: real main(), files, locks, and browser
+        # subprocess protocol run normally, without waiting through two deadlines.
+        sys.argv = [str(SCRIPT), *sys.argv[2:]]
+        ticks = iter(range(0, 1000000, 20))
+        with mock.patch.object(SENDER.time, "monotonic", side_effect=lambda: next(ticks)), mock.patch.object(SENDER.time, "sleep"):
+            sys.exit(SENDER.main())
     unittest.main()

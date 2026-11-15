@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  unstable-pkgs,
   hostName,
   ...
 }:
@@ -19,12 +18,14 @@ in
     enable = lib.mkEnableOption "Vereda as the desktop file manager";
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ./vereda-package.nix { zig = unstable-pkgs.zig_0_17; };
+      default = pkgs.callPackage ../../pkgs/vereda.nix { };
       description = "Vereda native Linux file manager.";
     };
   };
   config = lib.mkMerge [
-    { programs.vereda.enable = lib.mkDefault (hostName == "prl-dev-vm"); }
+    {
+      programs.vereda.enable = lib.mkDefault (hostName == "prl-dev-vm" || hostName == "workstation");
+    }
     (lib.mkIf cfg.enable {
       home.packages = [ cfg.package ];
       xdg = {

@@ -70,20 +70,22 @@
     };
 
     # SwayOSD LibInput backend needs to run as system service for proper D-Bus access
-    services.swayosd-libinput-backend = lib.mkIf (hostName != "prl-dev-vm") {
-      description = "SwayOSD LibInput backend for input device events";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "dbus.service" ];
-      requires = [ "dbus.service" ];
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
-        Restart = "on-failure";
-        RestartSec = 2;
-        User = "root";
-        Group = "input";
-      };
-    };
+    services.swayosd-libinput-backend =
+      lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation")
+        {
+          description = "SwayOSD LibInput backend for input device events";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "dbus.service" ];
+          requires = [ "dbus.service" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStart = "${pkgs.swayosd}/bin/swayosd-libinput-backend";
+            Restart = "on-failure";
+            RestartSec = 2;
+            User = "root";
+            Group = "input";
+          };
+        };
   };
 
   services = {
@@ -91,22 +93,26 @@
     # Power policy and firmware are managed by the Mac host on this VM.
     power-profiles-daemon.enable = hostName != "prl-dev-vm";
     fwupd.enable = hostName != "prl-dev-vm";
-    gvfs = lib.mkIf (hostName == "prl-dev-vm") {
+    gvfs = lib.mkIf (hostName == "prl-dev-vm" || hostName == "workstation") {
       enable = true;
-      package = (pkgs.gvfs.override { gnomeSupport = true; }).overrideAttrs (old: {
-        mesonFlags = (old.mesonFlags or [ ]) ++ [
-          "-Dafc=false"
-          "-Dgphoto2=false"
-          "-Dmtp=false"
-          "-Dgoa=false"
-          "-Donedrive=false"
-        ];
-      });
+      package = lib.mkIf (hostName == "prl-dev-vm") (
+        (pkgs.gvfs.override { gnomeSupport = true; }).overrideAttrs (old: {
+          mesonFlags = (old.mesonFlags or [ ]) ++ [
+            "-Dafc=false"
+            "-Dgphoto2=false"
+            "-Dmtp=false"
+            "-Dgoa=false"
+            "-Donedrive=false"
+          ];
+        })
+      );
     };
 
     flatpak.enable = lib.mkForce false;
 
     # SwayOSD D-Bus policy (required for libinput backend)
-    dbus.packages = lib.optionals (hostName != "prl-dev-vm") [ pkgs.swayosd ];
+    dbus.packages = lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+      pkgs.swayosd
+    ];
   };
 }

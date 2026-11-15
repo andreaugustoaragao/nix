@@ -40,7 +40,7 @@ in
     ./browser-app.nix
     ./browser-default.nix
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm") [ ./eww.nix ]
+  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [ ./eww.nix ]
   ++ lib.optionals (!personalOnly) [
     ./bw-query.nix
     ./bookmarks.nix

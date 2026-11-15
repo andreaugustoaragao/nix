@@ -18,7 +18,7 @@ let
     ".cursor/skills"
     "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm") [
+  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
     ".grok/skills"
     ".gemini/skills"
     ".qwen/skills"
@@ -135,7 +135,7 @@ in
           (
             lib.filterAttrs (
               name: _:
-              hostName != "prl-dev-vm"
+              (hostName != "prl-dev-vm" && hostName != "workstation")
               || !(builtins.elem name [
                 "herdr"
                 "orca"

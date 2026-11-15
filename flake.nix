@@ -397,6 +397,8 @@
           herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
           orca-ide = pkgs.callPackage ./pkgs/orca-ide.nix { };
           pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
+          folio = pkgs.callPackage ./pkgs/folio.nix { };
+          vereda = pkgs.callPackage ./pkgs/vereda.nix { };
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
         }
 
@@ -764,6 +766,30 @@
               ''
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/chat-send.test.py
                 node ${self.outPath}/home/cli/chat-send/tests/dom-probe.test.js
+                touch "$out"
+              '';
+          chat-send-worker =
+            pkgs.runCommand "check-chat-send-worker"
+              {
+                nativeBuildInputs = [
+                  pkgs.python3
+                  pkgs.nodejs
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/chat-send-worker.test.py
+                cp -R ${self.outPath}/home/cli/chat-send worker
+                chmod -R u+w worker
+                mkdir -p worker/node_modules/typebox
+                tar -xzf ${
+                  pkgs.fetchurl {
+                    url = "https://registry.npmjs.org/typebox/-/typebox-1.3.27.tgz";
+                    hash = "sha512-zu+jc1pcy4UiNThxikUr36f0Rybk9PEeCg/NE6adeWr/SKsdNO4EzZHYRDlv2YCVAfj3Odq3dESSo/jNyoBXzA==";
+                  }
+                } -C worker/node_modules/typebox --strip-components=1
+                substituteInPlace worker/tests/fake_sender.py \
+                  --replace-fail '/usr/bin/env python3' '${pkgs.python3}/bin/python3'
+                node --test worker/tests/worker.test.mjs
                 touch "$out"
               '';
           repo-sync =
