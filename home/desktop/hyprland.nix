@@ -322,7 +322,7 @@ in
         "HYPRLAND_LOG_WLR,1" # Enable WLR logging for debugging
         "WLR_RENDERER,vulkan" # Use Vulkan renderer for better memory management
       ]
-      ++ lib.optionals (hostName != "prl-dev-vm") [
+      ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
         # fcitx5 input method variables
         "INPUT_METHOD,fcitx"
         "QT_IM_MODULE,fcitx"
