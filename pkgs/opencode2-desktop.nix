@@ -44,6 +44,17 @@
 
 let
   version = "2.0.18";
+  sources = {
+    aarch64-linux = {
+      arch = "arm64";
+      hash = "sha256-mrbOXNX+LsQXQeNi2fDCwGsOMsyX5YVF4TwQLW4W9nk=";
+    };
+    x86_64-linux = {
+      arch = "amd64";
+      hash = "sha256-T3YFt2InG0q/YeizAfWd3zZm9KzvOIbq0yOjtd41ylA=";
+    };
+  };
+  source = sources.${stdenv.hostPlatform.system};
   runtimeLibs = [
     fontconfig
     libdrm
@@ -62,8 +73,8 @@ stdenv.mkDerivation {
   inherit version;
 
   src = fetchurl {
-    url = "https://opencode.ai/files/bin/${version}/opencode-desktop-linux-arm64.deb";
-    hash = "sha256-mrbOXNX+LsQXQeNi2fDCwGsOMsyX5YVF4TwQLW4W9nk=";
+    url = "https://opencode.ai/files/bin/${version}/opencode-desktop-linux-${source.arch}.deb";
+    inherit (source) hash;
   };
 
   nativeBuildInputs = [
@@ -140,7 +151,7 @@ stdenv.mkDerivation {
     homepage = "https://opencode.ai/v2/";
     license = lib.licenses.mit;
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
-    platforms = [ "aarch64-linux" ];
+    platforms = builtins.attrNames sources;
     mainProgram = "opencode2-desktop";
   };
 }

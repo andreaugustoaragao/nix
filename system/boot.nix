@@ -63,20 +63,13 @@
       })
     ];
 
-    # Workstation runs the CachyOS-tuned -lto kernel (BORE scheduler,
-    # Clang+ThinLTO, perf patchset). Consumed via xddxdd's overlay
-    # (registered below) so the kernel build closure aligns with the
-    # rest of the system's nixpkgs. The LTO build occasionally trips
-    # an LLD ThinLTO debug-info offset bug under parallelism — it's
-    # non-deterministic. If `nixos-rebuild` fails with
-    # `ld.lld: error: ... :(.debug_str): offset is outside the
-    # section`, just retry. Other hosts stay on stock
-    # linuxPackages_latest for driver compat (laptop) and aarch64 (vm).
-    kernelPackages =
-      if isWorkstation then
-        pkgs.cachyosKernels."linuxPackages-cachyos-latest-lto"
-      else
-        pkgs.linuxPackages_latest;
+    # Stock linuxPackages_latest across all hosts. Workstation previously ran
+    # the CachyOS-tuned -lto kernel for BORE/Clang+ThinLTO/perf patches, but
+    # both cachyos-latest-lto and cachyos-lts-lto wedge MT7925 Bluetooth — the
+    # btmtk WMT firmware handshake times out on probe and on rebind. Stock
+    # mainline has the working driver. Revisit cachy once the regression is
+    # resolved upstream.
+    kernelPackages = pkgs.linuxPackages_latest;
 
     plymouth.enable = false;
 

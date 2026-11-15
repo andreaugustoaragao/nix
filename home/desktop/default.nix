@@ -102,6 +102,9 @@
       qt6.qttools
       freelens-bin
       (pkgs.callPackage ../../pkgs/pdfcraft.nix { })
+      (pkgs.callPackage ../../pkgs/herdr-app.nix { })
+      (pkgs.callPackage ../../pkgs/opencode2-desktop.nix { })
+      (pkgs.callPackage ../../pkgs/orca-ide.nix { })
 
       # Video-related packages
       snapshot
@@ -114,11 +117,5 @@
     ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
       zoom-us
       aptakube
-    ]
-    ++ lib.optionals (hostName == "prl-dev-vm") [
-      (pkgs.callPackage ../../pkgs/herdr-app.nix { })
-      (pkgs.callPackage ../../pkgs/herdr-core.nix { })
-      (pkgs.callPackage ../../pkgs/opencode2-desktop.nix { })
-      (pkgs.callPackage ../../pkgs/orca-ide.nix { })
     ];
 }

@@ -43,11 +43,19 @@
         name = "sadiksaifi/tap"; # mac-menu (native Swift fuzzy picker, dmenu/fuzzel shape)
         trusted = true;
       }
+      {
+        name = "stablyai/orca";
+        trusted = true;
+      }
     ];
 
-    # Formulae and casks come from machines.toml so the Linux side of
-    # the flake stays unaware of brew. Defaults are empty lists.
+    # Per-machine additions come from machines.toml. Agent desktop apps
+    # are shared by every macOS host.
     brews = homebrewBrews;
-    casks = homebrewCasks;
+    casks = homebrewCasks ++ [
+      "herdr-app"
+      "stablyai/orca/orca"
+      "opencode-desktop"
+    ];
   };
 }

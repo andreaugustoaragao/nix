@@ -115,20 +115,16 @@
   # See: https://skatterbencher.com/2024/09/06/undervolt-ryzen-9000/
   powerManagement.cpuFreqGovernor = "powersave";
 
-  # Power Profiles Daemon — power-saver mode for sustained low temps.
+  # Power Profiles Daemon — performance mode for now (was power-saver).
   services.power-profiles-daemon.enable = true;
 
-  # Ensure power-saver profile is set on every boot.
-  systemd.services.power-profiles-saver = {
-    description = "Set power-profiles-daemon to power-saver mode";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "power-profiles-daemon.service" ];
-    serviceConfig.Type = "oneshot";
-    serviceConfig.RemainAfterExit = true;
-    script = ''
-      ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set power-saver
-    '';
-  };
+  # Force profile on every boot. ExecStartPost (not a separate oneshot with
+  # wantedBy=multi-user.target) avoids the ordering cycle multi-user.target →
+  # saver → daemon → multi-user.target that previously left the daemon
+  # unstarted and the profile call seeing an empty profile list.
+  systemd.services.power-profiles-daemon.serviceConfig.ExecStartPost = [
+    "-${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance"
+  ];
 
   # Thermald for proactive thermal management.
   # Zen 5 (Family 26h) is not in thermald's CPU whitelist — force it to run.
@@ -138,19 +134,47 @@
   # Fan control via lm_sensors for nct6775 Super I/O.
   # CPU fan (pwm1) auto curve: 40C=50%, 50C=60%, 65C=80%, 80C=100%
   # Case fan (pwm2) auto curve: 35C=50%, 50C=70%, 65C=90%, 75C=100%
+  #
+  # nct6775's hwmon index depends on i2c/spd5118 enumeration order and shifts
+  # across kernel builds (was hwmon6 on cachyos-latest, hwmon10 on stock
+  # linuxPackages_latest 6.18). Pinning the index makes fancontrol abort with
+  # "Device path of hwmonN has changed" after a kernel update. We instead use
+  # an @HWMON@ placeholder and resolve it at service-start time.
   hardware.fancontrol = {
     enable = true;
     config = ''
       INTERVAL=10
-      DEVPATH=hwmon6=devices/platform/nct6775.656
-      DEVNAME=hwmon6=nct6799
-      FCTEMPS=hwmon6/device/pwm1=hwmon6/device/temp1_input hwmon6/device/pwm2=hwmon6/device/temp2_input
-      FCFANS=hwmon6/device/pwm1=hwmon6/device/fan1_input hwmon6/device/pwm2=hwmon6/device/fan2_input
-      MINTEMP=hwmon6/device/pwm1=40 hwmon6/device/pwm2=35
-      MAXTEMP=hwmon6/device/pwm1=80 hwmon6/device/pwm2=75
-      MINSTART=hwmon6/device/pwm1=150 hwmon6/device/pwm2=150
-      MINSTOP=hwmon6/device/pwm1=0 hwmon6/device/pwm2=0
+      DEVPATH=@HWMON@=devices/platform/nct6775.656
+      DEVNAME=@HWMON@=nct6799
+      FCTEMPS=@HWMON@/device/pwm1=@HWMON@/device/temp1_input @HWMON@/device/pwm2=@HWMON@/device/temp2_input
+      FCFANS=@HWMON@/device/pwm1=@HWMON@/device/fan1_input @HWMON@/device/pwm2=@HWMON@/device/fan2_input
+      MINTEMP=@HWMON@/device/pwm1=40 @HWMON@/device/pwm2=35
+      MAXTEMP=@HWMON@/device/pwm1=80 @HWMON@/device/pwm2=75
+      MINSTART=@HWMON@/device/pwm1=150 @HWMON@/device/pwm2=150
+      MINSTOP=@HWMON@/device/pwm1=0 @HWMON@/device/pwm2=0
     '';
+  };
+
+  # Stage the templated config on /etc so ExecStartPre can read it without
+  # recomputing the upstream module's `writeText` derivation path.
+  environment.etc."fancontrol.template".text = config.hardware.fancontrol.config;
+
+  systemd.services.fancontrol.serviceConfig = {
+    RuntimeDirectory = "fancontrol";
+    ExecStartPre = pkgs.writeShellScript "fancontrol-resolve-hwmon" ''
+      set -eu
+      for h in /sys/class/hwmon/hwmon*; do
+        if [ "$(cat "$h/name" 2>/dev/null)" = "nct6799" ]; then
+          idx=''${h##*hwmon}
+          ${pkgs.gnused}/bin/sed "s/@HWMON@/hwmon$idx/g" \
+            /etc/fancontrol.template > /run/fancontrol/fancontrol.conf
+          exit 0
+        fi
+      done
+      echo "fancontrol: nct6799 not found in /sys/class/hwmon" >&2
+      exit 1
+    '';
+    ExecStart = lib.mkForce "${lib.getExe' pkgs.lm_sensors "fancontrol"} /run/fancontrol/fancontrol.conf";
   };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
