@@ -19,8 +19,6 @@ in
     };
     tmpfiles.rules = [
       "z /run/docker.sock 0600 root root -"
-      "z /etc/rancher/k3s 0700 root root -"
-      "z /etc/rancher/k3s/k3s.yaml 0600 root root -"
     ];
     user.services.docker.serviceConfig.LimitCORE = lib.mkForce 0;
   };

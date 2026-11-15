@@ -401,6 +401,11 @@
           vereda = pkgs.callPackage ./pkgs/vereda.nix { };
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
         }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          workstation-k3s-retire = pkgs.callPackage ./pkgs/workstation-k3s-retire.nix {
+            guestImage = self.nixosConfigurations.workstation-k8s-vm.config.system.build.kubernetesImage;
+          };
+        }
 
       );
 

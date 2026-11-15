@@ -26,10 +26,9 @@ assert lib.assertMsg (rejects "must not control the rootful socket" (
 )) "Rootful Docker membership must stay rejected.";
 assert lib.assertMsg (rejects "host K3s must be disabled" (
   { lib, ... }: {
-    my.workstation.kubernetes.mode = "guest";
     services.k3s.enable = lib.mkForce true;
   }
-)) "The desktop and guest must not both run the migrated cluster.";
+)) "The desktop and guest must not both run Kubernetes.";
 pkgs.runCommand "check-workstation-security" { } ''
   touch "$out"
 ''

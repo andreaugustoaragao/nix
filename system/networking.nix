@@ -273,12 +273,8 @@
     # Allowed TCP ports
     allowedTCPPorts =
       lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ 22 ] # SSH
-      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm") [
+      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [
         6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
-      ]
-      ++ lib.optionals (hostName == "workstation") [
-        80 # K3s ingress (istio-ingress via klipper-lb)
-        443
       ]
       ++ lib.optionals (hostName == "vmw-dev-vm") [
         80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
@@ -312,11 +308,12 @@
     ];
 
     # Trust local interfaces for Docker and K3s
-    trustedInterfaces = lib.optionals (!personalOnly && hostName != "prl-dev-vm") [
-      "docker0" # Docker bridge
-      "cni0" # K3s CNI bridge
-      "flannel.1" # K3s Flannel
-    ];
+    trustedInterfaces =
+      lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ "docker0" ]
+      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [
+        "cni0"
+        "flannel.1"
+      ];
 
     # Log refused packets (useful for debugging)
     logRefusedConnections = true;

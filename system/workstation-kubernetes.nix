@@ -6,7 +6,6 @@
   ...
 }:
 let
-  cfg = config.my.workstation.kubernetes;
   guest = inputs.self.nixosConfigurations.workstation-k8s-vm;
   image = guest.config.system.build.kubernetesImage;
   state = "/var/lib/workstation-kubernetes";
@@ -64,15 +63,6 @@ let
   '';
 in
 {
-  options.my.workstation.kubernetes.mode = lib.mkOption {
-    type = lib.types.enum [
-      "prepare"
-      "guest"
-    ];
-    default = "prepare";
-    description = "Prepare an empty isolated VM, or run the migrated cluster instead of host K3s.";
-  };
-
   config = {
     users.groups.kubernetes-vm = { };
     users.users.kubernetes-vm = {
@@ -106,7 +96,7 @@ in
       externalInterface = "enp5s0f0";
       internalInterfaces = [ "k3s-tap" ];
       internalIPs = [ "172.30.75.0/30" ];
-      forwardPorts = lib.optionals (cfg.mode == "guest") (
+      forwardPorts =
         map
           (port: {
             proto = "tcp";
@@ -118,8 +108,7 @@ in
             80
             443
             6443
-          ]
-      );
+          ];
     };
     # The guest can receive replies, but cannot initiate connections to host services.
     networking.firewall.extraCommands = ''
@@ -189,8 +178,8 @@ in
 
     assertions = [
       {
-        assertion = cfg.mode != "guest" || !config.services.k3s.enable;
-        message = "After Kubernetes VM cutover, host K3s must be disabled.";
+        assertion = !config.services.k3s.enable;
+        message = "Workstation host K3s must be disabled; Kubernetes runs in its KVM guest.";
       }
     ];
   };

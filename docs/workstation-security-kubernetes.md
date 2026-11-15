@@ -1,63 +1,59 @@
-# Workstation privilege hardening and Kubernetes migration
+# Workstation Kubernetes isolation
 
-The workstation must require authentication for host administration. Kubernetes
-must run in a dedicated KVM guest with its own disk, credentials, and kernel.
-Existing cluster data and local images survive the move.
+Kubernetes runs in a dedicated NixOS KVM guest. The workstation requires
+authentication for host administration and does not run K3s itself.
 
-## Acceptance gates
+The user confirmed that the former host cluster contained only disposable
+development workloads and explicitly requested deletion. This supersedes the
+previous backup and migration plan. Its database, local volumes, images, and
+node credentials are discarded. The guest starts a fresh cluster.
 
-1. The active workstation denies uncached passwordless sudo and access to the
-   rootful Docker socket. Unattended Nix activation is disabled. Rootless Docker
-   works. Existing desktop and container workloads remain available.
-2. The Kubernetes guest boots as a dedicated unprivileged host account. It has
-   no host filesystem shares, host credentials, Docker socket, or libvirt access.
-3. A protected cold backup preserves cluster identity, database, all local-path
-   volumes, and every image needed by workloads. A rollback copy remains intact.
-4. Only one copy of the restored cluster runs. The guest uses the original node
-   name so local-volume affinity remains valid. API and ingress clients continue
-   to work through deliberately configured endpoints.
-5. After cutover, the workstation's host K3s and lazy-start units are disabled.
-   Reboot does not start host K3s. Guest workload and volume identity are checked
-   against the saved inventory, including pre-existing failures.
+## Guest configuration
 
-## Delivery sequence
+The systemd-managed QEMU process uses KVM, the host CPU model, 12 virtual CPUs,
+and 32 GiB RAM. Its host memory limit is 36 GiB. It starts at boot under the
+unprivileged `kubernetes-vm` account. There are no host filesystem shares,
+host credentials, Docker sockets, or libvirt access.
 
-- [x] Inspect effective workstation privilege policy and existing workloads.
-- [x] Build a hardening candidate without changing active privileges.
-- [x] Refresh the candidate against the latest independent login/session edits.
-- [x] Apply hardening with desktop authentication and check effective access.
-- [x] Deploy shared Herdr customizations, agent settings, and all portable skills.
-- [x] Build and boot an isolated guest with Kubernetes gated off.
-- [ ] Measure and back up the cluster's actual data and local image content.
-- [ ] Stop host Kubernetes for a consistent final copy and controlled cutover.
-- [ ] Verify the restored guest, then disable host Kubernetes declaratively.
-- [ ] Verify reboot behavior and publish only task-owned source changes.
+The NixOS root disk is 64 GiB. A separate sparse 256 GiB disk holds K3s and the
+guest registry. Kubernetes uses embedded etcd, encrypted secrets, and compressed
+etcd snapshots with retention of 14 snapshots. Traefik is disabled.
 
-## Architecture decision
+The private TAP network is `172.30.75.0/30`. The host is `.1`, and the guest
+is `.2`. Host TCP ports 80, 443, and 6443 forward to the guest. The API certificate
+includes `192.168.10.75`, `workstation`, and `workstation.local`. The guest cannot
+initiate connections to host services. Host CNI interfaces are no longer trusted.
 
-Use a NixOS-built disk image and a systemd-managed QEMU/KVM process. A dedicated
-host account owns only the guest disk and runtime files. This avoids granting
-desktop or agent accounts root-equivalent libvirt control. It also avoids the
-host store and exchange-directory shares enabled by the development VM module.
+Ordinary host rebuilds preserve the running VM and existing disks. Guest system
+updates require a separate explicit operation. Updating the Nix image alone does
+not replace an existing guest root disk.
 
-A private TAP link gives the host and guest stable addresses. NAT supplies guest
-egress. Forward only selected API and ingress ports at cutover. Do not change the
-physical workstation interface or restart its graphical session.
+## One-time retirement
 
-Reuse the dedicated Kubernetes profile, with explicit network parameters. The
-existing Parallels guest keeps its current defaults. The workstation guest must
-initially keep its K3s service stopped until the migration explicitly enables it.
-Preserve the source cluster's datastore format and node identity during migration.
-Do not combine datastore conversion with moving workloads into a VM.
+`packages.x86_64-linux.workstation-k3s-retire` provides the task-specific reset
+command. It requires GUI-authenticated root execution and the exact checked host
+closure through `--system`. The command refuses to run while host K3s units remain
+installed. It uses the pinned K3s cleanup helper with the unrelated Tailscale route
+reset disabled.
 
-Keep hardening and cluster cutover as separate verifiable units. The workstation
-has a paused independent session with seven login files. The user authorized
-merging those files together with this work. Preserve those working files and
-index states, and never activate an older snapshot over a newer login fix.
+The command removes the old host cluster paths, verifies that Docker and desktop
+processes survive, and replaces the unused preparation guest root disk. It keeps
+the separate guest data disk and all host Docker data. Root-owned progress records
+and a hard link identifying the installed root disk make retries safe across an
+interrupted reset. Once the new root is installed, retries never reseed it.
 
-## Throughput checkpoint
+The cluster starts automatically inside the guest without a migration gate.
+The old `k3s-default` client context is replaced while external contexts remain.
 
-Build and verify host policy before copying data. Boot the empty guest before
-scheduling cluster downtime. Measure actual data and image sizes before selecting
-the final copy method. Stop if the target would replace newer unrelated source or
-if the backup cannot be restored without destroying the original state.
+## Acceptance
+
+The installed host must have no K3s service, lazy-start unit, database, local
+volumes, mounts, or CNI interfaces. The guest must have a Ready node named
+`workstation-k8s-vm` with only fresh default workloads. The API must work through
+the workstation endpoint. Docker containers, desktop processes, authenticated
+sudo, and the separate rootless Docker daemon must remain available.
+
+This task needs only a workstation activation. It must not restart the development
+VM's Shared Vault process or its graphical session.
+
+Runtime acceptance passed on 2026-11-15 UTC. The [verification record](evidence/workstation-k3s-retirement-20261114.json) captures the active host and guest closures, fresh node identity, clean host networking, API access, and a second authenticated run that preserved the running guest. The external `ec-avaya-mdb15` context remains selected. Use `kubectl --context workstation-k8s-vm` for the new development cluster.

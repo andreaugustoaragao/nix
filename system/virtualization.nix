@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   hostName,
@@ -14,8 +13,8 @@ let
   rootlessRunc = pkgs.callPackage ../pkgs/rootless-runc.nix { };
   enableLocalK3s =
     !personalOnly
-    && (hostName != "workstation" || config.my.workstation.kubernetes.mode == "prepare")
     && !(builtins.elem hostName [
+      "workstation"
       "hp-laptop"
       "prl-dev-vm"
     ]);

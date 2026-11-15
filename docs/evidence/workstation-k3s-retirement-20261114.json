@@ -1,0 +1,142 @@
+{
+  "verifiedAt": "2026-11-15T03:43:36.679470+00:00",
+  "authorization": "User explicitly requested discarding the development host cluster; no migration or backup required.",
+  "host": {
+    "system": "/nix/store/dzlnvv7c5xsljd8jn7m1fjps49r5jbw5-nixos-system-workstation-26.05.20261006.b253099",
+    "helper": {
+      "phase": "done",
+      "message": "System rebuilt and activated. Git changes remain uncommitted.",
+      "system": "/nix/store/dzlnvv7c5xsljd8jn7m1fjps49r5jbw5-nixos-system-workstation-26.05.20261006.b253099",
+      "dirty": true,
+      "busy": false,
+      "error": null,
+      "repository": "/home/aragao/projects/personal/nix",
+      "log": "/home/aragao/.local/state/noctalia-nix-rebuild/rebuild.log"
+    },
+    "services": {
+      "k3s.service": {
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "MainPID": "0",
+        "ExecMainStatus": "0"
+      },
+      "k3s-lazy.service": {
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "MainPID": "0",
+        "ExecMainStatus": "0"
+      },
+      "workstation-kubernetes.service": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": "1033382",
+        "ExecMainStatus": "0"
+      },
+      "docker.service": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": "4493",
+        "ExecMainStatus": "0"
+      },
+      "greetd.service": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": "4121",
+        "ExecMainStatus": "0"
+      },
+      "fancontrol.service": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": "1301",
+        "ExecMainStatus": "0"
+      },
+      "home-manager-aragao.service": {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "MainPID": "0",
+        "ExecMainStatus": "0"
+      }
+    },
+    "niriPID": 5355,
+    "retiredInterfaces": [],
+    "retiredMounts": [],
+    "vmEnabled": "enabled",
+    "failedUnits": ""
+  },
+  "guest": {
+    "system": "/nix/store/wnjwb2k4zdcjy8svd4fg1d00bibqmx0g-nixos-system-workstation-k8s-vm-26.05.20261006.b253099",
+    "virtualization": "kvm",
+    "k3sEnabled": "enabled",
+    "apiReady": "ok",
+    "nodes": [
+      {
+        "name": "workstation-k8s-vm",
+        "uid": "2ba0751b-94ed-45fe-ac60-879e05432eff",
+        "ready": "True"
+      }
+    ],
+    "pods": [
+      {
+        "name": "coredns-c5fdd76cf-587np",
+        "namespace": "kube-system",
+        "phase": "Running",
+        "restarts": 0
+      },
+      {
+        "name": "local-path-provisioner-d9d8769b6-mvwpn",
+        "namespace": "kube-system",
+        "phase": "Running",
+        "restarts": 0
+      },
+      {
+        "name": "metrics-server-7f4b6d9bd7-lrmpj",
+        "namespace": "kube-system",
+        "phase": "Running",
+        "restarts": 0
+      }
+    ],
+    "namespaces": [
+      "default",
+      "kube-node-lease",
+      "kube-public",
+      "kube-system"
+    ],
+    "persistentVolumes": [],
+    "failedUnits": ""
+  },
+  "retirement": {
+    "package": "/nix/store/af2fd6nzf3j12f1w7ccblcml4l54aprb-workstation-k3s-retire",
+    "rootDeletionAssertionsPassed": true,
+    "authenticatedRuns": 2,
+    "rerunPreservedQemuPID": 1033382,
+    "oldNodeUID": "762d4ede-6583-407b-b2b2-235dcc09e809",
+    "dockerContainersPreservedByRootAssertions": true,
+    "tailscaleRouteResetRemoved": true
+  },
+  "client": {
+    "context": "workstation-k8s-vm",
+    "server": "https://192.168.10.75:6443",
+    "configMode": "0600",
+    "externalContextAndCurrentSelectionPreserved": "ec-avaya-mdb15",
+    "apiTestFromDevelopmentVM": "Ready node returned through workstation LAN endpoint with certificate verification"
+  },
+  "security": {
+    "uncachedPasswordlessSudo": "denied",
+    "rootfulDockerSocket": "0600 root:root",
+    "rootlessDockerVersion": "29.8.1"
+  },
+  "checks": {
+    "nativeFlakeCheck": "passed",
+    "allSystemsEvaluation": "passed",
+    "nativeHostAndGuestImageBuild": "passed",
+    "nixfmt": "passed",
+    "statix": "passed",
+    "deadnix": "passed"
+  },
+  "developmentVM": {
+    "system": "/nix/store/kax2c08ld2c2y1flxfhiw1lqv936w6ga-nixos-system-prl-dev-vm-26.05.20261006.b253099",
+    "sharedVaultPID": 1708068,
+    "sharedVaultReleasePinSHA256": "9a42d38676d5fda6016be98349a071cde0d64b5554fbc180aa4f8eafaf997a9c",
+    "activationPerformed": false
+  }
+}
