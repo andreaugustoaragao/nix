@@ -22,7 +22,12 @@
   ++ lib.optionals (hostName == "workstation") [
     ./workstation-security.nix
     ./workstation-kubernetes.nix
+    ./workstation-worker.nix
   ]
+  ++ lib.optionals (builtins.elem hostName [
+    "workstation"
+    "prl-dev-vm"
+  ]) [ ./workstation-build-client.nix ]
   ++ lib.optionals (!personalOnly) [
     ./auto-upgrade.nix
     ./matrix-alert.nix

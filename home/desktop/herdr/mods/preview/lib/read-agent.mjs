@@ -7,8 +7,14 @@ import { assistantMessages, processTranscript } from './transcripts.mjs';
 const run = promisify(execFile);
 
 export async function readAgent(address) {
+  const remote = typeof address === 'string' && /^([A-Za-z0-9][A-Za-z0-9._-]{0,63})\/(t[a-z0-9]+)$/.exec(address);
+  if (remote) {
+    const result = await run('hc', ['exec', '--on', remote[1], 'herdr-agent-preview', remote[2]],
+      { timeout: 15000, maxBuffer: 6 * 1024 * 1024 });
+    return { ...JSON.parse(result.stdout), machine: remote[1] };
+  }
   if (typeof address !== 'string' || !/^t[a-z0-9]+$/.test(address)) {
-    throw new Error('Agent preview currently supports local Herdr terminals. Markdown files on SSH machines are supported in File mode.');
+    throw new Error('Choose a local terminal or a registered machine/terminal address.');
   }
   const result = await run('hc', ['get', address], { timeout: 5000, maxBuffer: 1024 * 1024 });
   const terminal = JSON.parse(result.stdout);

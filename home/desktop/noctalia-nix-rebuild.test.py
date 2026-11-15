@@ -33,6 +33,9 @@ class RebuildTests(unittest.TestCase):
             )},
         }
         self.runner = backend.Rebuilder(self.config, self.base / "config.json", self.base / "state")
+        self.runner.current_system = self.base / "current-system"
+        self.runner.current_system.symlink_to("/nix/store/previous-system")
+        self.switches_system = True
         self.calls = []
         self.active = False
         self.git_dirty = True
@@ -51,6 +54,9 @@ class RebuildTests(unittest.TestCase):
             stdout, code = self.build_json, self.build_code
         elif name == "pkexec":
             code = self.auth_code
+            if code == 0 and self.switches_system:
+                self.runner.current_system.unlink()
+                self.runner.current_system.symlink_to(SYSTEM)
         return subprocess.CompletedProcess([name, *args], code, stdout, "")
 
     def invoke(self):
@@ -109,6 +115,24 @@ class RebuildTests(unittest.TestCase):
                 self.assertEqual(self.invoke(), 1)
                 self.assertNotIn("pkexec", [name for name, _, _ in self.calls])
                 self.assertEqual(self.runner.read_state()["phase"], "failed")
+
+    def test_zero_exit_without_selecting_built_system_is_partial_failure(self):
+        self.switches_system = False
+        self.assertEqual(self.invoke(), 1)
+        self.assertEqual(self.runner.read_state()["phase"], "failed")
+        self.assertIn("partial", self.runner.read_state()["message"])
+        self.assertNotEqual(str(self.runner.current_system.resolve()), SYSTEM)
+
+    def test_tmp_mount_removal_is_rejected_before_gui_authorization(self):
+        active = self.base / "previous-system"
+        unit = active / "etc/systemd/system/tmp.mount"
+        unit.parent.mkdir(parents=True)
+        unit.write_text("[Mount]\nWhat=tmpfs\nWhere=/tmp\n")
+        self.runner.current_system.unlink()
+        self.runner.current_system.symlink_to(active)
+        self.assertEqual(self.invoke(), 1)
+        self.assertNotIn("pkexec", [name for name, _, _ in self.calls])
+        self.assertIn("boot-only", self.runner.read_state()["message"])
 
     def test_store_path_validation(self):
         self.assertEqual(backend.Rebuilder.built_system(self.build_json, "test-host"), SYSTEM)

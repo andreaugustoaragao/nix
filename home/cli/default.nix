@@ -5,6 +5,7 @@
   personalOnly,
   appearance,
   hostName,
+  isBuildWorker ? false,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -36,22 +37,10 @@ in
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
+    ./agents.nix
     ./docker.nix
-    ./codex.nix
-    ./opencode.nix
-    ./shared-vault.nix
-    ./herdr.nix
-    ./agent-terminals.nix
-    ./agent-projects.nix
-    ./herdr-coordinate.nix
-    ./pstack.nix
-    ./portable-skills.nix
-    ./grill-me.nix
-    ./graphify.nix
-    ./cursor.nix
     ./k9s.nix
     ./fzf.nix
-    ./pi.nix
     # pi-opus.nix retired — Opus is now one stop in the Ctrl+P cycle
     # managed by home/services/pi-models.nix + home/cli/pi.nix.
     # Cross-platform programs.ssh — defines the github-personal /
@@ -59,10 +48,12 @@ in
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
     # platform-specific (see gpg.nix on Linux).
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [ ./mise.nix ]
+  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
+    ./mise.nix
+  ]
   ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
   ++ lib.optionals personalOnly [ ./personal-identity.nix ]
-  ++ lib.optionals (!isDarwinHost) [
+  ++ lib.optionals (!isDarwinHost && !isBuildWorker) [
     # gpg/ssh-agent management here is built on systemd-user units +
     # Linux paths (pinentry-qt, gcr-ssh-agent masking). macOS uses
     # launchd + the system keychain; wire that separately if needed.
@@ -71,7 +62,7 @@ in
     # separately-imported module.
     ./desktop-entries.nix
   ]
-  ++ lib.optionals (!isDarwinHost && !personalOnly) [
+  ++ lib.optionals (!isDarwinHost && !personalOnly && !isBuildWorker) [
     ./gpg.nix
     ./ssh-add-keys.nix
     ./gpg-add-keys.nix
@@ -247,7 +238,7 @@ in
       # - cargo-*, gitui, jq, httpie moved to development.nix
       # - direnv moved to development.nix as a program
     ]
-    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
       screenfetch
       awscli2
       tectonic
@@ -259,15 +250,17 @@ in
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
     ]
-    ++ lib.optionals (isLinux && (hostName != "prl-dev-vm" && hostName != "workstation")) [
-      # Terminal Winamp — only in unstable for now.
-      # Linux-only: cliamp's IPC test binds a unix socket under
-      # /nix/var/nix/builds/... which exceeds macOS's sun_path limit
-      # (104 bytes) and fails with EINVAL in the Darwin build sandbox.
-      unstable-pkgs.cliamp
-      podman-compose
-      lorri
-    ]
+    ++
+      lib.optionals (isLinux && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker))
+        [
+          # Terminal Winamp — only in unstable for now.
+          # Linux-only: cliamp's IPC test binds a unix socket under
+          # /nix/var/nix/builds/... which exceeds macOS's sun_path limit
+          # (104 bytes) and fails with EINVAL in the Darwin build sandbox.
+          unstable-pkgs.cliamp
+          podman-compose
+          lorri
+        ]
     ++ lib.optionals isDarwinHost [
       # GNU coreutils with `g` prefix (gtimeout, gls, gcp, ...). macOS
       # ships BSD userland and has no `timeout` at all, so scripts that

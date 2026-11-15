@@ -29,6 +29,9 @@ assert lib.assertMsg (rejects "host K3s must be disabled" (
     services.k3s.enable = lib.mkForce true;
   }
 )) "The desktop and guest must not both run Kubernetes.";
+assert lib.assertMsg (rejects "must use the unprivileged daemon" (
+  { lib, ... }: { virtualisation.docker.enable = lib.mkForce true; }
+)) "Rootful Docker must stay disabled on the workstation.";
 pkgs.runCommand "check-workstation-security" { } ''
   touch "$out"
 ''

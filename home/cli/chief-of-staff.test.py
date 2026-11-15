@@ -307,5 +307,12 @@ print(json.dumps({{"address": sys.argv[1], "named": True, "thread_id": "thr_123"
                 os.environ.update(old_env)
 
 
+def load_tests(loader, tests, pattern):
+    suite = unittest.TestSuite()
+    suite.addTests(tests)
+    suite.addTests(loader.discover(str(CANONICAL / "tests"), pattern="test_*.py"))
+    return suite
+
+
 if __name__ == "__main__":
     unittest.main()

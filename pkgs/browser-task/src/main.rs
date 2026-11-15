@@ -57,6 +57,7 @@ struct Options {
     state_dir: Option<PathBuf>,
     niri: Option<String>,
     hyprctl: Option<String>,
+    swaymsg: Option<String>,
     fuzzel: Option<String>,
     positional: Vec<String>,
 }
@@ -80,6 +81,7 @@ fn parse_args() -> Result<Options, String> {
             }
             "--niri" => options.niri = Some(args.next().ok_or("--niri needs a command")?),
             "--hyprctl" => options.hyprctl = Some(args.next().ok_or("--hyprctl needs a command")?),
+            "--swaymsg" => options.swaymsg = Some(args.next().ok_or("--swaymsg needs a command")?),
             "--fuzzel" => options.fuzzel = Some(args.next().ok_or("--fuzzel needs a command")?),
             "--dev-browser" => {
                 return Err(
@@ -329,11 +331,17 @@ fn focus_window(options: &Options, app_id: &str, title: &str) -> Result<(), Stri
         .unwrap_or_default()
         .to_lowercase();
     let niri = desktop.contains("niri")
-        || (!desktop.contains("hyprland") && env::var_os("NIRI_SOCKET").is_some());
+        || (!desktop.contains("hyprland")
+            && !desktop.contains("sway")
+            && env::var_os("NIRI_SOCKET").is_some());
     let hyprland =
         desktop.contains("hyprland") || env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some();
-    if !niri && !hyprland {
-        return Err("Showing a browser requires a Niri or Hyprland desktop session".to_owned());
+    let sway =
+        desktop.contains("sway") || (desktop.is_empty() && env::var_os("SWAYSOCK").is_some());
+    if !niri && !hyprland && !sway {
+        return Err(
+            "Showing a browser requires a Niri, Hyprland or Sway desktop session".to_owned(),
+        );
     }
     if niri {
         let command = options.niri.as_deref().unwrap_or("niri");
@@ -350,7 +358,7 @@ fn focus_window(options: &Options, app_id: &str, title: &str) -> Result<(), Stri
             &["msg", "action", "focus-window", "--id", &id],
             None,
         )?;
-    } else {
+    } else if hyprland {
         let command = options.hyprctl.as_deref().unwrap_or("hyprctl");
         let value: Value = serde_json::from_str(&process(command, &["-j", "clients"], None)?)
             .map_err(|error| error.to_string())?;
@@ -366,20 +374,52 @@ fn focus_window(options: &Options, app_id: &str, title: &str) -> Result<(), Stri
             &["dispatch", "focuswindow", &format!("address:{address}")],
             None,
         )?;
+    } else {
+        let command = options.swaymsg.as_deref().unwrap_or("swaymsg");
+        let value: Value =
+            serde_json::from_str(&process(command, &["-r", "-t", "get_tree"], None)?)
+                .map_err(|error| error.to_string())?;
+        let matches = select_windows(sway_nodes(&value).into_iter(), "app_id", app_id, title);
+        if matches.len() != 1 {
+            return Err("Cannot identify a unique browser window; task is kept. Select it in your window switcher".to_owned());
+        }
+        let id = matches[0]["id"]
+            .as_u64()
+            .ok_or("Browser window lacks a numeric ID")?;
+        process(command, &[&format!("[con_id={id}] focus")], None)?;
     }
     Ok(())
 }
 
+fn sway_nodes(value: &Value) -> Vec<&Value> {
+    let mut nodes = vec![value];
+    for key in ["nodes", "floating_nodes"] {
+        for child in value[key].as_array().into_iter().flatten() {
+            nodes.extend(sway_nodes(child));
+        }
+    }
+    nodes
+}
+
 fn matching_windows<'a>(value: &'a Value, key: &str, app_id: &str, title: &str) -> Vec<&'a Value> {
-    let mut matches = value
-        .as_array()
-        .into_iter()
-        .flatten()
+    select_windows(value.as_array().into_iter().flatten(), key, app_id, title)
+}
+
+fn select_windows<'a>(
+    windows: impl Iterator<Item = &'a Value>,
+    key: &str,
+    app_id: &str,
+    title: &str,
+) -> Vec<&'a Value> {
+    let mut matches = windows
         .filter(|window| window[key] == app_id)
         .collect::<Vec<_>>();
     if matches.len() > 1 {
         matches.retain(|window| {
-            window["title"] == title || window["title"] == format!("{title} - Chromium")
+            window["title"] == title
+                || window["title"] == format!("{title} - Chromium")
+                || window["name"] == title
+                || window["name"] == format!("{title} - Chromium")
         });
     }
     matches
@@ -797,5 +837,40 @@ fn main() {
             error.chars().take(2048).collect::<String>()
         );
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod desktop_tests {
+    use super::*;
+
+    #[test]
+    fn sway_finds_a_browser_in_nested_and_floating_containers() {
+        let tree = json!({"nodes":[{"nodes":[],"floating_nodes":[{
+            "id":42,"app_id":"agent-browser-development","name":"Proof"
+        }]}]});
+        let windows = select_windows(
+            sway_nodes(&tree).into_iter(),
+            "app_id",
+            "agent-browser-development",
+            "Proof",
+        );
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0]["id"], 42);
+    }
+
+    #[test]
+    fn sway_requires_a_unique_window_when_browser_classes_repeat() {
+        let tree = json!({"nodes":[
+            {"id":1,"app_id":"agent-browser-development","name":"Same"},
+            {"id":2,"app_id":"agent-browser-development","name":"Same"}
+        ]});
+        let windows = select_windows(
+            sway_nodes(&tree).into_iter(),
+            "app_id",
+            "agent-browser-development",
+            "Same",
+        );
+        assert_eq!(windows.len(), 2);
     }
 }

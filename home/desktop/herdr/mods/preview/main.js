@@ -97,6 +97,7 @@ export default class Preview extends View {
         }
         this.session = data.session;
         this.agentBase = data.cwd || home();
+        this.agentReader.machine = data.machine ?? null;
         this.truncated = data.truncated;
         this.error = "";
         this.showReply();

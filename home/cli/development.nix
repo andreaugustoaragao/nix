@@ -4,12 +4,12 @@
   lib,
   unstable-pkgs,
   hostName,
-  isDarwinHost ? false,
+  isBuildWorker ? false,
   ...
 }:
 
 let
-  extraAiTools = hostName != "prl-dev-vm" && hostName != "workstation";
+  extraAiTools = hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker;
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
 
@@ -31,33 +31,6 @@ let
     ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
     echo "Gemini CLI installed successfully!"
     echo "Run 'gemini' to start using it"
-  '';
-
-  # Script to install Pi coding agent via npm
-  install-pi-coding-agent = pkgs.writeShellScriptBin "install-pi-coding-agent" ''
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$NPM_CONFIG_PREFIX/bin"
-    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
-    ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent
-    echo "Pi coding agent installed successfully!"
-    echo "Run 'pi --model llama-cpp/qwen3-coder-30b-a3b-local' to use the local model"
-  '';
-
-  # Keep fast-moving npm CLIs out of activation. Rebuilds must be
-  # repeatable and offline once the tools have been bootstrapped; a daily
-  # user service updates them and Pi's personal packages together instead.
-  update-npm-ai-tools = pkgs.writeShellScriptBin "update-npm-ai-tools" ''
-    set -e
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$NPM_CONFIG_PREFIX/bin"
-    export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
-    ${pkgs.nodejs_22}/bin/npm install -g \
-      @openai/codex@latest \
-      @earendil-works/pi-coding-agent@latest ${lib.optionalString extraAiTools "@xai-official/grok@latest"}
-
-    # Use the freshly updated CLI; never reconcile project-local packages
-    # based on the working directory of a manual or scheduled invocation.
-    "$NPM_CONFIG_PREFIX/bin/pi" update --extensions --no-approve
   '';
 
   # Script to install goplay (Go Playground client) via go install
@@ -205,11 +178,11 @@ in
         graphviz # Graph layout engine (required by PlantUML)
 
         # AI/ML Development
-        install-pi-coding-agent # Script to install Pi coding agent
-        update-npm-ai-tools # Daily/manual updater for the retained npm agents
+        (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).client
+        (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).enroll
         (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
       ]
-      ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+      ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
         pkgs.lazydocker
         (pkgs.callPackage ../../pkgs/uml-viewer.nix { })
         (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
@@ -248,7 +221,10 @@ in
       ]
       ++
         lib.optionals
-          (pkgs.stdenv.hostPlatform.isLinux && (hostName != "prl-dev-vm" && hostName != "workstation"))
+          (
+            pkgs.stdenv.hostPlatform.isLinux
+            && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker)
+          )
           (
             with pkgs;
             [
@@ -283,7 +259,7 @@ in
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
     }
-    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation") {
+    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) {
       PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     };
 
@@ -300,62 +276,6 @@ in
         done
       '';
 
-      # Auto-install npm-based AI CLI tools if not present
-      installNpmAiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-        mkdir -p "$NPM_CONFIG_PREFIX/bin"
-        # Add Node.js to PATH so npm post-install scripts can find 'node'
-        export PATH="${pkgs.nodejs_22}/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
-
-        ${lib.optionalString extraAiTools ''
-          if ! command -v gemini &> /dev/null; then
-            echo "Installing Google Gemini CLI..."
-            ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
-          fi
-        ''}
-
-        # Bootstrap missing CLIs, but never upgrade them during activation.
-        # `update-npm-ai-tools` performs scheduled/manual updates outside
-        # rebuilds, avoiding activation-time network failures.
-        # The Nix-managed Codex launcher can exist before npm bootstrap.
-        # Check its real target so the launcher cannot mask a missing CLI.
-        if [[ ! -x "$NPM_CONFIG_PREFIX/bin/codex" ]]; then
-          echo "Installing OpenAI Codex CLI..."
-          ${pkgs.nodejs_22}/bin/npm install -g @openai/codex@latest
-        fi
-
-        if ! command -v pi &> /dev/null; then
-          echo "Installing Pi coding agent..."
-          ${pkgs.nodejs_22}/bin/npm install -g @earendil-works/pi-coding-agent@latest
-        fi
-
-        ${lib.optionalString extraAiTools ''
-          if [[ ! -x "$NPM_CONFIG_PREFIX/bin/grok" ]]; then
-            echo "Installing xAI Grok Build CLI..."
-            ${pkgs.nodejs_22}/bin/npm install -g @xai-official/grok@latest
-          fi
-        ''}
-      '';
-
-      # Auto-install Cursor Agent CLI.
-      # Relies on nix-ld (enabled in system/packages.nix) to run the prebuilt binary.
-      # Updates are left manual so activation does not depend on Cursor's network API.
-      installCursorAgent = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        export PATH="$HOME/.local/bin:${
-          lib.makeBinPath [
-            pkgs.curl
-            pkgs.gnutar
-            pkgs.gzip
-            pkgs.coreutils
-          ]
-        }:$PATH"
-        if command -v cursor-agent &> /dev/null; then
-          echo "Cursor Agent CLI already installed; skipping update during activation."
-        else
-          echo "Installing Cursor Agent CLI..."
-          ${pkgs.curl}/bin/curl -fsS https://cursor.com/install | ${pkgs.bash}/bin/bash
-        fi
-      '';
     };
   };
 
@@ -424,47 +344,4 @@ in
     };
   };
 
-}
-// lib.optionalAttrs (!isDarwinHost) {
-  systemd.user.services.update-npm-ai-tools = {
-    Unit = {
-      Description = "Update npm-based AI CLI tools";
-      After = [ "network-online.target" ];
-      Wants = [ "network-online.target" ];
-    };
-
-    Service = {
-      Type = "oneshot";
-      ExecStart = "${update-npm-ai-tools}/bin/update-npm-ai-tools";
-    };
-  };
-
-  systemd.user.timers.update-npm-ai-tools = {
-    Unit.Description = "Update npm-based AI CLI tools daily";
-
-    Timer = {
-      OnCalendar = "*-*-* 06:00:00";
-      Persistent = true;
-    };
-
-    Install.WantedBy = [ "timers.target" ];
-  };
-}
-// lib.optionalAttrs isDarwinHost {
-  launchd.agents.update-npm-ai-tools = {
-    enable = true;
-    config = {
-      Label = "org.nix-home.update-npm-ai-tools";
-      ProgramArguments = [ "${update-npm-ai-tools}/bin/update-npm-ai-tools" ];
-      StartCalendarInterval = [
-        {
-          Hour = 6;
-          Minute = 0;
-        }
-      ];
-      RunAtLoad = false;
-      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/update-npm-ai-tools.log";
-      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/update-npm-ai-tools.log";
-    };
-  };
 }

@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  hostName,
   isServer ? false,
   ...
 }:
@@ -18,7 +17,7 @@ let
     ".cursor/skills"
     "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
+  ++ lib.optionals config.my.agentHarness.legacyHerdr [
     ".grok/skills"
     ".gemini/skills"
     ".qwen/skills"
@@ -135,7 +134,7 @@ in
           (
             lib.filterAttrs (
               name: _:
-              (hostName != "prl-dev-vm" && hostName != "workstation")
+              config.my.agentHarness.legacyHerdr
               || !(builtins.elem name [
                 "herdr"
                 "orca"

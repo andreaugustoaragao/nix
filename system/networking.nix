@@ -309,7 +309,7 @@
 
     # Trust local interfaces for Docker and K3s
     trustedInterfaces =
-      lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ "docker0" ]
+      lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [ "docker0" ]
       ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [
         "cni0"
         "flannel.1"

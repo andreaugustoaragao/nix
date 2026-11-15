@@ -149,7 +149,10 @@ request into permission to commit unrelated work or force-push.
    Priority changes reorder undispatched work; do not interrupt running edits
    just because an urgent task arrives. Explain capacity/dependency constraints.
 7. Run slow builds/checks in coordinator-owned Herdr terminals, then use
-   `hc wait --children any --timeout 30` to remain reachable. Those non-agent
+   `hc wait --children any --timeout 30` to remain reachable. Read batched worker
+   report artifacts with `chief-of-staff-inbox --portfolio "$portfolio" digest --task <id> [--terminal <t>]`
+   (paging `--offset`/`--limit` or `--report-id` whenever `complete` is false)
+   with zero model calls rather than spawning a triage agent. Those non-agent
    terminals occupy layout capacity but not agent worker capacity, and cannot
    bypass shared-resource serialization. Read actual reports/artifacts and update the records before
    dispatching again. Stop waiting when nothing runnable or working remains;

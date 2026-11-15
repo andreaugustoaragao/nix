@@ -5,6 +5,11 @@ keys:
   - &prl_dev_vm_key age124a5zdlqgqpgxqsz0k7yljzf7haavch863y63qlrx2mkqlgcn33sl4du4s
 
 creation_rules:
+  - path_regex: secrets/workers/workstation-worker\.yaml$
+    key_groups:
+      - age:
+          - *admin_key
+          - age1ysf49s0znpqf9z0qn43pkkp4ztvy7rqqu7mlf550mv96czcqvdxscqp0fu
   - path_regex: secrets/.*\.yaml$
     key_groups:
       - age:

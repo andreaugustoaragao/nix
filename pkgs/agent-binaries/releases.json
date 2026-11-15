@@ -1,0 +1,48 @@
+{
+  "codex": {
+    "version": "0.169.0",
+    "sources": {
+      "x86_64-linux": {
+        "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.169.0-linux-x64.tgz",
+        "hash": "sha512-o05NyAOCDygSPRo1yinzxvkRSdmsZyBD9E7mbpmjRanSfM8lypqWtQgEo4XfNkwhuCR2aFu8mlGOsQGFXVbVww=="
+      },
+      "aarch64-linux": {
+        "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.169.0-linux-arm64.tgz",
+        "hash": "sha512-NZ/DaQUpcQmxmqee7Z9uC1rzw3GhSbooawcaTe1LN5Yk+WlinUKGdTXJgClRT/9ogQEEM9TWxYzvxPfj5G/xFg=="
+      },
+      "x86_64-darwin": {
+        "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.169.0-darwin-x64.tgz",
+        "hash": "sha512-K1FKSsSLl9v3z5TeagBQXyQRDBIGB5Jncy5dxsRxwT3aaTqN3AI8VrCfoxBxKMOOU9O2QX1vg7WkBwNVth/s9A=="
+      },
+      "aarch64-darwin": {
+        "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.169.0-darwin-arm64.tgz",
+        "hash": "sha512-5WsWFBbVP78D+6FvNo1MMVxLPZdmcoQlqVJFrF4qx/TmvneLnMQKtLyXkUo54XOTDfoYKpNouTJ/F7gTVA8FnQ=="
+      }
+    }
+  },
+  "pi": {
+    "version": "1.5.2",
+    "npmDepsHash": "sha256-F/gJSTEHY592Or+9yoHmTUUj+jk61UXlD+WsCe/hTSc="
+  },
+  "cursor": {
+    "version": "2026.11.13-eacade1",
+    "sources": {
+      "x86_64-linux": {
+        "url": "https://downloads.cursor.com/lab/2026.11.13-eacade1/linux/x64/agent-cli-package.tar.gz",
+        "hash": "sha256-wC5DIfINaR7gOvlNKZSNw6gcbDTnMo2nuxr63kx1gS8="
+      },
+      "aarch64-linux": {
+        "url": "https://downloads.cursor.com/lab/2026.11.13-eacade1/linux/arm64/agent-cli-package.tar.gz",
+        "hash": "sha256-5LoGEQRaJNHPePAh00wZRhaA/HI0wZwfmB8cwWn3DNw="
+      },
+      "x86_64-darwin": {
+        "url": "https://downloads.cursor.com/lab/2026.11.13-eacade1/darwin/x64/agent-cli-package.tar.gz",
+        "hash": "sha256-uoa3wOp+RW+dMyMunh6/bKxWqsNr6imf222i1NiragA="
+      },
+      "aarch64-darwin": {
+        "url": "https://downloads.cursor.com/lab/2026.11.13-eacade1/darwin/arm64/agent-cli-package.tar.gz",
+        "hash": "sha256-CHIgzPHhJNzfJ1NgFCKJIEKkWixXfvDqJbilsOR7tpE="
+      }
+    }
+  }
+}

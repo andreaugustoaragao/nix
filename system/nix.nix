@@ -16,8 +16,24 @@
 
       # Leave room for the graphical session on the Parallels VM, where
       # rebuilds run alongside Kubernetes and browser calls.
-      cores = if hostName == "prl-dev-vm" || personalOnly then 4 else 0;
-      max-jobs = if hostName == "prl-dev-vm" || personalOnly then 2 else "auto";
+      cores =
+        if hostName == "prl-dev-vm" || personalOnly then
+          4
+        else if hostName == "workstation" then
+          8
+        else
+          0;
+      max-jobs =
+        if
+          builtins.elem hostName [
+            "prl-dev-vm"
+            "workstation"
+          ]
+          || personalOnly
+        then
+          2
+        else
+          "auto";
 
       # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
       auto-optimise-store = true;

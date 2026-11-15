@@ -148,6 +148,7 @@
           overlays = [ ];
         };
         isWorkstation = host.profile == "workstation";
+        isBuildWorker = host.profile == "worker";
         # Branding follows ownership, independently of the hardware profile.
         isWorkMachine = host.isWorkMachine or false;
         # Opt-in isolation for fresh personal installations. Existing hosts
@@ -157,6 +158,7 @@
         isVm = builtins.elem host.profile [
           "vm"
           "kubernetes"
+          "worker"
         ];
         isServer = builtins.elem host.profile [
           "server"
@@ -264,6 +266,14 @@
         "aarch64-linux"
       ];
       forEachAppSystem = nixpkgs.lib.genAttrs appSystems;
+      applicationPkgs = forEachAppSystem (
+        system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = [ inputs.rust-overlay.overlays.default ];
+        }
+      );
     in
     {
       # NixOS configurations for Linux machines
@@ -278,6 +288,21 @@
           ++ (
             if host.profile == "kubernetes" then
               [ ./system/kubernetes ]
+            else if host.profile == "worker" then
+              [
+                ./system/build-worker
+                sops-nix.nixosModules.sops
+                { nixpkgs.overlays = [ inputs.rust-overlay.overlays.default ]; }
+                home-manager.nixosModules.home-manager
+                {
+                  home-manager = {
+                    useUserPackages = true;
+                    useGlobalPkgs = true;
+                    extraSpecialArgs = setSpecialArgs host;
+                    users.${metadata.user.name} = import ./home/worker.nix;
+                  };
+                }
+              ]
             else
               [
                 {
@@ -349,17 +374,18 @@
       packages = forEachAppSystem (
         system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = [ inputs.rust-overlay.overlays.default ];
-          };
+          pkgs = applicationPkgs.${system};
+          agents = pkgs.callPackage ./pkgs/agent-binaries { };
           ubTools = pkgs.callPackage ./pkgs/ub-tools.nix { };
           umlViewer = pkgs.callPackage ./pkgs/uml-viewer.nix { };
         in
         {
+          inherit (agents) codex pi cursor-agent;
+          workstation-job = (pkgs.callPackage ./pkgs/workstation-jobs.nix { }).client;
+          workstation-worker-enroll = (pkgs.callPackage ./pkgs/workstation-jobs.nix { }).enroll;
           dev-browser-mcp = pkgs.callPackage ./pkgs/dev-browser-mcp.nix { };
           browser-task = pkgs.callPackage ./pkgs/browser-task.nix { };
+          herdr-agent-preview = pkgs.callPackage ./pkgs/herdr-agent-preview.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
@@ -368,6 +394,7 @@
           uml-viewer = umlViewer;
         }
         // nixpkgs.lib.optionalAttrs (system != "x86_64-darwin") {
+          agent-hub = pkgs.callPackage ./pkgs/agent-hub.nix { };
           inherit (ubTools) crapper dryer mutator;
           ub-tools = pkgs.symlinkJoin {
             name = "ub-tools";
@@ -381,6 +408,8 @@
           graphify = inputs.nixpkgs-unstable.legacyPackages.${system}.callPackage ./pkgs/graphify.nix { };
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          workstation-build-client-identity =
+            (pkgs.callPackage ./pkgs/workstation-build-client-identity.nix { }).client;
           noctalia = pkgs.callPackage ./pkgs/noctalia.nix {
             inherit (inputs.nixpkgs-unstable.legacyPackages.${system}) noctalia;
           };
@@ -402,11 +431,38 @@
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          workstation-rootful-docker-retire =
+            pkgs.callPackage ./pkgs/workstation-rootful-docker-retire.nix
+              { };
           workstation-k3s-retire = pkgs.callPackage ./pkgs/workstation-k3s-retire.nix {
             guestImage = self.nixosConfigurations.workstation-k8s-vm.config.system.build.kubernetesImage;
           };
         }
 
+      );
+
+      devShells = forEachAppSystem (
+        system:
+        let
+          pkgs = applicationPkgs.${system};
+        in
+        {
+          rust-worker = pkgs.mkShell {
+            packages = [
+              (pkgs.callPackage ./pkgs/rust-toolchain.nix { })
+              pkgs.pkg-config
+              pkgs.cmake
+              pkgs.gnumake
+              pkgs.sccache
+            ];
+            buildInputs = [
+              pkgs.openssl
+              pkgs.zlib
+            ];
+            RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+            CARGO_INCREMENTAL = "0";
+          };
+        }
       );
 
       # Cross-host SSH bootstrap apps. Exposed on every system in appSystems
@@ -960,6 +1016,28 @@
             inherit pkgs;
             vmHome = self.nixosConfigurations.prl-dev-vm.config.home-manager.users.aragao;
             workstationHome = self.nixosConfigurations.workstation.config.home-manager.users.aragao;
+            workerHome = self.nixosConfigurations.workstation-worker.config.home-manager.users.aragao;
+          };
+          workstation-jobs =
+            pkgs.runCommand "check-workstation-jobs"
+              {
+                nativeBuildInputs = [
+                  (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+                  pkgs.git
+                  pkgs.sops
+                  pkgs.age
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/scripts/workstation-job.test.py
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/scripts/qemu-powerdown.test.py
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/scripts/workstation-k3s-retire.test.py
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/scripts/workstation-worker-enroll.test.py
+                touch "$out"
+              '';
+          worker-credentials = import ./system/build-worker/check.nix {
+            inherit pkgs;
+            worker = self.nixosConfigurations.workstation-worker;
           };
           workstation-kubernetes-vm = import ./system/kubernetes/check.nix {
             inherit pkgs;

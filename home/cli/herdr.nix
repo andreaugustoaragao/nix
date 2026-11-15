@@ -3,7 +3,6 @@
   lib,
   pkgs,
   appearance,
-  hostName,
   ...
 }:
 
@@ -20,9 +19,9 @@ let
   };
 in
 {
-  home.packages = lib.optional (hostName != "prl-dev-vm" && hostName != "workstation") herdr;
+  home.packages = lib.optional config.my.agentHarness.legacyHerdr herdr;
 
-  home.file = lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation") (
+  home.file = lib.mkIf config.my.agentHarness.legacyHerdr (
     lib.mkMerge [
       (lib.mapAttrs (_: asset: {
         source = "${assets}/${asset}";
@@ -51,7 +50,7 @@ in
     ]
   );
 
-  xdg.configFile = lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation") {
+  xdg.configFile = lib.mkIf config.my.agentHarness.legacyHerdr {
     "herdr/config.toml" = {
       force = true;
       source = (pkgs.formats.toml { }).generate "herdr-config.toml" {
@@ -106,6 +105,6 @@ in
           --home ${lib.escapeShellArg config.home.homeDirectory} \
           --config-home ${lib.escapeShellArg config.xdg.configHome} \
           --state-home ${lib.escapeShellArg config.xdg.stateHome} \
-          ${lib.optionalString (hostName == "prl-dev-vm") "--retire-legacy"}
+          ${lib.optionalString (!config.my.agentHarness.legacyHerdr) "--retire-legacy"}
       '';
 }

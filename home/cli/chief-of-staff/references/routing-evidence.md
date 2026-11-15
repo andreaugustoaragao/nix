@@ -6,6 +6,45 @@ The user identifies Codex–OpenAI as the cheapest route for Astra and Sol 6.1;
 that preference governs current routing.
 
 
+## Cursor Agent capability check and current evidence gap
+
+On 2026-11-14, `cursor-agent status` confirmed authentication, and
+`cursor-agent models` listed Carbon and Argon at low, medium and high effort.
+The installed `herdr-cursor` wrapper validates an explicit model ID and loads a
+session-local lifecycle plugin. This confirms available launch capabilities,
+not a completed model task or comparable cost.
+
+T007 used OpenCode2 2.0.18 with WebAI `litellm/gemini-4-carbon`. Its client
+reported repeated transport timeouts and exited while correctness corrections
+were unfinished. Read-only session records showed completed correction tool
+calls before the client exit; the same saved session was resumed. The terminal
+also lacked OSC 7501 lifecycle reports. These observations justify reassessing
+that route. They do not identify the timeout's root cause or establish another
+harness's reliability. The private T007 implementation and recovery artifacts
+retain the incident details.
+
+A subsequent Cursor Agent Carbon high review of the isolated T007 snapshot
+reproduced defects, including a native `hc ls` versus `hc get` schema mismatch
+masked by the implementation's fixtures. The coordinator confirmed that mismatch
+against the installed CLI. This demonstrates one completed review capability;
+it does not establish a comparative quality, cost or reliability ranking.
+
+The earlier comparison below did not include Cursor Agent. No matched Cursor
+Carbon or Argon task series, subscription allowance cost, or live dollar
+advantage is established. Cursor's subscription economics must be recorded
+separately from the WebAI API costs below. Do not treat an unknown or zero
+client cost field as a free completed task.
+
+For a future comparison, use the same isolated task inputs and independent
+acceptance checks on Cursor, Pi and OpenCode. Record exact model, effort,
+versions and required tools. Alternate the run order, count failures and
+retries, and include coordinator recovery and review fixes in accepted-task
+cost. Compare coding and review workloads separately. Different effort labels
+or missing billing data limit the conclusion. Preserve raw records privately
+and publish sanitized aggregates without discarding failed runs.
+
+## Earlier WebAI comparisons
+
 All three harnesses passed all five scored coding sessions for each tested
 model. Each session was the same LRU/async-memoizer task plus invalidation,
 validated by typechecking and 14 then 19 independent checks. Repetition improves

@@ -1,0 +1,30 @@
+{
+  "verifiedAt": "2026-11-15T04:33:48.535709+00:00",
+  "supersedes": "The workload-termination portion of workstation-k3s-retirement-20261114.json was incomplete. Files, service, mounts and interfaces were checked, but independent container scopes survived.",
+  "cause": "Kubernetes containers had independent systemd scopes. The upstream shim-process matcher and K3s service shutdown did not terminate them.",
+  "cpuSample": {
+    "pid": 17423,
+    "scope": "cri-containerd-ce60b37cec7cc1c60e5ca5191a5f6b7d8fdd865346173e104c779e8f4c344613.scope",
+    "seconds": 2.000209437999729,
+    "cpuTicks": 321,
+    "clockTicksPerSecond": 100,
+    "percentOfOneCore": 160.48319436039154
+  },
+  "action": "GUI-authenticated SIGKILL of only the 48 host cri-containerd container scopes. No Docker or QEMU scopes selected.",
+  "verification": [
+    {
+      "hostContainerScopes": 0,
+      "ztunnel": []
+    },
+    {
+      "sampleSeconds": 2.0000770420010667,
+      "ticksPerSecond": 100,
+      "ztunnel": []
+    }
+  ],
+  "protected": {
+    "kubernetesQemuPID": 1033382,
+    "dockerPID": 4493
+  },
+  "sourceCorrection": "Retirement now removes and verifies systemd container scopes independently of its completion markers. Four regression tests cover orphan scopes, failed termination, repeat calls, and unrelated-scope rejection."
+}

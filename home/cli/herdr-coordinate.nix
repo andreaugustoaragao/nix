@@ -88,6 +88,13 @@ let
       exec python3 ${skill}/scripts/work.py "$@"
     '';
   };
+  chiefOfStaffInbox = pkgs.writeShellApplication {
+    name = "chief-of-staff-inbox";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${skill}/scripts/inbox.py "$@"
+    '';
+  };
 in
 {
   home.packages = [
@@ -97,6 +104,7 @@ in
     chiefOfStaffInit
     chiefOfStaffSpawn
     chiefOfStaffWork
+    chiefOfStaffInbox
   ];
 
   home.file = {
@@ -114,6 +122,10 @@ in
     };
     ".local/bin/chief-of-staff-work" = {
       source = lib.getExe chiefOfStaffWork;
+      force = true;
+    };
+    ".local/bin/chief-of-staff-inbox" = {
+      source = lib.getExe chiefOfStaffInbox;
       force = true;
     };
     # Preserve the old invocation without a second coordinator or worker pool.

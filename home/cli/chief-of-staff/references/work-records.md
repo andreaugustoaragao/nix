@@ -85,6 +85,10 @@ acceptance, and cannot establish that an arbitrary assertion is true.
 ```
 
 Record worker reports separately, including their literal navigable terminal.
+`chief-of-staff-inbox` is read-only on coordinator portfolios (`digest`) and
+never writes `work/events/` or `work/snapshot.json`; all Work publications
+(`worker`, `check-in`, `verify`, `block`, `resolve`, `revise`, `lifecycle`)
+remain explicit coordinator-owned `chief-of-staff-work` writes.
 Polling a busy worker never satisfies a check-in or verifies progress.
 
 ```json

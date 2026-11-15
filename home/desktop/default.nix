@@ -85,6 +85,7 @@
   home.packages =
     with pkgs;
     [
+      (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).desktop
       pavucontrol
       unstable-pkgs.telegram-desktop
       (
@@ -115,7 +116,7 @@
     ++ lib.optionals (!personalOnly && (hostName != "prl-dev-vm" && hostName != "workstation")) [
       teams-for-linux
     ]
-    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [
+    ++ lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux" && hostName != "workstation") [
       zoom-us
       aptakube
     ]

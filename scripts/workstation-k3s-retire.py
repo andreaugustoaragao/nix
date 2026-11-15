@@ -36,6 +36,22 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def host_container_scopes():
+    output = run("systemctl", "list-units", "--type=scope", "--state=running", "--plain", "--no-legend", "cri-containerd-*.scope")
+    units = [line.split()[0] for line in output.splitlines()]
+    require(all(re.fullmatch(r"cri-containerd-[0-9a-f]{64}\.scope", unit) for unit in units), "Unexpected container scope identity")
+    return units
+
+
+def retire_host_containers():
+    units = host_container_scopes()
+    if units:
+        subprocess.run(["systemctl", "kill", "--kill-whom=all", "--signal=KILL", *units], check=False)
+        # Killing the last task can unload a transient scope before stop runs.
+        subprocess.run(["systemctl", "stop", *units], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    require(not host_container_scopes(), "Retired host Kubernetes container scopes remain running")
+
+
 def atomic_json(path, value):
     temporary = path.with_suffix(".new")
     with temporary.open("w") as stream:
@@ -52,7 +68,10 @@ def atomic_json(path, value):
 
 
 def protected_processes():
-    names = ("docker.service", "greetd.service", "fancontrol.service")
+    names = ["greetd.service", "fancontrol.service"]
+    rootful_docker = run("systemctl", "show", "docker.service", "-p", "ActiveState", "--value") == "active"
+    if rootful_docker:
+        names.append("docker.service")
     result = {}
     for name in names:
         pid = run("systemctl", "show", name, "-p", "MainPID", "--value")
@@ -60,7 +79,7 @@ def protected_processes():
         result[name] = [pid, Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]]
     for pid in run("pgrep", "-x", "niri").splitlines():
         result[f"niri-{pid}"] = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
-    containers = run("/run/current-system/sw/bin/docker", "-H", "unix:///run/docker.sock", "ps", "-q")
+    containers = run("/run/current-system/sw/bin/docker", "-H", "unix:///run/docker.sock", "ps", "-q") if rootful_docker else ""
     result["containers"] = []
     for identifier in containers.splitlines():
         result["containers"].append(run(
@@ -86,6 +105,7 @@ def retire(args):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         baseline = protected_processes()
         atomic_json(STATE / "protected-before.json", baseline)
+        retire_host_containers()
         if not (STATE / "host-retired.json").exists():
             subprocess.run([args.cleanup], check=True)
             for line in Path("/proc/self/mountinfo").read_text().splitlines():
@@ -126,6 +146,7 @@ def retire(args):
         subprocess.run(["systemctl", "start", "workstation-kubernetes.service"], check=True)
         require(protected_processes() == baseline, "A protected process changed during retirement")
         require(all(not Path(p).exists() for p in RETIRED), "Retired host data remains")
+        require(not host_container_scopes(), "Retired host container scopes reappeared")
         atomic_json(STATE / "complete.json", {"system": args.system, "protected": baseline})
         print("Host K3s retired; fresh guest started; desktop and Docker processes preserved.")
 

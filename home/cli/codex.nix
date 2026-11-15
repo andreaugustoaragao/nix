@@ -11,6 +11,7 @@
 }:
 
 let
+  agents = pkgs.callPackage ../../pkgs/agent-binaries { };
   trustedNixPath = "${config.home.homeDirectory}/projects/personal/nix";
   trustedPersonalFulcrumPath = "${config.home.homeDirectory}/projects/personal/fulcrum";
   trustedWorkFulcrumPath = "${config.home.homeDirectory}/projects/work/fulcrum";
@@ -29,7 +30,7 @@ let
   # or shell initialization shared with Cursor, Claude, and Pi.
   # Let project and user configuration select the sandbox and approval reviewer.
   # Keep hook-trust prompts disabled for the shared repository hooks.
-  # Use the npm entrypoint explicitly to avoid recursing through PATH.
+  # Use the immutable package directly to avoid recursing through PATH.
   codexLauncher = pkgs.writeShellScript "codex" ''
     export AGENT_TOOL=codex
     unset NO_COLOR
@@ -37,7 +38,7 @@ let
       || [ -n "''${ORCA_PANE_KEY:-}" ] || [ "''${ORCA_STRUCTURED_SESSION:-}" = 1 ]; then
       set -- --no-daemon "$@"
     fi
-    exec "${config.home.homeDirectory}/.npm-global/bin/codex" \
+    exec "${agents.codex}/bin/codex" \
       --dangerously-bypass-hook-trust \
       "$@"
   '';
@@ -54,6 +55,7 @@ let
   configTomlTemplate = ''
     model = "gpt-6.1-sol"
     model_provider = "${if personalOnly then "openai" else "chatgpt-retry"}"
+    check_for_update_on_startup = false
     model_reasoning_effort = "high"
     # Start in YOLO mode: full access without approval prompts.
     sandbox_mode = "danger-full-access"
@@ -126,7 +128,7 @@ let
       args = ["/run/secrets/litellm_api_key"]
     ''}
 
-    ${lib.optionalString (osConfig.sops.secrets ? open_ai_key) ''
+    ${lib.optionalString (osConfig ? sops && osConfig.sops.secrets ? open_ai_key) ''
       # Optional direct API access selected with model_provider="openai-sops".
       [model_providers.openai-sops]
       name = "OpenAI (SOPS)"
@@ -178,9 +180,7 @@ let
 in
 
 {
-  # The codex binary itself is installed by the installNpmAiTools
-  # activation in home/cli/development.nix. This module owns its
-  # user-level config at ~/.codex/config.toml.
+  my.agentHarness.codexTemplate = configTomlTemplate;
 
   # Codex shells out to `bwrap` for filesystem sandboxing on Linux;
   # without it in PATH it falls back to a bundled copy and prints a
@@ -350,9 +350,7 @@ in
     path = ./codex-skills/frontend-design;
   };
 
-  # ~/.local/bin already precedes the npm prefix in home/default.nix.
-  # Keep the npm-managed installation intact so explicit upgrades continue
-  # to replace the underlying CLI without removing this launcher.
+  # The managed launcher preserves terminal context around the pinned binary.
   home.file.".local/bin/codex".source = codexLauncher;
 
   home.file.".local/bin/codex-webai" = lib.mkIf (!personalOnly) {

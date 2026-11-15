@@ -9,6 +9,7 @@
   fuzzel,
   niri,
   hyprland,
+  sway-unwrapped,
   stdenv,
 }:
 let
@@ -26,6 +27,8 @@ let
     (lib.getExe niri)
     "--hyprctl"
     "${hyprland}/bin/hyprctl"
+    "--swaymsg"
+    "${sway-unwrapped}/bin/swaymsg"
     "--fuzzel"
     (lib.getExe fuzzel)
   ];

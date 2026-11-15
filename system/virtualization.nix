@@ -8,7 +8,12 @@
 }:
 
 let
-  rootlessDocker = hostName == "prl-dev-vm" || personalOnly;
+  rootlessDocker =
+    builtins.elem hostName [
+      "prl-dev-vm"
+      "workstation"
+    ]
+    || personalOnly;
   enableRootlessDocker = rootlessDocker || hostName == "workstation";
   rootlessRunc = pkgs.callPackage ../pkgs/rootless-runc.nix { };
   enableLocalK3s =

@@ -13,7 +13,7 @@ model/task fit, then harness tools. Do not balance subscriptions by task count.
 | Email, Google Drive or calendar tasks, including review needing those connectors | `codex-openai`; keep execution on its configured connectors | `gpt-6.1-sol`, or `gpt-6-astra` for difficult synthesis/reasoning |
 | General implementation, fixes, refactoring, tests and routine review | `codex-openai` | `gpt-6.1-sol` |
 | Complex diagnosis, architecture, high-risk changes and deep review | `codex-openai` | `gpt-6-astra` |
-| Google-model work or the UI/UX review below | OpenCode2 / WebAI by default; Pi / WebAI when required tools or observed resource constraints favor it | `litellm/gemini-4-argon` for straightforward work; `litellm/gemini-4-carbon` for complex work |
+| Google-model work or the UI/UX review below | Cursor Agent through `herdr-cursor`, OpenCode2 / WebAI, or Pi / WebAI; choose by required tools, observed reliability and task evidence | Argon for straightforward work; Carbon for complex work. Verify the exact harness-specific model and effort below. |
 | Astra/Sol 6.1 work when the OpenAI route is unhealthy or unavailable | `codex-webai`, only under the fallback rule below | Same selected `gpt-6-astra` or `gpt-6.1-sol` |
 
 Codex–OpenAI is the user's cheapest Astra/Sol 6.1 option. Use it for substantial
@@ -61,13 +61,28 @@ connector-bound tasks remain on Codex–OpenAI even when reviewed.
 
 ## Keep routing inexpensive
 
-OpenCode is the WebAI default. Prefer Pi when its direct LSP, Context7, NixOS or
-managed-browser integration is needed and unavailable in the selected OpenCode
-setup, or measured local resources justify it. Verify current capabilities.
-Carbon's observed OpenCode cost advantage is provisional; Argon has no equivalent
-comparison. No harness has a proven general cache advantage. Preserve suitable
-implementation sessions, stable instructions and append-only follow-ups; name
-Codex workers before their first prompt. Fresh review contexts remain necessary.
+Cursor Agent is approved for Carbon and Argon. For Herdr workers, use
+`herdr-cursor` with an exact ID from `cursor-agent models`. The catalog currently
+lists `gemini-4-carbon-{low,medium,high}` and `gemini-4-argon-{low,medium,high}`.
+Pi and OpenCode use the `litellm/` IDs above; verify their effort controls
+separately. Matching labels do not prove equal reasoning budgets. Preserve
+permissions and never silently select Auto.
+
+There is no general Carbon or Argon harness winner. The narrow Carbon
+Pi/OpenCode comparison is provisional, a later pair reversed the ordering, and
+Cursor has no matched comparison. T007's OpenCode timeouts warrant reassessment
+but do not prove another route is better. Choose by required tools and observed
+behavior. Prefer Pi when a task needs its direct integrations and alternatives
+lack them. Verify current capabilities.
+
+Compare cost per independently accepted task, including failures, retries,
+review fixes and coordinator recovery. Match task inputs and acceptance checks,
+record versions and effort, alternate order, and retain failures. Keep API
+dollars, subscription allowance and elapsed time separate. Unknown cost stays
+unknown; a client zero is not proof of free use. No general cache winner is
+established. Keep suitable healthy sessions and stable instructions. Reconcile
+old sessions and pending operations before a route handoff. Fresh reviews still
+need independent context; name new Codex workers before their first prompt.
 
 Give workers only their selected route/model, scoped task, required context and
 checks—not this policy, the backlog or benchmark history. Record one routing

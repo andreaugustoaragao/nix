@@ -10,20 +10,24 @@ let
 in
 {
   systemd = {
-    sockets.docker = {
+    sockets.docker = lib.mkIf config.virtualisation.docker.enable {
       # NixOS leaves active sockets open; tmpfiles applies permissions immediately.
       socketConfig = {
         SocketMode = lib.mkForce "0600";
         SocketGroup = lib.mkForce "root";
       };
     };
-    tmpfiles.rules = [
-      "z /run/docker.sock 0600 root root -"
+    tmpfiles.rules = lib.mkIf (!config.virtualisation.docker.enable) [
+      "r /run/docker.sock - - - -"
     ];
     user.services.docker.serviceConfig.LimitCORE = lib.mkForce 0;
   };
 
   assertions = [
+    {
+      assertion = !config.virtualisation.docker.enable;
+      message = "Workstation Docker workloads must use the unprivileged daemon.";
+    }
     {
       assertion =
         sudo.wheelNeedsPassword

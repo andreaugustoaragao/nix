@@ -56,6 +56,15 @@ profile = "kubernetes"
 stateVersion = "26.05"
 address = "172.30.75.2"
 
+# Dedicated unprivileged agent/build worker on the workstation.
+[machines.workstation-worker]
+hostName = "workstation-worker"
+platform = "x86_64-linux"
+profile = "worker"
+stateVersion = "26.05"
+address = "172.30.76.2"
+colorScheme = "gruvbox"
+
 # Same shape as prl-dev-vm, but runs under VMware Fusion on Apple
 # Silicon (mac-work). The hypervisor split lives entirely in
 # hardware/<host>/hardware-configuration.nix — vmw_pvscsi/vmxnet3 and

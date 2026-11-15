@@ -15,6 +15,7 @@ let
   # x86_64-linux, aarch64-linux, and aarch64-darwin.
   piRs = pkgs.callPackage ../../home/cli/pi-rs { };
   browserTask = pkgs.callPackage ../../pkgs/browser-task.nix { };
+  piVim = pkgs.callPackage ../../pkgs/pi-vim.nix { };
 
   # Pi 1.5's strict theme schema; the setting selects light/dark in that order.
   gruvboxTheme =
@@ -707,13 +708,13 @@ in
   };
 
   # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
-  # with a vim-modal editor. Seed the package into settings.json so pi
-  # auto-loads it on startup. Pi already runs tools without approvals; trust
+  # with a vim-modal editor. Load the same immutable package on every host.
+  # Pi already runs tools without approvals; trust
   # project resources by default as requested for unattended workers.
   home.activation.piVimMode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     target="${config.home.homeDirectory}/.pi/agent/settings.json"
     mkdir -p "$(dirname "$target")"
-    pkg="npm:@burneikis/pi-vim"
+    pkg="${piVim}/share/pi-vim"
     if [[ -f "$target" ]]; then
       existing="$(cat "$target")"
     else
@@ -721,8 +722,14 @@ in
     fi
     printf '%s' "$existing" \
       | ${pkgs.jq}/bin/jq --arg pkg "$pkg" '
-          .packages = ((.packages // []) + [$pkg] | unique)
+          def managed_vim:
+            (if type == "string" then . else (.source // "") end) as $source
+            | ($source == "npm:@burneikis/pi-vim"
+               or ($source | startswith("npm:@burneikis/pi-vim@"))
+               or ($source | test("^/nix/store/[a-z0-9]{32}-pi-vim-[^/]+/share/pi-vim$")));
+          .packages = ([ (.packages // [])[] | select(managed_vim | not) ] + [$pkg] | unique)
           | .defaultProjectTrust = "always"
+          ${lib.optionalString appearance.isGruvbox ''| .theme = "gruvbox-light/gruvbox-dark"''}
         ' \
       > "$target.tmp"
     mv "$target.tmp" "$target"

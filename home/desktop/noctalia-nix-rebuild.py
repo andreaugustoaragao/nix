@@ -83,6 +83,7 @@ class Rebuilder:
         self.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.state_file = self.state_dir / "status.json"
         self.log_file = self.state_dir / "rebuild.log"
+        self.current_system = Path("/run/current-system")
 
     def command(self, name, *args, log=None, capture_stdout=False, **kwargs):
         argv = [self.config[name], *map(str, args)]
@@ -207,6 +208,10 @@ class Rebuilder:
                     if result.returncode:
                         raise ValueError("System build failed. Right-click the button to read the log.")
                     system = self.built_system(result.stdout, host)
+                    active_tmp = (self.current_system / "etc/systemd/system/tmp.mount").is_file()
+                    target_tmp = (Path(system) / "etc/systemd/system/tmp.mount").is_file()
+                    if active_tmp != target_tmp:
+                        raise ValueError("Changing /tmp storage requires a boot-only update and reboot; refusing a live switch that could interrupt D-Bus and the desktop.")
                     self.save("applying", "Authenticate in the GUI to apply the built system.", system=system)
                     log.write("\nApplying the exact built closure: " + system + "\n")
                     log.flush()
@@ -225,6 +230,8 @@ class Rebuilder:
                         raise ValueError("GUI authorization failed or no authentication agent is available. Inspect the log.")
                     if result.returncode:
                         raise ValueError("System activation failed and may be partial. Inspect the log and current system.")
+                    if self.current_system.resolve() != Path(system):
+                        raise ValueError("System activation returned success but did not select the built system; activation is partial. Inspect the log and current system.")
                     message = "System rebuilt and activated. Git changes remain uncommitted."
                     self.save("done", message, system=system)
                     self.notify(message)

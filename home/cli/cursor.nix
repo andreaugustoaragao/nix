@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  hostName,
   ...
 }:
 
@@ -10,10 +9,13 @@ let
   # pi-rs token-compression binary + materialized shim scripts.
   # preToolUse hook routes Bash commands through `pi-rs hook cursor`.
   piRs = pkgs.callPackage ./pi-rs { };
-  # Agent Hub is an optional user-local tool; absence is a harmless no-op.
-  agentHubHook = {
-    command = ''if [ -x "${config.home.homeDirectory}/.local/bin/agent-hub" ]; then "${config.home.homeDirectory}/.local/bin/agent-hub" cursor-hook; else printf '{}\n'; fi'';
-  };
+  agentHubHooks =
+    lib.optional config.my.agentHarness.agentHub.enable {
+      command = "${lib.getExe (pkgs.callPackage ../../pkgs/agent-hub.nix { })} cursor-hook";
+    }
+    ++ lib.optional (!config.my.agentHarness.agentHub.enable) {
+      command = ''if [ -x "${config.home.homeDirectory}/.local/bin/agent-hub" ]; then "${config.home.homeDirectory}/.local/bin/agent-hub" cursor-hook; else printf '{}\n'; fi'';
+    };
   # Cursor / cursor-agent reads ~/.cursor/hooks.json for hook registration.
   # The format mirrors Claude Code's hook config in spirit: a list of
   # event entries, each with a matcher and a command to invoke.
@@ -21,31 +23,29 @@ let
   # The `pi-rs hook cursor` adapter writes the agent-expected envelope
   # (`{"permission":"allow","updated_input":{"command":...}}` on rewrite,
   # `{}` on passthrough). See home/cli/pi-rs/crates/pi-rs/src/cmd/hook.rs.
-  hooks = pkgs.writeText "cursor-hooks.json" (
-    builtins.toJSON {
-      version = 1;
-      hooks = {
-        sessionStart = [
-          agentHubHook
-        ]
-        ++ lib.optional (hostName != "prl-dev-vm") {
+  hooksData = {
+    version = 1;
+    hooks = {
+      sessionStart =
+        agentHubHooks
+        ++ lib.optional config.my.agentHarness.legacyHerdr {
           command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
         };
-        sessionEnd = [ agentHubHook ];
-        beforeSubmitPrompt = [ agentHubHook ];
-        afterAgentResponse = [ agentHubHook ];
-        postToolUse = [ agentHubHook ];
-        stop = [ (agentHubHook // { loop_limit = 1; }) ];
-        preToolUse = [
-          {
-            matcher = "Bash";
-            command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
-          }
-          agentHubHook
-        ];
-      };
-    }
-  );
+      sessionEnd = agentHubHooks;
+      beforeSubmitPrompt = agentHubHooks;
+      afterAgentResponse = agentHubHooks;
+      postToolUse = agentHubHooks;
+      stop = map (hook: hook // { loop_limit = 1; }) agentHubHooks;
+      preToolUse = [
+        {
+          matcher = "Bash";
+          command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
+        }
+      ]
+      ++ agentHubHooks;
+    };
+  };
+  hooks = pkgs.writeText "cursor-hooks.json" (builtins.toJSON hooksData);
   configureHooks = arguments: ''
     run ${lib.getExe pkgs.python3} ${./agent-json-configure.py} \
       --kind cursor \
@@ -56,6 +56,7 @@ let
   '';
 in
 {
+  my.agentHarness.cursorHooks = hooksData;
   home.activation.cursorHooksPrepare =
     lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
       (configureHooks "--prepare");

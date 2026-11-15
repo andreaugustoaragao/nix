@@ -57,3 +57,13 @@ This task needs only a workstation activation. It must not restart the developme
 VM's Shared Vault process or its graphical session.
 
 Runtime acceptance passed on 2026-11-15 UTC. The [verification record](evidence/workstation-k3s-retirement-20261114.json) captures the active host and guest closures, fresh node identity, clean host networking, API access, and a second authenticated run that preserved the running guest. The external `ec-avaya-mdb15` context remains selected. Use `kubectl --context workstation-k8s-vm` for the new development cluster.
+
+## Host container cleanup correction
+
+The initial acceptance checked the service, disks, mounts, and interfaces but
+missed independent `cri-containerd-*.scope` units. A later root audit found 48
+surviving host scopes, including Istio `ztunnel` PID 17423 consuming approximately
+1.6 CPU cores. These were terminated on 2026-11-15 UTC. The fresh Kubernetes guest
+and desktop were preserved. Retirement now reconciles container scopes even when
+its earlier completion markers exist, and fails if any remain. Process listings
+from an ordinary user are insufficient because the host hides privileged processes.
