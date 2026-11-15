@@ -397,6 +397,8 @@
           herdr-app = pkgs.callPackage ./pkgs/herdr-app.nix { };
           orca-ide = pkgs.callPackage ./pkgs/orca-ide.nix { };
           pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
+          folio = pkgs.callPackage ./pkgs/folio.nix { };
+          vereda = pkgs.callPackage ./pkgs/vereda.nix { };
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
         }
 

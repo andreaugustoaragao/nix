@@ -11,7 +11,8 @@ wirelessInterface = "wlp12s0"
 bluetooth = true
 lockScreen = true
 autoLogin = false
-useDms = true
+desktopShell = "noctalia"
+colorScheme = "gruvbox"
 
 [machines.hp-laptop]
 hostName = "hp-laptop"

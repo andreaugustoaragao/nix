@@ -7,11 +7,13 @@
   personalOnly,
   appearance,
   hostName,
+  isVm,
   useNoctalia ? false,
   lockScreen ? false,
   ...
 }:
 let
+  term = import ./default-terminal.nix { inherit isVm; };
   package = unstable-pkgs.callPackage ../../pkgs/noctalia.nix { };
   rebuild = pkgs.callPackage ./noctalia-nix-rebuild.nix {
     inherit hostName;
@@ -75,6 +77,7 @@ in
         OOMScoreAdjust = 100;
         RestartSec = 2;
         Environment = [
+          "TERMINAL=${term.command}"
           "PATH=${
             lib.makeBinPath [
               package

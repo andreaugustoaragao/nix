@@ -57,7 +57,7 @@ in
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
     # platform-specific (see gpg.nix on Linux).
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm") [ ./mise.nix ]
+  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [ ./mise.nix ]
   ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
   ++ lib.optionals personalOnly [ ./personal-identity.nix ]
   ++ lib.optionals (!isDarwinHost) [
@@ -245,7 +245,7 @@ in
       # - cargo-*, gitui, jq, httpie moved to development.nix
       # - direnv moved to development.nix as a program
     ]
-    ++ lib.optionals (hostName != "prl-dev-vm") [
+    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
       screenfetch
       awscli2
       tectonic
@@ -257,7 +257,7 @@ in
       # (NixOS/nixpkgs#512626) propagates.
       unstable-pkgs.zellij
     ]
-    ++ lib.optionals (isLinux && hostName != "prl-dev-vm") [
+    ++ lib.optionals (isLinux && (hostName != "prl-dev-vm" && hostName != "workstation")) [
       # Terminal Winamp — only in unstable for now.
       # Linux-only: cliamp's IPC test binds a unix socket under
       # /nix/var/nix/builds/... which exceeds macOS's sun_path limit

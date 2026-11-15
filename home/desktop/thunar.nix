@@ -9,7 +9,7 @@
 }:
 
 let
-  enableThunar = hostName != "prl-dev-vm";
+  enableThunar = hostName != "prl-dev-vm" && hostName != "workstation";
   term = import ./default-terminal.nix { inherit isVm; };
   bookmarkDefaults = pkgs.writeText "gtk-bookmarks-defaults" ''
     file://${config.home.homeDirectory}/downloads downloads

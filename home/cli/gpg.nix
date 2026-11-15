@@ -236,7 +236,7 @@ in
       kdePackages.ksshaskpass # For SSH passphrase prompts in GUI
       pinentry-qt # For GPG passphrase prompts in GUI
     ]
-    ++ lib.optional (hostName != "prl-dev-vm") pkgs.paperkey;
+    ++ lib.optional (hostName != "prl-dev-vm" && hostName != "workstation") pkgs.paperkey;
 
   # Auto-import GPG keys from sops-managed secrets (if available)
   home.activation.importGPG = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

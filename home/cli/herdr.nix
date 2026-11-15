@@ -20,9 +20,9 @@ let
   };
 in
 {
-  home.packages = lib.optional (hostName != "prl-dev-vm") herdr;
+  home.packages = lib.optional (hostName != "prl-dev-vm" && hostName != "workstation") herdr;
 
-  home.file = lib.mkIf (hostName != "prl-dev-vm") (
+  home.file = lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation") (
     lib.mkMerge [
       (lib.mapAttrs (_: asset: {
         source = "${assets}/${asset}";
@@ -51,7 +51,7 @@ in
     ]
   );
 
-  xdg.configFile = lib.mkIf (hostName != "prl-dev-vm") {
+  xdg.configFile = lib.mkIf (hostName != "prl-dev-vm" && hostName != "workstation") {
     "herdr/config.toml" = {
       force = true;
       source = (pkgs.formats.toml { }).generate "herdr-config.toml" {

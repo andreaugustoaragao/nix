@@ -9,7 +9,7 @@
 }:
 
 let
-  extraAiTools = hostName != "prl-dev-vm";
+  extraAiTools = hostName != "prl-dev-vm" && hostName != "workstation";
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
 
@@ -209,7 +209,7 @@ in
         update-npm-ai-tools # Daily/manual updater for the retained npm agents
         (pkgs.callPackage ../../pkgs/opencode2.nix { }) # OpenCode v2, available as opencode2
       ]
-      ++ lib.optionals (hostName != "prl-dev-vm") [
+      ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
         pkgs.lazydocker
         (pkgs.callPackage ../../pkgs/uml-viewer.nix { })
         (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
@@ -246,14 +246,17 @@ in
         ubTools.dryer # Structural duplicate detection
         ubTools.mutator # Mutation testing
       ]
-      ++ lib.optionals (pkgs.stdenv.hostPlatform.isLinux && hostName != "prl-dev-vm") (
-        with pkgs;
-        [
-          # Linux-only containerd CLI; Darwin uses Docker Desktop /
-          # podman-machine instead.
-          nerdctl
-        ]
-      );
+      ++
+        lib.optionals
+          (pkgs.stdenv.hostPlatform.isLinux && (hostName != "prl-dev-vm" && hostName != "workstation"))
+          (
+            with pkgs;
+            [
+              # Linux-only containerd CLI; Darwin uses Docker Desktop /
+              # podman-machine instead.
+              nerdctl
+            ]
+          );
 
     # Development environment variables
     sessionVariables = {
@@ -280,7 +283,7 @@ in
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
     }
-    // lib.optionalAttrs (hostName != "prl-dev-vm") {
+    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation") {
       PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     };
 
