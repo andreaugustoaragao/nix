@@ -26,8 +26,8 @@ Existing cluster data and local images survive the move.
 - [x] Build a hardening candidate without changing active privileges.
 - [x] Refresh the candidate against the latest independent login/session edits.
 - [x] Apply hardening with desktop authentication and check effective access.
-- [ ] Deploy shared Herdr customizations, agent settings, and all portable skills.
-- [ ] Build and boot an isolated guest with Kubernetes gated off.
+- [x] Deploy shared Herdr customizations, agent settings, and all portable skills.
+- [x] Build and boot an isolated guest with Kubernetes gated off.
 - [ ] Measure and back up the cluster's actual data and local image content.
 - [ ] Stop host Kubernetes for a consistent final copy and controlled cutover.
 - [ ] Verify the restored guest, then disable host Kubernetes declaratively.

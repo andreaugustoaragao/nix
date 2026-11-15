@@ -1,0 +1,44 @@
+{
+  "root": "/nix/store/lgyplkwzkcfracgyz1dp2wwjlqwwm4pi-nixos-system-workstation-26.05.20261006.b253099",
+  "original_services_unchanged": true,
+  "niri_pid": "5355",
+  "layout": "main-flat",
+  "herdr_errors": [],
+  "codex_provider": "chatgpt-retry",
+  "passwordless_rebuild_denied": true,
+  "vm": "ActiveState=active\nSubState=running\nMainPID=674718\nNRestarts=1\n",
+  "failed_units": "",
+  "guest": {
+    "hostname": "workstation-k8s-vm",
+    "root": "/nix/store/jb8wn742ilrv7zn3fyj5hfp9z80w6qfs-nixos-system-workstation-k8s-vm-26.05.20261006.b253099",
+    "k3s": "ActiveState=inactive\nConditionResult=no",
+    "registry": "active",
+    "host_filesystem_shares": false,
+    "disks": {
+      "blockdevices": [
+        {
+          "name": "vda",
+          "label": null,
+          "mountpoints": [],
+          "children": [
+            {
+              "name": "vda1",
+              "label": "nixos",
+              "mountpoints": [
+                "/nix/store",
+                "/"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "vdb",
+          "label": "k3s-data",
+          "mountpoints": [
+            "/var/lib/rancher"
+          ]
+        }
+      ]
+    }
+  }
+}

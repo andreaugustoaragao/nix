@@ -1,0 +1,11 @@
+{
+  "root": "/nix/store/kax2c08ld2c2y1flxfhiw1lqv936w6ga-nixos-system-prl-dev-vm-26.05.20261006.b253099",
+  "herdr_errors": [],
+  "layout": "main-flat",
+  "portable_skills": 12,
+  "intake_nix_managed": true,
+  "niri_pid": "3431",
+  "native": "ActiveState=active\nMainPID=1708068\nNRestarts=0\nExecMainStartTimestampMonotonic=1670007822206\n",
+  "home_manager": "ActiveState=active\nExecMainStatus=0\n",
+  "failed_system_units": ""
+}
