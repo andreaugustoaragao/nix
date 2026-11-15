@@ -53,14 +53,7 @@ let
   # legitimate config text by accident.
   configTomlTemplate = ''
     model = "gpt-6.1-sol"
-    model_provider = "${
-      if hostName == "prl-dev-vm" then
-        "chatgpt-retry"
-      else if personalOnly then
-        "openai"
-      else
-        "litellm"
-    }"
+    model_provider = "${if personalOnly then "openai" else "chatgpt-retry"}"
     model_reasoning_effort = "high"
     # Start in YOLO mode: full access without approval prompts.
     sandbox_mode = "danger-full-access"
@@ -112,24 +105,20 @@ let
     startup_timeout_sec = 10
     tool_timeout_sec = 30
 
-    ${lib.optionalString (hostName == "prl-dev-vm") ''
-      [model_providers.chatgpt-retry]
-      name = "ChatGPT"
-      base_url = "https://chatgpt.com/backend-api/codex"
-      requires_openai_auth = true
-      request_max_retries = 100
-      stream_max_retries = 100
-    ''}
+    [model_providers.chatgpt-retry]
+    name = "ChatGPT"
+    base_url = "https://chatgpt.com/backend-api/codex"
+    requires_openai_auth = true
+    request_max_retries = 100
+    stream_max_retries = 100
 
     ${lib.optionalString (!personalOnly) ''
       [model_providers.litellm]
       name = "LiteLLM"
       base_url = "@@LITELLM_BASE_URL@@"
       wire_api = "responses"
-      ${lib.optionalString (hostName == "prl-dev-vm") ''
-        request_max_retries = 100
-        stream_max_retries = 100
-      ''}
+      request_max_retries = 100
+      stream_max_retries = 100
 
       # Desktop launchers do not inherit secrets exported by interactive Fish.
       [model_providers.litellm.auth]
@@ -143,10 +132,8 @@ let
       name = "OpenAI (SOPS)"
       base_url = "https://api.openai.com/v1"
       wire_api = "responses"
-      ${lib.optionalString (hostName == "prl-dev-vm") ''
-        request_max_retries = 100
-        stream_max_retries = 100
-      ''}
+      request_max_retries = 100
+      stream_max_retries = 100
 
       # Accept a bare key or OPENAI_API_KEY=... without exporting it globally.
       [model_providers.openai-sops.auth]
@@ -376,9 +363,7 @@ in
 
   # Use Codex's saved OpenAI login, independently of optional API-key secrets.
   home.file.".local/bin/codex-openai".source = pkgs.writeShellScript "codex-openai" ''
-    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="${
-      if hostName == "prl-dev-vm" then "chatgpt-retry" else "openai"
-    }"' "$@"
+    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="chatgpt-retry"' "$@"
   '';
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

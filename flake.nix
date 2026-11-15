@@ -745,6 +745,18 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
+          niri-session =
+            pkgs.runCommand "check-niri-session"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.python3
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/system/niri-session.test.py
+                touch "$out"
+              '';
           dev-browser-mcp = self.packages.${system}.browser-task.tests.protocol;
           browser-task-failures = self.packages.${system}.browser-task.tests.failure-modes;
           agent-host-context = pkgs.runCommand "check-agent-host-context" { } ''
@@ -930,6 +942,28 @@
                   --assets ${self.packages.${system}.herdr}/share/herdr/integrations
                 touch "$out"
               '';
+          herdr-layout-adoption =
+            pkgs.runCommand "check-herdr-layout-adoption"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/herdr-configure.test.py
+                touch "$out"
+              '';
+          agent-desktop-parity = import ./home/cli/agent-parity-check.nix {
+            inherit pkgs;
+            vmHome = self.nixosConfigurations.prl-dev-vm.config.home-manager.users.aragao;
+            workstationHome = self.nixosConfigurations.workstation.config.home-manager.users.aragao;
+          };
+          workstation-kubernetes-vm = import ./system/kubernetes/check.nix {
+            inherit pkgs;
+            hostConfig = self.nixosConfigurations.workstation-k8s-vm.config;
+          };
+          workstation-security = import ./system/workstation-security-check.nix {
+            inherit pkgs;
+            workstation = self.nixosConfigurations.workstation;
+          };
           kubernetes-vm = import ./system/kubernetes/check.nix {
             inherit pkgs;
             hostConfig = self.nixosConfigurations.prl-k8s-vm.config;

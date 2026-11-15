@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  isDarwinHost ? false,
   ...
 }:
 
@@ -76,13 +77,20 @@ in
     }) symlinkMods
   );
 
-  home.activation.herdrDefaultLayout = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    shared_file=${lib.escapeShellArg "${config.xdg.configHome}/herdr-app/shared.json"}
-    if [ ! -e "$shared_file" ]; then
-      mkdir -p "$(dirname "$shared_file")"
-      printf '{"layout":"main-flat"}\n' > "$shared_file"
-    fi
-  '';
+  home.activation.herdrDefaultLayout =
+    lib.hm.dag.entryAfter
+      [
+        "linkGeneration"
+        "herdrSyncedMods"
+      ]
+      ''
+          run ${lib.getExe pkgs.python3} ${./herdr-configure.py} \
+            --root ${lib.escapeShellArg "${config.xdg.configHome}/herdr-app"} \
+            --layout main-flat \
+        --app ${
+          if isDarwinHost then "herdr-app" else lib.getExe (pkgs.callPackage ../../pkgs/herdr-app.nix { })
+        }
+      '';
 
   home.activation.herdrSyncedMods = lib.hm.dag.entryAfter [ "writeBoundary" ] (
     ''

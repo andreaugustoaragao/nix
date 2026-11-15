@@ -19,6 +19,10 @@
     ./env.nix
     ./nvim.nix
   ]
+  ++ lib.optionals (hostName == "workstation") [
+    ./workstation-security.nix
+    ./workstation-kubernetes.nix
+  ]
   ++ lib.optionals (!personalOnly) [
     ./auto-upgrade.nix
     ./matrix-alert.nix

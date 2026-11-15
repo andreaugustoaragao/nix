@@ -23,6 +23,7 @@
     # notes-sync). Per-file gating lives in services/default.nix.
     ./services
   ]
+  ++ lib.optionals (!isServer) [ ./desktop/herdr-layouts.nix ]
   ++ lib.optionals (!isDarwinHost) [
     # Desktop helper scripts — eww/notify-send/Linux paths, including
     # /run/secrets/. Port piecemeal if needed.

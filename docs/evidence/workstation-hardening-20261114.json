@@ -1,0 +1,16 @@
+{
+  "root": "/nix/store/k3i3dfsj6jr4pyn2zs5k7afrxpkqbrzq-nixos-system-workstation-26.05.20261006.b253099",
+  "processes_unchanged": true,
+  "niri_pid": "5355",
+  "home_manager": "ActiveState=active\nExecMainStatus=0\n",
+  "passwordless_rebuild_denied": true,
+  "rootful_docker_denied": true,
+  "docker_socket_mode": "0600 root:root",
+  "k3s_directory_mode": "0700",
+  "rootless": {
+    "returncode": 0,
+    "output": "[\"name=seccomp,profile=builtin\",\"name=rootless\",\"name=cgroupns\"]\n",
+    "error": ""
+  },
+  "failed_units": ""
+}

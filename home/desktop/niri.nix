@@ -30,7 +30,7 @@ let
   virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   startGraphicalSession = pkgs.writeShellScript "start-niri-graphical-session" ''
     set -e
-    ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY
+    ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DISPLAY
     ${pkgs.systemd}/bin/systemctl --user start niri-graphical-session.service
   '';
 

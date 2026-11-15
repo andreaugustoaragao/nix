@@ -65,7 +65,6 @@
   ]
   ++ lib.optionals (hostName != "prl-dev-vm") [ ./ghostty.nix ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
-    ./herdr-layouts.nix
     ./parallels-displays.nix
   ];
 

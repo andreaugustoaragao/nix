@@ -274,6 +274,8 @@ in
   # Hyprland configuration
   wayland.windowManager.hyprland = {
     enable = true;
+    # UWSM owns graphical-session.target and its startup/shutdown lifecycle.
+    systemd.enable = false;
     # 26.05 changed the default from "hyprlang" to "lua"; our config below
     # is written as a structured hyprlang attrset, so pin the old type.
     configType = "hyprlang";
@@ -302,7 +304,7 @@ in
       # nothing against polkit. Drop this once Quickshell exposes
       # polkit primitives. Mirrors home/desktop/niri.nix.
       exec-once = [
-        "uwsm app -- sh -lc 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE'"
+        "${pkgs.uwsm}/bin/uwsm finalize"
         "uwsm app -- ${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"
       ]
       ++ lib.optional config.programs.alacritty.enable "uwsm app -- alacritty --daemon";

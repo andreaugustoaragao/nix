@@ -19,7 +19,7 @@
       "lp"
       "scanner"
     ]
-    ++ lib.optional (hostName != "prl-dev-vm" && !personalOnly) "docker";
+    ++ lib.optional (hostName != "prl-dev-vm" && hostName != "workstation" && !personalOnly) "docker";
     shell = pkgs.zsh;
   };
 
@@ -37,8 +37,9 @@
 
   security.sudo = {
     enable = true;
+    wheelNeedsPassword = true;
     extraConfig =
-      if hostName == "prl-dev-vm" || personalOnly then
+      if hostName == "prl-dev-vm" || hostName == "workstation" || personalOnly then
         ''
           # Automatic builds run unprivileged. Activation requires sudo
           # authentication, even when the flake path is fixed.

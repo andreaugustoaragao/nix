@@ -1,4 +1,10 @@
-{ pkgs, hostAddress, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  hostAddress,
+  ...
+}:
 
 let
   registries = pkgs.writeText "k3s-registries.json" (
@@ -27,13 +33,13 @@ in
     NoNewPrivileges = true;
     ProtectHome = true;
     ProtectSystem = "strict";
-    ReadWritePaths = [ "/var/lib/docker-registry" ];
+    ReadWritePaths = [ config.services.dockerRegistry.storagePath ];
     PrivateTmp = true;
   };
 
-  networking.firewall.extraCommands = ''
-    iptables -A nixos-fw -s 10.211.55.0/24 -p tcp --dport 5000 -j nixos-fw-accept
-  '';
+  networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (network: ''
+    iptables -A nixos-fw -s ${lib.escapeShellArg network} -p tcp --dport 5000 -j nixos-fw-accept
+  '') config.my.kubernetes.network.clientNetworks;
 
   # Preserve existing image names used by local builds and manifests.
   environment.etc."rancher/k3s/registries.yaml".source = registries;

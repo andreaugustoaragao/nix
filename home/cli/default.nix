@@ -36,6 +36,7 @@ in
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
+    ./docker.nix
     ./codex.nix
     ./opencode.nix
     ./shared-vault.nix
@@ -44,6 +45,7 @@ in
     ./agent-projects.nix
     ./herdr-coordinate.nix
     ./pstack.nix
+    ./portable-skills.nix
     ./grill-me.nix
     ./graphify.nix
     ./cursor.nix

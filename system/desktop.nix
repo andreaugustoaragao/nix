@@ -57,7 +57,23 @@
     "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
   };
 
+  # The document portal owns a FUSE mount used by apps across logins and
+  # needs no display. Stopping it with the desktop can strand the mount.
+  # systemd dependency directives cannot be cleared with a drop-in.
+  nixpkgs.overlays = [
+    (_final: prev: {
+      xdg-desktop-portal = prev.xdg-desktop-portal.overrideAttrs (old: {
+        postFixup = (old.postFixup or "") + ''
+          substituteInPlace "$out/share/systemd/user/xdg-document-portal.service" \
+            --replace-fail 'PartOf=graphical-session.target' ""
+        '';
+      });
+    })
+  ];
+
   systemd = {
+    user.services.xdg-document-portal.restartIfChanged = false;
+
     user.services.niri-graphical-session = {
       description = "Pull graphical-session.target up for niri (started outside niri.service)";
       bindsTo = [ "graphical-session.target" ];

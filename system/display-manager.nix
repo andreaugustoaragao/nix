@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   inputs,
@@ -14,6 +15,40 @@ let
   # The workstation's graphical greeter intermittently draws a blank screen
   # even though greetd and niri remain running. Keep login usable on tty1.
   useDmsGreeter = useDms && hostName != "workstation";
+  niriSession = pkgs.writeShellScriptBin "niri-session" ''
+    NIRI_BIN=${lib.getExe unstable-pkgs.niri}
+    SYSTEMCTL_BIN=${lib.getExe' pkgs.systemd "systemctl"}
+    ${builtins.readFile ./niri-session.sh}
+  '';
+  hyprlandSession = pkgs.writeShellScript "hyprland-session" ''
+    set -e
+    ${pkgs.systemd}/bin/systemctl --user start --job-mode=replace-irreversibly niri-shutdown.target
+    exec ${lib.getExe pkgs.uwsm} start -e -D Hyprland ${config.programs.hyprland.package}/bin/start-hyprland
+  '';
+  # Give tuigreet one entry per compositor rather than scanning overlapping profiles.
+  loginSessions = pkgs.runCommand "greetd-sessions" { } ''
+    mkdir -p "$out/share/wayland-sessions" "$out/share/xsessions"
+    cat > "$out/share/wayland-sessions/niri.desktop" <<EOF
+    [Desktop Entry]
+    Name=Niri
+    Exec=${lib.getExe niriSession}
+    Type=Application
+    DesktopNames=niri
+    EOF
+    cat > "$out/share/wayland-sessions/hyprland.desktop" <<EOF
+    [Desktop Entry]
+    Name=Hyprland
+    Exec=${hyprlandSession}
+    Type=Application
+    DesktopNames=Hyprland
+    EOF
+  '';
+  desktopGreeter = pkgs.writeShellScriptBin "desktop-greeter" ''
+    exec ${pkgs.tuigreet}/bin/tuigreet --time \
+      --sessions ${loginSessions}/share/wayland-sessions \
+      --xsessions ${loginSessions}/share/xsessions \
+      --cmd ${lib.escapeShellArg (lib.getExe niriSession)} "$@"
+  '';
 in
 {
   # The DMS greeter module sets services.greetd.settings.default_session.command
@@ -53,12 +88,14 @@ in
       }
       // lib.optionalAttrs (!useDmsGreeter) {
         # Interactive tuigreet for hosts without the DMS greeter.
-        command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${unstable-pkgs.niri}/bin/niri --session'";
+        # greetd keeps its command for its lifetime. Resolve the launcher
+        # through the active system so future rebuilds update the next login.
+        command = "/run/current-system/sw/bin/desktop-greeter";
       };
     }
     // lib.optionalAttrs autoLogin {
       initial_session = {
-        command = "${unstable-pkgs.niri}/bin/niri --session";
+        command = lib.getExe niriSession;
         user = owner.name;
       };
     };
@@ -137,33 +174,9 @@ in
   security.pam.services.greetd.enableGnomeKeyring = true;
 
   environment = {
-    # Override niri's bundled `niri-session` script.
-    #
-    # The upstream script does `systemctl --user --wait start niri.service`,
-    # which puts the wayland session inside user@1000.service/session.slice/
-    # niri.service. polkit's auth-agent registration walks the cgroup tree
-    # looking for a `session-N.scope` ancestor; user@1000.service has none
-    # (logind's session-N.scope is a parallel tree under user-1000.slice),
-    # so any agent spawned by niri (DMS PolkitAuthModal, hyprpolkitagent)
-    # fails with "No session for pid X" and never gets the slot.
-    #
-    # On graphical DMS greeter hosts it sends `niri-session` back to greetd
-    # as the chosen session command (from wayland-sessions/niri.desktop's
-    # `Exec=`), so this hiPrio wrapper wins and niri runs directly inside
-    # the logind session-N.scope. niri's children (DMS via spawn-at-startup)
-    # then inherit the scope, and polkit accepts the agent registration.
-    #
-    # tuigreet hosts already exec `niri --session` directly via greetd's
-    # `command = "tuigreet ... --cmd 'niri --session'"`, so the wrapper is
-    # only needed on useDms hosts — but installing it everywhere is
-    # harmless and keeps the system reproducible.
-    systemPackages = [
-      (lib.hiPrio (
-        pkgs.writeShellScriptBin "niri-session" ''
-          exec ${unstable-pkgs.niri}/bin/niri --session
-        ''
-      ))
-    ];
+    # Keep Niri in the logind scope for Polkit, with graphical-service cleanup
+    # on logout. The greeter, autologin, and desktop entry use this same wrapper.
+    systemPackages = [ (lib.hiPrio niriSession) ] ++ lib.optional (!useDmsGreeter) desktopGreeter;
 
     # Add the home-manager per-user profile zsh path to /etc/shells so
     # pkexec doesn't reject $SHELL (which gets set to that path during

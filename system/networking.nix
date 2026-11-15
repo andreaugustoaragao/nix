@@ -168,7 +168,7 @@
   services.resolved = {
     enable = true;
     settings.Resolve = lib.mkMerge [
-      (lib.mkIf (hostName == "prl-dev-vm") { LLMNR = "no"; })
+      (lib.mkIf (hostName == "prl-dev-vm" || hostName == "workstation") { LLMNR = "no"; })
       (lib.mkIf (hostName == "workstation") {
         DNS = "192.168.40.3";
         FallbackDNS = "1.1.1.1";

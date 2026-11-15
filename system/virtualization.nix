@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   hostName,
@@ -9,9 +10,11 @@
 
 let
   rootlessDocker = hostName == "prl-dev-vm" || personalOnly;
+  enableRootlessDocker = rootlessDocker || hostName == "workstation";
   rootlessRunc = pkgs.callPackage ../pkgs/rootless-runc.nix { };
   enableLocalK3s =
     !personalOnly
+    && (hostName != "workstation" || config.my.workstation.kubernetes.mode == "prepare")
     && !(builtins.elem hostName [
       "hp-laptop"
       "prl-dev-vm"
@@ -23,7 +26,7 @@ in
     # Default `docker` was bumped to docker_28, which is now marked insecure
     # (unmaintained since 2025-11). Pin to docker_29 per the upstream notice.
     package = pkgs.docker_29;
-    rootless = lib.mkIf rootlessDocker {
+    rootless = lib.mkIf enableRootlessDocker {
       enable = true;
       package = pkgs.docker_29;
       setSocketVariable = true;
@@ -38,7 +41,7 @@ in
   };
 
   # Keep the unprivileged daemon and Chroma available across logouts.
-  users.users = lib.mkIf rootlessDocker {
+  users.users = lib.mkIf enableRootlessDocker {
     ${owner.name}.linger = true;
   };
 
@@ -102,6 +105,8 @@ in
 
       # Lazy-load K3s: Remove from critical boot path and start after graphical session
       k3s = lib.mkIf enableLocalK3s {
+        # The workstation cluster stays running until its VM cutover.
+        restartIfChanged = hostName != "workstation";
         wantedBy = lib.mkForce [ ]; # Remove from multi-user.target dependency
         after = [ "graphical-session.target" ]; # Start after graphical session
         # network-online requisite dropped: the upstream k3s module already
@@ -117,7 +122,9 @@ in
           # Best-effort cleanup before SIGKILL: drop containerd-shim
           # processes and unmount the CNI netns paths that block shutdown.
           # `+` prefix runs as root regardless of unit User=.
-          ExecStop = [
+          # Workstation Docker has its own containerd shims. KillMode=mixed
+          # stops only this unit; the legacy global pkill would kill both.
+          ExecStop = lib.optionals (hostName != "workstation") [
             "+${pkgs.writeShellScript "k3s-shutdown-cleanup" ''
               set +e
               ${pkgs.procps}/bin/pkill -TERM -f containerd-shim 2>/dev/null
@@ -184,11 +191,12 @@ in
         " --kubelet-arg=system-reserved=memory=8Gi"
         + " --kubelet-arg='eviction-hard=memory.available<4Gi,imagefs.available<5%,nodefs.available<5%'"
       );
+      kubeconfigMode = if hostName == "workstation" then "0600" else "0644";
     in
     {
       enable = true;
       role = "server";
-      extraFlags = "--disable traefik --write-kubeconfig-mode 0644${ipFlags}${hostSan}${desktopReserve}";
+      extraFlags = "--disable traefik --write-kubeconfig-mode ${kubeconfigMode}${ipFlags}${hostSan}${desktopReserve}";
     }
   );
 }
