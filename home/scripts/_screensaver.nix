@@ -105,7 +105,7 @@ pkgs.writeShellScript "screensaver" ''
     )
     focus_output() { niri msg action focus-monitor "$1" >/dev/null 2>&1 || true; }
     screensaver_count() {
-      niri msg --json windows | ${pkgs.jq}/bin/jq '[.[] | select(.app_id == "Screensaver")] | length'
+      niri msg --json windows | ${pkgs.jq}/bin/jq '[.[] | select(.app_id == "org.aragao.Screensaver")] | length'
     }
   elif [ -n "''${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     mapfile -t outputs < <(
@@ -113,7 +113,7 @@ pkgs.writeShellScript "screensaver" ''
     )
     focus_output() { hyprctl dispatch focusmonitor "$1" >/dev/null 2>&1 || true; }
     screensaver_count() {
-      hyprctl -j clients | ${pkgs.jq}/bin/jq '[.[] | select(.class == "Screensaver" and .mapped)] | length'
+      hyprctl -j clients | ${pkgs.jq}/bin/jq '[.[] | select(.class == "org.aragao.Screensaver" and .mapped)] | length'
     }
   fi
 
@@ -131,11 +131,11 @@ pkgs.writeShellScript "screensaver" ''
     fi
     (
       exec {lock_fd}>&-
-      exec ${pkgs.util-linux}/bin/setsid ${termBin} --class Screensaver ${
+      exec ${pkgs.util-linux}/bin/setsid ${termBin} ${
         if isVm then
-          "--override background_opacity=1 --override window_padding_width=0"
+          "--class org.aragao.Screensaver --override background_opacity=1 --override window_padding_width=0"
         else
-          "--background-opacity=1 --window-padding-x=0 --window-padding-y=0 -e"
+          "--class=org.aragao.Screensaver --background-opacity=1 --window-padding-x=0 --window-padding-y=0 -e"
       } ${effect}
     ) &
     pids+=("$!")

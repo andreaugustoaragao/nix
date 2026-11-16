@@ -424,7 +424,7 @@ in
 
     // Fullscreen animated branding screensaver — opens the terminal maximized.
     window-rule {
-        match app-id="^Screensaver$"
+        match app-id="^org[.]aragao[.]Screensaver$"
         open-fullscreen true
     }
 
