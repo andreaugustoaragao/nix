@@ -6,7 +6,11 @@
   makeWrapper,
   ripgrep,
   sysctl,
+  systemd ? null,
+  memoryLimit ? false,
 }:
+
+assert memoryLimit -> stdenv.hostPlatform.isLinux && systemd != null;
 
 let
   version = "2.0.18";
@@ -55,7 +59,12 @@ stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     install -Dm755 bin/opencode "$out/libexec/opencode2/opencode"
-    makeWrapper "$out/libexec/opencode2/opencode" "$out/bin/opencode2" \
+    makeWrapper ${
+      if memoryLimit then
+        ''"${systemd}/bin/systemd-run" "$out/bin/opencode2" --add-flags "--user --scope --quiet --expand-environment=no --property=MemoryHigh=8G --property=MemoryMax=12G --property=MemorySwapMax=0 -- $out/libexec/opencode2/opencode"''
+      else
+        ''"$out/libexec/opencode2/opencode" "$out/bin/opencode2"''
+    } \
       --prefix PATH : ${
         lib.makeBinPath ([ ripgrep ] ++ lib.optionals stdenv.hostPlatform.isDarwin [ sysctl ])
       } \

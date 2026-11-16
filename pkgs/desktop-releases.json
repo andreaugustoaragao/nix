@@ -1,10 +1,10 @@
 {
   "folio": {
-    "version": "0.1.2",
-    "sourceRevision": "a77dbe35878738f3bf92037bf90ef2dbc15583b2",
+    "version": "0.2.0",
+    "sourceRevision": "e8e6d77387e3e3ca8fa87d89687e9576411e4534",
     "hashes": {
-      "aarch64-linux": "sha256-mvQoT5em7yCDvHQLMOrNpdYm7B/t/nYmj3EXUYQZZgc=",
-      "x86_64-linux": "sha256-6zl4AdjJSD/Iubx/LvJ9J282eKzm668G2Cl+fiOQl3U="
+      "aarch64-linux": "sha256-JoiKHpN/xNepZMkqje4nuZcn7PpoJzAAX7GwpmpvyeA=",
+      "x86_64-linux": "sha256-RVuaHnMWrVuh62N2eFwXtik4muExnF6+UnX2xO5DivM="
     }
   },
   "vereda": {

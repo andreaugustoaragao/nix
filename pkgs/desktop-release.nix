@@ -22,6 +22,8 @@
   xdg-utils,
   poppler-utils,
   gdb,
+  typst,
+  python3Packages,
   pname,
 }:
 let
@@ -84,20 +86,35 @@ stdenv.mkDerivation {
       --prefix LD_LIBRARY_PATH : "/run/opengl-driver/lib:${lib.makeLibraryPath libraries}"
       --set-default RUNE_GPU_LOG 0
     )
-    ${lib.optionalString (pname == "vereda") ''
-      wrapperArgs+=(
-        --prefix GIO_EXTRA_MODULES : "${gvfs}/lib/gio/modules"
-        --prefix PATH : "${
-          lib.makeBinPath [
-            glib
-            fontconfig
-            xdg-utils
-            poppler-utils
-            gdb
-          ]
-        }"
-      )
-    ''}
+    ${
+      lib.optionalString (pname == "vereda") ''
+        wrapperArgs+=(
+          --prefix GIO_EXTRA_MODULES : "${gvfs}/lib/gio/modules"
+          --prefix PATH : "${
+            lib.makeBinPath [
+              glib
+              fontconfig
+              xdg-utils
+              poppler-utils
+              gdb
+            ]
+          }"
+        )
+      ''
+    }${
+      lib.optionalString (pname == "folio") ''
+        wrapperArgs+=(
+          --prefix PATH : "${
+            lib.makeBinPath [
+              fontconfig
+              xdg-utils
+              typst
+              python3Packages.weasyprint
+            ]
+          }"
+        )
+      ''
+    }
     wrapProgram "$out/bin/${pname}" "''${wrapperArgs[@]}"
   '';
   doInstallCheck = true;

@@ -60,6 +60,7 @@ in
   programs.git = {
     settings = {
       gpg.program = lib.mkForce (toString personalSigning);
+      gpg.openpgp.program = lib.mkForce (toString personalSigning);
       core.sshCommand = "${pkgs.coreutils}/bin/env SSH_AUTH_SOCK=/run/user/1000/ssh-agent ${pkgs.openssh}/bin/ssh -o BatchMode=yes";
       credential."https://github.com".helper = lib.mkForce "!${gh}/bin/gh auth git-credential";
       credential."https://gist.github.com".helper = lib.mkForce "!${gh}/bin/gh auth git-credential";
@@ -67,7 +68,10 @@ in
     includes = lib.mkAfter [
       {
         condition = "gitdir:${config.home.homeDirectory}/projects/work/";
-        contents.gpg.program = toString workSigning;
+        contents.gpg = {
+          program = toString workSigning;
+          openpgp.program = toString workSigning;
+        };
       }
     ];
   };
