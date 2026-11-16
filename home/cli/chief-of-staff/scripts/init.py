@@ -83,6 +83,33 @@ def local_space_id(space: dict | None) -> str:
     return sid.split("/")[-1] if sid else ""
 
 
+def core_space_and_tab(my_info: dict, listing: dict, query):
+    """Recover existing topology from the owning core, without Desktop writes."""
+    labels = my_info.get("labels") or {}
+    space_id, tab_id = labels.get("herdr.space"), labels.get("herdr.tab")
+    if my_info.get("state") != "live" or not space_id or not tab_id:
+        raise ValueError("Headless initialization requires a live coordinator with herdr.space and herdr.tab labels")
+    records = [my_info]
+    for terminal in listing.get("terminals") or []:
+        address = terminal.get("address")
+        if terminal.get("state") == "live" and address and address != my_info["address"]:
+            record = query(["hc", "get", address])
+            if record.get("state") == "live" and (record.get("labels") or {}).get("herdr.space") == space_id:
+                records.append(record)
+    tabs = {}
+    for record in records:
+        metadata = record.get("labels") or {}
+        identifier = metadata.get("herdr.tab")
+        name = metadata.get("where", "").partition(" / ")[2]
+        tab = tabs.setdefault(identifier, {"id": identifier, "name": name, "terminals": []})
+        status = record.get("status") or {}
+        tab["terminals"].append({"terminal": record["address"], "app": status.get("app"),
+                                 "status": status.get("state")})
+    name = labels.get("where", "").partition(" / ")[0] or Path(my_info.get("cwd") or "workspace").name
+    space = {"id": space_id, "name": name, "folder": my_info.get("cwd"), "tabs": list(tabs.values())}
+    return space, tabs[tab_id], records
+
+
 def check_conflict(space: dict | None, my_tab: dict | None, my_addr: str, hc_terminals: list[dict]):
     if not space:
         return None
@@ -208,11 +235,19 @@ def main() -> int:
         return 2
 
     try:
-        app_ls = run_json(["herdr-app", "ls"])
+        try:
+            app_ls = run_json(["herdr-app", "ls"])
+        except FileNotFoundError:
+            app_ls = None
         hc_ls = run_json(["hc", "ls", "--json"])
         my_info = run_json(["hc", "get", my_addr])
         templates = run_json(["hc", "templates"]).get("templates") or []
-    except (subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        if app_ls is None:
+            space, tab, hc_terminals = core_space_and_tab(my_info, hc_ls, run_json)
+        else:
+            hc_terminals = hc_ls.get("terminals") or []
+            space, tab = find_space_and_tab(app_ls, my_addr)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(json.dumps({
             "status": "error",
             "error": "host_query_failed",
@@ -220,9 +255,7 @@ def main() -> int:
         }))
         return 1
 
-    hc_terminals = hc_ls.get("terminals") or []
     hc_by_addr = {t.get("address"): t for t in hc_terminals if t.get("address")}
-    space, tab = find_space_and_tab(app_ls, my_addr)
 
     conflict = check_conflict(space, tab, my_addr, hc_terminals)
     if conflict:
@@ -236,11 +269,21 @@ def main() -> int:
 
     # Claim coordinator role on terminal and rename tab to chief-of-staff.
     try:
-        run_cmd(["hc", "label", my_addr, "herdr.role=chief-of-staff", "herdr.name=chief-of-staff"])
-        if tab and tab.get("id") and tab.get("name") != "chief-of-staff":
+        if app_ls is not None:
+            run_cmd(["hc", "label", my_addr, "herdr.role=chief-of-staff", "herdr.name=chief-of-staff"])
+        else:
+            labels = my_info.get("labels") or {}
+            changes = []
+            if labels.get("herdr.role") != "chief-of-staff":
+                changes.append("herdr.role=chief-of-staff")
+            if not labels.get("herdr.name"):
+                changes.append("herdr.name=chief-of-staff")
+            if changes:
+                run_cmd(["hc", "label", my_addr, *changes])
+        if app_ls is not None and tab and tab.get("id") and tab.get("name") != "chief-of-staff":
             run_cmd(["herdr-app", "do", "tab.rename", "--id", tab["id"], "--name", "chief-of-staff"])
             tab["name"] = "chief-of-staff"
-    except subprocess.SubprocessError as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         print(json.dumps({
             "status": "error",
             "error": "claim_failed",
@@ -330,6 +373,7 @@ def main() -> int:
 
     print(json.dumps({
         "status": "ok",
+        "desktop": app_ls is not None,
         "reused": reused,
         "portfolio_id": portfolio_id,
         "portfolio_dir": str(portfolio_dir),

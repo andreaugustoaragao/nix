@@ -9,6 +9,13 @@ let
   identity = "/home/.worker-identity";
   encrypted = ../../secrets/workers + "/workstation-worker.yaml";
   ready = builtins.pathExists encrypted;
+  credentialNames = builtins.fromJSON (builtins.readFile ../../secrets/workers/credential-names.json);
+  sshPaths = {
+    ssh_key_github_personal = "/home/${owner.name}/.ssh/id_rsa_personal";
+    ssh_key_github_work = "/home/${owner.name}/.ssh/id_rsa_work";
+    ssh_pubkey_github_personal = "/home/${owner.name}/.ssh/id_rsa_personal.pub";
+    ssh_pubkey_github_work = "/home/${owner.name}/.ssh/id_rsa_work.pub";
+  };
 in
 {
   sops = {
@@ -20,18 +27,27 @@ in
     };
     gnupg.sshKeyPaths = [ ];
     secrets = lib.optionalAttrs ready (
-      lib.genAttrs
-        [
-          "litellm_api_key"
-          "litellm_base_url"
-          "open_ai_key"
-          "anthropic_api_key"
-        ]
-        (_: {
+      lib.genAttrs credentialNames (
+        name:
+        {
           sopsFile = encrypted;
           owner = owner.name;
           mode = "0400";
-        })
+        }
+        // lib.optionalAttrs (builtins.hasAttr name sshPaths) { path = sshPaths.${name}; }
+        // lib.optionalAttrs (lib.hasPrefix "ssh_" name) {
+          restartUnits = [ "worker-git-refresh.service" ];
+        }
+        //
+          lib.optionalAttrs
+            (builtins.elem name [
+              "gpg_key_personal"
+              "gpg_key_work"
+            ])
+            {
+              restartUnits = [ "home-manager-${owner.name}.service" ];
+            }
+      )
     );
   };
   systemd.services.worker-identity = {
@@ -87,9 +103,62 @@ in
       chmod 0644 /etc/nix/worker-cache.pub /etc/workstation-worker/{age.pub,public-identities.json}
     '';
   };
-  systemd.services.sops-install-secrets = lib.mkIf ready {
+  systemd.services.worker-git-prepare = lib.mkIf ready {
+    description = "Prepare private worker SSH paths before decryption";
     requires = [ "worker-identity.service" ];
-    after = [ "worker-identity.service" ];
+    after = [
+      "worker-identity.service"
+      "local-fs.target"
+    ];
+    before = [ "sops-install-secrets.service" ];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      UMask = "0077";
+      ExecStart = "${pkgs.python3}/bin/python3 ${../../home/cli/worker-git-credentials.py} prepare --home /home/${owner.name} --uid ${
+        toString config.users.users.${owner.name}.uid
+      } --gid ${toString config.users.groups.users.gid}";
+    };
+  };
+  systemd.services.sops-install-secrets = lib.mkIf ready {
+    requires = [
+      "worker-identity.service"
+      "worker-git-prepare.service"
+    ];
+    after = [
+      "worker-identity.service"
+      "worker-git-prepare.service"
+    ];
+  };
+  systemd.services.worker-git-refresh = lib.mkIf ready {
+    description = "Refresh only managed worker Git identities after secret changes";
+    wantedBy = [ "multi-user.target" ];
+    requires = [ "user@1000.service" ];
+    after = [
+      "sops-install-secrets.service"
+      "home-manager-${owner.name}.service"
+      "user@1000.service"
+    ];
+    environment = {
+      XDG_RUNTIME_DIR = "/run/user/1000";
+      DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/1000/bus";
+    };
+    serviceConfig = {
+      User = owner.name;
+      Group = "users";
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -eu
+      worker_git_load_state="$(${pkgs.systemd}/bin/systemctl --user show worker-git-ssh-keys.service --property=LoadState --value)"
+      case "$worker_git_load_state" in
+        loaded) exec ${pkgs.systemd}/bin/systemctl --user restart worker-git-ssh-keys.service ;;
+        not-found) : ;;
+        *) echo 'Worker Git key loader is unavailable.' >&2; exit 1 ;;
+      esac
+    '';
   };
   assertions = [
     {
@@ -126,8 +195,14 @@ in
     };
   };
   systemd.services."home-manager-${owner.name}" = {
-    requires = [ "worker-identity.service" ];
-    after = [ "worker-identity.service" ];
+    requires = [
+      "worker-identity.service"
+      "sops-install-secrets.service"
+    ];
+    after = [
+      "worker-identity.service"
+      "sops-install-secrets.service"
+    ];
   };
   systemd.services."user@1000" = {
     overrideStrategy = "asDropin";

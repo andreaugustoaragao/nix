@@ -820,6 +820,18 @@
               '';
           dev-browser-mcp = self.packages.${system}.browser-task.tests.protocol;
           browser-task-failures = self.packages.${system}.browser-task.tests.failure-modes;
+          pi-task =
+            pkgs.runCommand "check-pi-task-launcher"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.python3
+                ];
+              }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/pi-task.test.py
+                touch "$out"
+              '';
           agent-host-context = pkgs.runCommand "check-agent-host-context" { } ''
             ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-host-context.test.py
             touch "$out"
@@ -970,7 +982,8 @@
             inherit pkgs home-manager;
           };
           shared-vault-module = import ./home/cli/shared-vault-check.nix {
-            inherit pkgs home-manager;
+            inherit home-manager;
+            pkgs = pkgs.extend inputs.rust-overlay.overlays.default;
           };
           notes-sync =
             pkgs.runCommand "check-notes-sync"

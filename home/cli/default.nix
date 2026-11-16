@@ -52,6 +52,7 @@ in
     ./mise.nix
   ]
   ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
+  ++ lib.optionals isBuildWorker [ ./worker-git-credentials.nix ]
   ++ lib.optionals personalOnly [ ./personal-identity.nix ]
   ++ lib.optionals (!isDarwinHost && !isBuildWorker) [
     # gpg/ssh-agent management here is built on systemd-user units +

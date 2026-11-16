@@ -2,6 +2,7 @@
   config,
   lib,
   hostName,
+  isBuildWorker ? false,
   osConfig,
   pkgs,
   unstable-pkgs,
@@ -54,7 +55,7 @@ let
   # legitimate config text by accident.
   configTomlTemplate = ''
     model = "gpt-6.1-sol"
-    model_provider = "${if personalOnly then "openai" else "chatgpt-retry"}"
+    model_provider = "openai"
     check_for_update_on_startup = false
     model_reasoning_effort = "high"
     # Start in YOLO mode: full access without approval prompts.
@@ -107,12 +108,16 @@ let
     startup_timeout_sec = 10
     tool_timeout_sec = 30
 
-    [model_providers.chatgpt-retry]
-    name = "ChatGPT"
-    base_url = "https://chatgpt.com/backend-api/codex"
-    requires_openai_auth = true
-    request_max_retries = 100
-    stream_max_retries = 100
+    ${lib.optionalString isBuildWorker ''
+      # Existing migrated sessions explicitly select this provider on resume.
+      # New sessions keep the native OpenAI default above.
+      [model_providers.chatgpt-retry]
+      name = "ChatGPT"
+      base_url = "https://chatgpt.com/backend-api/codex"
+      requires_openai_auth = true
+      request_max_retries = 100
+      stream_max_retries = 100
+    ''}
 
     ${lib.optionalString (!personalOnly) ''
       [model_providers.litellm]
@@ -215,11 +220,15 @@ in
     default to previews. If a server fails, inspect get_server_status and
     restart that server once, then use compiler/CLI diagnostics.
 
-    Use the nixos MCP tools for NixOS/Home Manager/nix-darwin package and
-    option lookup; match the project's channel/version when relevant.
-    Use Context7 for library documentation when local source/types do not
-    answer the question, and openaiDeveloperDocs for Codex/OpenAI questions.
-    Select the project's library version and keep documentation queries focused.
+    Use nixos MCP to verify package names, option schemas and availability;
+    match the project's channel/version. Use local source and evaluation for
+    this repository's module behavior.
+
+    Use Context7 for unresolved library/API behavior after checking available
+    source, types or bundled docs. Request the project's version and one
+    specific behavior. Skip it for known CLI syntax, repository navigation,
+    and changes that do not depend on an uncertain external API. Use
+    openaiDeveloperDocs for Codex/OpenAI behavior and configuration.
 
     # Graphify
 
@@ -361,7 +370,7 @@ in
 
   # Use Codex's saved OpenAI login, independently of optional API-key secrets.
   home.file.".local/bin/codex-openai".source = pkgs.writeShellScript "codex-openai" ''
-    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="chatgpt-retry"' "$@"
+    exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="openai"' "$@"
   '';
 
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

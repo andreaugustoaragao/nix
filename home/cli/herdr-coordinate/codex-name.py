@@ -42,7 +42,9 @@ def name_worker(terminal, name, home, timeout):
     title = f"{name.strip()} [{address}]"
     index = home / "session_index.jsonl"
     offset = index.stat().st_size if index.exists() else 0
-    hc("send", "--if", "idle", address, "/rename " + title)
+    # Peer sends are wrapped in <hc> notes, which turn slash commands into prompts.
+    keys = ["space" if character == " " else character for character in "/rename " + title]
+    hc("keys", address, *keys, "enter")
     deadline = time.monotonic() + timeout
     while True:
         thread = saved_name(index, offset, title)
@@ -51,8 +53,9 @@ def name_worker(terminal, name, home, timeout):
         if time.monotonic() >= deadline:
             raise TimeoutError(f"Name not confirmed for {address}; inspect with hc read. No assignment was sent")
         state = hc("get", address)
-        if state["state"] != "live" or (state.get("status") or {}).get("state") in ["blocked", "error", "working"]:
-            raise RuntimeError(f"{address} stopped being idle before its name was confirmed; inspect with hc read")
+        # Native commands can briefly report working while their index write finishes.
+        if state["state"] != "live" or (state.get("status") or {}).get("state") in ["blocked", "error"]:
+            raise RuntimeError(f"{address} became unavailable before its name was confirmed; inspect with hc read")
         hc("wait", address, "--output", title, "--timeout", "1")
 
 

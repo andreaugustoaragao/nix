@@ -46,16 +46,19 @@ let
       ) home.home.file
     );
   cloudProviders = home: builtins.removeAttrs home.services.piModels.providers [ "llama-cpp" ];
+  codexTemplate =
+    home: builtins.fromTOML (builtins.unsafeDiscardStringContext home.my.agentHarness.codexTemplate);
   codex =
     home:
     let
-      template = builtins.fromTOML (
-        builtins.unsafeDiscardStringContext home.my.agentHarness.codexTemplate
-      );
+      template = codexTemplate home;
     in
     template
     // {
-      model_providers = builtins.removeAttrs template.model_providers [ "openai-sops" ];
+      model_providers = builtins.removeAttrs template.model_providers [
+        "openai-sops"
+        "chatgpt-retry"
+      ];
       mcp_servers = builtins.removeAttrs template.mcp_servers [ "shared_vault" ];
     };
   opencode =
@@ -95,6 +98,22 @@ assert lib.assertMsg (same managedFiles)
   "VM, workstation and worker must have identical managed skills, instructions and Pi extensions.";
 assert lib.assertMsg (same versions)
   "VM, workstation and worker must pin identical agent and Herdr core versions.";
+assert lib.assertMsg (lib.all (
+  home: (codexTemplate home).model_provider == "openai"
+) homes) "Every host must default to the native OpenAI Codex provider.";
+assert lib.assertMsg (
+  ((codexTemplate workerHome).model_providers.chatgpt-retry or null) == {
+    name = "ChatGPT";
+    base_url = "https://chatgpt.com/backend-api/codex";
+    requires_openai_auth = true;
+    request_max_retries = 100;
+    stream_max_retries = 100;
+  }
+  && lib.all (home: !((codexTemplate home).model_providers ? chatgpt-retry)) [
+    vmHome
+    workstationHome
+  ]
+) "Only the worker retains the exact legacy Codex provider for migrated session resumes.";
 assert lib.assertMsg (same codex)
   "VM, workstation and worker must share Codex defaults, MCP and hooks.";
 assert lib.assertMsg (same (

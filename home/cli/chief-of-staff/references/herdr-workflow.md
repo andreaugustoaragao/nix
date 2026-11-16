@@ -17,6 +17,26 @@ unexpected CLI error. Preserve unrelated layout, focus and terminals. Require
 the intended `HC_TERMINAL_ID` and owning core; don't choose an unrelated default
 core when the coordinator has no terminal context. Never stop/restart core.
 
+If `herdr-app` is absent, initialization uses `hc get` and existing
+`herdr.space`/`herdr.tab` labels on the owning core. It reports `desktop: false`,
+preserves current layout and names, and registers the native space's Work
+source. Missing space/tab labels or a conflicting chief are errors. Do not
+invent IDs, install Desktop, or change another agent's labels to bypass them.
+Run a migrated resume with its explicit `--portfolio` in the actual
+coordinator's `HC_TERMINAL_ID`/`HC_TERMINAL_SOCKET` context.
+
+On a core-only host, `chief-of-staff-spawn` resolves existing space/tab labels
+through the owning core. It validates a requested existing worker tab and its
+four-split limit, and never targets the chief tab. Without a matching worker
+tab, it launches with the native space label and omits the tab label so the
+controller can place the child. The result reports `desktop: false` and
+`tab.pending: true`, with a null tab ID/name and the requested name, until
+placement can be observed on the controller. A requested name is not a
+confirmed rename. Desktop tab naming and visual layout checks remain on the
+controller; initialization and launch never install or start Desktop.
+Native `hc run --bg --name <task-role> --cwd <checkout>
+--label herdr.space=<native-space-id> -- <command...>` remains available.
+
 Choose each assignment using [the routing policy](routing.md). Check the selected
 harness's current model catalog and launch syntax; reuse verified discovery
 within an unchanged environment. Record the exact model, effort, route and

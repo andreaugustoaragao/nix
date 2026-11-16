@@ -68,7 +68,7 @@ test("older snapshots remain readable and disclose missing roster/evidence until
 function viewHarness(snapshot, options = {}) {
   let compact = false, now = Date.now(), panelWidth = null, panelChild = "work-progress", panelHidden = false, notifications = 0;
   const state = new Map(), pending = [], executions = [], commands = [];
-  const observed = [{ address: "tfixtureworker", state: "live", status: "working" }];
+  const observed = options.terminals ?? [{ address: "tfixtureworker", state: "live", status: "working" }];
   function element(kind, id = null) {
     const node = { kind, id, children: [], consumed: false, click: null, label: null, styles: {} };
     const value = new Proxy({}, { get(_target, name) {
@@ -104,7 +104,7 @@ function viewHarness(snapshot, options = {}) {
     svg: () => element("svg"), Background: { solid: () => ({ opacity() { return {}; } }) },
     Button: { new: (id) => element("button", id) }, PathBuilder: { stroke: () => element("path") },
     window: { paint_path: () => element("paint_path") },
-    spaces: () => [{ id: snapshot.registration.space, active: true, machine: null }],
+    spaces: () => [options.space ?? { id: snapshot.registration.space, active: true, machine: null }],
     props: () => ({ compact }), terminals: () => observed, machines: () => [],
     home: () => options.home ?? "/home/test",
     theme: () => ({ foreground: "#ffffff", surface: "#222222", border: "#555555", dim: "#777777", muted: "#888888", done: "#00ff00", accent: "#00ffff", working: "#0000ff", blocked: "#ff0000" }),
@@ -118,9 +118,9 @@ function viewHarness(snapshot, options = {}) {
       if (name === "layout.show" && args.id === "panel") panelHidden = false;
     },
     readTextFile: async () => JSON.stringify(snapshot),
-    exec: async (command, args) => {
-      executions.push({ command, args });
-      if (options.exec) return options.exec(command, args);
+    exec: async (command, args, settings) => {
+      executions.push({ command, args, settings });
+      if (options.exec) return options.exec(command, args, settings);
       return { code: 0, stdout: JSON.stringify({ snapshot: "/isolated/snapshot.json" }), stderr: "" };
     },
   });
@@ -158,6 +158,42 @@ test("GUI discovery loads its snapshot when PATH excludes the installed helper",
   }
 });
 
+for (const qualified of [true, false]) test(`remote discovery uses native IDs and preserves UI cache namespace (${qualified})`, async () => {
+  const snapshot = readFixture("revision");
+  snapshot.registration.fixture = false;
+  const native = snapshot.registration.space, machine = "workstation-worker";
+  const id = qualified ? `${machine}/${native}` : native;
+  const host = viewHarness(snapshot, {
+    space: { id, active: true, machine },
+    exec: (command, args, settings) => {
+      assert.equal(command, "chief-of-staff-work");
+      assert.equal(settings.on, machine);
+      return { code: args[2] === native ? 0 : 2, stdout: JSON.stringify({ snapshot: "/remote/snapshot.json" }), stderr: "" };
+    },
+  });
+  host.mode(true);
+  new host.Work().refresh(host.cx);
+  await host.drain();
+  const loaded = host.state.get(`work.source.${id}`);
+  assert.equal(loaded.error, null);
+  assert.equal(loaded.snapshot.registration.space, native);
+  assert.equal(loaded.snapshot.seq, snapshot.seq);
+  assert.equal(host.executions.length, 1);
+  assert.equal(host.executions[0].args[2], native);
+  if (qualified) assert.equal(host.state.has(`work.source.${native}`), false);
+});
+
+test("remote discovery still rejects another native space's snapshot", async () => {
+  const snapshot = readFixture("revision");
+  snapshot.registration.fixture = false;
+  const id = "workstation-worker/sp-other";
+  const host = viewHarness(snapshot, { space: { id, active: true, machine: "workstation-worker" } });
+  host.mode(true);
+  new host.Work().refresh(host.cx);
+  await host.drain();
+  assert.match(host.state.get(`work.source.${id}`).error, /different space/);
+});
+
 function textContent(value) {
   if (value?.__node) return value.__node.children.map(textContent).join("\n");
   return typeof value === "string" ? value : "";
@@ -175,6 +211,51 @@ function findNode(value, predicate) {
   for (const child of value.__node.children) { const found = findNode(child, predicate); if (found) return found; }
   return null;
 }
+
+test("remote coordinator and worker controls use their machine-qualified terminal addresses", () => {
+  const snapshot = readFixture("worker-roster");
+  snapshot.registration.fixture = false;
+  const machine = "workstation-worker", id = `${machine}/${snapshot.registration.space}`;
+  const coordinator = snapshot.registration.coordinator, worker = "tfixtureworker";
+  const host = viewHarness(snapshot, {
+    space: { id, active: true, machine },
+    terminals: [
+      { address: coordinator, state: "live", status: "idle" },
+      { address: `other/${coordinator}`, state: "live", status: "blocked" },
+      { address: `${machine}/${coordinator}`, state: "live", status: "working" },
+      { address: worker, state: "live", status: "idle" },
+      { address: `${machine}/${worker}`, state: "live", status: "working" },
+    ],
+  });
+  host.state.set(`work.source.${id}`, { snapshot, path: "/remote/snapshot.json", readAt: host.clock(), error: null, notice: null });
+  const view = new host.Work(), root = view.render(host.cx);
+  assert.match(textContent(root), /Coordinator working/);
+  findElement(root, "work-coordinator").click({}, host.cx);
+  assert.equal(host.commands.at(-1).args.terminal, `${machine}/${coordinator}`);
+  const row = findElement(root, `worker-${worker}`);
+  assert.match(row.label, /observed working/);
+  row.click({}, host.cx);
+  assert.equal(host.commands.at(-1).args.terminal, `${machine}/${worker}`);
+  view.navigate(`${machine}/${worker}`);
+  assert.equal(host.commands.at(-1).args.terminal, `${machine}/${worker}`);
+});
+
+test("remote navigation never falls back to matching local or other-machine terminal IDs", () => {
+  const snapshot = readFixture("revision");
+  snapshot.registration.fixture = false;
+  const coordinator = snapshot.registration.coordinator, machine = "workstation-worker";
+  const id = `${machine}/${snapshot.registration.space}`;
+  const host = viewHarness(snapshot, {
+    space: { id, active: true, machine },
+    terminals: [{ address: coordinator, state: "live", status: "working" },
+                { address: `other/${coordinator}`, state: "live", status: "working" }],
+  });
+  host.state.set(`work.source.${id}`, { snapshot, path: "/remote/snapshot.json", readAt: host.clock(), error: null, notice: null });
+  const view = new host.Work(), root = view.render(host.cx);
+  assert.match(textContent(root), /Coordinator unavailable/);
+  findElement(root, "work-coordinator").click({}, host.cx);
+  assert.equal(host.commands.length, 0);
+});
 
 for (const scenario of [
   { name: "pending shrink", measured: 720, host: 480 },

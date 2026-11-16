@@ -1,4 +1,8 @@
-{ pkgs, home-manager }:
+{
+  pkgs,
+  home-manager,
+  unstable-pkgs ? pkgs,
+}:
 let
   inherit (pkgs) lib;
   revision = "0123456789abcdef0123456789abcdef01234567";
@@ -33,6 +37,7 @@ let
     home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
       extraSpecialArgs = {
+        inherit unstable-pkgs;
         personalOnly = true;
         isServer = false;
       };

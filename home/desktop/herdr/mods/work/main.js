@@ -29,6 +29,11 @@ function find(node, id) {
   return null;
 }
 
+/** @param {string} terminal @param {string | null | undefined} machine */
+function controllerTerminal(terminal, machine) {
+  return machine && !terminal.includes("/") ? `${machine}/${terminal}` : terminal;
+}
+
 export default class Work extends View {
   /** @type {string | null} */ space = null;
   /** @type {string | null} */ sourcePath = null;
@@ -79,6 +84,9 @@ export default class Work extends View {
     const fixturePath = typeof props()?.source === "string" ? props().source : null;
     if (!space) return;
     const id = fixturePath ? `fixture:${fixturePath}` : space.id;
+    // Desktop qualifies remote IDs; discovery and ownership stay native to each core.
+    const sourceSpaceId = space.machine && space.id.startsWith(`${space.machine}/`)
+      ? space.id.slice(space.machine.length + 1) : space.id;
     const key = `work.source.${id}`;
     const cached = this.source(key);
     const compact = props()?.compact === true;
@@ -100,7 +108,7 @@ export default class Work extends View {
         if (!path || Date.now() - this.locatedAt > 60000) {
           if (!fixturePath) {
             const helper = space.machine ? "chief-of-staff-work" : home() + "/.local/bin/chief-of-staff-work";
-            const result = await exec(helper, ["locate", "--space", space.id], { on: space.machine, timeout: 5000 });
+            const result = await exec(helper, ["locate", "--space", sourceSpaceId], { on: space.machine, timeout: 5000 });
             if (result.code !== 0) throw Error("No registered Work source; run chief-of-staff-init in the coordinator");
             /** @type {unknown} */ const found = JSON.parse(result.stdout);
             if (!found || typeof found !== "object" || !("snapshot" in found) || typeof found.snapshot !== "string") throw Error("Invalid discovery index");
@@ -113,7 +121,7 @@ export default class Work extends View {
         /** @type {unknown} */ const value = JSON.parse(raw);
         const parsed = parseSnapshot(value);
         if (fixturePath && !parsed.registration.fixture) throw Error("Fixture source must be explicitly labeled");
-        if (!fixturePath && parsed.registration.space !== space.id) throw Error("Source belongs to a different space");
+        if (!fixturePath && parsed.registration.space !== sourceSpaceId) throw Error("Source belongs to a different space");
         if (snapshot && snapshot.registration.portfolio === parsed.registration.portfolio && parsed.seq < snapshot.seq) throw Error("Snapshot sequence moved backwards; showing retained history");
         snapshot = parsed;
       } catch (failure) {
@@ -206,8 +214,9 @@ export default class Work extends View {
 
   /** @param {string} terminal */
   navigate(terminal) {
-    const pane = observedTerminals(terminals()).find((t) => t.address === terminal && t.state === "live");
-    if (pane) run("agent.focus", { terminal });
+    const address = controllerTerminal(terminal, spaces().find((s) => s.active)?.machine);
+    const pane = observedTerminals(terminals()).find((t) => t.address === address && t.state === "live");
+    if (pane) run("agent.focus", { terminal: address });
   }
 
   /** @param {string} id @param {string} label @param {(cx: import('gpui-kit').Context) => void} action @param {boolean} selected */
@@ -377,7 +386,7 @@ export default class Work extends View {
     const source = this.source(`work.source.${id}`), snapshot = source.snapshot;
     const staleSource = source.readAt > 0 && now - source.readAt > 90000;
     const observed = observedTerminals(terminals());
-    const coordinator = snapshot ? observed.find((o) => o.address === snapshot.registration.coordinator && o.state === "live") : null;
+    const coordinator = snapshot ? observed.find((o) => o.address === controllerTerminal(snapshot.registration.coordinator, space?.machine) && o.state === "live") : null;
     const hostUnavailable = space && machines().some((m) => m.name === space.machine && m.layout !== "ready");
     const fixtureCoordinator = snapshot?.registration.fixture && props()?.fixtureCoordinator === "idle";
     const coordinatorText = snapshot ? snapshot.registration.fixture ? `Fixture coordinator ${fixtureCoordinator ? "idle (recovered)" : "unavailable"}` : hostUnavailable ? "Coordinator connection unavailable" : coordinator ? `Coordinator ${coordinator.status}` : "Coordinator unavailable" : "Coordinator unknown";
@@ -434,7 +443,7 @@ export default class Work extends View {
     const workers = task.workers;
     content.child(v_flex().gap(8).children(workers.map((latest) => {
       const terminal = latest.terminal;
-      const live = observed.find((o) => o.address === terminal && o.state === "live");
+      const live = observed.find((o) => o.address === controllerTerminal(terminal, space?.machine) && o.state === "live");
       const color = live?.status === "working" ? t.working : live?.status === "blocked" ? t.blocked : live?.status === "done" ? t.done : t.dim;
       const row = Button.new(`worker-${terminal}`).w_full().min_w(0).min_h(48).p(8).border(1).border_color(t.border)
         .flex().items_center().justify_start().text_left().hover((s) => s.bg(t.hover))

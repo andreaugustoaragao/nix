@@ -2,9 +2,16 @@
 let
   inherit (pkgs) lib;
   cfg = worker.config;
+  inherit (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }) enroll;
   hasSecrets = cfg.sops.secrets != { };
   installer = cfg.systemd.services.sops-install-secrets;
   identity = cfg.systemd.services.worker-identity;
+  preparation = cfg.systemd.services.worker-git-prepare;
+  refresh = cfg.systemd.services.worker-git-refresh;
+  testSource = builtins.path {
+    name = "worker-git-credential-check-source";
+    path = ../..;
+  };
   disabled =
     (worker.extendModules {
       modules = [ ({ lib, ... }: { sops.useSystemdActivation = lib.mkForce false; }) ];
@@ -31,6 +38,29 @@ assert lib.assertMsg (
     && builtins.elem "worker-identity.service" installer.after
   )
 ) "Worker decryption must wait for its persistent identity.";
+assert lib.assertMsg
+  (
+    !hasSecrets
+    || (
+      preparation.unitConfig.DefaultDependencies == false
+      && builtins.elem "worker-identity.service" preparation.after
+      && builtins.elem "worker-git-prepare.service" installer.requires
+      && builtins.elem "worker-git-prepare.service" installer.after
+    )
+  )
+  "The user-owned SSH directory must be prepared before SOPS without changing worker identity startup.";
+assert lib.assertMsg (
+  !hasSecrets
+  || (
+    builtins.hasAttr refresh.serviceConfig.User cfg.home-manager.users
+    && refresh.serviceConfig.RemainAfterExit
+    && builtins.elem "multi-user.target" refresh.wantedBy
+    && builtins.elem "home-manager-${refresh.serviceConfig.User}.service" refresh.after
+    && lib.all (name: cfg.sops.secrets.${name}.restartUnits == [ "worker-git-refresh.service" ]) (
+      builtins.filter (lib.hasPrefix "ssh_") (builtins.attrNames cfg.sops.secrets)
+    )
+  )
+) "SSH secret changes must refresh only the managed user identities after Home Manager.";
 assert lib.assertMsg (
   !hasSecrets
   || lib.any (
@@ -45,6 +75,18 @@ assert lib.assertMsg (lib.all (
 assert lib.assertMsg (lib.any (
   item: !item.assertion && lib.hasInfix "untrusted Nix clients" item.message
 ) trusted.assertions) "The builder account must not gain trusted Nix privileges.";
-pkgs.runCommand "check-build-worker-credentials" { } ''
-  touch "$out"
-''
+pkgs.runCommand "check-build-worker-credentials"
+  {
+    nativeBuildInputs = [
+      enroll
+      pkgs.python3
+      pkgs.openssh
+      pkgs.bash
+      pkgs.coreutils
+    ];
+  }
+  ''
+    workstation-worker-enroll --help > /dev/null
+    PYTHONDONTWRITEBYTECODE=1 python3 ${testSource}/scripts/worker-git-credentials.test.py -v
+    touch "$out"
+  ''

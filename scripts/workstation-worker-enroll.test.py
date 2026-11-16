@@ -18,6 +18,14 @@ SPEC.loader.exec_module(enroll)
 
 
 class EnrollmentTest(unittest.TestCase):
+    def test_model_only_bundle_cannot_silently_omit_git_credentials(self):
+        bundle = {name: "ENC[AES256_GCM,fixture]" for name in (
+            "litellm_api_key", "litellm_base_url", "open_ai_key", "anthropic_api_key"
+        )}
+        bundle["sops"] = {"age": [{"recipient": "worker"}]}
+        with self.assertRaisesRegex(ValueError, "selected development secrets"):
+            enroll.check_bundle(yaml.safe_dump(bundle), ["worker"])
+
     def test_rejects_plaintext_and_extra_recipients(self):
         bundle = {name: "plaintext-fixture" for name in enroll.SECRET_NAMES}
         bundle["sops"] = {"age": [{"recipient": "worker"}]}
@@ -140,6 +148,20 @@ class EnrollmentTest(unittest.TestCase):
                     )
                 )
                 self.assertEqual(result, runtime_values)
+                enroll.enroll(root, public, runtime, refresh=True,
+                              github_token="explicit-in-memory-github-fixture")
+                result = json.loads(subprocess.check_output(
+                    ["sops", "--decrypt", "--output-type", "json", str(worker)],
+                    env={**os.environ, "SOPS_AGE_KEY_FILE": str(root / "worker.key")},
+                ))
+                self.assertEqual(result, {
+                    **runtime_values, "github_token": "explicit-in-memory-github-fixture"
+                })
+                self.assertNotIn("explicit-in-memory-github-fixture", worker.read_text())
+                digest = hashlib.sha256(worker.read_bytes()).hexdigest()
+                with self.assertRaisesRegex(ValueError, "explicit runtime-secret"):
+                    enroll.enroll(root, public, refresh=True)
+                self.assertEqual(hashlib.sha256(worker.read_bytes()).hexdigest(), digest)
             finally:
                 if old_environment is None:
                     os.environ.pop("SOPS_AGE_KEY_FILE", None)

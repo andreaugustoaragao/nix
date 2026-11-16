@@ -2,13 +2,70 @@
   config,
   lib,
   pkgs,
+  unstable-pkgs,
   ...
 }:
 
 let
   # pi-rs token-compression binary + materialized shim scripts.
-  # preToolUse hook routes Bash commands through `pi-rs hook cursor`.
+  # preToolUse hook routes Shell commands through `pi-rs hook cursor`.
   piRs = pkgs.callPackage ./pi-rs { };
+  agents = pkgs.callPackage ../../pkgs/agent-binaries { };
+  codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
+    inherit (unstable-pkgs) go gopls;
+    textFallback = true;
+  };
+  codeToolsFiles = pkgs.linkFarm "nix-code-tools-files" [
+    {
+      name = ".cursor-plugin/plugin.json";
+      path = pkgs.writeText "plugin.json" (
+        builtins.toJSON {
+          name = "nix-code-tools";
+          version = "1.0.0";
+          description = "Managed code intelligence";
+          mcpServers = "./mcp.json";
+        }
+      );
+    }
+    {
+      name = "mcp.json";
+      path = pkgs.writeText "mcp.json" (
+        builtins.toJSON {
+          mcpServers.lsp = {
+            command = lib.getExe codeLsp;
+            args = [ ];
+          };
+        }
+      );
+    }
+    {
+      name = "rules/tools.mdc";
+      path = pkgs.writeText "tools.mdc" ''
+        ---
+        alwaysApply: true
+        ---
+        Use native read_lints for supported diagnostics. Use the lsp MCP
+        for definitions, references, types, symbols and Go/Rust/Nix diagnostics.
+        Positions are 1-based; rename defaults to preview. If a server fails,
+        inspect get_server_status and restart once, then use compiler/CLI checks.
+        Prefer focused rg for known text and project checks to verify changes.
+
+        Check source, types and bundled docs before external documentation.
+        Use Context7 only when available and unresolved version-specific API
+        behavior affects the task; request one focused answer for that version.
+
+        ${builtins.readFile ./pi-rs/agent-hooks/codex-rules.md}
+      '';
+    }
+  ];
+  # Cursor's plugin discovery skips component symlinks outside the plugin root.
+  codeTools = pkgs.runCommand "nix-code-tools" { } ''
+    mkdir -p "$out"
+    cp -rL ${codeToolsFiles}/. "$out/"
+  '';
+  cursorAgent = pkgs.writeShellScript "cursor-agent" ''
+    exec ${agents.cursor-agent}/bin/cursor-agent --plugin-dir ${codeTools} "$@"
+  '';
   agentHubHooks =
     lib.optional config.my.agentHarness.agentHub.enable {
       command = "${lib.getExe (pkgs.callPackage ../../pkgs/agent-hub.nix { })} cursor-hook";
@@ -38,7 +95,7 @@ let
       stop = map (hook: hook // { loop_limit = 1; }) agentHubHooks;
       preToolUse = [
         {
-          matcher = "Bash";
+          matcher = "Shell";
           command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
         }
       ]
@@ -56,6 +113,10 @@ let
   '';
 in
 {
+  home.file = lib.genAttrs [ ".local/bin/cursor-agent" ".local/bin/agent" ] (_: {
+    source = cursorAgent;
+    force = true;
+  });
   my.agentHarness.cursorHooks = hooksData;
   home.activation.cursorHooksPrepare =
     lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]

@@ -232,25 +232,31 @@ in
     compat = {
       supportsDeveloperRole = false;
       supportsReasoningEffort = false;
-      supportsUsageInStreaming = false;
+      supportsUsageInStreaming = !isWorkstation;
     };
     models = [
-      {
-        inherit (model)
-          id
-          name
-          input
-          contextWindow
-          maxTokens
-          ;
-        reasoning = false;
-        cost = {
-          input = 0;
-          output = 0;
-          cacheRead = 0;
-          cacheWrite = 0;
-        };
-      }
+      (
+        {
+          inherit (model)
+            id
+            name
+            input
+            contextWindow
+            maxTokens
+            ;
+          reasoning = false;
+          cost = {
+            input = 0;
+            output = 0;
+            cacheRead = 0;
+            cacheWrite = 0;
+          };
+        }
+        // lib.optionalAttrs (!isWorkstation) {
+          # The shared Bonsai endpoint supports this native no-thinking switch.
+          samplingParams.chat_template_kwargs.enable_thinking = false;
+        }
+      )
     ];
   };
 

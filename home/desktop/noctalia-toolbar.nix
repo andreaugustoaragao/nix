@@ -6,63 +6,55 @@
 let
   dmsSession = builtins.fromJSON (builtins.readFile ./dms-session.json);
   weatherCoordinates = map builtins.fromJSON (lib.splitString "," dmsSession.weatherCoordinates);
-  secondary = {
-    start = [
-      "clock"
-      "workspaces"
-      "active_window"
-    ];
-    center = [ ];
-    end = [
-      "herdr"
-      "clipboard"
-      "notifications"
-      "control-center"
-      "nix-rebuild"
-      "download"
-      "upload"
-      "bluetooth"
-      "privacy"
-      "tray"
-    ];
+  band = {
+    capsule_band = "surface_container_high";
+  };
+  console = {
+    start = [ ];
+    center = [ "group:console" ];
+    end = [ ];
   };
 in
 {
-  bar.main = {
-    start = [
-      "clock"
-      "weather"
-      "workspaces"
-      "active_window"
-      "media"
-    ];
-    center = [ ];
-    end = [
-      "herdr"
-      "clipboard"
-      "cpu"
-      "ram"
-      "disk"
-      "notifications"
-      "battery"
-      "inline-volume"
-      "control-center"
-      "nix-rebuild"
-      "bluetooth"
-      "caffeine"
-    ]
-    ++ lib.optional (!personalOnly) "recorder"
-    ++ [
-      "download"
-      "upload"
-      "privacy"
-      "tray"
+  bar.main = console // {
+    capsule_group = [
+      {
+        id = "console";
+        members = [
+          "launcher"
+          "workspaces"
+          "notifications"
+          "privacy"
+          "tray"
+          "cpu"
+          "ram"
+          "disk"
+          "download"
+          "upload"
+          "herdr"
+        ]
+        ++ lib.optional (!personalOnly) "recorder"
+        ++ [
+          "nix-rebuild"
+          "volume"
+          "battery"
+          "control-center"
+          "clock"
+          "session"
+        ];
+        fill = "surface_container";
+        border = "outline_variant";
+        border_width = 1.0;
+        padding = 10.0;
+        radius = 10.0;
+        widget_spacing = 8;
+      }
     ];
     monitor = {
-      portrait = secondary // {
+      portrait = console // {
         match = displays.dp2;
       };
-      third = secondary // {
+      third = console // {
         match = "Virtual-3";
       };
     };
@@ -78,7 +70,10 @@ in
   };
   notification.position = "top_center";
   widget = {
-    clock.format = "{:%a %-d %b} {:%-I:%M %p}";
+    clock = {
+      format = "{:%-I:%M %p}\n{:%a %-d %b}";
+      tooltip_format = "{:%A, %-d %B %Y}";
+    };
     workspaces = {
       label_source = "id";
       show_labels = true;
@@ -105,19 +100,26 @@ in
       show_condition = false;
       max_length = 70;
     };
-    cpu = {
+    cpu = band // {
       type = "sysmon";
       stat = "cpu_usage";
       visualization = "none";
       label_min_width = 28;
     };
-    ram.type = "aragao/dms-toolbar:ram";
-    disk.type = "aragao/dms-toolbar:disk";
+    ram = band // {
+      type = "aragao/dms-toolbar:ram";
+    };
+    disk = band // {
+      type = "aragao/dms-toolbar:disk";
+    };
+    volume = band;
+    battery = band;
+    control-center = band;
     inline-volume.type = "aragao/dms-toolbar:volume";
     recorder.type = "aragao/dms-toolbar:recorder";
     nix-rebuild.type = "aragao/nix-rebuild:rebuild";
     herdr.type = "aragao/herdr:radar";
-    download = {
+    download = band // {
       type = "sysmon";
       stat = "net_rx";
       glyph = "arrow-down";
@@ -125,7 +127,7 @@ in
       network_speed_compact = true;
       label_min_width = 32;
     };
-    upload = {
+    upload = band // {
       type = "sysmon";
       stat = "net_tx";
       glyph = "arrow-up";

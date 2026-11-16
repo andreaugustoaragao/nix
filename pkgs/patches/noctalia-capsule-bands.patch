@@ -1,0 +1,189 @@
+--- a/src/shell/bar/bar_instance.h
++++ b/src/shell/bar/bar_instance.h
+@@ -21,6 +21,11 @@
+ class Flex;
+ class Node;
+ 
++struct BarCapsuleBand {
++  Box* box = nullptr;
++  ColorSpec fill = clearColorSpec();
++};
++
+ struct BarCapsuleRun {
+   Node* shell = nullptr;
+   Box* bg = nullptr;
+@@ -31,6 +36,7 @@
+   // Capsule geometry can exist without a painted fill or border.
+   bool hasPaintedCapsuleBackground = false;
+   std::vector<Widget*> widgets;
++  std::vector<BarCapsuleBand> bands;
+   // Hover highlight overlays, parallel to `widgets` for group runs; one shared box for single runs.
+   std::vector<Box*> hoverBoxes;
+   bool accordion = false;
+--- a/src/shell/bar/bar.cpp
++++ b/src/shell/bar/bar.cpp
+@@ -496,7 +496,7 @@
+   };
+ 
+   [[nodiscard]] std::vector<CapsuleMemberGeometry>
+-  capsuleMemberSlices(const BarCapsuleRun& run, bool isVertical, float widgetHoverPadding) {
++  capsuleMemberSlices(const BarCapsuleRun& run, bool isVertical, float widgetHoverPadding, bool interactiveOnly = true) {
+     std::vector<CapsuleMemberGeometry> members;
+     if (run.shell == nullptr) {
+       return members;
+@@ -509,7 +509,7 @@
+     for (std::size_t i = 0; i < run.widgets.size(); ++i) {
+       Widget* widget = run.widgets[i];
+       Node* root = widget != nullptr ? widget->outerNode() : nullptr;
+-      if (root == nullptr || !root->visible() || !root->participatesInLayout() || !root->hitTestVisible()) {
++      if (root == nullptr || !root->visible() || !root->participatesInLayout() || (interactiveOnly && !root->hitTestVisible())) {
+         continue;
+       }
+ 
+@@ -563,6 +563,45 @@
+       member.sliceEnd = memberEnd + after;
+     }
+     return members;
++  }
++
++  void placeCapsuleBands(BarCapsuleRun& run, bool isVertical, float hoverPadding, float radius) {
++    for (auto& band : run.bands) {
++      if (band.box != nullptr) {
++        band.box->setVisible(false);
++      }
++    }
++    if (run.bands.empty() || !run.hasPaintedCapsuleBackground || run.accordion) {
++      return;
++    }
++    const auto members = capsuleMemberSlices(run, isVertical, hoverPadding, false);
++    const float main = isVertical ? run.shell->height() : run.shell->width();
++    const float cross = isVertical ? run.shell->width() : run.shell->height();
++    const float inset = std::max(1.0F, run.spec.borderWidth * run.contentScale);
++    for (std::size_t i = 0; i < members.size(); ++i) {
++      auto& band = run.bands[members[i].widgetIndex];
++      if (band.box == nullptr) {
++        continue;
++      }
++      std::size_t last = i;
++      while (last + 1 < members.size()) {
++        const auto& next = run.bands[members[last + 1].widgetIndex];
++        if (next.box == nullptr || next.fill != band.fill) {
++          break;
++        }
++        ++last;
++      }
++      const float start = std::max(radius, i == 0 ? members[i].sliceStart :
++          (members[i - 1].mainEnd(isVertical) + members[i].mainStart(isVertical)) * 0.5F);
++      const float end = std::min(main - radius, last + 1 == members.size() ? members[last].sliceEnd :
++          (members[last].mainEnd(isVertical) + members[last + 1].mainStart(isVertical)) * 0.5F);
++      const float extent = std::max(0.0F, end - start);
++      const float thickness = std::max(0.0F, cross - 2.0F * inset);
++      band.box->setPosition(isVertical ? inset : start, isVertical ? start : inset);
++      band.box->setSize(isVertical ? thickness : extent, isVertical ? extent : thickness);
++      band.box->setVisible(extent > 0.0F && thickness > 0.0F);
++      i = last;
++    }
+   }
+ 
+   // Extends each member's hit target across the capsule padding and half the gap to its
+@@ -1062,6 +1101,7 @@
+           }
+         };
+         if (!hasCapsuleContent) {
++          placeCapsuleBands(run, isVertical, widgetHoverPadding, 0.0F);
+           shell->setSize(iw, ih);
+           if (run.accordionClip != nullptr) {
+             run.accordionClip->setPosition(0.0F, 0.0F);
+@@ -1148,6 +1188,7 @@
+         const float capsuleRadius = radiusSource != nullptr ? radiusSource->resolvedBarCapsuleRadius(shellW, shellH)
+                                                             : std::max(0.0F, std::min(shellW, shellH) * 0.5F);
+         bg->setRadius(capsuleRadius);
++        placeCapsuleBands(run, isVertical, widgetHoverPadding, capsuleRadius);
+         if (run.container == nullptr) {
+           placeCapsuleHoverBoxes(
+               run, isVertical, shellW, shellH, contentX, contentY, capsuleRadius, widgetHoverPadding
+@@ -2657,6 +2698,7 @@
+ }
+ 
+ void Bar::attachWidgetsToSections(BarInstance& instance) {
++  const auto& widgetConfigs = m_config->config().widgets;
+   const bool isVertical = instance.barConfig.position == "left" || instance.barConfig.position == "right";
+   const auto widgetSpacing = static_cast<float>(instance.barConfig.widgetSpacing);
+   const bool hoverHighlight = instance.barConfig.hoverHighlight;
+@@ -2893,6 +2935,7 @@
+             bg.setZIndex(-1);
+           },
+       });
++      bgPtr->setZIndex(-2);
+       shellPtr->addChild(std::move(capsuleBg));
+ 
+       // Visual order: with accordion + Start direction the always-visible first member sits last,
+@@ -2963,6 +3006,23 @@
+       for (const std::size_t memberIndex : memberOrder) {
+         auto& member = widgets[memberIndex];
+         member->setBarCapsuleScene(shellPtr, bgPtr);
++        BarCapsuleBand band;
++        if (const auto wc = widgetConfigs.find(std::string(member->configName())); wc != widgetConfigs.end()) {
++          if (const auto fill = wc->second.getOptionalColorSpec("capsule_band", "widget.capsule_band"); fill.has_value()) {
++            band.fill = *fill;
++            shellPtr->addChild(ui::box({
++                .out = &band.box,
++                .fill = scaleAlpha(*fill, cap.opacity),
++                .visible = false,
++                .configure = [](Box& box) {
++                  box.setZIndex(-1);
++                  box.setHitTestVisible(false);
++                  box.setNoAa(true);
++                },
++            }));
++          }
++        }
++        run.bands.push_back(band);
+         run.widgets.push_back(member.get());
+         auto* added = innerPtr->addChild(member->releaseRoot());
+         if (auto* area = dynamic_cast<InputArea*>(member->root())) {
+--- a/src/shell/settings/widget_settings_registry.cpp
++++ b/src/shell/settings/widget_settings_registry.cpp
+@@ -676,6 +676,7 @@
+ 
+     auto capsuleToggle = withGroup(boolSpec("capsule", false), "presentation");
+     capsuleToggle.schema.inheritsFromBar = true;
++    auto capsuleBand = withGroup(colorSpec("capsule_band", "", true), "presentation");
+     auto capsuleFill = withGroup(colorSpec("capsule_fill", "", true), "presentation");
+     capsuleFill.visibleWhen = capsuleOn;
+ 
+@@ -727,7 +728,7 @@
+         std::move(fontWeight),        std::move(capsuleToggle),   std::move(capsuleRadius),
+         std::move(capsuleFill),       std::move(capsuleBorder),   std::move(capsuleBorderWidth),
+         std::move(capsuleForeground), std::move(capsulePadding),  std::move(capsuleOpacity),
+-        std::move(scrollRepeat),      std::move(actions),
++        std::move(scrollRepeat),      std::move(actions),         std::move(capsuleBand),
+     };
+   }
+ 
+--- a/tests/widget_settings_schema_test.cpp
++++ b/tests/widget_settings_schema_test.cpp
+@@ -80,7 +80,7 @@
+   ok = expect(hasKey(schema, "enable_scroll"), "host scroll gate should stay in the schema") && ok;
+   for (const std::string_view key :
+        {"enabled", "anchor", "interactive", "scale", "font_scale", "color", "icon_color", "capsule", "capsule_fill",
+-        "capsule_padding", "actions"}) {
++        "capsule_padding", "capsule_band", "actions"}) {
+     ok = expect(hasKey(schema, key), "common widget setting missing from the plugin widget schema") && ok;
+     if (!hasKey(schema, key)) {
+       std::println(stderr, "  missing key: {}", key);
+--- a/docs/user/bar/index.mdx
++++ b/docs/user/bar/index.mdx
+@@ -288,6 +288,12 @@
+ 
+ ## Capsule groups
+ 
++A member's optional `capsule_band` color paints a passive section background inside its
++shared capsule. Consecutive visible members with the same color form one continuous
++band; the outer outline, member spacing, and input targets remain unchanged. The fill
++stays inside the capsule's border and end corners. Omit the key for the group fill.
++Accordion groups ignore bands. For example, `[widget.cpu] capsule_band = "surface_container_high"`.
++
+ A **capsule group** is a container that holds several widgets and renders them inside one shared capsule with a single common style. A group is a real item in the lane - its members live *inside* it, so inserting another widget elsewhere can never split it. Grouping is managed entirely from the Settings GUI:
+ 
+ 1. Open **Settings → Bar → Bar Widgets**.

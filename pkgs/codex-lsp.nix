@@ -10,10 +10,11 @@
   typescript,
   typescript-language-server,
   nil,
+  textFallback ? false,
 }:
 
 let
-  lspi = callPackage ./lspi.nix { };
+  lspi = callPackage ./lspi.nix { inherit textFallback; };
   rustToolchain = callPackage ./rust-toolchain.nix { };
   # typescript-language-server only publishes diagnostics when the client
   # advertises support. lspi 0.2's defaults omit this capability.

@@ -186,7 +186,7 @@ end
             script.write_text(host + prelude + (PLUGINS / "resources.luau").read_text() + shared + assertions)
             subprocess.run([LUAU, str(script)], check=True)
 
-    def test_rendered_toolbar_lists_drop_network_and_gauges(self):
+    def test_centered_console_keeps_essential_controls(self):
         toolbar = pathlib.Path(__file__).with_name("noctalia-toolbar.nix")
         expression = r'''
 let
@@ -203,8 +203,10 @@ let
     start = cfg.bar.main.start;
     center = cfg.bar.main.center;
     end = cfg.bar.main.end;
+    groups = cfg.bar.main.capsule_group;
     portrait = cfg.bar.main.monitor.portrait;
     third = cfg.bar.main.monitor.third;
+    bands = builtins.mapAttrs (_: widget: widget.capsule_band or null) cfg.widget;
     cpu = cfg.widget.cpu;
     ram = cfg.widget.ram.type;
     disk = cfg.widget.disk.type;
@@ -245,55 +247,49 @@ in {
         )
         rendered = json.loads(result.stdout)
         primary = [
-            "herdr",
-            "clipboard",
+            "launcher",
+            "workspaces",
+            "notifications",
+            "privacy",
+            "tray",
             "cpu",
             "ram",
             "disk",
-            "notifications",
-            "battery",
-            "inline-volume",
-            "control-center",
-            "nix-rebuild",
-            "bluetooth",
-            "caffeine",
-            "recorder",
             "download",
             "upload",
-            "privacy",
-            "tray",
-        ]
-        secondary = [
             "herdr",
-            "clipboard",
-            "notifications",
-            "control-center",
+            "recorder",
             "nix-rebuild",
-            "download",
-            "upload",
-            "bluetooth",
-            "privacy",
-            "tray",
+            "volume",
+            "battery",
+            "control-center",
+            "clock",
+            "session",
         ]
         shared = rendered["shared"]
         personal = rendered["personal"]
-        self.assertEqual(shared["end"], primary)
-        self.assertEqual(personal["end"], [item for item in primary if item != "recorder"])
+        self.assertEqual(shared["groups"][0]["members"], primary)
+        self.assertEqual(personal["groups"][0]["members"], [item for item in primary if item != "recorder"])
         for output in (shared, personal):
-            self.assertEqual(output["start"], ["clock", "weather", "workspaces", "active_window", "media"])
-            self.assertEqual(output["center"], [])
+            painted = {name for name, fill in output["bands"].items() if fill is not None}
+            self.assertEqual(painted, {"cpu", "ram", "disk", "download", "upload", "volume", "battery", "control-center"})
+            self.assertEqual({output["bands"][name] for name in painted}, {"surface_container_high"})
+            self.assertEqual(output["start"], [])
+            self.assertEqual(output["end"], [])
+            self.assertEqual(output["center"], ["group:console"])
             self.assertNotIn("network", output["end"])
             for monitor in ("portrait", "third"):
-                self.assertEqual(output[monitor]["end"], secondary)
+                self.assertEqual(output[monitor]["end"], [])
                 self.assertNotIn("network", output[monitor]["end"])
-                self.assertEqual(output[monitor]["start"], ["clock", "workspaces", "active_window"])
-                self.assertEqual(output[monitor]["center"], [])
+                self.assertEqual(output[monitor]["start"], [])
+                self.assertEqual(output[monitor]["center"], ["group:console"])
             self.assertEqual(output["portrait"]["match"], "DP-2")
             self.assertEqual(output["third"]["match"], "Virtual-3")
             self.assertEqual(
                 output["cpu"],
                 {
                     "type": "sysmon",
+                    "capsule_band": "surface_container_high",
                     "stat": "cpu_usage",
                     "visualization": "none",
                     "label_min_width": 28,
@@ -373,6 +369,7 @@ in {
   start = cfg.bar.main.start;
   center = cfg.bar.main.center;
   end = cfg.bar.main.end;
+  members = (builtins.head cfg.bar.main.capsule_group).members;
   portrait = {
     match = (monitor "portrait").match;
     start = (monitor "portrait").start;
@@ -414,35 +411,24 @@ in {
         )
         rendered = json.loads(result.stdout)
         primary = [
-            "herdr",
-            "clipboard",
+            "launcher",
+            "workspaces",
+            "notifications",
+            "privacy",
+            "tray",
             "cpu",
             "ram",
             "disk",
-            "notifications",
-            "battery",
-            "inline-volume",
-            "control-center",
-            "nix-rebuild",
-            "bluetooth",
-            "caffeine",
-            "recorder",
             "download",
             "upload",
-            "privacy",
-            "tray",
-        ]
-        secondary = [
             "herdr",
-            "clipboard",
-            "notifications",
-            "control-center",
+            "recorder",
             "nix-rebuild",
-            "download",
-            "upload",
-            "bluetooth",
-            "privacy",
-            "tray",
+            "volume",
+            "battery",
+            "control-center",
+            "clock",
+            "session",
         ]
         self.assertEqual(
             {
@@ -464,7 +450,7 @@ in {
                 "fontWeight": 500,
                 "fontScale": 1,
                 "shellFont": "Cantarell",
-                "thickness": 32,
+                "thickness": 40,
                 "radius": 16,
                 "scale": 0.825,
                 "widgetSpacing": 5,
@@ -498,23 +484,24 @@ in {
                 "marginEdge": 10,
                 "compositorBlur": False,
                 "shadow": False,
-                "capsule": True,
+                "capsule": False,
                 "capsuleFill": "surface_container",
                 "capsuleOpacity": 1,
                 "capsuleRadiusSet": False,
                 "capsuleBorderSet": False,
-                "capsuleThicknessSet": False,
+                "capsuleThicknessSet": True,
             },
         )
-        self.assertEqual(rendered["start"], ["clock", "weather", "workspaces", "active_window", "media"])
-        self.assertEqual(rendered["center"], [])
-        self.assertEqual(rendered["end"], primary)
+        self.assertEqual(rendered["start"], [])
+        self.assertEqual(rendered["center"], ["group:console"])
+        self.assertEqual(rendered["end"], [])
+        self.assertEqual(rendered["members"], primary)
         self.assertNotIn("network", rendered["end"])
         for output in (rendered["portrait"], rendered["third"]):
             self.assertFalse(output["overridesPlane"])
-            self.assertEqual(output["start"], ["clock", "workspaces", "active_window"])
-            self.assertEqual(output["center"], [])
-            self.assertEqual(output["end"], secondary)
+            self.assertEqual(output["start"], [])
+            self.assertEqual(output["center"], ["group:console"])
+            self.assertEqual(output["end"], [])
             self.assertNotIn("network", output["end"])
         self.assertEqual(rendered["portrait"]["match"], "DP-2")
         self.assertEqual(rendered["third"]["match"], "Virtual-3")
@@ -522,6 +509,7 @@ in {
             rendered["cpu"],
             {
                 "type": "sysmon",
+                "capsule_band": "surface_container_high",
                 "stat": "cpu_usage",
                 "visualization": "none",
                 "label_min_width": 28,

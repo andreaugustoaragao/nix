@@ -32,7 +32,7 @@ lib.recursiveUpdate (lib.recursiveUpdate
     bar.main = {
       font_family = "Noto Sans";
       font_weight = 500;
-      thickness = 32;
+      thickness = 40;
       radius = 16;
       scale = barScale;
       monitor = {
@@ -42,12 +42,13 @@ lib.recursiveUpdate (lib.recursiveUpdate
       font_scale = 1.0;
       widget_spacing = 5;
       capsule_padding = 4.5;
-      # Clear the full-width plane. Each widget keeps its own theme pill,
-      # and the top margin separates that row from the screen edge.
+      # Only the centered console paints a background; the rest passes clicks through.
       background_opacity = 0.0;
       border_width = 0.0;
       margin_edge = 10;
-      capsule = true;
+      dead_zone.click_through = true;
+      capsule = false;
+      capsule_thickness = 1.0;
       capsule_fill = "surface_container";
       capsule_opacity = 1.0;
     };

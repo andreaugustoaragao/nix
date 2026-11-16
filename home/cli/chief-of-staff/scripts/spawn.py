@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 
+from init import core_space_and_tab
 from work import RecordError, require_plan
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
@@ -65,7 +66,7 @@ def choose_worker_tab(space: dict | None, chief_tab_id: str | None, requested_ta
     if not space:
         return None
     tabs = space.get("tabs") or []
-    worker_tabs = [t for t in tabs if t.get("id") != chief_tab_id and t.get("name") != "chief-of-staff"]
+    worker_tabs = [t for t in tabs if t.get("id") and t["id"] != chief_tab_id and t.get("name") != "chief-of-staff"]
     if requested_tab_id:
         match = next((t for t in worker_tabs if t.get("id") == requested_tab_id), None)
         if not match:
@@ -197,12 +198,20 @@ def main() -> int:
             return 2
 
     try:
-        app_ls = run_json(["herdr-app", "ls"])
-        space, chief_tab = find_space_and_my_tab(app_ls, coord)
+        try:
+            app_ls = run_json(["herdr-app", "ls"])
+        except FileNotFoundError:
+            app_ls = None
+        if app_ls is None:
+            space, chief_tab, _ = core_space_and_tab(
+                run_json(["hc", "get", coord]), run_json(["hc", "ls", "--json"]), run_json,
+            )
+        else:
+            space, chief_tab = find_space_and_my_tab(app_ls, coord)
         space_id = (space or {}).get("id") or ""
         local_space_id = space_id.split("/")[-1] if space_id else ""
         target_tab = choose_worker_tab(space, (chief_tab or {}).get("id"), args.tab_id, args.tab_name)
-    except (ValueError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(json.dumps({"status": "error", "error": "tab_resolution_failed", "message": str(exc)}))
         return 1
 
@@ -235,7 +244,7 @@ def main() -> int:
 
     tab_name = args.tab_name or f"{task_id} · {args.goal[:32]}".strip()
     placed_tab = target_tab
-    if placed_tab is None and space_id:
+    if app_ls is not None and placed_tab is None and space_id:
         placed_tab = wait_for_terminal_tab(addr, space_id)
         if placed_tab and placed_tab.get("id") and placed_tab.get("name") != tab_name:
             try:
@@ -273,7 +282,10 @@ def main() -> int:
             }))
             return 1
 
-    tab_label = (placed_tab or {}).get("name") or tab_name
+    if placed_tab:
+        tab_label = placed_tab.get("name") or placed_tab["id"]
+    else:
+        tab_label = tab_name if app_ls is not None else f"controller placement pending; requested {tab_name}"
     worker_line = f"`{addr}` ({args.name}, {harness}, tab `{tab_label}`, cwd `{args.cwd}`)"
     task_path = ensure_task_file(
         tasks_dir,
@@ -298,12 +310,15 @@ def main() -> int:
 
     print(json.dumps({
         "status": "ok",
+        "desktop": app_ls is not None,
         "task_id": task_id,
         "task_path": str(task_path),
         "address": addr,
         "name": args.name,
         "harness": harness,
-        "tab": {"id": (placed_tab or {}).get("id"), "name": tab_label},
+        "tab": {"id": (placed_tab or {}).get("id"),
+                "name": ((placed_tab or {}).get("name") or None) if app_ls is None else tab_label,
+                "requested_name": tab_name, "pending": placed_tab is None},
         "codex": codex_meta,
         "launch": launch,
     }))

@@ -208,14 +208,11 @@ in
     {
       assertion = lib.all (
         name:
-        builtins.elem name [
-          "litellm_api_key"
-          "litellm_base_url"
-          "open_ai_key"
-          "anthropic_api_key"
-        ]
+        builtins.elem name (
+          builtins.fromJSON (builtins.readFile ../../secrets/workers/credential-names.json)
+        )
       ) (builtins.attrNames config.sops.secrets);
-      message = "The worker may decrypt only its selected agent API credentials.";
+      message = "The worker may decrypt only its selected agent and Git development credentials.";
     }
   ];
   system.stateVersion = stateVersion;

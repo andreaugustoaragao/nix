@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  unstable-pkgs,
   personalOnly,
   isServer ? false,
   ...
@@ -10,6 +11,9 @@
 let
   piProviders = config.services.piModels.providers;
   compatiblePackage = "@opencode/ai/providers/openai-compatible";
+  codeLsp = pkgs.callPackage ../../pkgs/codex-lsp.nix {
+    inherit (unstable-pkgs) go gopls;
+  };
 
   # Reuse Pi's WebAI and host-specific models, including protocol and limits.
   # Credentials remain runtime file references.
@@ -41,7 +45,32 @@ let
 in
 {
   config = lib.mkIf (!isServer) {
-    xdg.configFile."opencode/AGENTS.md".text = import ./browser-instructions.nix;
+    xdg.configFile."opencode/AGENTS.md".text = builtins.readFile ./pi-rs/agent-hooks/codex-rules.md + ''
+      # Code intelligence and documentation
+
+      Use the lsp MCP through execute for definitions, references, types,
+      symbols and diagnostics in Go, Rust, Nix and TypeScript/JavaScript.
+      Positions are 1-based. Discover the needed tool with execute search;
+      use focused rg queries for known text. Rename defaults to preview.
+      If a server fails, inspect get_server_status and restart it once,
+      then use compiler/CLI diagnostics. Verify changes with project checks.
+
+      Check source, types and bundled docs before requesting external
+      documentation. Use version-specific documentation for unresolved API
+      behavior; keep the question focused.
+
+      For browser work, load the managed-browser skill before starting a
+      browser-task. It defines task ownership, profile and handoff rules.
+    '';
+
+    xdg.configFile."opencode/skills/managed-browser/SKILL.md".text = ''
+      ---
+      name: managed-browser
+      description: Use the managed browser for web navigation, forms, screenshots, frontend checks, or signed-in browser tasks.
+      ---
+
+      ${import ./browser-instructions.nix}
+    '';
 
     # Keep CLI preferences writable for OpenCode and terminal integrations.
     home.activation.opencodeCliSettings =
@@ -88,14 +117,24 @@ in
           effect = "allow";
         }
       ];
-      mcp.servers =
-        lib.optionalAttrs (!personalOnly) {
-          atlassian = {
-            type = "remote";
-            url = "https://mcp.atlassian.com/v2/mcp";
+      mcp.servers = {
+        lsp = {
+          type = "local";
+          command = [ (lib.getExe codeLsp) ];
+          timeout = {
+            startup = 20000;
+            catalog = 20000;
+            execution = 60000;
           };
-        }
-        // config.my.sharedVault.opencodeServers;
+        };
+      }
+      // lib.optionalAttrs (!personalOnly) {
+        atlassian = {
+          type = "remote";
+          url = "https://mcp.atlassian.com/v2/mcp";
+        };
+      }
+      // config.my.sharedVault.opencodeServers;
       providers =
         lib.optionalAttrs (!personalOnly) {
           litellm = {

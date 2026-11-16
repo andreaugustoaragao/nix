@@ -24,9 +24,10 @@ route and task context; load historical evidence only when reassessing a choice.
 Every space has **at most one `chief-of-staff`**, located in a tab named
 `chief-of-staff`. On activation or resume, run **`chief-of-staff-init`** as
 your first command (pass `--portfolio <path>` when resuming an explicit
-portfolio). It deterministically checks `herdr-app ls` and `hc ls` for an
-existing coordinator in the space, claims `herdr.role=chief-of-staff` and
-`herdr.name=chief-of-staff`, renames your tab to `chief-of-staff`, creates or
+portfolio). It checks Desktop inventory when `herdr-app` exists, or the owning
+core's existing space/tab labels when it does not, for an
+existing coordinator in the space, claims `herdr.role=chief-of-staff`, sets a
+missing core-only terminal name, renames your tab when Desktop is available, creates or
 reuses the private `${XDG_STATE_HOME:-$HOME/.local/state}/chief-of-staff/<portfolio-id>/`
 record (`umask 077`), and returns JSON with `portfolio_path`, `space`, `tab`,
 `templates`, and live terminals. If it reports `"status": "conflict"`, do not
@@ -36,6 +37,12 @@ start a second coordinator—point the user to the existing one. When
 schema scripts) unless a command fails. Open all child agents on **separate
 worker tabs** in the same space (up to 4 splits per tab), never as splits inside
 the `chief-of-staff` tab (prefer `chief-of-staff-spawn`).
+
+On a core-only host, initialization reports `desktop: false` and preserves
+existing layout and names. Use an explicit portfolio path for migrated resumes.
+The spawn helper supports core-only launches and reports deferred controller
+placement explicitly. Follow the worker-launch limits in the execution contract; do not
+install or launch Desktop to initialize a remote coordinator.
 
 ## Scope and lifetime
 

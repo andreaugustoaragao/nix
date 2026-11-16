@@ -9,11 +9,13 @@ model/task fit, then harness tools. Do not balance subscriptions by task count.
 
 | Work | Preferred route | Model |
 | --- | --- | --- |
+| Small, bounded tasks with supplied context and minimal tools | Pi, local model by default; paid models require explicit selection | Host-configured local model; select any paid alternative for a documented task-specific reason |
 | Routine Google Chat drafting from supplied facts and delivery | `chat-send-task`, fresh minimal Pi/WebAI session, only its delivery tool | `litellm/gpt-6.1-terra`, low effort |
 | Email, Google Drive or calendar tasks, including review needing those connectors | `codex-openai`; keep execution on its configured connectors | `gpt-6.1-sol`, or `gpt-6-astra` for difficult synthesis/reasoning |
 | General implementation, fixes, refactoring, tests and routine review | `codex-openai` | `gpt-6.1-sol` |
 | Complex diagnosis, architecture, high-risk changes and deep review | `codex-openai` | `gpt-6-astra` |
-| Google-model work or the UI/UX review below | Cursor Agent through `herdr-cursor`, OpenCode2 / WebAI, or Pi / WebAI; choose by required tools, observed reliability and task evidence | Argon for straightforward work; Carbon for complex work. Verify the exact harness-specific model and effort below. |
+| Google Carbon or Argon work, including the UI/UX review below | Cursor Agent through `herdr-cursor` by default; OpenCode2 / WebAI if Cursor Agent fails | Argon for straightforward work; Carbon for complex work. Verify the exact harness-specific model and effort below. |
+| Google Hydrogen work, when explicitly selected or justified for the task | OpenCode2 / WebAI | `litellm/gemini-4-hydrogen` |
 | Astra/Sol 6.1 work when the OpenAI route is unhealthy or unavailable | `codex-webai`, only under the fallback rule below | Same selected `gpt-6-astra` or `gpt-6.1-sol` |
 
 Codex–OpenAI is the user's cheapest Astra/Sol 6.1 option. Use it for substantial
@@ -27,6 +29,13 @@ deterministic `chat-send` command with no model. Preserve its operation ID on
 uncertainty and escalate browser exceptions without a second submission.
 Other Terra/Hydrogen tasks remain opt-in or need a documented task-specific
 reason; the Chat default does not change unrelated model routes.
+
+Pi is reserved for small tasks with a self-contained brief, bounded output and
+minimal explicitly enabled tools. Keep repository exploration and substantial
+implementation in Codex, OpenCode2 or Cursor. Pi loads no automatic project
+context, skills, extensions or MCP tools by default. A missing local model or
+local endpoint failure must not silently select a paid model. The explicit
+Terra Chat workflow above remains a narrow exception to the local default.
 
 Use the explicit `codex-openai`/`codex-webai` launchers, not bare `codex` with an
 assumed provider. Verify the installed route, exact model, effort and needed
@@ -42,6 +51,29 @@ to use another subscription is not a route failure. Keep email/Drive/calendar
 work on `codex-openai`; if its connectors are unavailable, report the blocker
 rather than moving the task to WebAI. Return new assignments to OpenAI when
 healthy without churning an active fallback session.
+
+## Choose the Google harness
+
+Use Cursor Agent by default for Carbon and Argon tasks. Use OpenCode2 for
+Hydrogen tasks. These are the user's routing preferences, not measured
+quality, speed or price rankings.
+
+If Cursor Agent fails on a Carbon or Argon task, use OpenCode2 with the same
+selected model. Record the observed failure, such as an authentication error,
+unavailable model, transport timeout, client exit or failed required tool.
+Reconcile uncertain in-flight work before dispatching the task again. Preserve
+the task and intended effort, verify the destination's actual controls, and
+report unsupported controls rather than silently substituting them.
+
+Return new Carbon and Argon assignments to Cursor when it is healthy. Keep
+an active suitable OpenCode2 fallback session until its task is complete.
+Verify required browser, image and code-intelligence tools for each assignment;
+both clients have LSP MCP, so its availability alone does not select a client.
+
+Cursor allowance and API-dollar cost remain unknown unless actually observed;
+do not treat a zero-price UI placeholder as free. Our narrow read-only trials
+establish compatibility, not a general Cursor/OpenCode2 winner. Native Gemini
+CLI through LiteLLM remains experimental and is not an automatic routing choice.
 
 ## Google review for GUI/UI/UX
 
@@ -68,12 +100,9 @@ Pi and OpenCode use the `litellm/` IDs above; verify their effort controls
 separately. Matching labels do not prove equal reasoning budgets. Preserve
 permissions and never silently select Auto.
 
-There is no general Carbon or Argon harness winner. The narrow Carbon
-Pi/OpenCode comparison is provisional, a later pair reversed the ordering, and
-Cursor has no matched comparison. T007's OpenCode timeouts warrant reassessment
-but do not prove another route is better. Choose by required tools and observed
-behavior. Prefer Pi when a task needs its direct integrations and alternatives
-lack them. Verify current capabilities.
+Historical Pi/OpenCode cost comparisons do not expand Pi's current task scope.
+Use the Google harness criteria above; verify current capabilities and retain
+observed failures when reassessing a route.
 
 Compare cost per independently accepted task, including failures, retries,
 review fixes and coordinator recovery. Match task inputs and acceptance checks,

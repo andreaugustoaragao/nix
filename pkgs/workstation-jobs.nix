@@ -8,6 +8,7 @@
   sccache,
   tigervnc,
   sops,
+  gh,
 }:
 let
   application =
@@ -33,8 +34,10 @@ in
       (python3.withPackages (ps: [ ps.pyyaml ]))
       git
       sops
+      gh
     ];
     text = ''
+      export WORKER_CREDENTIAL_NAMES_FILE=${../secrets/workers/credential-names.json}
       exec python3 ${../scripts/workstation-worker-enroll.py} "$@"
     '';
   };

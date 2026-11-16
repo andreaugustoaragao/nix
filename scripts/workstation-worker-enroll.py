@@ -12,12 +12,10 @@ import tempfile
 import yaml
 
 
-SECRET_NAMES = (
-    "litellm_api_key",
-    "litellm_base_url",
-    "open_ai_key",
-    "anthropic_api_key",
-)
+SECRET_NAMES = tuple(json.loads(Path(os.environ.get(
+    "WORKER_CREDENTIAL_NAMES_FILE",
+    Path(__file__).resolve().parents[1] / "secrets/workers/credential-names.json",
+)).read_text()))
 WORKER_FILE = "secrets/workers/workstation-worker.yaml"
 
 
@@ -71,7 +69,7 @@ def sops(arguments, data=None):
 def check_bundle(encrypted, recipients):
     value = yaml.safe_load(encrypted)
     if set(value) != {*SECRET_NAMES, "sops"}:
-        raise ValueError("Worker bundle must contain exactly the four allowed secrets")
+        raise ValueError("Worker bundle must contain exactly the selected development secrets")
     if not all(
         isinstance(value[name], str) and value[name].startswith("ENC[AES256_GCM,")
         for name in SECRET_NAMES
@@ -87,7 +85,8 @@ def check_bundle(encrypted, recipients):
         raise ValueError("Worker bundle has unexpected recipients")
 
 
-def enroll(repository, identities, runtime_secrets=None):
+def enroll(repository, identities, runtime_secrets=None, *, refresh=False,
+           runtime_home=None, github_token=None):
     repository = repository.resolve()
     root = subprocess.check_output(
         ["git", "-C", str(repository), "rev-parse", "--show-toplevel"], text=True
@@ -129,13 +128,29 @@ def enroll(repository, identities, runtime_secrets=None):
                 "Pinned worker identity differs; review key rotation explicitly"
             )
     bundle = repository / WORKER_FILE
-    if bundle.exists():
+    if refresh and runtime_secrets is None:
+        raise ValueError("Credential refresh requires explicit runtime-secret sources")
+    if bundle.exists() and not refresh:
         encrypted = bundle.read_bytes()
     else:
-        source = (
-            {name: (runtime_secrets / name).read_text() for name in SECRET_NAMES}
-            if runtime_secrets is not None
-            else json.loads(
+        if runtime_secrets is not None:
+            ssh_files = {
+                "ssh_key_github_personal": "id_rsa_personal",
+                "ssh_key_github_work": "id_rsa_work",
+                "ssh_pubkey_github_personal": "id_rsa_personal.pub",
+                "ssh_pubkey_github_work": "id_rsa_work.pub",
+            }
+            source = {}
+            for name in SECRET_NAMES:
+                if name == "github_token" and github_token is not None:
+                    source[name] = github_token
+                else:
+                    path = runtime_secrets / name
+                    if runtime_home is not None and name in ssh_files:
+                        path = runtime_home / ".ssh" / ssh_files[name]
+                    source[name] = path.read_text()
+        else:
+            source = json.loads(
                 sops(
                     [
                         "--decrypt",
@@ -145,7 +160,8 @@ def enroll(repository, identities, runtime_secrets=None):
                     ]
                 )
             )
-        )
+        if not all(name in source for name in SECRET_NAMES):
+            raise ValueError("Selected development credentials are missing from the explicit source")
         selected = {name: source[name] for name in SECRET_NAMES}
         if not all(isinstance(value, str) and value for value in selected.values()):
             raise ValueError("Each selected credential must be a nonempty string")
@@ -204,15 +220,33 @@ if __name__ == "__main__":
     parser.add_argument(
         "--runtime-secrets",
         type=Path,
-        help="Read only the four selected already-decrypted files from this directory instead of decrypting the source bundle",
+        help="Read only selected already-decrypted files instead of decrypting the source bundle",
     )
+    parser.add_argument("--runtime-home", type=Path,
+                        help="Explicit home containing the selected Git SSH identity files")
+    parser.add_argument("--refresh-from-runtime", action="store_true",
+                        help="Replace the encrypted bundle from explicit runtime sources")
+    parser.add_argument("--github-token-from-gh", action="store_true",
+                        help="Read the active github.com token from gh into memory only")
     args = parser.parse_args()
+    token = None
+    if args.github_token_from_gh:
+        if args.runtime_secrets is None:
+            parser.error("--github-token-from-gh requires --runtime-secrets")
+        result = subprocess.run(["gh", "auth", "token", "--hostname", "github.com"],
+                                capture_output=True, text=True)
+        if result.returncode or not result.stdout.strip():
+            parser.error("No active github.com token was available; no token was logged")
+        token = result.stdout.strip()
     print(
         json.dumps(
             enroll(
                 args.repository,
                 json.loads(args.identities.read_text()),
                 args.runtime_secrets,
+                refresh=args.refresh_from_runtime,
+                runtime_home=args.runtime_home,
+                github_token=token,
             )
         )
     )

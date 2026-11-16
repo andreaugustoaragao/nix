@@ -24,9 +24,10 @@ class CodexNameTests(unittest.TestCase):
     def hc(self, *args):
         if args[0] == "get":
             return self.state
-        if args[0] == "send":
-            self.sent.append(args[-1])
-            self.append("fresh", args[-1].removeprefix("/rename "))
+        if args[0] == "keys":
+            command = "".join(" " if key == "space" else key for key in args[2:-1])
+            self.sent.append(command)
+            self.append("fresh", command.removeprefix("/rename "))
         return {}
 
     def append(self, thread, name):
@@ -40,16 +41,35 @@ class CodexNameTests(unittest.TestCase):
         self.assertEqual(result, {"address": "t9", "named": True, "thread_id": "fresh", "thread_name": "t001-review [t9]"})
         self.assertEqual(self.sent, ["/rename t001-review [t9]"])
 
+    def test_rename_is_a_native_command_when_hc_notes_are_enabled(self):
+        state = dict(self.state)
+        def transport(*args):
+            if args[0] == "get":
+                return state
+            if args[0] == "send":
+                # Herdr frames peer messages; Codex treats this as a model prompt.
+                self.sent.append('<hc from="t1">' + args[-1] + '</hc>')
+                state["status"] = {"state": "working"}
+            elif args[0] == "keys":
+                command = "".join(" " if key == "space" else key for key in args[2:-1])
+                self.assertEqual(args[-1], "enter")
+                self.append("fresh", command.removeprefix("/rename "))
+            return {}
+        with patch.object(module, "hc", side_effect=transport):
+            result = module.name_worker("t9", "t001-review", self.home, 1)
+        self.assertEqual(result["thread_name"], "t001-review [t9]")
+        self.assertEqual(self.sent, [])
+
     def test_stale_matching_name_does_not_confirm_a_failed_rename(self):
         self.append("old", "t001-review [t9]")
         with patch.object(module, "hc", return_value=self.state) as hc, patch.object(module.time, "monotonic", side_effect=[0, 2]):
             with self.assertRaises(TimeoutError):
                 module.name_worker("t9", "t001-review", self.home, 1)
-        self.assertEqual([c.args[0] for c in hc.call_args_list], ["get", "send"])
+        self.assertEqual([c.args[0] for c in hc.call_args_list], ["get", "keys"])
 
     def test_waits_for_a_complete_index_record(self):
         def partial_save(*args):
-            if args[0] == "send":
+            if args[0] == "keys":
                 self.index.write_bytes(b'{"id":"fresh","thread_name":"t001-review [t9]"')
             elif args[0] == "wait":
                 with self.index.open("ab") as stream:
@@ -72,6 +92,19 @@ class CodexNameTests(unittest.TestCase):
                 module.name_worker("t9", "task", self.home, 1)
         self.assertEqual(self.sent, [])
 
+    def test_native_rename_can_report_working_before_index_flush(self):
+        def transport(*args):
+            if args[0] == "get":
+                return self.state
+            if args[0] == "keys":
+                self.state["status"] = {"state": "working"}
+            if args[0] == "wait":
+                self.append("fresh", "task [t9]")
+            return {}
+        with patch.object(module, "hc", side_effect=transport):
+            result = module.name_worker("t9", "task", self.home, 1)
+        self.assertEqual(result["thread_id"], "fresh")
+
     def test_control_characters_cannot_submit_a_second_command(self):
         for name in ["", " ", "task\nsecond prompt", "task\rprompt", "task\x1b"]:
             with self.subTest(name=repr(name)), patch.object(module, "hc") as hc:
@@ -93,7 +126,7 @@ class CodexNameTests(unittest.TestCase):
         with patch.object(module, "hc", side_effect=stopped) as hc:
             with self.assertRaises(RuntimeError):
                 module.name_worker("t9", "task", self.home, 1)
-        self.assertEqual(sum(c.args[0] == "send" for c in hc.call_args_list), 1)
+        self.assertEqual(sum(c.args[0] == "keys" for c in hc.call_args_list), 1)
         self.assertFalse(any(c.args[0] in ["kill", "rm"] for c in hc.call_args_list))
 
 

@@ -1,6 +1,21 @@
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   agents = pkgs.callPackage ../../pkgs/agent-binaries { };
+  localModels = config.services.piModels.providers.llama-cpp.models or [ ];
+  localModel = if localModels == [ ] then "" else "llama-cpp/${(builtins.head localModels).id}";
+  piTask = pkgs.writeShellApplication {
+    name = "pi";
+    text =
+      builtins.replaceStrings
+        [ "@pi@" "@local-model@" ]
+        [ (lib.escapeShellArg "${agents.pi}/bin/pi") (lib.escapeShellArg localModel) ]
+        (builtins.readFile ./pi-task.sh);
+  };
 in
 {
   home.packages = [
@@ -15,8 +30,6 @@ in
         force = true;
       })
       {
-        ".local/bin/pi" = "${agents.pi}/bin/pi";
-        ".local/bin/cursor-agent" = "${agents.cursor-agent}/bin/cursor-agent";
-        ".local/bin/agent" = "${agents.cursor-agent}/bin/agent";
+        ".local/bin/pi" = lib.getExe piTask;
       };
 }

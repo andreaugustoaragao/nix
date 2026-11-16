@@ -142,14 +142,21 @@ read only public keys through the QEMU guest channel. Pin those SSH/cache keys
 before enabling clients. Do not trust an unauthenticated SSH key scan.
 
 At enrollment, add a worker SOPS creation rule before the general rule. Encrypt
-its bundle with only `litellm_api_key`, `litellm_base_url`, `open_ai_key` and
-`anthropic_api_key`, using worker and recovery recipients. The worker is never
-added as a recipient of `secrets/secrets.yaml`. OAuth logins, Cursor login and
-browser profiles are initialized inside the worker and persist there. Personal
-SSH/GPG private keys and desktop browser profiles are not copied or forwarded.
-Use a repository-scoped Git credential inside the guest when a task needs one.
-Worker snapshots commit under a local synthetic identity without signing; review
-and sign changes on a client before publishing them.
+its bundle using worker and recovery recipients. The exact allowlist in
+`secrets/workers/credential-names.json` includes the four model API credentials,
+the GitHub token, personal and work SSH/signing keys and passphrases, and the work
+Git identity. The worker is never added as a recipient of `secrets/secrets.yaml`.
+OAuth logins, Cursor login and browser profiles remain initialized inside the
+worker. No desktop authentication directory is copied or forwarded.
+
+The worker reads its GitHub token from SOPS at each `gh` invocation, including
+Git's HTTPS credential helper. Signing uses the selected personal or work key
+and passes its SOPS passphrase on a private file descriptor. A headless SSH agent
+loads the two selected Git identities for SSH remotes. A separate early service
+prepares the private SSH directory before decryption. Secret changes refresh only
+managed agent keys, retaining unrelated identities; an atomic public-key ledger
+also retains interrupted refreshes for cleanup on retry. Git commits, tags and
+GitHub releases can therefore be signed and published directly in the worker.
 
 From the checked configuration checkout, run
 `workstation-worker-enroll --identities /path/to/authenticated-public-identities.json`.
@@ -158,7 +165,12 @@ encrypts the selected values in memory. It never writes a plaintext credential
 file. Review the resulting public pins and encrypted bundle before deployment.
 Enrollment refuses a changed existing identity; key rotation requires review.
 If your account cannot decrypt the source bundle, add
-`--runtime-secrets /run/secrets` to read only those four already-decrypted files.
+`--runtime-secrets /run/secrets --runtime-home /home/aragao
+--github-token-from-gh` to read only the selected already-decrypted credentials
+and the active `github.com` token. The token and plaintext bundle stay in memory.
+An existing encrypted bundle remains unchanged unless
+`--refresh-from-runtime` is explicitly supplied with runtime sources. Refreshes
+retain the pinned worker and recovery identities.
 
 The worker has a private headless Sway session with software rendering, the same
 managed `accounts` and `development` browsers, browser-task tooling, GTK/Qt

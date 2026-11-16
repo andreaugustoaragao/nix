@@ -1,0 +1,180 @@
+<div id="gruvbox-section-study">
+  <div class="viz-carousel viz-dotted-background" aria-label="Console section treatments">
+    <section data-variant="Tonal bands" aria-label="Tonal bands">
+      <div class="gs-stage"><div class="gs-console gs-bands" aria-label="Console with two alternating neutral background tones"></div></div>
+    </section>
+    <section data-variant="Dividers" aria-label="Dividers" hidden>
+      <div class="gs-stage"><div class="gs-console gs-rules" aria-label="Console with a single background and thin dividers"></div></div>
+    </section>
+    <section data-variant="Tinted insets" aria-label="Tinted insets" hidden>
+      <div class="gs-stage"><div class="gs-console gs-insets" aria-label="Console with softly tinted inset sections"></div></div>
+    </section>
+  </div>
+  <template id="gs-console-content">
+    <div class="gs-section gs-navigation" role="group" aria-label="Navigation and notifications">
+      <i data-lucide="search" aria-hidden="true"></i>
+      <span class="gs-workspaces" aria-label="Workspace 1 active, workspaces 2 and 3 available"><span class="gs-current">1</span><span>2</span><span>3</span></span>
+      <i data-lucide="bell" aria-hidden="true"></i>
+    </div>
+    <div class="gs-section gs-resources" role="group" aria-label="Resource utilization">
+      <span class="gs-item" data-tooltip="CPU: 41 percent"><i data-lucide="gauge" aria-hidden="true"></i><span>41%</span></span>
+      <span class="gs-item" data-tooltip="Memory: 28.9 GiB used"><i data-lucide="memory-stick" aria-hidden="true"></i><span>28.9G</span></span>
+      <span class="gs-item" data-tooltip="Disk: 64 percent used"><i data-lucide="hard-drive" aria-hidden="true"></i><span>64%</span></span>
+      <span class="gs-item" data-tooltip="Download: 155 kilobytes per second"><i data-lucide="arrow-down" aria-hidden="true"></i><span>155k</span></span>
+      <span class="gs-item" data-tooltip="Upload: 199 kilobytes per second"><i data-lucide="arrow-up" aria-hidden="true"></i><span>199k</span></span>
+    </div>
+    <div class="gs-section gs-work" role="group" aria-label="Herdr, recording, and Nix rebuild">
+      <span class="gs-item"><i data-lucide="square-terminal" aria-hidden="true"></i><span>Herdr</span><span class="gs-agent-count">7</span></span>
+      <span class="gs-item"><i data-lucide="mic" aria-hidden="true"></i><span>Rec</span></span>
+      <span class="gs-item gs-rebuild"><i data-lucide="snowflake" aria-hidden="true"></i><span>Rebuild</span></span>
+    </div>
+    <div class="gs-section gs-device" role="group" aria-label="Volume, battery, and Noctalia">
+      <span class="gs-item"><i data-lucide="volume-2" aria-hidden="true"></i><span>59%</span></span>
+      <span class="gs-item"><i data-lucide="battery-charging" aria-hidden="true"></i><span>78%</span></span>
+      <i data-lucide="panels-top-left" aria-label="Noctalia"></i>
+    </div>
+    <div class="gs-section gs-session" role="group" aria-label="Date, time, and system menu">
+      <span class="gs-clock"><span>1:35 PM</span><span>Sun 15 Nov</span></span>
+      <i data-lucide="power" aria-label="System menu"></i>
+    </div>
+  </template>
+</div>
+<style>
+  #gruvbox-section-study {
+    --gs-fill: #3c3836;
+    --gs-ink: #fbf1c7;
+    --gs-muted: #d5c4a1;
+    --gs-outline: #57514e;
+    --gs-accent: #b8bb26;
+    --gs-blue: #83a598;
+    --gs-tone: 7%;
+    --gs-tint: 12%;
+    --gs-gap: 9px;
+  }
+  #gruvbox-section-study .gs-stage {
+    min-height: 220px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 26px 2px 38px;
+    box-sizing: border-box;
+  }
+  #gruvbox-section-study .gs-console {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: max-content;
+    max-width: 100%;
+    background: var(--gs-fill);
+    color: var(--gs-ink);
+    border: 1px solid var(--gs-outline);
+    border-radius: 11px;
+    padding: 3px;
+    font-family: "Noto Sans", system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  #gruvbox-section-study .gs-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gs-gap);
+    min-height: 42px;
+    max-width: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+    background: var(--gs-fill);
+  }
+  #gruvbox-section-study .gs-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  #gruvbox-section-study .gs-section > i,
+  #gruvbox-section-study .gs-item > i,
+  #gruvbox-section-study .gs-section > svg,
+  #gruvbox-section-study .gs-item > svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  #gruvbox-section-study .gs-resources .gs-item > svg,
+  #gruvbox-section-study .gs-resources .gs-item > i { color: var(--gs-muted); }
+  #gruvbox-section-study .gs-workspaces { display: flex; gap: 4px; align-items: center; }
+  #gruvbox-section-study .gs-workspaces > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--gs-accent) 45%, var(--gs-fill));
+    color: var(--gs-ink);
+  }
+  #gruvbox-section-study .gs-workspaces > .gs-current {
+    background: var(--gs-accent);
+    color: #282828;
+    width: 28px;
+    border-radius: 11px;
+  }
+  #gruvbox-section-study .gs-agent-count,
+  #gruvbox-section-study .gs-rebuild { color: var(--gs-accent); }
+  #gruvbox-section-study .gs-clock { display: grid; text-align: center; font-size: 11px; line-height: 1.4; white-space: nowrap; }
+  #gruvbox-section-study .gs-bands .gs-section:nth-child(even) {
+    background: color-mix(in srgb, var(--gs-fill), var(--gs-ink) var(--gs-tone));
+  }
+  #gruvbox-section-study .gs-rules .gs-section + .gs-section { position: relative; }
+  #gruvbox-section-study .gs-rules .gs-section + .gs-section::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 1px;
+    height: 17px;
+    background: var(--gs-outline);
+  }
+  #gruvbox-section-study .gs-insets { gap: 3px; }
+  #gruvbox-section-study .gs-insets .gs-section { border-radius: 7px; }
+  #gruvbox-section-study .gs-insets .gs-resources {
+    background: color-mix(in srgb, var(--gs-fill), var(--gs-blue) var(--gs-tint));
+  }
+  #gruvbox-section-study .gs-insets .gs-work {
+    background: color-mix(in srgb, var(--gs-fill), var(--gs-accent) var(--gs-tint));
+  }
+  #gruvbox-section-study[data-band-rules="true"] .gs-bands .gs-section + .gs-section {
+    box-shadow: -1px 0 0 var(--gs-outline);
+  }
+  @media (max-width: 700px) {
+    #gruvbox-section-study .gs-stage { min-height: 250px; }
+    #gruvbox-section-study .gs-section { flex-wrap: wrap; padding: 5px 10px; }
+  }
+  @media (max-width: 420px) {
+    #gruvbox-section-study .gs-stage { min-height: 340px; }
+    #gruvbox-section-study .gs-resources { row-gap: 8px; }
+  }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('gruvbox-section-study');
+  const template = document.getElementById('gs-console-content');
+  root.querySelectorAll('.gs-console').forEach(console => console.append(template.content.cloneNode(true)));
+  if (globalThis.lucide) globalThis.lucide.createIcons({ attrs: { width: 14, height: 14 } });
+  const state = { contrast: 7, tint: 12, rules: false };
+  function render() {
+    root.style.setProperty('--gs-tone', state.contrast + '%');
+    root.style.setProperty('--gs-tint', state.tint + '%');
+    root.dataset.bandRules = String(state.rules);
+  }
+  render();
+  if (globalThis.Tweak) {
+    const tweaks = new globalThis.Tweak({ container: root, onChange: render });
+    tweaks.addSlider(state, 'contrast', { label: 'Neutral background difference', min: 0, max: 16, step: 1, unit: '%', reference: '--gs-tone' });
+    tweaks.addSlider(state, 'tint', { label: 'Inset color strength', min: 0, max: 24, step: 1, unit: '%', reference: '--gs-tint' });
+    tweaks.addToggle(state, 'rules', { label: 'Add dividers to tonal bands' });
+  }
+})();
+</script>
