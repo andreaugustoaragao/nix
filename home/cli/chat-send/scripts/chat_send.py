@@ -203,7 +203,7 @@ def matching(body, expected, mention=None, published=False):
         chip = chips[0]
         if chip.get("selected") is not True or chip.get("email") != mention["email"] or not chip.get("user_id") or not chip.get("member_id"):
             return False
-        if chip.get("mention_type") != ("3" if published else "0"):
+        if chip.get("mention_type") not in (("3",) if published else ("0", "3")):
             return False
         if any(chip.get(key) != mention[key] for key in ("user_id", "member_id") if key in mention):
             return False
@@ -327,7 +327,13 @@ class Operation:
         route = self.record["request"]["route"]
         if dom.get("url") != route["url"] or dom.get("title") != route["title"]:
             raise Stop("route_or_title_changed")
-        if dom.get("accounts") != [route["account_label"]]:
+        accounts = dom.get("accounts")
+        if (
+            not isinstance(accounts, list)
+            or len(accounts) != 1
+            or not isinstance(accounts[0], str)
+            or " ".join(accounts[0].split()) != " ".join(route["account_label"].split())
+        ):
             raise Stop("account_changed_or_ambiguous")
         editors = dom.get("editors")
         if not isinstance(editors, list) or len(editors) != 1 or editors[0].get("name") != EDITOR["name"]:
@@ -367,8 +373,9 @@ class Operation:
             raise Stop("mention_composition_interrupted")
         self.record["mention_attempted"] = True
         self.save()
-        self.browser.action("click", target=EDITOR)
-        for key in ["Control+Home", "Space", "ArrowLeft", "@", *mention["query"]]:
+        if not self.checked().get("editor_focused"):
+            self.browser.action("click", target=EDITOR)
+        for key in ["Control+Home", "Space", "Space", "ArrowLeft", "@", *mention["query"]]:
             self.browser.action("key", key=key)
         deadline = time.monotonic() + 6
         while True:
@@ -385,6 +392,8 @@ class Operation:
                 raise Stop("real_mention_option_unavailable")
             time.sleep(0.2)
         self.browser.action("click", target={"role": "option", "name": mention["email"], "exact": False})
+        self.browser.action("key", key="Control+Home")
+        self.browser.action("key", key="Delete")
         self.settle()
         self.record["mention_inserted"] = True
         self.save()
@@ -491,7 +500,8 @@ class Operation:
     def focus_send(self):
         # Grounded keyboard path starts outside code; Tab in a code article can
         # indent the draft. Verify the final plain signature before traversing.
-        self.browser.action("click", target=EDITOR)
+        if not self.checked().get("editor_focused"):
+            self.browser.action("click", target=EDITOR)
         self.browser.action("key", key="Control+End")
         dom = self.checked()
         if not self.expected(dom["editors"][0]) or not dom.get("editor_focused") or not dom.get("caret_at_plain_end"):
@@ -545,7 +555,7 @@ class Operation:
         if mode == "cancel":
             if not empty(editor):
                 def owned(body):
-                    return self.expected(body) or (not self.record.get("mention_attempted") and matching(body, self.record["request"]["expected"]))
+                    return self.expected(body) or matching(body, self.record["request"]["expected"])
 
                 if not self.record.get("draft_written") or not owned(editor):
                     raise Stop("draft_changed_cancel_refused")
