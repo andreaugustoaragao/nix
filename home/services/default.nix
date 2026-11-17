@@ -45,6 +45,9 @@
     ./registry-forward.nix
     ./chroma.nix
   ]
+  ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "workstation") [
+    ./cursor-bridge.nix
+  ]
   ++ lib.optionals (!personalOnly && hostName == "prl-dev-vm") [
     ./shared-vault-prl-dev-vm.nix
   ]
