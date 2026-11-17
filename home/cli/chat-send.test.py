@@ -102,6 +102,7 @@ def fake_browser():
             state["rendered"] = action["text"]
             state["composer"] = copy.deepcopy(BODY) if action["text"] else {"blocks": [], "text": "", "forbidden": False, "signature_list": False, "mentions": []}
             if action["text"]:
+                state["focus"] = "editor"
                 # Chat treats any language tag after the opening fence as code.
                 fence_content = action["text"].split("```", 2)[1]
                 code = fence_content[1:] if fence_content.startswith("\n") else fence_content
@@ -111,6 +112,8 @@ def fake_browser():
         elif kind == "click":
             target = action["target"]
             if target["role"] == "textbox":
+                if state.get("editor_click_fails"):
+                    return 2
                 output({})
                 return 0
             if target["role"] == "option":
@@ -144,7 +147,7 @@ def fake_browser():
                     return 0
                 if state.get("crash_after_click"):
                     return 9
-            elif key not in ("Control+Home", "Space", "ArrowLeft"):
+            elif key not in ("Control+Home", "Space", "ArrowLeft", "Delete"):
                 state["mention_keys"] = state.get("mention_keys", "") + key
             output({})
         elif kind == "evaluate":
@@ -153,6 +156,8 @@ def fake_browser():
                 print("bad output with private history")
                 return 0
             dom = json.loads((BASE / "tests/dom.json").read_text())
+            if "accounts" in state:
+                dom["accounts"] = state["accounts"]
             editor = copy.deepcopy(state.get("composer", dom["editors"][0]))
             if state.get("clicks"):
                 state["postclick_probes"] = state.get("postclick_probes", 0) + 1
@@ -502,6 +507,23 @@ class SenderTests(unittest.TestCase):
                 self.change(**{flag: False})
                 self.assertEqual(self.call(operation=flag, status="cancel")["reason"], "cancelled")
 
+    def test_account_label_whitespace_allows_verified_delivery(self):
+        self.change(accounts=["Google Account: Example Sender  \n(sender@example.com)"])
+        self.assertEqual(self.call(send=True)["outcome"], "sent")
+        self.assertEqual(self.browser()["clicks"], 1)
+
+    def test_missing_ambiguous_or_changed_account_never_mutates(self):
+        label = "Google Account: Example Sender (sender@example.com)"
+        for index, accounts in enumerate((None, [], [label, label], [1], [label.replace("sender@example.com", "other@example.com")])):
+            with self.subTest(accounts=accounts):
+                self.fixture.write_text(json.dumps({"accounts": accounts}))
+                result = self.call(send=True, operation=f"account-{index}")
+                self.assertEqual(result["reason"], "account_changed_or_ambiguous")
+                self.assertEqual(self.browser().get("fills", 0), 0)
+                self.assertEqual(self.browser().get("clicks", 0), 0)
+                self.change(accounts=[label])
+                self.assertEqual(self.call(operation=f"account-{index}", status="cancel")["reason"], "cancelled")
+
     def test_changed_payload_same_id_refused_even_after_confirmation(self):
         self.assertEqual(self.call(send=True)["outcome"], "sent")
         receipt = (self.state / "one/receipt.json").read_bytes()
@@ -560,6 +582,23 @@ class SenderTests(unittest.TestCase):
         self.assertEqual(self.call(send=True)["outcome"], "sent")
         self.assertEqual(self.browser()["clicks"], 1)
 
+    def test_focused_editor_does_not_require_pointer_click_for_mention_or_send(self):
+        self.group_route()
+        payload = json.loads(self.payload.read_text())
+        payload["mention"] = MENTION
+        self.payload.write_text(json.dumps(payload))
+        self.change(editor_click_fails=True)
+        self.assertEqual(self.call(send=True)["outcome"], "sent")
+        self.assertEqual(self.browser()["clicks"], 1)
+
+    def test_interrupted_mention_with_unchanged_owned_draft_can_be_cancelled(self):
+        self.call()
+        record = self.receipt()
+        record["mention_attempted"] = True
+        (self.state / "one/receipt.json").write_text(json.dumps(record))
+        self.assertEqual(self.call(status="cancel")["reason"], "cancelled")
+        self.assertEqual(self.browser()["composer"]["text"], "")
+
     def test_dm_required_mention_stops_before_browser(self):
         payload = json.loads(self.payload.read_text())
         payload["mention"] = MENTION
@@ -594,6 +633,8 @@ class SenderTests(unittest.TestCase):
         body["mentions"][0]["selected"] = True
         self.assertTrue(SENDER.matching(body, expected, mention))
         self.assertFalse(SENDER.matching(body, expected, mention, published=True))
+        body["mentions"][0]["mention_type"] = "3"
+        self.assertTrue(SENDER.matching(body, expected, mention))
         self.assertTrue(SENDER.matching(mentioned_body(published=True), expected, mention, published=True))
         body["mentions"][0]["user_id"] = "wrong-user"
         self.assertFalse(SENDER.matching(body, expected, mention))
