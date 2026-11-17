@@ -11,7 +11,13 @@ let
   system = pkgs.stdenv.hostPlatform.system;
   fileManager =
     if config.programs.vereda.enable then "io.github.andrearagao.vereda.desktop" else "thunar.desktop";
-  textEditor = if config.programs.vscodium.enable then "codium.desktop" else "dev.zed.Zed.desktop";
+  textEditor =
+    if config.programs.vscodium.enable then
+      "codium.desktop"
+    else if config.programs.zed-editor.enable then
+      "dev.zed.Zed.desktop"
+    else
+      "local.folio.Reader.desktop";
   imageDefaults =
     lib.genAttrs
       (

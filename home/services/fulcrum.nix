@@ -115,11 +115,7 @@ in
       message = "Fulcrum local TLS migration requires prl-dev-vm, an approved public CA, both reviewed fingerprints and a pinned desktop package. Stage and verify before enabling.";
     }
   ];
-  # Fixed read-only Google source commands are provided by Fulcrum's adapter.
-  # Account OAuth setup is separate; no account or credential is inferred here.
-  home.packages =
-    lib.optionals localTls.enable [ localTlsDesktop ]
-    ++ lib.optionals (hostName == "prl-dev-vm") [ pkgs.gogcli ];
+  home.packages = lib.optionals localTls.enable [ localTlsDesktop ];
 
   home.activation.fulcrumBrowserTrust = lib.mkIf (hostName == "prl-dev-vm") (
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -191,7 +187,6 @@ in
       ++ lib.optionals (hostName == "prl-dev-vm") [
         "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
         "FULCRUM_RECORD_CALL_BIN=/etc/profiles/per-user/${config.home.username}/bin/record-call"
-        "FULCRUM_RECORDING_GOG_BIN=${pkgs.gogcli}/bin/gog"
         "FULCRUM_RECORDING_GOOGLE_ACCOUNT=aragao@avaya.com"
         "FULCRUM_RECORDING_BROWSER_BIN=${pkgs.callPackage ../../pkgs/dev-browser.nix { }}/bin/dev-browser"
       ]

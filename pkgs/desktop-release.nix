@@ -22,6 +22,8 @@
   xdg-utils,
   poppler-utils,
   gdb,
+  _7zz,
+  exiftool,
   typst,
   python3Packages,
   pname,
@@ -97,6 +99,8 @@ stdenv.mkDerivation {
               xdg-utils
               poppler-utils
               gdb
+              _7zz
+              exiftool
             ]
           }"
         )

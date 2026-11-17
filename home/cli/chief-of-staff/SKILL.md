@@ -10,16 +10,29 @@ Pi, or an explicit request for chief-of-staff mode. The current conversation is
 the sole coordinator, not a newly launched lead agent. Own intake, priorities,
 decomposition, dispatch, review, integration, verification and reporting.
 `herdr-coordinate` is a compatibility alias for this same workflow and backlog.
+Workers develop and conduct substantial investigations; the chief confines direct
+work to concise grounding, status, deterministic integration and acceptance
+checks unless the user explicitly opts out of delegation for that work. Assign
+complete bounded work with its relevant checks and evidence; use existing
+deterministic commands for routine operations rather than model microtasks.
 
 Read [the Herdr execution contract](references/herdr-workflow.md) before any
 worker launch. It defines host preparation, harness selection, worktree isolation,
 permissions, reporting and independent review. Other skills may provide
-technical guidance, but must not start another agent tree.
+technical guidance, but must not start another agent tree. Pstack/Poteto is
+independent and combinable: its standalone model mapping, budget and direct-work
+behavior remain unchanged; when combined, chief controls orchestration.
 
 Read [the compact routing policy](references/routing.md) on activation/resume
-and reuse it for assignments. It defines subscription priorities, connector
-requirements and Google-model UI/UX review. Workers receive only their selected
-route and task context; load historical evidence only when reassessing a choice.
+and reuse it for assignments. It defines task-fit routes, connector requirements
+and design, UI/UX and candidate review. Workers receive only their selected
+route and task context; load evidence guidance only when reassessing a choice.
+
+Carbon authors architecture/UX design first; every authored architecture/UX outcome needs
+a fresh opposite-model peer (Carbon ↔ Astra). An unavailable required peer leaves
+the design pending. Candidate review is a separate independent gate against the
+actual result; design acceptance does not accept later code. Combine gates only
+when the frozen outcome, required scopes, independence and evidence all match.
 
 Every space has **at most one `chief-of-staff`**, located in a tab named
 `chief-of-staff`. On activation or resume, run **`chief-of-staff-init`** as
@@ -105,8 +118,8 @@ or discard them. A missing terminal or `done`/`idle` status is not task success.
 Read [the Work publication contract](references/work-records.md) before
 dispatching a long task. Publish its task, immutable checkpoint baseline and
 active lifecycle with `chief-of-staff-work`; implementation dispatch enforces
-this requirement. Publish a check-in at meaningful transitions and within five
-minutes unless a longer quiet window is explicitly declared. Accept checkpoints
+this requirement. Record honest state and verification events at meaningful
+transitions; routine progress updates are only on user request. Accept checkpoints
 only after checking evidence. Keep worker reports separate from check-ins and
 verification; revise scope explicitly, preserving the original baseline.
 Only the coordinator runs Work writes. Bootstrap research/review/check workers
@@ -155,15 +168,29 @@ request into permission to commit unrelated work or force-push.
    a review later requests corrections.
    Priority changes reorder undispatched work; do not interrupt running edits
    just because an urgent task arrives. Explain capacity/dependency constraints.
-7. Run slow builds/checks in coordinator-owned Herdr terminals, then use
-   `hc wait --children any --timeout 30` to remain reachable. Read batched worker
-   report artifacts with `chief-of-staff-inbox --portfolio "$portfolio" digest --task <id> [--terminal <t>]`
-   (paging `--offset`/`--limit` or `--report-id` whenever `complete` is false)
-   with zero model calls rather than spawning a triage agent. Those non-agent
-   terminals occupy layout capacity but not agent worker capacity, and cannot
-   bypass shared-resource serialization. Read actual reports/artifacts and update the records before
-   dispatching again. Stop waiting when nothing runnable or working remains;
-   report blockers or an empty queue instead of busy-looping.
+7. Workers run their relevant checks and send concise Herdr handoffs with artifact
+   pointers. Use deterministic commands for acceptance and records; respect
+   layout capacity and shared-resource serialization. Read actual evidence when
+   needed. Do not poll workers or wake a model for routine progress; a wait timeout
+   is not a progress event. Inspect routine status/text/JSONL only when the user
+   asks for an update. Completion, errors, blockers and decisions remain actionable.
+
+Keep chief context to requirements, decisions, current state and evidence pointers;
+specialist scratch and bulk logs stay in task artifacts. Inspect raw evidence when
+needed, and reuse still-valid verification. Do not force session/model migrations or
+apply unverified context thresholds.
+
+During authorized work, notice automation opportunities from corrections,
+reproducible review findings and repeated operations. Check existing tools first;
+prefer eliminating invalid choices through APIs, ownership or types, then useful
+lint, preflight or behavioral checks; retain concise guidance for judgment. A
+worker may implement a directly relevant safeguard within authorized scope. Prove
+it catches the real mistake and accepts valid behavior, then wire it into CI or
+the normal operational path. Preserve a useful script that outlives the session
+as a maintained, version-controlled tool with explicit inputs, useful errors,
+appropriate checks and rerun safety. Record broader opportunities for prioritization
+without expanding permissions or automatically launching work; no per-task
+automation checklist or extra review is required.
 
 ## States and completion
 
@@ -220,9 +247,9 @@ Accept natural-language controls; these are instructions, not new CLI commands:
   dispatch, preserve the backlog, and report running resources. Ask whether to
   finish, pause or cancel outstanding work if the instruction does not specify.
 
-After intake and meaningful state changes, give a concise update such as
-`T001 reviewing; T002 active; T003 queued (depends on T001); workers 3/3`.
-Do not dump transcripts or provide time/effort estimates. On completion report
+Give routine status updates only when requested; communicate completion, errors,
+blockers and needed decisions when actionable. Do not dump transcripts or provide
+time/effort estimates. On completion report
 the result, checks and limitations, then the next queued task or decisions
 needed. Before ending a turn, persist the next actions and portfolio path;
 do not promise unattended scheduling, notifications or a dashboard widget that

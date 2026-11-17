@@ -61,18 +61,15 @@ modify coordinator records. Legacy Markdown tasks stay visible as **No baseline*
 For an existing long task, publish its honest remaining plan and explain the
 late baseline in Markdown; never backdate checkpoint completion.
 
-Publish a check-in at each meaningful transition and before the current deadline
-(five minutes by default). `step` should equal an active checkpoint ID when
-applicable. This updates the check-in clock, never the verification clock.
+Publish honest state events at meaningful transitions. A check-in can record a
+transition or a user-requested update; `step` should equal an active checkpoint ID
+when applicable. It updates the check-in clock, never the verification clock.
+Routine progress checks and updates occur only on user request, not on a timer.
+Timestamps, due indicators and legacy quiet metadata are observations, not
+instructions to poll or wake a model.
 
 ```json
 {"id":"T001-checkin-1","kind":"check-in","task":"T001","step":"records","summary":"Record helper implemented; checking interruption recovery","next_action":"Run contract checks"}
-```
-
-Declare a longer quiet operation explicitly, for at most a day:
-
-```json
-{"id":"T001-quiet-1","kind":"check-in","task":"T001","step":"panel","summary":"Native build running","next_action":"Inspect the build result","quiet_seconds":1800,"quiet_reason":"Expected quiet compile with no intermediate result"}
 ```
 
 After checking concrete evidence, accept a checkpoint. Dependencies must already
@@ -89,7 +86,7 @@ Record worker reports separately, including their literal navigable terminal.
 never writes `work/events/` or `work/snapshot.json`; all Work publications
 (`worker`, `check-in`, `verify`, `block`, `resolve`, `revise`, `lifecycle`)
 remain explicit coordinator-owned `chief-of-staff-work` writes.
-Polling a busy worker never satisfies a check-in or verifies progress.
+Polling a busy worker never verifies progress; do not poll for routine updates.
 
 ```json
 {"id":"T001-worker-1","kind":"worker","task":"T001","terminal":"t29s","status":"working","summary":"Implementing the native panel"}

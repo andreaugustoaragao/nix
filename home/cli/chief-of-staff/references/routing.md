@@ -1,120 +1,120 @@
 # Routing policy
 
-Read once on activation/resume; reuse until the policy or task requirements
-change. These are the user's subscription and workflow preferences. Explicit
-task instructions override defaults. Apply connector requirements first, then
-model/task fit, then harness tools. Do not balance subscriptions by task count.
+Read once on chief-of-staff activation/resume; reuse until policy or requirements
+change. Explicit task instructions override defaults. Apply connector requirements
+first, then task fit and harness tools. These preferences are not measured quality
+or price rankings. Never balance subscriptions or equalize task counts. Use
+standard speed, never Fast, Auto or an unverified effort variant.
 
 ## Route and model
 
-| Work | Preferred route | Model |
+| Work | Preferred route | Model / effort |
 | --- | --- | --- |
-| Small, bounded tasks with supplied context and minimal tools | Pi, local model by default; paid models require explicit selection | Host-configured local model; select any paid alternative for a documented task-specific reason |
+| Coordination, intake, communication, acceptance and integration | Current chief conversation | Retain the selected session; do not migrate it to match worker routing |
+| Small bounded tasks with supplied context and minimal tools | Pi, local by default | Host-configured local model; paid alternatives require explicit selection |
 | Routine Google Chat drafting from supplied facts and delivery | `chat-send-task`, fresh minimal Pi/WebAI session, only its delivery tool | `litellm/gpt-6.1-terra`, low effort |
-| Email, Google Drive or calendar tasks, including review needing those connectors | `codex-openai`; keep execution on its configured connectors | `gpt-6.1-sol`, or `gpt-6-astra` for difficult synthesis/reasoning |
-| General implementation, fixes, refactoring, tests and routine review | `codex-openai` | `gpt-6.1-sol` |
-| Complex diagnosis, architecture, high-risk changes and deep review | `codex-openai` | `gpt-6-astra` |
-| Google Carbon or Argon work, including the UI/UX review below | Cursor Agent through `herdr-cursor` by default; OpenCode2 / WebAI if Cursor Agent fails | Argon for straightforward work; Carbon for complex work. Verify the exact harness-specific model and effort below. |
-| Google Hydrogen work, when explicitly selected or justified for the task | OpenCode2 / WebAI | `litellm/gemini-4-hydrogen` |
-| Astra/Sol 6.1 work when the OpenAI route is unhealthy or unavailable | `codex-webai`, only under the fallback rule below | Same selected `gpt-6-astra` or `gpt-6.1-sol` |
+| Architecture/UX design authoring and UI/UX assessment | Cursor `herdr-cursor gemini-4-carbon-high` | Carbon high; observed Cursor failure permits same-model `opencode2 mini --model litellm/gemini-4-carbon`, default effort unqualified |
+| Extended cross-module engineering, multi-stage diagnosis and migrations with established design | Cursor `herdr-cursor grok-4.7-high` | Grok 4.7 high normally; verified medium for bounded work, xhigh only with a concrete difficulty reason. Observed Cursor failure permits `opencode2 mini --model litellm/grok-4.7`, default effort unqualified |
+| Focused fixes, iterative debugging, tests and narrow refactoring | `opencode2 mini --model litellm/gemini-4-hydrogen` | Hydrogen, default effort unqualified |
+| Bounded implementation from a clear specification, established-pattern wiring and coding with computer-use verification | `opencode2 mini --model litellm/gpt-6.1-terra` | Terra, default effort unqualified; verify required tools |
+| Independent candidate review | Fresh Carbon or Astra, selected independently of the implementer | Use the exact Carbon route above or Astra route below; preserve connector-bound exceptions and any opposite-model design-peer requirement |
+| Email, Google Drive or calendar, including connector-dependent review | `codex-openai`, keep its configured connectors | `gpt-6.1-sol`; `gpt-6-astra` for difficult synthesis/reasoning. Verified medium for bounded Sol work, high for difficult reasoning, xhigh only when warranted and supported |
+| Explicit complex-coding escalation or necessary Codex capability | `codex-openai`, with task-specific reason | `gpt-6.1-sol` or `gpt-6-astra`; verify supported effort, high for substantial difficulty, xhigh only when justified |
+| Carbon unavailable for design authoring or UI/UX assessment | `codex-openai` | `gpt-6-astra`, high normally; verify at startup and record Carbon's unavailability. An Astra-authored design still requires Carbon peer review |
+| Required peer of authored architecture/UX design | Carbon authors → fresh Astra; Astra authors → fresh Carbon | Use the routes above; high normally where qualified, OpenCode default unqualified. Unavailable opposite peer leaves the gate pending |
 
-Codex–OpenAI is the user's cheapest Astra/Sol 6.1 option. Use it for substantial
-implementation and review, not just a token share of the backlog. Cursor remains
-available for explicit requests or a task-specific capability/allowance reason;
-it must not displace a healthy Codex–OpenAI Astra/Sol route merely for balancing.
-The Chat row is the user's approved task-specific default after matched full-send
-trials. Pass only a self-contained brief and the configured route; keep research
-and source retrieval in the caller. Exact supplied or reviewed content uses the
-deterministic `chat-send` command with no model. Preserve its operation ID on
-uncertainty and escalate browser exceptions without a second submission.
-Other Terra/Hydrogen tasks remain opt-in or need a documented task-specific
-reason; the Chat default does not change unrelated model routes.
+Sol/Astra also remain available for explicit user selection, required connectors,
+necessary harness capabilities or genuinely difficult coding justified by the brief
+or observed failures. Record the unresolved difficulty and acceptance gate. Do
+not make every implementation, investigation or review an exception. Carbon is
+still first for design even when implementation escalates. Development workers
+may self-check and run checks, but cannot replace independent acceptance review.
+
+The Chat row is a narrow approved default after matched full-send trials. Pass
+only a self-contained brief and the configured route; keep research and source
+retrieval in the caller. Exact supplied or reviewed content uses deterministic
+`chat-send` with no model. Preserve its operation ID on uncertainty and escalate
+browser exceptions without a second submission.
 
 Pi is reserved for small tasks with a self-contained brief, bounded output and
 minimal explicitly enabled tools. Keep repository exploration and substantial
 implementation in Codex, OpenCode2 or Cursor. Pi loads no automatic project
 context, skills, extensions or MCP tools by default. A missing local model or
-local endpoint failure must not silently select a paid model. The explicit
-Terra Chat workflow above remains a narrow exception to the local default.
+endpoint failure must not silently select a paid model. Terra Chat remains a
+narrow exception to the local default.
 
-Use the explicit `codex-openai`/`codex-webai` launchers, not bare `codex` with an
-assumed provider. Verify the installed route, exact model, effort and needed
-connectors/tools at startup. A subscription route is separate from a harness;
-WebAI's API dollars are not subscription credits. Select effort for difficulty,
-subject to project/user requirements; avoid maximum effort for mechanical work.
+## Launch and fallback
 
-Fallback is authorized for observed OpenAI-route failure, such as outage,
-exhausted allowance or persistent authentication/transport errors. Record and
-report the reason before using `codex-webai`; retain the task/model and reconcile
-any uncertain in-flight work first. A poor answer, one slow response or a desire
-to use another subscription is not a route failure. Keep email/Drive/calendar
-work on `codex-openai`; if its connectors are unavailable, report the blocker
-rather than moving the task to WebAI. Return new assignments to OpenAI when
-healthy without churning an active fallback session.
+Use exact Cursor native IDs; verify available controls at startup. OpenCode 2.0.18
+uses interactive `opencode2 mini --model provider/model`; its top-level command
+has no `--model`. Configured aliases have no qualified effort variants: do not
+invent `#high`, treat `--thinking` as effort, or claim equivalent budgets across
+harnesses. Metadata does not prove quota, authentication or tool execution. Reuse
+valid discovery and verify the route and required tools at normal startup; no paid
+probe is required for this table. Verify browser, image and code-intelligence tools
+where needed; LSP availability alone does not select a client.
 
-## Choose the Google harness
+For Carbon or Grok, an observed Cursor failure permits the same-model OpenCode
+route above. Record the failure and reconcile uncertain in-flight work first.
+Report unsupported controls instead of silently substituting them. Return new
+assignments to healthy Cursor; retain a suitable active fallback until its task
+finishes. Cursor allowance and API cost are unknown unless observed; native
+Gemini CLI through LiteLLM remains experimental, not an automatic choice.
 
-Use Cursor Agent by default for Carbon and Argon tasks. Use OpenCode2 for
-Hydrogen tasks. These are the user's routing preferences, not measured
-quality, speed or price rankings.
+Use explicit `codex-openai`/`codex-webai` launchers, not bare `codex` with an
+assumed provider. Verify route, model, effort and required tools/connectors at
+startup. `codex-webai` is authorized for the same Astra/Sol model only after an
+observed OpenAI-route failure such as outage, exhausted allowance or persistent
+authentication/transport errors. Record and report the reason; reconcile
+uncertain in-flight work first. A poor answer, one slow response or subscription
+balancing is not a route failure. Keep email/Drive/calendar work on
+`codex-openai`; if connectors are unavailable, report the blocker. Return new
+assignments to OpenAI when healthy without churning an active fallback session.
 
-If Cursor Agent fails on a Carbon or Argon task, use OpenCode2 with the same
-selected model. Record the observed failure, such as an authentication error,
-unavailable model, transport timeout, client exit or failed required tool.
-Reconcile uncertain in-flight work before dispatching the task again. Preserve
-the task and intended effort, verify the destination's actual controls, and
-report unsupported controls rather than silently substituting them.
+## Design, UI and candidate gates
 
-Return new Carbon and Argon assignments to Cursor when it is healthy. Keep
-an active suitable OpenCode2 fallback session until its task is complete.
-Verify required browser, image and code-intelligence tools for each assignment;
-both clients have LSP MCP, so its availability alone does not select a client.
+Carbon is first choice for unsettled architecture/UX design and UI/UX assessment.
+Every authored architecture/UX design outcome requires a fresh opposite-model
+peer: Astra reviews Carbon and Carbon reviews Astra. Give the peer the frozen
+design, requirements and evidence. Neither may review its own design, even in a
+new session. If the required peer is unavailable, leave the gate pending: never
+substitute, self-review or waive it. Fallback authoring may proceed, but dependent
+work requiring accepted design waits. Send corrections to the original author
+and recheck material revisions with the required peer.
 
-Cursor allowance and API-dollar cost remain unknown unless actually observed;
-do not treat a zero-price UI placeholder as free. Our narrow read-only trials
-establish compatibility, not a general Cursor/OpenCode2 winner. Native Gemini
-CLI through LiteLLM remains experimental and is not an automatic routing choice.
+UI assessment inspects rendered states with screenshots or permitted live-app
+tools, including hierarchy, flows, interaction, accessibility, visual coherence
+and failure states; source alone is insufficient. Assessment of an existing artifact does not itself require a pair.
+If it authors a new or revised design outcome, that outcome needs the opposite
+peer. Review reports do not recursively require design review.
 
-## Google review for GUI/UI/UX
+Candidate acceptance requires a fresh independent Carbon or Astra reviewer,
+selected independently of the implementer, normally in a different harness and
+with connector-bound exceptions. Supply the actual frozen candidate, requirements
+and final verification evidence, not the implementer's self-assessment. Preserve
+the opposite-model rule for any Carbon/Astra-authored design outcome. A design
+peer accepts the design, not later code. Combine design-peer, UI assessment and
+candidate review only when the exact frozen outcome, required scopes, reviewer
+independence and evidence all match. Record each gate explicitly; a shared task
+ID is insufficient. One qualifying peer can satisfy matching scopes without a
+duplicate review.
 
-Include a Carbon or Argon review in GUI/UI/UX development: choose design review
-before implementation when direction/flows are unsettled, or review the actual
-rendered artifact when a concrete result is available. Argon suits small,
-established patterns; Carbon suits complex interactions, novel layouts or major
-redesigns. This is the user's quality preference, not a benchmark-proven ranking.
+## Cost and session discipline
 
-Review hierarchy, flows, interaction states, accessibility and visual coherence.
-For artifact review supply screenshots or the permitted live-app tools; a source
-diff alone does not establish UX quality. Use one appropriate review stage and
-combine it with the existing independent review when scope permits; add another
-only for material changes or missing evidence. The implementer may stay on
-Codex–OpenAI. Independent review uses fresh context, normally a different harness;
-connector-bound tasks remain on Codex–OpenAI even when reviewed.
+The user's cheapest Astra/Sol 6.1 route is Codex–OpenAI; that preference applies
+within those models, not as a blanket development assignment. Compare cost per
+independently accepted task, including chief, workers, failures, retries, required
+design and candidate reviews, review fixes and coordinator recovery. Record
+cache-read volume when available; keep API dollars, subscription allowance,
+elapsed time and rework separate. Unknown cost stays
+unknown; catalog zeros are placeholders, not free usage. Comparison-only judging
+overhead is separate. No general cache or harness winner is established.
 
-## Keep routing inexpensive
-
-Cursor Agent is approved for Carbon and Argon. For Herdr workers, use
-`herdr-cursor` with an exact ID from `cursor-agent models`. The catalog currently
-lists `gemini-4-carbon-{low,medium,high}` and `gemini-4-argon-{low,medium,high}`.
-Pi and OpenCode use the `litellm/` IDs above; verify their effort controls
-separately. Matching labels do not prove equal reasoning budgets. Preserve
-permissions and never silently select Auto.
-
-Historical Pi/OpenCode cost comparisons do not expand Pi's current task scope.
-Use the Google harness criteria above; verify current capabilities and retain
-observed failures when reassessing a route.
-
-Compare cost per independently accepted task, including failures, retries,
-review fixes and coordinator recovery. Match task inputs and acceptance checks,
-record versions and effort, alternate order, and retain failures. Keep API
-dollars, subscription allowance and elapsed time separate. Unknown cost stays
-unknown; a client zero is not proof of free use. No general cache winner is
-established. Keep suitable healthy sessions and stable instructions. Reconcile
-old sessions and pending operations before a route handoff. Fresh reviews still
-need independent context; name new Codex workers before their first prompt.
-
-Give workers only their selected route/model, scoped task, required context and
-checks—not this policy, the backlog or benchmark history. Record one routing
-reason per assignment and any fallback/UI-review evidence. Capture cost and
-rework when available; missing cost is unknown. Inspect detailed measurements
-only when explaining or revising a decision: [historical evidence](routing-evidence.md).
+Keep suitable healthy sessions and stable instructions/tool declarations;
+reconcile pending operations before a handoff. Fresh reviews still need independent
+context. Name new Codex workers before their first prompt and reuse the same
+implementation conversation for corrections when possible. Give workers only
+their selected route/model, scoped task, required context and checks. Record one
+routing reason and fallback/gate evidence per assignment. Capture usage and rework
+when available; missing cost is unknown. For reassessment discipline, see
+[evidence guidance](routing-evidence.md).

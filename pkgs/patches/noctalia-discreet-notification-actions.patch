@@ -1,5 +1,5 @@
---- a/src/ui/controls/button.h
-+++ b/src/ui/controls/button.h
+--- a/lib/ui/controls/button.h
++++ b/lib/ui/controls/button.h
 @@ -168,5 +168,6 @@
  // Populates a container column with row sub-containers, applying layout alignment,
  // gaps, setFlexGrow(1.0F), and setMaxWidth for single-button rows.
@@ -8,8 +8,8 @@
 +    Flex& container, std::vector<std::vector<std::unique_ptr<Button>>> rows, float maxWidth, float gap,
 +    bool expandButtons = true
  );
---- a/src/ui/controls/button.cpp
-+++ b/src/ui/controls/button.cpp
+--- a/lib/ui/controls/button.cpp
++++ b/lib/ui/controls/button.cpp
 @@ -889,7 +889,8 @@
  }
  

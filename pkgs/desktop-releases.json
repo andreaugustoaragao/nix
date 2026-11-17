@@ -8,19 +8,19 @@
     }
   },
   "vereda": {
-    "version": "0.1.0",
-    "sourceRevision": "626ad3f50b01efd23fc89f2cc3cda53b5fe9702a",
+    "version": "0.1.1",
+    "sourceRevision": "584198f79509074c5ed8d2a382f124574ad218da",
     "hashes": {
-      "aarch64-linux": "sha256-kx7RNlvEgnkZDN/l7duFTcsnojLCPd8gYDUAU0Ewgkw=",
-      "x86_64-linux": "sha256-sEv7DnsYsn2Fo2WIDXpEe0bzR9ESL/AKHeu3AWV4b0c="
+      "aarch64-linux": "sha256-bpi8Df2cjbUkYpjc6wfkmauoAxfIx12gVmbLl8rBOnk=",
+      "x86_64-linux": "sha256-5xu9ORTCT79EK0jEkyioro8vymNLda/yCvmCwb+GyMo="
     }
   },
   "vitals": {
-    "version": "0.1.0",
-    "sourceRevision": "cd9b7c0221554ac96bee52cd3e1d85e45ddb0403",
+    "version": "0.1.2",
+    "sourceRevision": "c03c3a540308a3ae5422ecfa8a3cdafaab6538c6",
     "hashes": {
-      "aarch64-linux": "sha256-de20ssv8VqWzFfzcDO5u0u8exdrCirZGi+ZYshjhkp8=",
-      "x86_64-linux": "sha256-YtL7iQmC24neGBbzrTRYffEudwFg7C6xyIjKAL8b4vw="
+      "aarch64-linux": "sha256-O6SZJgCKGj9uX2/dJ0PlDrHhXcwC6DIfZMvPVD7jTxw=",
+      "x86_64-linux": "sha256-hQdxmpYbc6eV1ihSTfEat5J/vVIwLVKGkjG5bZhAj/4="
     }
   }
 }

@@ -36,17 +36,19 @@ fallback. For GUI/UI/UX, record the Google review model and chosen stage
 
 Publish the structured Work baseline before implementation dispatch. Record its
 event ID, checkpoint IDs and acceptance evidence references here. Keep the
-current step, next action and expected check-in current with coordinator-owned
-`chief-of-staff-work` events; default five minutes, longer quiet periods declared.
+current step and next action with coordinator-owned `chief-of-staff-work` events
+at meaningful transitions. Routine progress updates occur only on user request;
+timestamps and legacy due metadata do not require polling or model wakeups.
 Record revisions with reasons; preserve the original baseline. Worker activity
-does not verify checkpoints or satisfy check-ins. Older tasks may explicitly
+does not verify checkpoints. Older tasks may explicitly
 have no structured baseline; do not reconstruct completion from prose.
 
 Reference implementation artifacts, actual changes, check commands/results,
 independent review findings and accepted fixes. Keep worker reports separate
 from coordinator acceptance. Secrets must remain outside these records.
 
-When available, record total reported API cost including retries/auxiliary calls,
+When available, record total reported API cost for chief, workers and reviews,
+including retries, fixes and recovery,
 input/cache-read/cache-write/output tokens, and rework or escalation. Missing
 cost is unknown. Keep actual subscription allowance/credit consumption separate
 from API dollars. Include observed resource constraints when they affected the

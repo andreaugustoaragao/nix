@@ -467,7 +467,7 @@ in
             };
 
             screensaver = {
-              "match:class" = "Screensaver";
+              "match:class" = "^org[.]aragao[.]Screensaver$";
               fullscreen = true;
             };
 
