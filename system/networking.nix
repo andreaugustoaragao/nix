@@ -293,8 +293,11 @@
       ];
 
     # Allowed UDP ports
-    allowedUDPPorts = [
-      # Add any required UDP ports here
+    allowedUDPPorts = lib.optionals (hostName == "workstation") [
+      # cursor-bridge. The VM dials out through the Mac's LAN address, which
+      # this host has no record of, so the port is open on the LAN. The
+      # connection is authenticated by the pinned certificate.
+      4243
     ];
 
     # Allowed TCP port ranges
