@@ -4,6 +4,7 @@
   lib,
   owner,
   isServer,
+  hostName,
   ...
 }:
 
@@ -207,6 +208,27 @@
         mode = "0400";
       };
     }
+    //
+      lib.optionalAttrs
+        (builtins.elem hostName [
+          "workstation"
+          "prl-dev-vm"
+        ])
+        {
+          # Shared pointer bridge (prl-dev-vm <-> workstation) — pinned
+          # certificate and PKCS#8 private key loaded by cursor-bridge via
+          # systemd LoadCredential. Scoped strictly to the two participating hosts.
+          "cursor-bridge/cert" = {
+            owner = owner.name;
+            group = "users";
+            mode = "0400";
+          };
+          "cursor-bridge/key" = {
+            owner = owner.name;
+            group = "users";
+            mode = "0400";
+          };
+        }
     // lib.optionalAttrs isServer {
       # ACME — Cloudflare API token for DNS-01 challenge.
       # File contents: CLOUDFLARE_DNS_API_TOKEN=<token>

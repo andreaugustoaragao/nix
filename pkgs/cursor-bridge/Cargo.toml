@@ -9,4 +9,6 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
 rcgen = "0.14"
 rustls-pemfile = "2"
+serde = { version = "1", default-features = false, features = ["std"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
 socket2 = { version = "0.6", features = ["all"] }
