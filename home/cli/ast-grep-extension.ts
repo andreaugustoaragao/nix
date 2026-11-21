@@ -27,6 +27,10 @@ const execFileP = promisify(execFile);
 // Absolute /nix/store path — pinned at build time, no PATH dependency.
 const PI_RS = "___PI_RS_BIN___";
 
+function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && values.some(candidate => candidate === value);
+}
+
 const STRICTNESS = ["cst", "smart", "ast", "relaxed", "signature", "template"] as const;
 
 interface AstGrepMatch {
@@ -107,7 +111,7 @@ export default function (pi: ExtensionAPI) {
       if (params.glob)        argv.push("--glob", params.glob);
       if (params.language)    argv.push("--lang", params.language);
       if (params.selector)    argv.push("--selector", params.selector);
-      if (params.strictness)  argv.push("--strictness", params.strictness);
+      if (isOneOf(STRICTNESS, params.strictness))  argv.push("--strictness", params.strictness);
       if (params.limit !== undefined) argv.push("--limit", String(params.limit));
       if (params.skip  !== undefined) argv.push("--offset", String(params.skip));
       if (params.includeMeta)         argv.push("--include-meta");

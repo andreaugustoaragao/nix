@@ -32,7 +32,7 @@
     # rationale. Degrades gracefully if /run/secrets/litellm_*
     # is missing.
   ]
-  ++ lib.optionals (!personalOnly) [ ./litellm.nix ]
+  ++ lib.optionals (!personalOnly && !isServer) [ ./litellm.nix ]
   ++ lib.optionals (!isDarwinHost) [
     ./darkman.nix
     ./shared-vault.nix

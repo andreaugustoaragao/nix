@@ -1,163 +1,139 @@
-/**
- * Pi extension: `nixos` tool — bridge to the mcp-nixos MCP server.
- *
- * Deployed by home/cli/pi.nix as ~/.pi/agent/extensions/mcp-nixos.ts.
- * Edit this source and rebuild; do not edit the deployed copy.
- *
- * Pi has no native MCP client, so this acts as one: for each call it
- * spawns `mcp-nixos` (stdio transport, packaged via home.packages),
- * performs the MCP initialize handshake, issues a single tools/call,
- * and returns the text result. mcp-nixos 1.0.3 is stdio-only, so each
- * invocation is a short-lived subprocess — no port, no long-running
- * service. The batch write (initialize + initialized + tools/call,
- * then close stdin) matches how the server drains its stdin loop.
- *
- * Claude Code talks to the same `mcp-nixos` binary directly over its
- * built-in MCP stdio transport (registered via `claude mcp add`); this
- * file only exists because Pi can't.
- */
+/** One-shot stdio bridge to mcp-nixos, with session-owned process cleanup. */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { Check } from "typebox/value";
+import { StringDecoder } from "node:string_decoder";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { spawn } from "node:child_process";
+import { SessionCleanupTracker, spawnManagedGroup, combinedSignal, throwIfAborted, isRecord, isOneOf } from "./lib/lifecycle.ts";
 
 // Resolved on PATH from home.packages (pkgs.mcp-nixos). Overridable
 // for testing / non-Nix environments.
 const MCP_BIN = process.env.MCP_NIXOS_BIN ?? "mcp-nixos";
 const DEFAULT_TIMEOUT_MS = 30000;
+const InitializeResult = Type.Object({
+  protocolVersion: Type.Literal("2024-11-05"),
+  capabilities: Type.Record(Type.String(), Type.Unknown()),
+  serverInfo: Type.Object({ name: Type.String(), version: Type.String() }),
+});
+const RpcError = Type.Object({ code: Type.Integer(), message: Type.String() });
+const ToolResult = Type.Object({
+  content: Type.Array(Type.Object({ type: Type.String() })),
+  isError: Type.Optional(Type.Boolean()),
+});
+const TextContent = Type.Object({ type: Type.Literal("text"), text: Type.String() });
+// This bridge exposes the pinned backend's text output only.
+const TextContents = Type.Array(TextContent);
 
-// The 18 tools mcp-nixos 1.0.3 exposes (from a live tools/list). Kept
-// as a closed enum so the model sees exactly what is callable and pi
-// rejects typos before a subprocess is spawned.
-const TOOLS = [
-  "nixos_search",
-  "nixos_info",
-  "nixos_channels",
-  "nixos_stats",
-  "home_manager_search",
-  "home_manager_info",
-  "home_manager_stats",
-  "home_manager_list_options",
-  "home_manager_options_by_prefix",
-  "darwin_search",
-  "darwin_info",
-  "darwin_stats",
-  "darwin_list_options",
-  "darwin_options_by_prefix",
-  "nixos_flakes_search",
-  "nixos_flakes_stats",
-  "nixhub_package_versions",
-  "nixhub_find_version",
-] as const;
+// Closed public API from pinned mcp-nixos 2.4.3 server.py.
+const TOOLS = ["nix", "nix_versions"] as const;
 
-interface JsonRpcResponse {
-  jsonrpc: string;
-  id?: number | string;
-  result?: { content?: Array<{ type: string; text?: string }> };
-  error?: { code: number; message: string };
-}
+type ManagedGroup = ReturnType<typeof spawnManagedGroup>;
 
-/**
- * Spawn mcp-nixos, run one tools/call to completion, return its text.
- * Frames are newline-delimited JSON-RPC (MCP stdio transport).
- */
-function callMcpTool(
-  tool: string,
-  args: Record<string, unknown>,
-  signal: AbortSignal | undefined,
+export function callMcpTool(
+  tool: string, args: Record<string, unknown>, signal: AbortSignal,
+  tracker: SessionCleanupTracker, activeGroups: Set<ManagedGroup>,
 ): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(MCP_BIN, [], { stdio: ["pipe", "pipe", "pipe"] });
-
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`mcp-nixos timed out after ${DEFAULT_TIMEOUT_MS}ms`));
-    }, DEFAULT_TIMEOUT_MS);
-
-    const onAbort = () => {
-      child.kill("SIGKILL");
-      reject(new Error("aborted"));
+  throwIfAborted(signal);
+  const group = spawnManagedGroup("mcp-nixos", tool, MCP_BIN, []);
+  activeGroups.add(group);
+  const child = group.child;
+  let timer: ReturnType<typeof setTimeout>;
+  let abort = () => { };
+  const response = new Promise<string>((resolve, reject) => {
+    let settled = false, stdout = "", stderr = "", responseBytes = 0;
+    let phase: "initializing" | "calling" = "initializing";
+    const decoder = new StringDecoder("utf8");
+    const finish = (error: Error | null, text?: string) => {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error); else resolve(text ?? "(empty result)");
     };
-    signal?.addEventListener("abort", onAbort, { once: true });
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
+    timer = setTimeout(() => finish(new Error(`mcp-nixos timed out after ${DEFAULT_TIMEOUT_MS}ms`)), DEFAULT_TIMEOUT_MS);
+    abort = () => finish(new DOMException("Operation cancelled", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    const send = (frame: unknown) => {
+      if (settled) return;
+      try { child.stdin.write(JSON.stringify(frame) + "\n"); }
+      catch (error) { finish(error instanceof Error ? error : new Error(String(error))); }
     };
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
-    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-
-    child.on("error", (err: Error) => {
-      cleanup();
-      reject(
-        new Error(
-          `failed to launch '${MCP_BIN}': ${err.message}. ` +
-            `Is pkgs.mcp-nixos on PATH (home.packages)?`,
-        ),
-      );
-    });
-
-    child.on("close", () => {
-      cleanup();
-      // The tools/call reply carries id 2; scan all newline-delimited
-      // frames for it (init reply is id 1, notifications have no id).
-      for (const line of stdout.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let msg: JsonRpcResponse;
-        try {
-          msg = JSON.parse(trimmed) as JsonRpcResponse;
-        } catch {
-          continue;
+    child.stdout.on("data", (data: Buffer) => {
+      if (settled) return;
+      responseBytes += data.length;
+      if (responseBytes > 1024 * 1024) { finish(new Error("mcp-nixos response exceeded 1 MiB")); return; }
+      stdout += decoder.write(data);
+      let end: number;
+      while (!settled && (end = stdout.indexOf("\n")) !== -1) {
+        const line = stdout.slice(0, end); stdout = stdout.slice(end + 1);
+        if (!line.trim()) continue;
+        let msg: unknown;
+        try { msg = JSON.parse(line); }
+        catch { finish(new Error("mcp-nixos malformed JSON response")); return; }
+        if (!isRecord(msg) || (msg.id !== 1 && msg.id !== 2)) continue;
+        if (msg.id === 2 && phase === "initializing") {
+          finish(new Error("mcp-nixos tools/call response before initialize")); return;
         }
-        if (msg.id !== 2) continue;
-        if (msg.error) {
-          reject(new Error(`mcp-nixos error: ${msg.error.message}`));
+        if (msg.id !== (phase === "initializing" ? 1 : 2)) continue;
+        const hasError = Object.hasOwn(msg, "error"), hasResult = Object.hasOwn(msg, "result");
+        if (msg.jsonrpc !== "2.0" || hasError === hasResult) {
+          finish(new Error("mcp-nixos invalid RPC response envelope")); return;
+        }
+        if (hasError) {
+          if (!Check(RpcError, msg.error)) finish(new Error("mcp-nixos invalid RPC error"));
+          else finish(Object.assign(new Error(msg.error.message), { code: msg.error.code }));
           return;
         }
-        const text = (msg.result?.content ?? [])
-          .filter((c) => c.type === "text" && c.text)
-          .map((c) => c.text)
-          .join("\n");
-        resolve(text || "(empty result)");
+        if (phase === "initializing") {
+          if (!Check(InitializeResult, msg.result)) { finish(new Error("mcp-nixos invalid initialize result")); return; }
+          phase = "calling";
+          send({ jsonrpc: "2.0", method: "notifications/initialized" });
+          send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: args } });
+          continue;
+        }
+        if (!Check(ToolResult, msg.result)) { finish(new Error("mcp-nixos invalid tools/call result")); return; }
+        if (!Check(TextContents, msg.result.content)) {
+          finish(new Error("mcp-nixos invalid text content or unsupported non-text content")); return;
+        }
+        const text = msg.result.content.map(item => item.text).join("\n");
+        // Pinned server validation also returns utils.error's plain-text envelope.
+        if (msg.result.isError === true || /^Error \([A-Z][A-Z0-9_]*\):/.test(text.trimStart())) finish(new Error(text || "mcp-nixos tool failed"));
+        else finish(null, text || "(empty result)");
         return;
       }
-      reject(
-        new Error(
-          `no tools/call response from mcp-nixos` +
-            (stderr ? `; stderr: ${stderr.slice(0, 500)}` : ""),
-        ),
-      );
     });
-
-    const frames = [
-      {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2024-11-05",
-          capabilities: {},
-          clientInfo: { name: "pi-mcp-nixos-bridge", version: "1" },
-        },
-      },
-      { jsonrpc: "2.0", method: "notifications/initialized" },
-      {
-        jsonrpc: "2.0",
-        id: 2,
-        method: "tools/call",
-        params: { name: tool, arguments: args },
-      },
-    ];
-    child.stdin.write(frames.map((f) => JSON.stringify(f)).join("\n") + "\n");
-    child.stdin.end();
+    child.stderr.on("data", (data: Buffer) => { stderr = (stderr + data.toString()).slice(-500); });
+    child.on("error", error => finish(new Error(`failed to launch '${MCP_BIN}': ${error.message}`)));
+    child.stdin.on("error", error => finish(error));
+    child.on("close", (code, closeSignal) => finish(new Error(
+      `no ${phase === "initializing" ? "initialize" : "tools/call"} response from mcp-nixos` +
+      (code === null ? `; signal: ${closeSignal}` : `; exit code: ${code}`) + (stderr ? "; stderr: " + stderr : ""),
+    )));
+    if (signal.aborted) { abort(); return; }
+    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "pi-mcp-nixos-bridge", version: "1" } } });
+  });
+  return response.finally(async () => {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+    const cleanup = group.shutdown(); tracker.trackRetiring(cleanup);
+    const outcome = await cleanup; activeGroups.delete(group);
+    if (!outcome.ok) throw new Error(outcome.error);
   });
 }
 
 export default function (pi: ExtensionAPI) {
+  let sessionCtl = new AbortController();
+  let tracker = new SessionCleanupTracker("mcp-nixos");
+  const activeGroups = new Set<ManagedGroup>();
+  const activeRuns = new Set<Promise<unknown>>();
+  let sessionId = "unstarted";
+  pi.on("session_start", (_event, ctx) => {
+    sessionCtl = new AbortController(); tracker = new SessionCleanupTracker("mcp-nixos");
+    sessionId = ctx.sessionManager.getSessionId();
+  });
+  pi.on("session_shutdown", async event => {
+    sessionCtl.abort();
+    await tracker.runSessionShutdown({ reason: event.reason, sessionId,
+      activeCleanups: [...activeGroups].map(group => group.shutdown()), drainPromises: [...activeRuns] });
+  });
   pi.registerTool({
     name: "nixos",
     label: "NixOS / nixpkgs lookup",
@@ -165,18 +141,16 @@ export default function (pi: ExtensionAPI) {
       "Query real, current NixOS/nixpkgs data via the mcp-nixos server " +
       "instead of relying on training data (which hallucinates package " +
       "names and option paths). Pick `tool` and pass its `arguments`.\n\n" +
-      "Common tools and their arguments:\n" +
-      "- nixos_search { query, limit?, channel?, type? }  type ∈ packages|options|programs\n" +
-      "- nixos_info { name, type?, channel? }             exact package/option details\n" +
-      "- nixos_channels {}                                list channels\n" +
-      "- nixos_stats { channel? }\n" +
-      "- home_manager_search { query, limit? }            Home Manager options\n" +
-      "- home_manager_info { name }\n" +
-      "- home_manager_options_by_prefix { option_prefix } e.g. 'programs.git'\n" +
-      "- darwin_search { query, limit? } / darwin_info { name }  nix-darwin options\n" +
-      "- nixos_flakes_search { query, limit? }            flake packages\n" +
-      "- nixhub_package_versions { package_name, limit? } version history\n" +
-      "- nixhub_find_version { package_name, version }    find a specific version",
+      "mcp-nixos 2.4.3 exposes two tools; the backend validates arguments.\n" +
+      "- nix { action, query?, source?, type?, channel?, limit?, version?, system? }\n" +
+      "  action: search|info|stats|browse|channels|flake-inputs|cache|store.\n" +
+      "  source defaults to nixos; also home-manager, darwin, flakes, flakehub, nixvim, wiki, nix-dev, noogle, nixhub.\n" +
+      "  Search packages: {action:'search',query:'hello',type:'packages',channel:'unstable'}.\n" +
+      "  Search options: {action:'search',query:'services.nginx',type:'options'}.\n" +
+      "  Exact package info: {action:'info',query:'hello',type:'package'}.\n" +
+      "  Channels: {action:'channels'}. Home Manager: {action:'search',source:'home-manager',query:'programs.git'}.\n" +
+      "- nix_versions { package, version?, limit? } — package history or exact version; limit 1-50.\n" +
+      "  Example: {package:'hello',version:'2.12.1'}. Omit optional arguments you do not need.",
     parameters: Type.Object({
       tool: StringEnum([...TOOLS], {
         description: "Which mcp-nixos tool to call.",
@@ -190,9 +164,15 @@ export default function (pi: ExtensionAPI) {
       ),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-      const args = (params.arguments ?? {}) as Record<string, unknown>;
+      if (!isOneOf(TOOLS, params.tool)) throw new Error("Unknown mcp-nixos tool");
+      const args = isRecord(params.arguments) ? params.arguments : {};
+      const callSignal = combinedSignal(sessionCtl.signal, signal);
       try {
-        const text = await callMcpTool(params.tool, args, signal);
+        throwIfAborted(callSignal);
+        const run = callMcpTool(params.tool, args, callSignal, tracker, activeGroups);
+        activeRuns.add(run);
+        run.then(() => activeRuns.delete(run), () => activeRuns.delete(run));
+        const text = await run;
         return {
           content: [{ type: "text", text }],
           details: { tool: params.tool, arguments: args },
@@ -202,6 +182,7 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: `nixos lookup failed: ${message}` }],
           details: { tool: params.tool, error: message },
+          isError: true,
         };
       }
     },

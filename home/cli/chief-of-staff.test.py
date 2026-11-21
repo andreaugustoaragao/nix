@@ -109,6 +109,17 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
         self.assertIn("$chief-of-staff", metadata)
         self.assertIn("allow_implicit_invocation: false", metadata)
 
+    def test_read_only_review_report_delivery_stays_with_coordinator(self):
+        role = (LEGACY / "reviewer.md").read_text()
+        self.assertIn("complete verdict as your final response", role)
+        self.assertIn("coordinator captures", role)
+        self.assertNotIn("hc send", role)
+        self.assertNotIn("scoped approval mechanism", role)
+        contract = (CANONICAL / "references/herdr-workflow.md").read_text()
+        self.assertIn("Read-only reviewers return the complete", contract)
+        self.assertIn("Do not assign them messaging commands", contract)
+        self.assertIn("After their completion event", contract)
+
     def test_discovery_handles_string_and_legacy_subagents(self):
         init_mod = load_script("init.py")
         for children in (
@@ -210,7 +221,7 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
                 self.assertEqual(list(Path(temporary).rglob("registration.json")), [])
                 writes.assert_not_called()
 
-    def run_headless_spawn(self, directory, *, tab=None, name=None, labels=True, full=False, desktop_error=None, pending=False, unnamed=False):
+    def run_headless_spawn(self, directory, *, tab=None, name=None, labels=True, full=False, desktop_error=None, pending=False, unnamed=False, harness="shell", command=None):
         module = load_script("spawn.py")
         portfolio = directory / "portfolio"
         portfolio.mkdir()
@@ -243,12 +254,12 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
             raise AssertionError(command)
         argv = ["chief-of-staff-spawn", "--portfolio", str(portfolio), "--task-id", "T001",
                 "--goal", "Verify native child", "--role", "check", "--name", "t001-check",
-                "--cwd", "/project", "--harness", "shell"]
+                "--cwd", "/project", "--harness", harness]
         if tab:
             argv.extend(["--tab-id", tab])
         if name:
             argv.extend(["--tab-name", name])
-        argv.extend(["--", "printf", "supplied argument"])
+        argv.extend(["--", *(command or ["printf", "supplied argument"])])
         output = io.StringIO()
         with patch.dict(os.environ, {"HC_TERMINAL_ID": "t17", "HC_TERMINAL_SOCKET": "/tmp/core.sock"}), \
              patch.object(sys, "argv", argv), patch.object(module, "run_json", side_effect=query), \
@@ -256,6 +267,17 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
             result = module.main()
         writes.assert_not_called()
         return result, json.loads(output.getvalue()), calls, portfolio
+
+    def test_full_and_minimal_pi_commands_share_engine_identity(self):
+        for command in ("pi", "pi-task", "/nix/store/fixture/bin/pi-task"):
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as temporary:
+                result, response, calls, portfolio = self.run_headless_spawn(
+                    Path(temporary), harness="auto", command=[command, "--offline"])
+                self.assertEqual(result, 0)
+                self.assertEqual(response["harness"], "pi")
+                self.assertEqual(next(call for call in calls if call[:2] == ["hc", "run"])[-3:],
+                                 ["--", command, "--offline"])
+                self.assertIn("pi", (portfolio / "tasks/T001.md").read_text())
 
     def test_headless_spawn_reuses_validated_native_worker_tab(self):
         for selector in ({"tab": "tb-worker"}, {"name": "Worker"}, {}):

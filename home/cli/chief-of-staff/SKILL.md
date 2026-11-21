@@ -168,8 +168,11 @@ request into permission to commit unrelated work or force-push.
    a review later requests corrections.
    Priority changes reorder undispatched work; do not interrupt running edits
    just because an urgent task arrives. Explain capacity/dependency constraints.
-7. Workers run their relevant checks and send concise Herdr handoffs with artifact
-   pointers. Use deterministic commands for acceptance and records; respect
+7. Workers run their relevant checks. Workers with write access send concise Herdr
+   handoffs with artifact pointers. Read-only reviewers return their report as a
+   final response; after the completion event, the coordinator captures it and
+   owns artifact and Work writes. Do not ask read-only reviewers to send messages,
+   write reports or request delivery approval. Use deterministic commands for acceptance and records; respect
    layout capacity and shared-resource serialization. Read actual evidence when
    needed. Do not poll workers or wake a model for routine progress; a wait timeout
    is not a progress event. Inspect routine status/text/JSONL only when the user

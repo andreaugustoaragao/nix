@@ -165,12 +165,18 @@ turn ending and clears when the next prompt is accepted. Other harnesses may
 report lifecycle differently; when inspection is warranted, use `hc get` and
 their screen instead of assuming the Cursor marker exists.
 
-Workers send actionable completion, error, blocker, question and decision handoffs
-through `hc send <coordinator>` with concise artifact pointers; keep Herdr parent
-notes enabled. Local artifacts are evidence storage, not an alternative message
-transport. Do not periodically poll, scan transcripts, request progress or repeat
-model turns because `hc wait` timed out. Routine agent status, text/JSONL inspection
-and progress updates are only on user request; visible worker tabs remain passive.
+Workers with write access send actionable completion, error, blocker, question
+and decision handoffs through `hc send <coordinator>` with concise artifact
+pointers; keep Herdr parent notes enabled. Read-only reviewers return the complete
+report in their final response. Do not assign them messaging commands, report-file
+writes or delivery approval requests: Herdr messaging can require a writable core
+lock even when the review itself needs no writes. After their completion event,
+the coordinator captures that final response from the terminal or a bounded native
+record and writes any report artifact or Work event. This capture is the handoff;
+do not retry messaging, broaden the sandbox or repeat a completed review to obtain
+it. Do not periodically poll, scan transcripts, request progress or repeat model
+turns because `hc wait` timed out. Routine agent status, text/JSONL inspection and
+progress updates are only on user request; visible worker tabs remain passive.
 
 For a requested update, verify current terminal/session and source identity; use
 focused `hc get`/`hc read` and bounded native records or log extraction. A working

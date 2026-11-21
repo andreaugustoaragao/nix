@@ -27,7 +27,7 @@ class PiTaskTests(unittest.TestCase):
 
     def run_pi(self, *arguments, model="llama-cpp/test-local", exit_code=0):
         source = Path(__file__).with_name("pi-task.sh").read_text()
-        wrapper = self.root / "pi"
+        wrapper = self.root / "pi-task"
         bash = shutil.which("bash")
         self.assertIsNotNone(bash)
         wrapper.write_text(f"#!{bash}\nset -euo pipefail\n" + source.replace(
@@ -39,7 +39,7 @@ class PiTaskTests(unittest.TestCase):
             env={**os.environ, "PI_TEST_EXIT": str(exit_code)}, check=False,
         )
 
-    def test_plain_pi_is_local_and_has_no_automatic_resources_or_tools(self):
+    def test_plain_pi_task_is_local_and_has_no_automatic_resources_or_tools(self):
         result = self.run_pi()
         self.assertEqual(result.returncode, 0, result.stderr)
         args = json.loads(result.stdout)

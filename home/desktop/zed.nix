@@ -33,8 +33,7 @@ let
 in
 {
   programs.zed-editor = {
-    # Temporarily bypass the VM's Zed build during rollout.
-    enable = hostName != "prl-dev-vm";
+    enable = true;
     package = zedWrapped;
 
     # Nix owns settings.json — Zed cannot modify it at runtime.

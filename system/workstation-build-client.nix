@@ -12,6 +12,14 @@ let
   ready = builtins.pathExists hostKey && builtins.pathExists cacheKey;
   signing = pkgs.callPackage ../pkgs/workstation-build-client-identity.nix { };
   clientKey = ../secrets/workers/clients + "/cache-${hostName}.pub";
+  builder = {
+    hostName = "workstation-worker-builder";
+    protocol = "ssh-ng";
+    sshUser = "nix-ssh";
+    sshKey = "/home/${owner.name}/.ssh/id_ed25519_nix_workstation_worker";
+    maxJobs = 2;
+    speedFactor = 4;
+  };
 in
 {
   config = lib.mkIf ready {
@@ -51,19 +59,23 @@ in
     };
     nix.distributedBuilds = true;
     nix.buildMachines = [
-      {
-        hostName = "workstation-worker-builder";
-        protocol = "ssh-ng";
-        sshUser = "nix-ssh";
-        sshKey = "/home/${owner.name}/.ssh/id_ed25519_nix_workstation_worker";
-        systems = [
-          "x86_64-linux"
-          "aarch64-linux"
-        ];
-        supportedFeatures = [ "big-parallel" ];
-        maxJobs = 2;
-        speedFactor = 4;
-      }
+      (
+        builder
+        // {
+          systems = [ "x86_64-linux" ];
+          supportedFeatures = [
+            "big-parallel"
+            "kvm"
+          ];
+        }
+      )
+      (
+        builder
+        // {
+          systems = [ "aarch64-linux" ];
+          supportedFeatures = [ "big-parallel" ];
+        }
+      )
     ];
     nix.settings = {
       secret-key-files = [ signing.secretKey ];

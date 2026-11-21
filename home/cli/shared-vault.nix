@@ -67,6 +67,12 @@ let
       args = [ ];
       timeout = 120;
     };
+    omp = {
+      type = "stdio";
+      inherit command;
+      args = [ ];
+      timeout = 120000;
+    };
     opencode = {
       type = "local";
       command = [ command ];
@@ -105,6 +111,11 @@ let
           kind = "pi";
           target = "${config.home.homeDirectory}/.pi/agent/mcp.json";
           desired = entryFor "pi";
+        }
+        {
+          kind = "omp";
+          target = "${config.home.homeDirectory}/.omp/agent/mcp.json";
+          desired = entryFor "omp";
         }
         {
           kind = "opencode";
@@ -161,6 +172,7 @@ in
           "cursor"
           "pi"
           "opencode"
+          "omp"
         ]
       );
       default = [
@@ -168,6 +180,7 @@ in
         "cursor"
         "pi"
         "opencode"
+        "omp"
       ];
       description = "Native registrations to install; removed clients are retired using their ownership journal.";
     };
@@ -253,6 +266,7 @@ in
         [
           "codexConfig"
           "linkGeneration"
+          "ompConfig"
         ]
         ''
           if ${if cfg.enable then "true" else "false"} || [ -e ${lib.escapeShellArg stateDirectory} ]; then

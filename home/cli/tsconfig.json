@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": "../../node_modules",
+    "paths": {
+      "typebox/value": [
+        "typebox/build/value/index.d.mts"
+      ]
+    }
+  },
+  "files": [
+    "lsp-extension.ts",
+    "ast-edit-extension.ts",
+    "ast-grep-extension.ts",
+    "pi-extensions/code-hash.ts",
+    "pi-extensions/mcp-nixos.ts",
+    "pi-extensions/lib/lifecycle.ts",
+    "pi-extensions-lifecycle.test.ts"
+  ]
+}

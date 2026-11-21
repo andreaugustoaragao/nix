@@ -9,7 +9,7 @@ let
   localModels = config.services.piModels.providers.llama-cpp.models or [ ];
   localModel = if localModels == [ ] then "" else "llama-cpp/${(builtins.head localModels).id}";
   piTask = pkgs.writeShellApplication {
-    name = "pi";
+    name = "pi-task";
     text =
       builtins.replaceStrings
         [ "@pi@" "@local-model@" ]
@@ -21,6 +21,7 @@ in
   home.packages = [
     agents.codex
     agents.pi
+    piTask
     agents.cursor-agent
   ];
   home.file =
@@ -30,6 +31,7 @@ in
         force = true;
       })
       {
-        ".local/bin/pi" = lib.getExe piTask;
+        ".local/bin/pi" = "${agents.pi}/bin/pi";
+        ".local/bin/pi-task" = lib.getExe piTask;
       };
 }

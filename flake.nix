@@ -389,6 +389,7 @@
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
           opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
+          omp = pkgs.callPackage ./pkgs/omp.nix { };
           herdr = pkgs.callPackage ./pkgs/herdr.nix { };
           herdr-core = pkgs.callPackage ./pkgs/herdr-core.nix { };
           uml-viewer = umlViewer;
@@ -447,6 +448,14 @@
           pkgs = applicationPkgs.${system};
         in
         {
+          pi-extensions = pkgs.mkShell {
+            packages = [
+              pkgs.nodejs_26
+              pkgs.typescript
+              pkgs.python3
+            ];
+            PI_EXTENSION_NODE_MODULES = "${(pkgs.callPackage ./pkgs/agent-binaries { }).pi}/lib/node_modules";
+          };
           rust-worker = pkgs.mkShell {
             packages = [
               (pkgs.callPackage ./pkgs/rust-toolchain.nix { })
@@ -804,6 +813,16 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          agents = pkgs.callPackage ./pkgs/agent-binaries { };
+          extensionHome =
+            if system == "x86_64-linux" then
+              self.nixosConfigurations.workstation-worker.config.home-manager.users.aragao
+            else if system == "aarch64-linux" then
+              self.nixosConfigurations.prl-dev-vm.config.home-manager.users.aragao
+            else
+              self.darwinConfigurations.mac-work.config.home-manager.users.aragao;
+          piManagedExtensions = extensionHome.my.agentHarness.piManagedExtensions;
+          browserTask = self.packages.${system}.browser-task;
         in
         {
           niri-session =
@@ -830,6 +849,83 @@
               }
               ''
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/pi-task.test.py
+                touch "$out"
+              '';
+          pi-models-activation = pkgs.runCommand "check-pi-models-activation" { } ''
+            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/pi-models-activation.test.py
+            touch "$out"
+          '';
+          pi-lifecycle-sampler = pkgs.runCommand "check-pi-lifecycle-sampler" { } ''
+            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/pi-lifecycle-sampler.test.py
+            touch "$out"
+          '';
+          pi-extensions =
+            pkgs.runCommand "check-pi-extensions"
+              {
+                nativeBuildInputs = [
+                  pkgs.nodejs_26
+                  pkgs.typescript
+                  pkgs.python3
+                ];
+                PI_EXTENSION_NODE_MODULES = "${agents.pi}/lib/node_modules";
+                PI_MANAGED_EXTENSIONS = piManagedExtensions;
+              }
+              ''
+                tsc -p ${self.outPath}/home/cli/tsconfig.json --noEmit \
+                  --baseUrl "$PI_EXTENSION_NODE_MODULES" --typeRoots "$PI_EXTENSION_NODE_MODULES/@types"
+                python3 - ${self.outPath}/home/cli/tsconfig.json "$PI_MANAGED_EXTENSIONS" "$PI_EXTENSION_NODE_MODULES" <<'PYTHON'
+                import json, pathlib, sys
+                config = json.loads(pathlib.Path(sys.argv[1]).read_text())
+                config["files"] = [str(path) for path in pathlib.Path(sys.argv[2]).glob("*.ts")]
+                config["compilerOptions"]["baseUrl"] = sys.argv[3]
+                config["compilerOptions"]["typeRoots"] = [sys.argv[3] + "/@types"]
+                pathlib.Path("tsconfig.rendered.json").write_text(json.dumps(config))
+                PYTHON
+                tsc -p tsconfig.rendered.json --noEmit
+                ${pkgs.lib.getExe browserTask} schema > browser-schema.json
+                node --input-type=module - "$PI_EXTENSION_NODE_MODULES" "$PI_MANAGED_EXTENSIONS" <<'JS'
+                import assert from "node:assert/strict";
+                import cp from "node:child_process";
+                import { createRequire, syncBuiltinESMExports } from "node:module";
+                import { mkdir, symlink, realpath, readFile } from "node:fs/promises";
+                import { join } from "node:path";
+                import { pathToFileURL } from "node:url";
+                const [modules, bundle] = process.argv.slice(2);
+                let spawns = 0;
+                const original = cp.spawn;
+                cp.spawn = () => { spawns++; throw new Error("Factory load must not spawn children"); };
+                syncBuiltinESMExports();
+                try {
+                  const { loadExtensions } = await import(pathToFileURL(join(modules, "@earendil-works/pi-coding-agent/dist/core/extensions/loader.js")));
+                  const names = ["lsp", "browser-mcp", "mcp-nixos"];
+                  await mkdir("ext-links");
+                  const paths = [];
+                  for (const name of names) {
+                    const path = join(process.cwd(), "ext-links", name + ".ts");
+                    await symlink(join(bundle, name + ".ts"), path); paths.push(path);
+                    assert.equal(await realpath(path), join(bundle, name + ".ts"));
+                  }
+                  const result = await loadExtensions(paths, process.cwd());
+                  assert.deepEqual(result.errors, []);
+                  const tools = result.extensions.flatMap(extension => [...extension.tools.keys()]).sort();
+                  assert.deepEqual(tools, ["dev_browser", "lsp", "nixos"]);
+                  assert.equal(spawns, 0);
+                  const require = createRequire(join(modules, "package.json"));
+                  const jiti = require("jiti").createJiti(join(modules, "@earendil-works/pi-coding-agent/dist/core/extensions/loader.js"), {
+                    moduleCache: false,
+                    alias: { "@earendil-works/pi-coding-agent": join(modules, "@earendil-works/pi-coding-agent/dist/index.js"),
+                      "@earendil-works/pi-ai": join(modules, "@earendil-works/pi-ai/dist/index.js"),
+                      "typebox/value": join(modules, "typebox/build/value/index.mjs"),
+                      "typebox/compile": join(modules, "typebox/build/compile/index.mjs"),
+                      "typebox": join(modules, "typebox/build/index.mjs") },
+                  });
+                  const browser = await jiti.import(join(bundle, "browser-mcp.ts"));
+                  assert.equal(browser.DEV_BROWSER_SCHEMA, (await readFile("browser-schema.json", "utf8")).trim());
+                  console.log(JSON.stringify({ check: "A3b", bundle, registered: ["dev_browser", "lsp", "nixos"], spawns }));
+                } finally { cp.spawn = original; syncBuiltinESMExports(); }
+                JS
+                node --experimental-strip-types --test ${self.outPath}/home/cli/pi-extensions-lifecycle.test.ts
+                node --experimental-strip-types --test ${self.outPath}/home/cli/pi-extensions/browser-companion/companion.test.ts
                 touch "$out"
               '';
           agent-host-context = pkgs.runCommand "check-agent-host-context" { } ''
@@ -936,6 +1032,13 @@
               { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.tomlkit ])) ]; }
               ''
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/codex-configure.test.py
+                touch "$out"
+              '';
+          omp-configure =
+            pkgs.runCommand "check-omp-configure"
+              { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.pyyaml ])) ]; }
+              ''
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/omp-configure.test.py
                 touch "$out"
               '';
           shared-vault-configure =

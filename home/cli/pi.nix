@@ -3,6 +3,8 @@
   lib,
   pkgs,
   personalOnly,
+  osConfig ? { },
+  isServer ? false,
   appearance,
   ...
 }:
@@ -13,9 +15,17 @@ let
   # ast-grep, ast-edit. Vendored from oh-my-pi (MIT, Can Boluk) under
   # home/cli/pi-rs/ and evolved independently. Builds natively on
   # x86_64-linux, aarch64-linux, and aarch64-darwin.
+  agents = pkgs.callPackage ../../pkgs/agent-binaries { };
   piRs = pkgs.callPackage ../../home/cli/pi-rs { };
   browserTask = pkgs.callPackage ../../pkgs/browser-task.nix { };
   piVim = pkgs.callPackage ../../pkgs/pi-vim.nix { };
+  mcpNixosCaBundle = osConfig.security.pki.caBundle or "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+  mcpNixos = pkgs.writeShellScriptBin "mcp-nixos" ''
+    if [ "''${NIX_SSL_CERT_FILE+x}" != x ]; then
+      export NIX_SSL_CERT_FILE=${lib.escapeShellArg (toString mcpNixosCaBundle)}
+    fi
+    exec ${lib.getExe pkgs.mcp-nixos} "$@"
+  '';
 
   # Pi 1.5's strict theme schema; the setting selects light/dark in that order.
   gruvboxTheme =
@@ -137,7 +147,7 @@ let
     const DEFAULT_TIMEOUT_MS = 30000;
 
     const apiKey = process.env.CONTEXT7_API_KEY ?? "";
-    const authHeader = apiKey ? { "Authorization": "Bearer " + apiKey } : {};
+    const authHeader: Record<string, string> = apiKey ? { "Authorization": "Bearer " + apiKey } : {};
 
     interface SearchResult {
       id: string;
@@ -493,13 +503,15 @@ let
     )
   );
 
-  webBrowserMcpExtension = pkgs.writeText "browser-mcp.ts" ''
+  browserMcpTemplate = pkgs.writeText "browser-mcp-template.ts" ''
     import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
     import { Type } from "typebox";
-    import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+    import { type ChildProcessWithoutNullStreams } from "node:child_process";
+    import { SessionCleanupTracker, spawnManagedGroup, raceSignal, combinedSignal, throwIfAborted } from "./lib/lifecycle.ts";
     import { Buffer } from "node:buffer";
     import { StringDecoder } from "node:string_decoder";
 
+    export const DEV_BROWSER_SCHEMA = __DEV_BROWSER_SCHEMA__;
     const BROWSER_TASK = "${lib.getExe browserTask}";
     const MAX_FRAME = 512000;
     const MAX_RESULT = 100000;
@@ -517,7 +529,9 @@ let
     }
 
 
-    class BrowserMcp {
+    export class BrowserMcp {
+      private group: ReturnType<typeof spawnManagedGroup>;
+      private sessionSignal: AbortSignal;
       private child: ChildProcessWithoutNullStreams;
       private pending = new Map<number, Pending>();
       private nextId = 3;
@@ -529,8 +543,11 @@ let
 
       get stopped(): boolean { return this.closed; }
 
-      constructor() {
-        this.child = spawn(BROWSER_TASK, ["mcp"], { stdio: ["pipe", "pipe", "pipe"] });
+      constructor(sessionSignal: AbortSignal) {
+        throwIfAborted(sessionSignal);
+        this.sessionSignal = sessionSignal;
+        this.group = spawnManagedGroup("browser-mcp", "browser-task", BROWSER_TASK, ["mcp"]);
+        this.child = this.group.child;
         this.child.stdout.on("data", (data: Buffer) => this.onData(data));
         this.child.stdin.on("error", (error: Error) => this.fail(error));
         this.child.stderr.on("data", (data: Buffer) => {
@@ -543,10 +560,10 @@ let
         this.ready = this.request("initialize", {
           protocolVersion: "2024-11-05", capabilities: {},
           clientInfo: { name: "pi-browser-task", version: "1" },
-        }, 1, 10000).then(async (init) => {
+        }, 1, 10000, sessionSignal).then(async (init) => {
           if (init.error || !isRecord(init.result)) throw new Error("browser-task initialize failed");
           this.send({ jsonrpc: "2.0", method: "notifications/initialized" });
-          const reply = await this.request("tools/list", {}, 2, 10000);
+          const reply = await this.request("tools/list", {}, 2, 10000, sessionSignal);
           if (reply.error) throw new Error("browser-task tools/list failed");
           const result = isRecord(reply.result) ? reply.result : {};
           const tools = Array.isArray(result.tools) ? result.tools : [];
@@ -567,7 +584,7 @@ let
         this.buffer += this.decoder.write(data);
         if (this.buffer.length > MAX_FRAME) {
           this.fail(new Error("browser-task mcp response exceeded limit"));
-          this.child.kill("SIGTERM");
+          void this.shutdown();
           return;
         }
         let end: number;
@@ -577,7 +594,7 @@ let
           if (!line.trim()) continue;
           let value: unknown;
           try { value = JSON.parse(line); }
-          catch { this.fail(new Error("invalid browser-task mcp response")); this.child.kill("SIGTERM"); return; }
+          catch { this.fail(new Error("invalid browser-task mcp response")); void this.shutdown(); return; }
           if (!isRpcReply(value)) continue;
           const pending = this.pending.get(value.id);
           if (!pending) continue;
@@ -628,9 +645,11 @@ let
       }
 
       async action(args: Record<string, unknown>, timeout: number, signal?: AbortSignal): Promise<string> {
-        await this.ready;
+        const callSignal = combinedSignal(this.sessionSignal, signal);
+        await raceSignal(this.ready, callSignal);
+        throwIfAborted(callSignal);
         const id = this.nextId++;
-        const reply = await this.request("tools/call", { name: "dev_browser", arguments: args }, id, (timeout + 5) * 1000, signal);
+        const reply = await this.request("tools/call", { name: "dev_browser", arguments: args }, id, (timeout + 5) * 1000, callSignal);
         if (reply.error) throw new Error(isRecord(reply.error) && typeof reply.error.message === "string" ? reply.error.message : "browser-task mcp error");
         const result = isRecord(reply.result) ? reply.result : {};
         const content = Array.isArray(result.content) ? result.content : [];
@@ -643,24 +662,42 @@ let
         return text.slice(0, MAX_RESULT) + (text.length > MAX_RESULT ? "\n[output truncated]" : "");
       }
 
-      shutdown(): void {
-        if (this.closed) return;
-        for (const id of this.pending.keys()) {
-          this.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: id, reason: "Pi session ended" } });
-        }
+      shutdown() {
         this.fail(new Error("Pi session ended"));
-        this.child.stdin.end();
-        const timer = setTimeout(() => this.child.kill("SIGKILL"), 2000);
-        timer.unref();
+        return this.group.shutdown();
       }
+
     }
 
-    export default async function (pi: ExtensionAPI) {
-      let client: BrowserMcp | undefined = new BrowserMcp();
-      pi.on("session_shutdown", () => { client?.shutdown(); client = undefined; });
-      let schema: Record<string, unknown>;
-      try { schema = await client.ready; }
-      catch (error) { client.shutdown(); throw error; }
+    export default function (pi: ExtensionAPI) {
+      let client: BrowserMcp | undefined;
+      let sessionCtl = new AbortController();
+      let tracker = new SessionCleanupTracker("browser-mcp");
+      const activeRuns = new Set<Promise<unknown>>();
+      let sessionId = "unstarted";
+      pi.on("session_start", (_event, ctx) => {
+        sessionCtl = new AbortController(); tracker = new SessionCleanupTracker("browser-mcp");
+        sessionId = ctx.sessionManager.getSessionId();
+      });
+      pi.on("session_shutdown", async event => {
+        sessionCtl.abort(); const c = client; client = undefined;
+        await tracker.runSessionShutdown({ reason: event.reason, sessionId,
+          activeCleanups: c ? [c.shutdown()] : [], drainPromises: [...activeRuns] });
+      });
+      const getClient = () => {
+        throwIfAborted(sessionCtl.signal);
+        if (client?.stopped) { tracker.trackRetiring(client.shutdown()); client = undefined; }
+        if (!client) {
+          const c = new BrowserMcp(sessionCtl.signal); client = c;
+          c.ready.catch(() => {
+            if (client === c) client = undefined;
+            tracker.trackRetiring(c.shutdown());
+          });
+        }
+        return client;
+      };
+      const schema: unknown = JSON.parse(DEV_BROWSER_SCHEMA);
+      if (!isRecord(schema)) throw new Error("Invalid browser-task schema");
       pi.registerTool({
         name: "dev_browser",
         label: "Browser task",
@@ -669,276 +706,368 @@ let
         async execute(_toolCallId, params, signal): Promise<AgentToolResult<Details>> {
           const page = params.page ?? "main";
           try {
-            if (!client || client.stopped) client = new BrowserMcp();
-            const result = await client.action({
-              task: params.task, action: params.action,
-              page, timeout: params.timeout ?? 30,
-            }, params.timeout ?? 30, signal);
+            const callSignal = combinedSignal(sessionCtl.signal, signal);
+            throwIfAborted(callSignal);
+            const run = getClient().action({
+              task: params.task, action: params.action, page, timeout: params.timeout ?? 30,
+            }, params.timeout ?? 30, callSignal);
+            activeRuns.add(run);
+            run.then(() => activeRuns.delete(run), () => activeRuns.delete(run));
+            const result = await run;
             return { content: [{ type: "text", text: result }], details: { task: params.task, page } };
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            return { content: [{ type: "text", text: "browser action failed: " + message }], details: { task: params.task, page, error: message } };
+            return { content: [{ type: "text", text: "browser action failed: " + message }], details: { task: params.task, page, error: message }, isError: true };
           }
         },
       });
     }
   '';
+  piManagedTsconfig = pkgs.writeText "pi-managed-tsconfig.json" (
+    builtins.toJSON (
+      lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./tsconfig.json)) {
+        files = [
+          "lsp.ts"
+          "browser-mcp.ts"
+          "mcp-nixos.ts"
+          "context7.ts"
+          "ast-grep.ts"
+          "ast-edit.ts"
+          "pi-rs-rewrite.ts"
+          "lib/lifecycle.ts"
+        ];
+        compilerOptions = {
+          baseUrl = "${agents.pi}/lib/node_modules";
+          typeRoots = [ "${agents.pi}/lib/node_modules/@types" ];
+        };
+      }
+    )
+  );
+  piManagedExtensions =
+    pkgs.runCommand "pi-managed-extensions"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        mkdir -p "$out/lib"
+        cp ${piManagedTsconfig} "$out/tsconfig.json"
+        cp ${./pi-extensions/lib/lifecycle.ts} "$out/lib/lifecycle.ts"
+        cp ${./pi-extensions/mcp-nixos.ts} "$out/mcp-nixos.ts"
+        cp ${context7Extension} "$out/context7.ts"
+        cp ${astGrepExtension} "$out/ast-grep.ts"
+        cp ${astEditExtension} "$out/ast-edit.ts"
+        cp ${piRsRewriteExtension} "$out/pi-rs-rewrite.ts"
+        cp ${lspExtension} "$out/lsp.ts"
+        substituteInPlace "$out/lsp.ts" --replace-fail '"./pi-extensions/lib/lifecycle.ts"' '"./lib/lifecycle.ts"'
+        ${lib.getExe browserTask} schema > schema.json
+        python3 - ${browserMcpTemplate} schema.json "$out/browser-mcp.ts" <<'PYTHON'
+        import json, pathlib, sys
+        template = pathlib.Path(sys.argv[1]).read_text()
+        schema = pathlib.Path(sys.argv[2]).read_text().strip()
+        assert template.count("__DEV_BROWSER_SCHEMA__") == 1
+        pathlib.Path(sys.argv[3]).write_text(template.replace("__DEV_BROWSER_SCHEMA__", json.dumps(schema)))
+        PYTHON
+      '';
 in
 {
-  # Pi auto-discovers single-file extensions in this directory.
-  # See: ~/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md
-  # (Customization → Extensions).
-  # Install pi-rs into the user environment so the TS extensions can
-  # spawn `pi-rs <subcommand>` without baking a per-host store path. Same
-  # binary, three triples (x86_64-linux, aarch64-linux, aarch64-darwin).
-  # piRs backs the code-* extensions; mcp-nixos is spawned per call by
-  # the `nixos` bridge extension (and is the same binary Claude Code
-  # registers over stdio via `claude mcp add`).
-  home.packages = [
-    piRs
-    browserTask
-    pkgs.mcp-nixos
-  ];
-
-  home.file.".pi/agent/themes/gruvbox-dark.json" = lib.mkIf appearance.isGruvbox {
-    text = builtins.toJSON (gruvboxTheme "dark");
+  options.my.agentHarness.piManagedExtensions = lib.mkOption {
+    type = lib.types.package;
+    readOnly = true;
+    description = "Co-located immutable Pi extensions and lifecycle helper.";
   };
-  home.file.".pi/agent/themes/gruvbox-light.json" = lib.mkIf appearance.isGruvbox {
-    text = builtins.toJSON (gruvboxTheme "light");
+  config = {
+    my.agentHarness.piManagedExtensions = piManagedExtensions;
+
+    # Pi auto-discovers single-file extensions in this directory.
+    # See: ~/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/README.md
+    # (Customization → Extensions).
+    # Install pi-rs into the user environment so the TS extensions can
+    # spawn `pi-rs <subcommand>` without baking a per-host store path. Same
+    # binary, three triples (x86_64-linux, aarch64-linux, aarch64-darwin).
+    # piRs backs the code-* extensions; mcp-nixos is spawned per call by
+    # the `nixos` bridge extension (and is the same binary Claude Code
+    # registers over stdio via `claude mcp add`).
+    home.packages = [
+      piRs
+      browserTask
+      (lib.hiPrio mcpNixos)
+    ];
+
+    home.file.".pi/agent/themes/gruvbox-dark.json" = lib.mkIf appearance.isGruvbox {
+      text = builtins.toJSON (gruvboxTheme "dark");
+    };
+    home.file.".pi/agent/themes/gruvbox-light.json" = lib.mkIf appearance.isGruvbox {
+      text = builtins.toJSON (gruvboxTheme "light");
+    };
+
+    # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
+    # with a vim-modal editor. Load the same immutable package on every host.
+    # Pi already runs tools without approvals; trust
+    # project resources by default as requested for unattended workers.
+    home.activation.piVimMode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      target="${config.home.homeDirectory}/.pi/agent/settings.json"
+      mkdir -p "$(dirname "$target")"
+      pkg="${piVim}/share/pi-vim"
+      if [[ -f "$target" ]]; then
+        existing="$(cat "$target")"
+      else
+        existing='{}'
+      fi
+      printf '%s' "$existing" \
+        | ${pkgs.jq}/bin/jq --arg pkg "$pkg" '
+            def managed_vim:
+              (if type == "string" then . else (.source // "") end) as $source
+              | ($source == "npm:@burneikis/pi-vim"
+                 or ($source | startswith("npm:@burneikis/pi-vim@"))
+                 or ($source | test("^/nix/store/[a-z0-9]{32}-pi-vim-[^/]+/share/pi-vim$")));
+            .packages = ([ (.packages // [])[] | select(managed_vim | not) ] + [$pkg] | unique)
+            | .defaultProjectTrust = "always"
+            ${lib.optionalString appearance.isGruvbox ''| .theme = "gruvbox-light/gruvbox-dark"''}
+          ' \
+        > "$target.tmp"
+      mv "$target.tmp" "$target"
+      chmod 0600 "$target"
+    '';
+
+    home.file.".pi/agent/extensions/context7.ts".source = "${piManagedExtensions}/context7.ts";
+    home.file.".pi/agent/extensions/lsp.ts".source = "${piManagedExtensions}/lsp.ts";
+    home.file.".pi/agent/extensions/ast-grep.ts".source = "${piManagedExtensions}/ast-grep.ts";
+    home.file.".pi/agent/extensions/ast-edit.ts".source = "${piManagedExtensions}/ast-edit.ts";
+    home.file.".pi/agent/extensions/browser-mcp.ts".source = "${piManagedExtensions}/browser-mcp.ts";
+    home.file.".pi/agent/extensions/lib/lifecycle.ts".source =
+      "${piManagedExtensions}/lib/lifecycle.ts";
+    home.file.".pi/agent/node_modules".source = "${agents.pi}/lib/node_modules";
+    home.file.".pi/agent/extensions/tsconfig.json".text = builtins.toJSON (
+      lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ./tsconfig.json)) {
+        files = [
+          "lsp.ts"
+          "browser-mcp.ts"
+          "mcp-nixos.ts"
+          "context7.ts"
+          "ast-grep.ts"
+          "ast-edit.ts"
+          "pi-rs-rewrite.ts"
+          "lib/lifecycle.ts"
+        ];
+        compilerOptions = {
+          baseUrl = "${agents.pi}/lib/node_modules";
+          typeRoots = [ "${agents.pi}/lib/node_modules/@types" ];
+        };
+      }
+    );
+    # User-facing task lifecycle UI; uses the managed browser-task CLI above.
+    home.file.".pi/agent/extensions/browser-companion".source = ./pi-extensions/browser-companion;
+    home.file.".pi/agent/extensions/pi-rs-rewrite.ts".source =
+      "${piManagedExtensions}/pi-rs-rewrite.ts";
+
+    # pi-rs-backed primitives. These are thin TS shells that spawn the
+    # `pi-rs <subcommand>` binary installed via `home.packages` above.
+    home.file.".pi/agent/extensions/code-search.ts".source = ./pi-extensions/code-search.ts;
+    home.file.".pi/agent/extensions/code-summary.ts".source = ./pi-extensions/code-summary.ts;
+    home.file.".pi/agent/extensions/code-hash.ts".source = ./pi-extensions/code-hash.ts;
+
+    # One-shot NixOS bridge supplements Pi native MCP. This tool spawns
+    # the mcp-nixos server (home.packages) over stdio per call. Claude Code
+    # talks to the same binary directly; this exists only because pi can't.
+    home.file.".pi/agent/extensions/mcp-nixos.ts".source = "${piManagedExtensions}/mcp-nixos.ts";
+
+    # Directory-style `web_fetch` and `web_search` extensions, both forked
+    # from oh-my-pi. They register the canonical tool names; the older
+    # single-file ddgr+trafilatura versions were retired in favor of these.
+    home.file.".pi/agent/extensions/web-fetch".source = webFetchOmpExtension;
+    home.file.".pi/agent/extensions/web-search".source = webSearchOmpExtension;
+
+    # Master cycle list for Ctrl+P / Shift+Ctrl+P. Seeded into
+    # ~/.pi/agent/settings.json -> enabledModels by
+    # home/services/pi-models.nix on the first activation that finds
+    # the field unset. Activation maintains the full WebAI wildcard; other
+    # provider scopes remain editable through pi's /scoped-models UI.
+    #
+    # Provider/id qualification is mandatory here: `claude-opus-4-7`
+    # exists both as a built-in Anthropic model AND as a route on the
+    # corporate LiteLLM gateway, so we have to be explicit about which
+    # path each cycle slot takes. Anthropic models go direct via
+    # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the LiteLLM
+    # wildcard includes the complete shared WebAI catalog. The local wildcard
+    # selects Qwen3.6 on the workstation and Bonsai 2 on VM hosts using mac-work.
+    services.piModels.enabledModels = [
+      "anthropic/claude-opus-4-7"
+    ]
+    ++ lib.optionals (!personalOnly && !isServer) [ "litellm/*" ]
+    ++ lib.optionals (config.services.piModels.providers ? llama-cpp) [ "llama-cpp/*-local" ];
+
+    services.piModels.defaultModel = lib.mkIf (!personalOnly && !isServer) "litellm/gpt-6.1-sol";
+
+    services.piModels.modelThinkingLevels = lib.mkIf (!personalOnly && !isServer) {
+      "litellm/gpt-6.1-sol" = "high";
+    };
+    assertions = [
+      {
+        assertion =
+          !(
+            personalOnly
+            && (config.services.piModels.providers ? llama-cpp)
+            && config.services.piModels.defaultModel == null
+          );
+        message = "A personal-only host with local LLM must explicitly select its Pi default model.";
+      }
+    ];
+
+    # Global pi context file. Loaded into every pi session's system prompt.
+    # See: pi-coding-agent/README.md (Context Files).
+    home.file.".pi/agent/AGENTS.md".text = ''
+      Never estimate time, hours, effort, or duration. If asked, refuse and
+      offer concrete scope instead (files touched, comparable prior work,
+      decision points, unknowns).
+    ''
+    + import ./browser-instructions.nix;
+
+    # Pi skill: exploratory testing with the managed development browser.
+    home.file.".pi/agent/skills/explore-frontend/SKILL.md".text = ''
+      ---
+      name: explore-frontend
+      description: |
+        Explore and stress-test a frontend in the managed development browser.
+        Trigger phrases include "explore the UI", "chaos test", "bug hunt the UI",
+        "smoke test the UI", and "post-deploy UX verification".
+      ---
+
+      # Explore frontend
+
+      Act as a curious, adversarial user. Exercise every reachable path and
+      record defects with reproducible steps and evidence. Ask for the target
+      URL if neither the request nor project context identifies it.
+
+      ## Start the task
+
+      Run `browser-task start development --label "Frontend exploration"`
+      and retain its UUID as `TASK`. Use `browser-task open TASK --page explore
+      --url URL` for a named page, or start with `--url URL` and use `main`.
+      Every `dev_browser` call takes that UUID, an `action`, the page name,
+      and optional `timeout` in seconds. If the managed browser is unavailable,
+      report its error. Do not attach to an everyday browser or install one.
+
+      ## Map the app
+
+      Call `dev_browser` with `{"task":"TASK","page":"explore","action":{"type":"snapshot"}}`.
+      Record the visible links, forms, buttons, navigation, and page regions
+      in a checklist. To visit another route, use a `navigate` action with its
+      full URL or click a unique link target from the snapshot. Take a fresh
+      snapshot after every navigation or state change. A new snapshot or
+      navigation invalidates older refs.
+
+      Use `evaluate` for synchronous page-local reads, such as
+      `{"type":"evaluate","expression":"({url:location.href,title:document.title})"}`.
+      The expression returns its value and has no host bindings or Promise
+      support. Page globals remain until navigation. The native tool has no persistent console
+      or network event listeners. Record that coverage limit in the report.
+
+      ## Stress each path
+
+      For each view, use one typed action at a time and inspect the result.
+      Use `click` or `fill` with a snapshot ref or a unique accessible role
+      and name. For example,
+      `{"type":"click","target":{"role":"button","name":"Save"}}`.
+      Use `key` for Enter, Tab, Escape, and browser shortcuts. Use `wait`
+      for a visible or hidden target when the UI changes asynchronously.
+      Use `viewport` to check narrow and wide layouts. A `screenshot` action
+      returns a private artifact path to cite in findings.
+
+      Test links, deep URLs, validation, empty and long inputs, double submits,
+      destructive confirmation, unexpected action order, navigation during a
+      flow, empty states, and keyboard access when the app permits them. Try
+      adversarial text such as long strings, markup, unicode, negative values,
+      and invalid dates. Never assume a mutation is safe in a real account.
+      Open another owned page with `browser-task open TASK --page explore-tab2
+      --url URL` to compare state across tabs. Do not select tabs through CDP.
+
+      After each interaction, call `snapshot`. Capture a screenshot for a
+      visible failure. Record the URL with a synchronous `evaluate` expression
+      when needed. If an action fails, inspect the current state before a retry.
+      Do not use `evaluate` to synthesize input or navigation. The native API
+      has no network request interception, so mark network disruption tests
+      as untested unless another authorized app-level method exists.
+
+      A finding needs a user-visible failure and evidence. Record crashes,
+      broken UI, missing validation, lost input, dead controls, bad navigation,
+      missing feedback, duplicate mutations, and keyboard traps. Do not report
+      styling preferences, missing features, or unsupported guesses as defects.
+
+      ## Report
+
+      Write findings to the project's existing bug location. If there is no
+      convention, write `EXPLORATION-FINDINGS.md` in the working directory.
+      For each finding include severity, URL, steps, expected and actual
+      results, screenshot path, and a suggested fix when clear. Use critical
+      for crashes, data loss, or security defects. Use high for a broken core
+      flow, medium for partial loss or confusing recovery, and low for minor
+      visual defects. Summarize paths and interactions tested. List untested
+      console, network, or interception checks explicitly.
+
+      Finish with `browser-task finish TASK` when the work is complete. Use
+      `keep` for login or user review and `show` only on user request. Run
+      `resume` before further automation of a kept or completed task.
+    '';
+
+    # Pi skill: typed actions on a task-owned browser page.
+    home.file.".pi/agent/skills/dev-browser/SKILL.md".text = ''
+      ---
+      name: dev-browser
+      description: |
+        Use the native dev_browser tool to test or inspect a frontend in a
+        managed browser, especially a local development server.
+      ---
+
+      # dev_browser
+
+      Start with `browser-task start development --label "Frontend test"
+      --url URL` and retain the returned UUID. Use `accounts` for signed-in
+      services. Send `dev_browser` one typed action at a time with `task`,
+      optional `page` (default `main`), and optional `timeout` (1 to 300
+      seconds, default 30). Use `browser-task open TASK --page NAME [--url URL]`
+      to create another owned page. The tool schema defines the full action
+      arguments; `browser-task schema` prints the tool request schema.
+
+      ## Common actions
+
+      - Inspect the page with `{"type":"snapshot"}`. It returns text and
+        opaque refs for live elements.
+      - Navigate with `{"type":"navigate","url":"http://localhost:3000"}`.
+      - Click with `{"type":"click","target":{"role":"button","name":"Login"}}`
+        or a `{"ref":"..."}` target copied from a fresh snapshot.
+      - Fill with `{"type":"fill","target":{"ref":"..."},"text":"alice@example.com"}`.
+      - Press a key with `{"type":"key","key":"Enter"}`.
+      - Wait with `{"type":"wait","target":{"role":"heading","name":"Welcome"},"state":"visible"}`.
+      - Read a value with `{"type":"evaluate","expression":"({url:location.href,title:document.title})"}`.
+      - Capture a private PNG artifact with `{"type":"screenshot","full_page":true}`.
+
+      A role and name must identify one live accessible element. `click` and
+      `fill` use trusted browser input and reject obscured or stale targets.
+      Take a new snapshot after navigation or page changes. A new snapshot
+      or navigation invalidates earlier refs. Inspect state before retrying a
+      failed action. A screenshot returns a path, MIME type, and byte count.
+
+      `evaluate` runs a synchronous expression in the owned page and returns
+      its value. It has no host bindings or host filesystem API and rejects
+      Promise results. Page globals remain until navigation. Use typed actions for navigation and input. There
+      are no persistent console or network event APIs or request interception.
+
+      ## Verify a login flow
+
+      Navigate to the login URL. Take a snapshot and locate the email and
+      password fields. Fill each field, then click the unique Submit button.
+      Wait for the Welcome heading and inspect a fresh snapshot. On failure,
+      capture a screenshot and report its returned path with the observed URL.
+      Do not paste real credentials into the action arguments; use the
+      managed accounts profile for user-assisted login.
+
+      ## Task lifecycle
+
+      `browser-task info TASK` shows ownership and state. `finish` starts
+      one-hour retention when browser work is complete. Use `keep` for login
+      or review, `show` only on user request, and `resume` before automation
+      of a kept or completed task. If the profile is unavailable, report its
+      error. Do not attach to another browser or install an unmanaged runtime.
+    '';
   };
-
-  # Pi has no built-in vim mode; @burneikis/pi-vim replaces the composer
-  # with a vim-modal editor. Load the same immutable package on every host.
-  # Pi already runs tools without approvals; trust
-  # project resources by default as requested for unattended workers.
-  home.activation.piVimMode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    target="${config.home.homeDirectory}/.pi/agent/settings.json"
-    mkdir -p "$(dirname "$target")"
-    pkg="${piVim}/share/pi-vim"
-    if [[ -f "$target" ]]; then
-      existing="$(cat "$target")"
-    else
-      existing='{}'
-    fi
-    printf '%s' "$existing" \
-      | ${pkgs.jq}/bin/jq --arg pkg "$pkg" '
-          def managed_vim:
-            (if type == "string" then . else (.source // "") end) as $source
-            | ($source == "npm:@burneikis/pi-vim"
-               or ($source | startswith("npm:@burneikis/pi-vim@"))
-               or ($source | test("^/nix/store/[a-z0-9]{32}-pi-vim-[^/]+/share/pi-vim$")));
-          .packages = ([ (.packages // [])[] | select(managed_vim | not) ] + [$pkg] | unique)
-          | .defaultProjectTrust = "always"
-          ${lib.optionalString appearance.isGruvbox ''| .theme = "gruvbox-light/gruvbox-dark"''}
-        ' \
-      > "$target.tmp"
-    mv "$target.tmp" "$target"
-    chmod 0600 "$target"
-  '';
-
-  home.file.".pi/agent/extensions/context7.ts".source = context7Extension;
-  home.file.".pi/agent/extensions/lsp.ts".source = lspExtension;
-  home.file.".pi/agent/extensions/ast-grep.ts".source = astGrepExtension;
-  home.file.".pi/agent/extensions/ast-edit.ts".source = astEditExtension;
-  home.file.".pi/agent/extensions/browser-mcp.ts".source = webBrowserMcpExtension;
-  # User-facing task lifecycle UI; uses the managed browser-task CLI above.
-  home.file.".pi/agent/extensions/browser-companion".source = ./pi-extensions/browser-companion;
-  home.file.".pi/agent/extensions/pi-rs-rewrite.ts".source = piRsRewriteExtension;
-
-  # pi-rs-backed primitives. These are thin TS shells that spawn the
-  # `pi-rs <subcommand>` binary installed via `home.packages` above.
-  home.file.".pi/agent/extensions/code-search.ts".source = ./pi-extensions/code-search.ts;
-  home.file.".pi/agent/extensions/code-summary.ts".source = ./pi-extensions/code-summary.ts;
-  home.file.".pi/agent/extensions/code-hash.ts".source = ./pi-extensions/code-hash.ts;
-
-  # MCP bridge: pi has no native MCP client, so this `nixos` tool spawns
-  # the mcp-nixos server (home.packages) over stdio per call. Claude Code
-  # talks to the same binary directly; this exists only because pi can't.
-  home.file.".pi/agent/extensions/mcp-nixos.ts".source = ./pi-extensions/mcp-nixos.ts;
-
-  # Directory-style `web_fetch` and `web_search` extensions, both forked
-  # from oh-my-pi. They register the canonical tool names; the older
-  # single-file ddgr+trafilatura versions were retired in favor of these.
-  home.file.".pi/agent/extensions/web-fetch".source = webFetchOmpExtension;
-  home.file.".pi/agent/extensions/web-search".source = webSearchOmpExtension;
-
-  # Master cycle list for Ctrl+P / Shift+Ctrl+P. Seeded into
-  # ~/.pi/agent/settings.json -> enabledModels by
-  # home/services/pi-models.nix on the first activation that finds
-  # the field unset. Activation maintains the full WebAI wildcard; other
-  # provider scopes remain editable through pi's /scoped-models UI.
-  #
-  # Provider/id qualification is mandatory here: `claude-opus-4-7`
-  # exists both as a built-in Anthropic model AND as a route on the
-  # corporate LiteLLM gateway, so we have to be explicit about which
-  # path each cycle slot takes. Anthropic models go direct via
-  # ANTHROPIC_API_KEY (fish-exported from /run/secrets); the LiteLLM
-  # wildcard includes the complete shared WebAI catalog. The local wildcard
-  # selects Qwen3.6 on the workstation and Bonsai 2 on VM hosts using mac-work.
-  services.piModels.enabledModels = [
-    "anthropic/claude-opus-4-7"
-  ]
-  ++ lib.optionals (!personalOnly) [
-    "litellm/*"
-    "llama-cpp/*-local"
-  ];
-
-  services.piModels.defaultModel = lib.mkIf (!personalOnly) "litellm/gpt-6.1-sol";
-
-  # Global pi context file. Loaded into every pi session's system prompt.
-  # See: pi-coding-agent/README.md (Context Files).
-  home.file.".pi/agent/AGENTS.md".text = ''
-    Never estimate time, hours, effort, or duration. If asked, refuse and
-    offer concrete scope instead (files touched, comparable prior work,
-    decision points, unknowns).
-  ''
-  + import ./browser-instructions.nix;
-
-  # Pi skill: exploratory testing with the managed development browser.
-  home.file.".pi/agent/skills/explore-frontend/SKILL.md".text = ''
-    ---
-    name: explore-frontend
-    description: |
-      Explore and stress-test a frontend in the managed development browser.
-      Trigger phrases include "explore the UI", "chaos test", "bug hunt the UI",
-      "smoke test the UI", and "post-deploy UX verification".
-    ---
-
-    # Explore frontend
-
-    Act as a curious, adversarial user. Exercise every reachable path and
-    record defects with reproducible steps and evidence. Ask for the target
-    URL if neither the request nor project context identifies it.
-
-    ## Start the task
-
-    Run `browser-task start development --label "Frontend exploration"`
-    and retain its UUID as `TASK`. Use `browser-task open TASK --page explore
-    --url URL` for a named page, or start with `--url URL` and use `main`.
-    Every `dev_browser` call takes that UUID, an `action`, the page name,
-    and optional `timeout` in seconds. If the managed browser is unavailable,
-    report its error. Do not attach to an everyday browser or install one.
-
-    ## Map the app
-
-    Call `dev_browser` with `{"task":"TASK","page":"explore","action":{"type":"snapshot"}}`.
-    Record the visible links, forms, buttons, navigation, and page regions
-    in a checklist. To visit another route, use a `navigate` action with its
-    full URL or click a unique link target from the snapshot. Take a fresh
-    snapshot after every navigation or state change. A new snapshot or
-    navigation invalidates older refs.
-
-    Use `evaluate` for synchronous page-local reads, such as
-    `{"type":"evaluate","expression":"({url:location.href,title:document.title})"}`.
-    The expression returns its value and has no host bindings or Promise
-    support. Page globals remain until navigation. The native tool has no persistent console
-    or network event listeners. Record that coverage limit in the report.
-
-    ## Stress each path
-
-    For each view, use one typed action at a time and inspect the result.
-    Use `click` or `fill` with a snapshot ref or a unique accessible role
-    and name. For example,
-    `{"type":"click","target":{"role":"button","name":"Save"}}`.
-    Use `key` for Enter, Tab, Escape, and browser shortcuts. Use `wait`
-    for a visible or hidden target when the UI changes asynchronously.
-    Use `viewport` to check narrow and wide layouts. A `screenshot` action
-    returns a private artifact path to cite in findings.
-
-    Test links, deep URLs, validation, empty and long inputs, double submits,
-    destructive confirmation, unexpected action order, navigation during a
-    flow, empty states, and keyboard access when the app permits them. Try
-    adversarial text such as long strings, markup, unicode, negative values,
-    and invalid dates. Never assume a mutation is safe in a real account.
-    Open another owned page with `browser-task open TASK --page explore-tab2
-    --url URL` to compare state across tabs. Do not select tabs through CDP.
-
-    After each interaction, call `snapshot`. Capture a screenshot for a
-    visible failure. Record the URL with a synchronous `evaluate` expression
-    when needed. If an action fails, inspect the current state before a retry.
-    Do not use `evaluate` to synthesize input or navigation. The native API
-    has no network request interception, so mark network disruption tests
-    as untested unless another authorized app-level method exists.
-
-    A finding needs a user-visible failure and evidence. Record crashes,
-    broken UI, missing validation, lost input, dead controls, bad navigation,
-    missing feedback, duplicate mutations, and keyboard traps. Do not report
-    styling preferences, missing features, or unsupported guesses as defects.
-
-    ## Report
-
-    Write findings to the project's existing bug location. If there is no
-    convention, write `EXPLORATION-FINDINGS.md` in the working directory.
-    For each finding include severity, URL, steps, expected and actual
-    results, screenshot path, and a suggested fix when clear. Use critical
-    for crashes, data loss, or security defects. Use high for a broken core
-    flow, medium for partial loss or confusing recovery, and low for minor
-    visual defects. Summarize paths and interactions tested. List untested
-    console, network, or interception checks explicitly.
-
-    Finish with `browser-task finish TASK` when the work is complete. Use
-    `keep` for login or user review and `show` only on user request. Run
-    `resume` before further automation of a kept or completed task.
-  '';
-
-  # Pi skill: typed actions on a task-owned browser page.
-  home.file.".pi/agent/skills/dev-browser/SKILL.md".text = ''
-    ---
-    name: dev-browser
-    description: |
-      Use the native dev_browser tool to test or inspect a frontend in a
-      managed browser, especially a local development server.
-    ---
-
-    # dev_browser
-
-    Start with `browser-task start development --label "Frontend test"
-    --url URL` and retain the returned UUID. Use `accounts` for signed-in
-    services. Send `dev_browser` one typed action at a time with `task`,
-    optional `page` (default `main`), and optional `timeout` (1 to 300
-    seconds, default 30). Use `browser-task open TASK --page NAME [--url URL]`
-    to create another owned page. The tool schema defines the full action
-    arguments; `browser-task schema` prints the tool request schema.
-
-    ## Common actions
-
-    - Inspect the page with `{"type":"snapshot"}`. It returns text and
-      opaque refs for live elements.
-    - Navigate with `{"type":"navigate","url":"http://localhost:3000"}`.
-    - Click with `{"type":"click","target":{"role":"button","name":"Login"}}`
-      or a `{"ref":"..."}` target copied from a fresh snapshot.
-    - Fill with `{"type":"fill","target":{"ref":"..."},"text":"alice@example.com"}`.
-    - Press a key with `{"type":"key","key":"Enter"}`.
-    - Wait with `{"type":"wait","target":{"role":"heading","name":"Welcome"},"state":"visible"}`.
-    - Read a value with `{"type":"evaluate","expression":"({url:location.href,title:document.title})"}`.
-    - Capture a private PNG artifact with `{"type":"screenshot","full_page":true}`.
-
-    A role and name must identify one live accessible element. `click` and
-    `fill` use trusted browser input and reject obscured or stale targets.
-    Take a new snapshot after navigation or page changes. A new snapshot
-    or navigation invalidates earlier refs. Inspect state before retrying a
-    failed action. A screenshot returns a path, MIME type, and byte count.
-
-    `evaluate` runs a synchronous expression in the owned page and returns
-    its value. It has no host bindings or host filesystem API and rejects
-    Promise results. Page globals remain until navigation. Use typed actions for navigation and input. There
-    are no persistent console or network event APIs or request interception.
-
-    ## Verify a login flow
-
-    Navigate to the login URL. Take a snapshot and locate the email and
-    password fields. Fill each field, then click the unique Submit button.
-    Wait for the Welcome heading and inspect a fresh snapshot. On failure,
-    capture a screenshot and report its returned path with the observed URL.
-    Do not paste real credentials into the action arguments; use the
-    managed accounts profile for user-assisted login.
-
-    ## Task lifecycle
-
-    `browser-task info TASK` shows ownership and state. `finish` starts
-    one-hour retention when browser work is complete. Use `keep` for login
-    or review, `show` only on user request, and `resume` before automation
-    of a kept or completed task. If the profile is unavailable, report its
-    error. Do not attach to another browser or install an unmanaged runtime.
-  '';
 }

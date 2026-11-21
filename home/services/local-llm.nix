@@ -186,7 +186,7 @@ in
         # stale, which defeats the purpose of this wrapper.
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}
-          exec pi --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
+          exec pi-task --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
         '')
       ]
       ++ lib.optionals (hostName != "prl-dev-vm") [

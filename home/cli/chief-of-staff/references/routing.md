@@ -11,7 +11,7 @@ standard speed, never Fast, Auto or an unverified effort variant.
 | Work | Preferred route | Model / effort |
 | --- | --- | --- |
 | Coordination, intake, communication, acceptance and integration | Current chief conversation | Retain the selected session; do not migrate it to match worker routing |
-| Small bounded tasks with supplied context and minimal tools | Pi, local by default | Host-configured local model; paid alternatives require explicit selection |
+| Small bounded tasks with supplied context and minimal tools | `pi-task`, local by default | Host-configured local model; paid alternatives require explicit selection |
 | Routine Google Chat drafting from supplied facts and delivery | `chat-send-task`, fresh minimal Pi/WebAI session, only its delivery tool | `litellm/gpt-6.1-terra`, low effort |
 | Architecture/UX design authoring and UI/UX assessment | Cursor `herdr-cursor gemini-4-carbon-high` | Carbon high; observed Cursor failure permits same-model `opencode2 mini --model litellm/gemini-4-carbon`, default effort unqualified |
 | Extended cross-module engineering, multi-stage diagnosis and migrations with established design | Cursor `herdr-cursor grok-4.7-high` | Grok 4.7 high normally; verified medium for bounded work, xhigh only with a concrete difficulty reason. Observed Cursor failure permits `opencode2 mini --model litellm/grok-4.7`, default effort unqualified |
@@ -36,12 +36,12 @@ retrieval in the caller. Exact supplied or reviewed content uses deterministic
 `chat-send` with no model. Preserve its operation ID on uncertainty and escalate
 browser exceptions without a second submission.
 
-Pi is reserved for small tasks with a self-contained brief, bounded output and
-minimal explicitly enabled tools. Keep repository exploration and substantial
-implementation in Codex, OpenCode2 or Cursor. Pi loads no automatic project
-context, skills, extensions or MCP tools by default. A missing local model or
-endpoint failure must not silently select a paid model. Terra Chat remains a
-narrow exception to the local default.
+Full `pi` loads managed context, skills, extensions and native MCP for complex
+multi-module work. `pi-task` is the isolated minimal command for small tasks with
+a self-contained brief and bounded output. It disables automatic context, skills,
+extensions, MCP and tools. A missing local model or endpoint failure must not
+silently select a paid model. Terra Chat remains a narrow explicit exception.
+Both commands keep the `pi` engine identity in session records and Herdr status.
 
 ## Launch and fallback
 

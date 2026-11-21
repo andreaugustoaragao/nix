@@ -358,7 +358,7 @@ def main() -> int:
 
     harnesses = {
         name: shutil.which(name) is not None
-        for name in ("codex", "pi", "opencode", "herdr-cursor", "cursor-agent")
+        for name in ("codex", "pi", "pi-task", "opencode", "herdr-cursor", "cursor-agent")
     }
 
     try:

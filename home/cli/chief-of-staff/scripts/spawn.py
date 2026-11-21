@@ -260,7 +260,7 @@ def main() -> int:
             harness = "codex"
         elif "cursor" in prog:
             harness = "cursor"
-        elif prog == "pi":
+        elif prog in ("pi", "pi-task"):
             harness = "pi"
         elif "opencode" in prog:
             harness = "opencode"

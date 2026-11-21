@@ -29,6 +29,10 @@ const execFileP = promisify(execFile);
 // Absolute /nix/store path — pinned at build time, no PATH dependency.
 const PI_RS = "___PI_RS_BIN___";
 
+function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && values.some(candidate => candidate === value);
+}
+
 const STRICTNESS = ["cst", "smart", "ast", "relaxed", "signature", "template"] as const;
 
 interface AstReplaceChange {
@@ -118,6 +122,7 @@ export default function (pi: ExtensionAPI) {
       })),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
+      signal?.throwIfAborted();
       const argv = ["ast-edit"];
       // Each rule packed as `pat=>out`. `=>` is unambiguous in ast-grep patterns
       // (no idiomatic pattern uses it as a literal sequence). pi-rs splits on
@@ -126,6 +131,7 @@ export default function (pi: ExtensionAPI) {
         if (!op.pat) {
           return {
             content: [{ type: "text", text: "ast_edit: every op needs a non-empty `pat`." }],
+            isError: true,
             details: { error: "empty_pattern" },
           };
         }
@@ -135,6 +141,7 @@ export default function (pi: ExtensionAPI) {
               type: "text",
               text: "ast_edit: `pat` cannot contain `=>` (used as the pat/out separator on the wire). Rewrite the pattern.",
             }],
+            isError: true,
             details: { error: "pat_contains_separator" },
           };
         }
@@ -144,7 +151,7 @@ export default function (pi: ExtensionAPI) {
       if (params.glob)              argv.push("--glob", params.glob);
       if (params.language)          argv.push("--lang", params.language);
       if (params.selector)          argv.push("--selector", params.selector);
-      if (params.strictness)        argv.push("--strictness", params.strictness);
+      if (isOneOf(STRICTNESS, params.strictness))        argv.push("--strictness", params.strictness);
       if (params.apply)             argv.push("--apply");
       if (params.maxReplacements !== undefined) argv.push("--max-replacements", String(params.maxReplacements));
       if (params.maxFiles        !== undefined) argv.push("--max-files",        String(params.maxFiles));
@@ -159,9 +166,11 @@ export default function (pi: ExtensionAPI) {
         });
         stdout = r.stdout;
       } catch (err: unknown) {
+        signal?.throwIfAborted();
         const msg = err instanceof Error ? err.message : String(err);
         return {
           content: [{ type: "text", text: "ast_edit failed: " + msg }],
+          isError: true,
           details: { error: "exec_failed", message: msg },
         };
       }
@@ -173,6 +182,7 @@ export default function (pi: ExtensionAPI) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
           content: [{ type: "text", text: "ast_edit: malformed pi-rs output: " + msg }],
+          isError: true,
           details: { error: "bad_output", raw: stdout.slice(0, 500) },
         };
       }

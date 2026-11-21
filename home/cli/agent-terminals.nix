@@ -146,6 +146,7 @@ in
     {
       ".codex/AGENTS.md".text = lib.mkAfter instructions;
       ".pi/agent/AGENTS.md".text = lib.mkAfter instructions;
+      ".omp/agent/AGENTS.md".text = lib.mkAfter instructions;
     }
   ];
 

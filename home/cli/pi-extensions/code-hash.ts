@@ -20,10 +20,9 @@ function runPiRsHash(
   signal?: AbortSignal,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("pi-rs", args, {
-      stdio: [input ? "pipe" : "ignore", "pipe", "pipe"],
-      signal,
-    });
+    const child = input
+      ? spawn("pi-rs", args, { stdio: ["pipe", "pipe", "pipe"], signal })
+      : spawn("pi-rs", args, { stdio: ["ignore", "pipe", "pipe"], signal });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     child.stdout.on("data", (c) => out.push(Buffer.from(c)));

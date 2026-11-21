@@ -199,6 +199,23 @@ class WorkerTests(unittest.TestCase):
         for name in names:
             self.assertIsNotNone(re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,31}", name))
 
+    def test_worker_command_resolves_pi_task_and_requires_it(self):
+        with mock.patch.object(M.shutil, "which", side_effect={"pi-task": "/run/current-system/sw/bin/pi-task", "hc": "/run/current-system/sw/bin/hc"}.get):
+            launch = M.worker_command(self.directory)
+        self.assertEqual(launch[2], "/run/current-system/sw/bin/pi-task")
+        for option, value in [("--model", "gpt-6.1-terra"), ("--thinking", "low"), ("--provider", "litellm"), ("--tools", "deliver_message")]:
+            self.assertEqual(launch[launch.index(option) + 1], value)
+        for flag in ["--no-builtin-tools", "--no-mcp", "--no-context-files", "--no-skills", "--no-extensions", "--no-prompt-templates", "--no-themes", "--offline", "--approve"]:
+            self.assertIn(flag, launch)
+
+        with mock.patch.object(M.shutil, "which", side_effect={"pi": "/run/current-system/sw/bin/pi", "hc": "/run/current-system/sw/bin/hc"}.get):
+            with self.assertRaisesRegex(M.Stop, "pi_task_unavailable"):
+                M.worker_command(self.directory)
+
+        with mock.patch.object(M.shutil, "which", side_effect={"pi-task": "/run/current-system/sw/bin/pi-task"}.get):
+            with self.assertRaisesRegex(M.Stop, "herdr_unavailable"):
+                M.worker_command(self.directory)
+
     def test_real_command_failure_retains_private_diagnostics(self):
         path = self.root / "error.json"
         with self.assertRaisesRegex(M.Stop, "worker_command_failed"):

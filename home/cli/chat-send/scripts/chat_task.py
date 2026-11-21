@@ -92,10 +92,12 @@ def wait_file(path, terminal, marker, deadline):
 
 
 def worker_command(directory):
-    pi = shutil.which("pi")
-    if not pi or not shutil.which("hc"):
-        raise Stop("pi_or_herdr_unavailable")
-    return ["env", "CHAT_SEND_JOB=" + str(directory / "job.json"), pi,
+    pi_task = shutil.which("pi-task")
+    if not pi_task:
+        raise Stop("pi_task_unavailable")
+    if not shutil.which("hc"):
+        raise Stop("herdr_unavailable")
+    return ["env", "CHAT_SEND_JOB=" + str(directory / "job.json"), pi_task,
             "--provider", PROVIDER, "--model", MODEL, "--thinking", "low",
             "--no-builtin-tools", "--tools", "deliver_message", "--no-mcp",
             "--no-extensions", "-e", str(BASE / "worker.ts"), "--no-skills",

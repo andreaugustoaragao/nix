@@ -42,6 +42,9 @@ let
           ".pi/agent/themes/"
           ".codex/AGENTS.md"
           ".pi/agent/AGENTS.md"
+          ".omp/agent/themes/"
+          ".omp/agent/AGENTS.md"
+          ".omp/agent/RULES.md"
         ]
       ) home.home.file
     );
@@ -88,6 +91,7 @@ let
           "herdr-core"
           "agent-hub"
           "herdr-agent-preview"
+          "omp"
         ]
       ) home.home.packages
     );
@@ -122,12 +126,44 @@ assert lib.assertMsg (same (
 assert lib.assertMsg (
   same cloudProviders && same (home: home.services.piModels.defaultModel)
 ) "VM, workstation and worker must share cloud models and defaults.";
+assert lib.assertMsg (lib.all (
+  home:
+  home.services.piModels.defaultModel == "litellm/gpt-6.1-sol"
+  && home.services.piModels.modelThinkingLevels."litellm/gpt-6.1-sol" == "high"
+  &&
+    lib.hasPrefix "${home.my.agentHarness.piManagedExtensions}/"
+      home.home.file.".pi/agent/extensions/lsp.ts".source
+  &&
+    lib.hasPrefix "${home.my.agentHarness.piManagedExtensions}/"
+      home.home.file.".pi/agent/extensions/browser-mcp.ts".source
+  &&
+    home.home.file.".pi/agent/extensions/lib/lifecycle.ts".source
+    == "${home.my.agentHarness.piManagedExtensions}/lib/lifecycle.ts"
+) homes) "Full Pi uses the high-thinking WebAI default and one co-located lifecycle bundle.";
 assert lib.assertMsg (same opencode)
   "VM, workstation and worker must share OpenCode defaults, cloud models and MCP.";
 assert lib.assertMsg (
   vmHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
   == workstationHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
 ) "Both desktop hosts must install the same custom Herdr layout.";
+assert lib.assertMsg (lib.all (
+  home:
+  let
+    piPkg = lib.findFirst (p: (p.pname or p.name or "") == "pi-coding-agent") null home.home.packages;
+    piTaskPkg = lib.findFirst (p: (p.name or "") == "pi-task") null home.home.packages;
+  in
+  piPkg != null
+  && piTaskPkg != null
+  && (home.home.file.".local/bin/pi".source or null) == "${piPkg}/bin/pi"
+  && (home.home.file.".local/bin/pi-task".source or null) == lib.getExe piTaskPkg
+) homes) "VM, workstation and worker must expose full pi and wrapped pi-task.";
+assert lib.assertMsg (lib.all (
+  home:
+  let
+    ompPkg = lib.findFirst (p: (p.pname or p.name or "") == "omp") null home.home.packages;
+  in
+  ompPkg != null && (home.home.file.".local/bin/omp".source or null) == lib.getExe ompPkg
+) homes) "VM, workstation and worker must install and expose omp.";
 pkgs.runCommand "check-agent-harness-parity" { } ''
   touch "$out"
 ''

@@ -37,13 +37,15 @@
  *   Nix     (.nix)                             → nil
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
+import { Check } from "typebox/value";
+import { SessionCleanupTracker, spawnManagedGroup, raceSignal, combinedSignal, throwIfAborted, isRecord, isOneOf, type CleanupOutcome } from "./pi-extensions/lib/lifecycle.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { type ChildProcessWithoutNullStreams } from "node:child_process";
 import { Buffer } from "node:buffer";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { readFile, writeFile, stat, rename as fsRename, mkdir, readdir, rm } from "node:fs/promises";
-import { resolve as resolvePath, dirname, join as joinPath, relative as relativePath } from "node:path";
+import { resolve as resolvePath, dirname, join as joinPath, relative as relativePath, isAbsolute } from "node:path";
 
 // Absolute /nix/store paths — replaced by Nix at build time.
 const GOLANG_LSP    = "___GOLANG_LSP___";
@@ -84,23 +86,77 @@ const SUPPORTED_LIST =
 
 // ─── LSP protocol types (minimal) ───────────────────────────────────────────
 
-interface Position { line: number; character: number; }
-interface Range { start: Position; end: Position; }
+const PositionSchema = Type.Object({ line: Type.Integer({ minimum: 0 }), character: Type.Integer({ minimum: 0 }) });
+const RangeSchema = Type.Object({ start: PositionSchema, end: PositionSchema });
+const TsPositionSchema = Type.Object({ line: Type.Integer({ minimum: 1 }), offset: Type.Integer({ minimum: 1 }) });
+const TsDiagnosticSchema = Type.Object({
+  start: TsPositionSchema, end: TsPositionSchema, text: Type.String(), code: Type.Integer(),
+  category: Type.Union([Type.Literal("error"), Type.Literal("warning"), Type.Literal("suggestion"), Type.Literal("message")]),
+  source: Type.Optional(Type.String()),
+});
+function tsPositionInDocument(position: Static<typeof TsPositionSchema>, lineStarts: number[], textLength: number): boolean {
+  const start = lineStarts[position.line - 1], next = lineStarts[position.line];
+  if (start === undefined) return false;
+  const absolute = start + position.offset - 1;
+  // The server's cached line index may express trailing-newline EOF on the preceding line.
+  return next === undefined ? absolute <= textLength : absolute < next || (next === textLength && absolute === textLength);
+}
+const TextEditSchema = Type.Object({ range: RangeSchema, newText: Type.String() });
+const CreateFileSchema = Type.Object({ kind: Type.Literal("create"), uri: Type.String(), options: Type.Optional(Type.Object({ overwrite: Type.Optional(Type.Boolean()), ignoreIfExists: Type.Optional(Type.Boolean()) })) });
+const RenameFileSchema = Type.Object({ kind: Type.Literal("rename"), oldUri: Type.String(), newUri: Type.String(), options: Type.Optional(Type.Object({ overwrite: Type.Optional(Type.Boolean()), ignoreIfExists: Type.Optional(Type.Boolean()) })) });
+const DeleteFileSchema = Type.Object({ kind: Type.Literal("delete"), uri: Type.String(), options: Type.Optional(Type.Object({ recursive: Type.Optional(Type.Boolean()), ignoreIfNotExists: Type.Optional(Type.Boolean()) })) });
+const TextDocumentEditSchema = Type.Object({ textDocument: Type.Object({ uri: Type.String(), version: Type.Optional(Type.Union([Type.Number(), Type.Null()])) }), edits: Type.Array(TextEditSchema) });
+const WorkspaceEditSchema = Type.Object({ changes: Type.Optional(Type.Record(Type.String(), Type.Array(TextEditSchema))), documentChanges: Type.Optional(Type.Array(Type.Union([TextDocumentEditSchema, CreateFileSchema, RenameFileSchema, DeleteFileSchema]))) });
+type Position = Static<typeof PositionSchema>;
+type Range = Static<typeof RangeSchema>;
+type TextEdit = Static<typeof TextEditSchema>;
+type CreateFileOp = Static<typeof CreateFileSchema>;
+type RenameFileOp = Static<typeof RenameFileSchema>;
+type DeleteFileOp = Static<typeof DeleteFileSchema>;
+type TextDocumentEdit = Static<typeof TextDocumentEditSchema>;
+type WorkspaceEdit = Static<typeof WorkspaceEditSchema>;
 interface Location { uri: string; range: Range; }
 interface LocationLink { targetUri: string; targetRange: Range; targetSelectionRange: Range; }
-interface TextEdit { range: Range; newText: string; }
-interface CreateFileOp { kind: "create"; uri: string; options?: { overwrite?: boolean; ignoreIfExists?: boolean } }
-interface RenameFileOp { kind: "rename"; oldUri: string; newUri: string; options?: { overwrite?: boolean; ignoreIfExists?: boolean } }
-interface DeleteFileOp { kind: "delete"; uri: string; options?: { recursive?: boolean; ignoreIfNotExists?: boolean } }
-interface TextDocumentEdit {
-  textDocument: { uri: string; version?: number | null };
-  edits: TextEdit[];
+
+export class MutationLedger {
+  hasIssuedEffects = false;
+  completed: string[] = [];
+  uncertainPaths = new Set<string>();
+  touchedUris = new Set<string>();
+  issue(paths: string[]): void {
+    this.hasIssuedEffects = true;
+    for (const path of paths) { this.uncertainPaths.add(path); this.touchedUris.add(pathToFileURL(path).href); }
+  }
+  complete(description: string, paths: string[]): void {
+    this.completed.push(description);
+    for (const path of paths) this.uncertainPaths.delete(path);
+  }
+  details() { return { completed: [...this.completed], possiblyModified: [...this.uncertainPaths], hasIssuedEffects: this.hasIssuedEffects }; }
 }
-type DocumentChange = TextDocumentEdit | CreateFileOp | RenameFileOp | DeleteFileOp;
-interface WorkspaceEdit {
-  changes?: Record<string, TextEdit[]>;
-  documentChanges?: DocumentChange[];
+export type ApplyContext = {
+  cwd: string; signal: AbortSignal; ledger: MutationLedger;
+  invalidate: (uri: string) => void;
+  closeDocument: (uri: string) => void;
+  track: <T>(promise: Promise<T>) => Promise<T>;
+};
+
+function isMissingFileError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
+
+export function parseEditFileUri(uri: string): string {
+  const url = new URL(uri);
+  if (url.protocol !== "file:") throw new Error("LSP edit URI must use file:");
+  const path = fileURLToPath(url);
+  if (!isAbsolute(path)) throw new Error("LSP edit path must be absolute");
+  return path;
+}
+
+class LspRpcError extends Error {
+  readonly code?: number;
+  constructor(message: string, code?: number) { super(message); this.code = code; }
+}
+class LspTimeoutError extends Error { }
 
 interface LspDiagnostic {
   severity?: number;
@@ -157,18 +213,31 @@ interface ServerCapabilities {
   [key: string]: unknown;
 }
 
+type DiagnosticReceipt = { readonly assertCurrent: () => void };
+
 // ─── LSP client ─────────────────────────────────────────────────────────────
 
-class LspClient {
+export class LspClient {
+  private group: ReturnType<typeof spawnManagedGroup>;
+  applyQuarantined = false;
+  private sessionSignal: AbortSignal;
+  private applyQueue: Promise<unknown> = Promise.resolve();
+  private commandApplyQueue: Promise<void> = Promise.resolve();
+  private activeApplyAllowance: { token: symbol; ctx: ApplyContext; pendingEdits: Set<Promise<unknown>>; failedEdits: Error[] } | null = null;
   private proc: ChildProcessWithoutNullStreams;
   private pending = new Map<number, PendingRequest>();
   private nextId = 1;
   private stdoutBuf: Buffer = Buffer.alloc(0);
   private ready = false;
-  private openDocs = new Map<string, { version: number; text: string; languageId: string }>();
+  private diagnosticLifetimeChanged = false;
+  private diagnosticRevision = 0;
+  private completeDiagnosticRevisions = new Map<string, number>();
+  private operations = new Set<Promise<void>>();
+  private openDocs = new Map<string, { version: number; text: string; languageId: string; needsSync: boolean }>();
   diagnostics = new Map<string, LspDiagnostic[]>();
-  private diagWaiters = new Map<string, () => void>();
+  private diagWaiters = new Map<string, Set<() => void>>();
   private fatalError: Error | null = null;
+  readonly spec: ServerSpec;
   readonly bin: string;
   readonly serverName: string;
   readonly projectRoot: string;
@@ -177,16 +246,19 @@ class LspClient {
   startedAt = Date.now();
   onExit: (() => void) | null = null;
 
-  constructor(spec: ServerSpec, projectRoot: string) {
+  get isTypeScriptServer(): boolean { return this.bin === TS_LSP; }
+
+  constructor(spec: ServerSpec, projectRoot: string, sessionSignal: AbortSignal) {
+    this.sessionSignal = sessionSignal;
+    this.spec = spec;
     this.bin = spec.bin;
     this.serverName = spec.name;
     this.projectRoot = projectRoot;
     this.rootUri = pathToFileURL(projectRoot + "/").href;
 
-    this.proc = spawn(spec.bin, spec.args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      cwd: projectRoot,
-    });
+    throwIfAborted(sessionSignal);
+    this.group = spawnManagedGroup("lsp", spec.name, spec.bin, spec.args, { cwd: projectRoot });
+    this.proc = this.group.child;
 
     this.proc.stdout.on("data", (c: Buffer) => this.onData(c));
     this.proc.stderr.on("data", () => { /* discard chatter */ });
@@ -212,7 +284,9 @@ class LspClient {
       p.reject(new Error("LSP " + p.method + " failed: " + err.message));
     }
     this.pending.clear();
-    for (const [, w] of this.diagWaiters) w();
+    this.diagnostics.clear();
+    this.completeDiagnosticRevisions.clear();
+    for (const waiters of this.diagWaiters.values()) for (const notify of waiters) notify();
     this.diagWaiters.clear();
   }
 
@@ -221,6 +295,7 @@ class LspClient {
     const result = await this.sendRequest<{ capabilities?: ServerCapabilities }>("initialize", {
       processId: typeof process !== "undefined" ? process.pid : null,
       rootUri: this.rootUri,
+      ...(this.isTypeScriptServer ? { initializationOptions: { tsserver: { useSyntaxServer: "never" } } } : {}),
       workspaceFolders: [{ uri: this.rootUri, name: "root" }],
       capabilities: {
         textDocument: {
@@ -270,7 +345,7 @@ class LspClient {
         },
       },
       clientInfo: { name: "pi-lsp", version: "0.3" },
-    }, INIT_TIMEOUT_MS);
+    }, INIT_TIMEOUT_MS, this.sessionSignal);
     this.serverCapabilities = result?.capabilities ?? {};
     this.ready = true;
     this.sendNotification("initialized", {});
@@ -278,9 +353,9 @@ class LspClient {
 
   // ── Public API ────────────────────────────────────────────────────────────
 
-  request<T>(method: string, params: unknown, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T> {
+  request<T>(method: string, params: unknown, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal?: AbortSignal): Promise<T> {
     if (!this.ready) return Promise.reject(new Error("LSP client not initialized"));
-    return this.sendRequest<T>(method, params, timeoutMs);
+    return this.sendRequest<T>(method, params, timeoutMs, combinedSignal(this.sessionSignal, signal));
   }
 
   /** Send a notification (no response). */
@@ -295,78 +370,242 @@ class LspClient {
       text = await readFile(filepath, "utf8");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new Error("cannot read " + filepath + ": " + msg);
+      throw new Error("cannot read " + filepath + ": " + msg, { cause: err });
     }
     const existing = this.openDocs.get(uri);
     if (existing) {
-      if (existing.text === text) return uri;
+      if (existing.text === text && !existing.needsSync) return uri;
+      this.diagnosticLifetimeChanged = true;
+      this.diagnosticRevision++;
       const newVersion = existing.version + 1;
+      this.diagnostics.delete(uri);
+      this.openDocs.set(uri, { version: newVersion, text, languageId: existing.languageId, needsSync: false });
       this.sendNotification("textDocument/didChange", {
         textDocument: { uri, version: newVersion },
         contentChanges: [{ text }],
       });
-      this.openDocs.set(uri, { version: newVersion, text, languageId: existing.languageId });
     } else {
+      this.diagnosticRevision++;
+      this.diagnostics.delete(uri);
+      this.openDocs.set(uri, { version: 1, text, languageId, needsSync: false });
       this.sendNotification("textDocument/didOpen", {
         textDocument: { uri, languageId, version: 1, text },
       });
-      this.openDocs.set(uri, { version: 1, text, languageId });
     }
     return uri;
   }
 
-  /** Invalidate the cached version of `uri` so the next ensureOpen re-syncs. */
+  /** Retain the server version while requiring a new sync and diagnostic publication. */
   invalidate(uri: string): void {
+    const document = this.openDocs.get(uri);
+    this.diagnosticLifetimeChanged = true;
+    this.diagnosticRevision++;
+    if (document) document.needsSync = true;
+    this.diagnostics.delete(uri);
+  }
+
+  /** A changed lifetime cannot correlate unversioned push diagnostics to current text. */
+  async needsFreshLifetime(): Promise<boolean> {
+    for (const [uri, document] of this.openDocs) {
+      try {
+        if (await readFile(uriToPath(uri), "utf8") !== document.text) this.invalidate(uri);
+      } catch (error) {
+        this.invalidate(uri);
+        if (!isMissingFileError(error)) throw error;
+        this.closeDocument(uri);
+      }
+    }
+    return this.diagnosticLifetimeChanged;
+  }
+
+  openDocuments(): Array<{ filepath: string; languageId: string }> {
+    return [...this.openDocs].map(([uri, document]) => ({ filepath: uriToPath(uri), languageId: document.languageId }));
+  }
+
+  retainOperation(): () => void {
+    let release = () => { };
+    const operation = new Promise<void>(resolve => { release = resolve; });
+    this.operations.add(operation);
+    return () => { this.operations.delete(operation); release(); };
+  }
+
+  async drainOperations(): Promise<void> {
+    await Promise.all([...this.operations]);
+    await this.commandApplyQueue;
+    await this.applyQueue;
+  }
+
+  closeDocument(uri: string): void {
+    this.invalidate(uri);
+    if (this.openDocs.has(uri)) this.sendNotification("textDocument/didClose", { textDocument: { uri } });
     this.openDocs.delete(uri);
+    this.diagnostics.delete(uri);
   }
 
   /** True when the server has explicitly published diagnostics for `uri`. */
   hasDiagnosticsFor(uri: string): boolean {
-    return this.diagnostics.has(uri);
+    const document = this.openDocs.get(uri);
+    return this.ready && !this.fatalError && !!document && !document.needsSync && this.diagnostics.has(uri)
+      && (!this.isTypeScriptServer || this.completeDiagnosticRevisions.get(uri) === this.diagnosticRevision);
+  }
+
+  /** The pinned TS command returns completed diagnostics; push sets are partial. */
+  async refreshTypeScriptDiagnostics(uri: string, timeoutMs: number, signal?: AbortSignal): Promise<DiagnosticReceipt | undefined> {
+    if (!this.isTypeScriptServer) return;
+    const waitSignal = combinedSignal(this.sessionSignal, signal);
+    throwIfAborted(waitSignal);
+    const provider = this.serverCapabilities.executeCommandProvider;
+    if (!Check(Type.Object({ commands: Type.Array(Type.String()) }), provider)
+      || !provider.commands.includes("typescript.tsserverRequest")) throw new Error("TypeScript completed diagnostics command is unsupported");
+    const document = this.openDocs.get(uri), revision = this.diagnosticRevision;
+    if (!document || document.needsSync) throw new Error("TypeScript diagnostics unconfirmed: no current open document");
+    const version = document.version, text = document.text;
+    const lineStarts = [0];
+    for (const ending of document.text.matchAll(/\r\n|[\r\n\u2028\u2029]/g)) lineStarts.push(ending.index + ending[0].length);
+    const diagnostics: LspDiagnostic[] = [];
+    for (const command of ["syntacticDiagnosticsSync", "semanticDiagnosticsSync", "suggestionDiagnosticsSync"]) {
+      const response = await this.request<unknown>("workspace/executeCommand", {
+        command: "typescript.tsserverRequest", arguments: [command, { file: uriToPath(uri) }, { expectsResult: true, isAsync: false }],
+      }, timeoutMs, waitSignal);
+      if (isRecord(response) && response.success === false && typeof response.message === "string") {
+        throw new Error("TypeScript " + command + " failed: " + response.message);
+      }
+      const schema = Type.Object({ type: Type.Literal("response"), command: Type.Literal(command), success: Type.Literal(true), body: Type.Array(TsDiagnosticSchema) });
+      if (!Check(schema, response)) throw new Error("Invalid or incomplete TypeScript " + command + " response");
+      for (const diagnostic of response.body) {
+        if (!tsPositionInDocument(diagnostic.start, lineStarts, document.text.length) || !tsPositionInDocument(diagnostic.end, lineStarts, document.text.length)) {
+          throw new Error("Invalid TypeScript diagnostic position outside current document");
+        }
+        const range = {
+          start: { line: diagnostic.start.line - 1, character: diagnostic.start.offset - 1 },
+          end: { line: diagnostic.end.line - 1, character: diagnostic.end.offset - 1 },
+        };
+        if (comparePosition(range.start, range.end) > 0) throw new Error("Invalid TypeScript diagnostic range");
+        const severities = { error: 1, warning: 2, suggestion: 4, message: 3 } satisfies Record<Static<typeof TsDiagnosticSchema>["category"], number>;
+        diagnostics.push({ range, message: diagnostic.text, code: diagnostic.code, severity: severities[diagnostic.category], source: diagnostic.source ?? "typescript" });
+      }
+    }
+    const receipt: DiagnosticReceipt = { assertCurrent: () => {
+      throwIfAborted(waitSignal);
+      if (!this.ready || this.fatalError || this.applyQuarantined || this.diagnosticRevision !== revision
+        || this.openDocs.get(uri) !== document || document.needsSync || document.version !== version || document.text !== text) {
+        throw new Error("TypeScript diagnostics unconfirmed: receipt expired because document, revision or client lifetime changed");
+      }
+    } };
+    receipt.assertCurrent();
+    this.diagnostics.set(uri, diagnostics);
+    this.completeDiagnosticRevisions.set(uri, revision);
+    for (const notify of this.diagWaiters.get(uri) ?? []) notify();
+    return receipt;
+  }
+
+  unconfirmedDiagnosticsUris(): string[] {
+    return [...this.openDocs.keys()].filter(uri => !this.hasDiagnosticsFor(uri));
   }
 
   getDiagnostics(uri: string): LspDiagnostic[] {
+    if (this.isTypeScriptServer && !this.hasDiagnosticsFor(uri)) throw new Error("TypeScript diagnostics unconfirmed for current document");
     return this.diagnostics.get(uri) ?? [];
   }
 
   /**
-   * Resolves on the next `publishDiagnostics` for `uri`, or after `timeoutMs`.
+   * Resolves on an accepted `publishDiagnostics`; rejects if none arrives by `timeoutMs`.
    * Must be installed *before* triggering didOpen/didChange.
    */
-  waitForNextDiagnostics(uri: string, timeoutMs: number): Promise<void> {
-    return new Promise<void>((resolve) => {
+  waitForNextDiagnostics(uri: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    const waitSignal = combinedSignal(this.sessionSignal, signal);
+    return new Promise<void>((resolve, reject) => {
       let done = false;
-      const finish = () => {
+      const finish = (error?: Error) => {
         if (done) return;
         done = true;
-        if (this.diagWaiters.get(uri) === finish) this.diagWaiters.delete(uri);
-        resolve();
+        clearTimeout(timer);
+        waitSignal.removeEventListener("abort", abort);
+        const waiters = this.diagWaiters.get(uri);
+        waiters?.delete(notify);
+        if (waiters?.size === 0) this.diagWaiters.delete(uri);
+        if (error) reject(error); else resolve();
       };
-      this.diagWaiters.set(uri, finish);
-      setTimeout(finish, timeoutMs);
+      const notify = () => finish();
+      const abort = () => finish(new DOMException("Operation cancelled", "AbortError"));
+      const timer = setTimeout(() => finish(new LspTimeoutError("LSP diagnostics unconfirmed: no current publication within " + timeoutMs + "ms")), timeoutMs);
+      const waiters = this.diagWaiters.get(uri) ?? new Set<() => void>();
+      waiters.add(notify);
+      this.diagWaiters.set(uri, waiters);
+      waitSignal.addEventListener("abort", abort, { once: true });
+      if (waitSignal.aborted) abort();
     });
   }
 
-  shutdown() {
-    try { this.proc.kill(); } catch { /* ignore */ }
+  shutdown(): Promise<CleanupOutcome> {
+    this.applyQuarantined = true;
+    this.activeApplyAllowance = null;
+    this.failAll(new Error("LSP client retired"));
+    return this.group.shutdown();
+  }
+
+  async runAuthorizedExecuteCommand(params: unknown, timeoutMs: number, ctx: ApplyContext, beforeDispatch?: () => void): Promise<unknown> {
+    const previous = this.commandApplyQueue;
+    let release = () => { };
+    const turn = new Promise<void>(resolve => { release = resolve; });
+    this.commandApplyQueue = previous.then(() => turn);
+    try {
+      await raceSignal(previous, ctx.signal);
+      throwIfAborted(ctx.signal);
+      if (this.applyQuarantined) throw new Error("LSP client retired after prior cancelled command");
+      beforeDispatch?.();
+      const controller = new AbortController();
+      const allowance = { token: Symbol("applyEdit"), ctx: { ...ctx, signal: combinedSignal(ctx.signal, controller.signal) }, pendingEdits: new Set<Promise<unknown>>(), failedEdits: new Array<Error>() };
+      this.activeApplyAllowance = allowance;
+      let confirmed = false;
+      try {
+        const result = await this.request<unknown>("workspace/executeCommand", params, timeoutMs, ctx.signal);
+        confirmed = true;
+        await raceSignal(Promise.allSettled([...allowance.pendingEdits]), ctx.signal);
+        throwIfAborted(ctx.signal);
+        if (allowance.failedEdits[0]) throw allowance.failedEdits[0];
+        return result;
+      } catch (error) {
+        if (!confirmed || ctx.signal.aborted) {
+          controller.abort();
+          this.applyQuarantined = true;
+          this.activeApplyAllowance = null;
+          this.onExit?.();
+        }
+        throw error;
+      } finally {
+        if (this.activeApplyAllowance?.token === allowance.token) this.activeApplyAllowance = null;
+      }
+    } finally { release(); }
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
-  private sendRequest<T>(method: string, params: unknown, timeoutMs: number): Promise<T> {
+  private sendRequest<T>(method: string, params: unknown, timeoutMs: number, signal?: AbortSignal): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (this.fatalError) { reject(this.fatalError); return; }
+      if (signal?.aborted) { reject(new DOMException("Operation cancelled", "AbortError")); return; }
       const id = this.nextId++;
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) {
-          reject(new Error("LSP " + method + " timed out after " + timeoutMs + "ms"));
+          signal?.removeEventListener("abort", abort);
+          reject(new LspTimeoutError("LSP " + method + " timed out after " + timeoutMs + "ms"));
         }
       }, timeoutMs);
+      const abort = () => {
+        if (!this.pending.delete(id)) return;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+        this.sendNotification("$/cancelRequest", { id });
+        reject(new DOMException("Operation cancelled", "AbortError"));
+      };
       this.pending.set(id, {
-        resolve: (v) => { clearTimeout(timer); resolve(v as T); },
-        reject:  (e) => { clearTimeout(timer); reject(e); },
+        resolve: (v) => { clearTimeout(timer); signal?.removeEventListener("abort", abort); resolve(v as T); },
+        reject:  (e) => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(e); },
         method,
       });
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) { abort(); return; }
       this.write({ jsonrpc: "2.0", method, params: params ?? {}, id });
     });
   }
@@ -376,97 +615,83 @@ class LspClient {
     while (true) {
       const headerEnd = this.stdoutBuf.indexOf("\r\n\r\n");
       if (headerEnd === -1) return;
-      const header = this.stdoutBuf.slice(0, headerEnd).toString("utf8");
+      const header = this.stdoutBuf.subarray(0, headerEnd).toString("utf8");
       const m = /Content-Length:\s*(\d+)/i.exec(header);
       if (!m) {
-        this.stdoutBuf = this.stdoutBuf.slice(headerEnd + 4);
+        this.stdoutBuf = this.stdoutBuf.subarray(headerEnd + 4);
         continue;
       }
       const len = parseInt(m[1], 10);
       const bodyStart = headerEnd + 4;
       if (this.stdoutBuf.length < bodyStart + len) return;
-      const body = this.stdoutBuf.slice(bodyStart, bodyStart + len).toString("utf8");
-      this.stdoutBuf = this.stdoutBuf.slice(bodyStart + len);
+      const body = this.stdoutBuf.subarray(bodyStart, bodyStart + len).toString("utf8");
+      this.stdoutBuf = this.stdoutBuf.subarray(bodyStart + len);
       try {
         this.handleMessage(JSON.parse(body));
       } catch { /* ignore malformed JSON */ }
     }
   }
 
-  private handleMessage(msg: any) {
-    if (
-      (typeof msg.id === "number" || typeof msg.id === "string") &&
-      msg.method === undefined
-    ) {
-      const id = typeof msg.id === "number" ? msg.id : parseInt(msg.id as string, 10);
-      const req = this.pending.get(id);
+  private handleMessage(msg: unknown) {
+    if (!isRecord(msg)) return;
+    const id = msg.id;
+    if ((typeof id === "number" || typeof id === "string") && msg.method === undefined) {
+      const reqId = typeof id === "number" ? id : Number(id);
+      const req = this.pending.get(reqId);
       if (!req) return;
-      this.pending.delete(id);
-      if (msg.error) {
-        const m =
-          typeof msg.error === "object" && msg.error && typeof msg.error.message === "string"
-            ? msg.error.message
-            : JSON.stringify(msg.error);
-        const err = new Error("LSP " + req.method + ": " + m) as Error & { code?: number };
-        if (typeof msg.error === "object" && msg.error && typeof msg.error.code === "number") {
-          err.code = msg.error.code;
-        }
-        req.reject(err);
-      } else {
-        req.resolve(msg.result);
+      this.pending.delete(reqId);
+      const hasError = Object.hasOwn(msg, "error"), hasResult = Object.hasOwn(msg, "result");
+      if (hasError === hasResult) {
+        req.reject(new Error("Invalid LSP " + req.method + " response: expected exactly one result or error member"));
+      } else if (hasError) {
+        if (!Check(Type.Object({ code: Type.Integer(), message: Type.String() }), msg.error)) {
+          req.reject(new Error("Invalid LSP " + req.method + " error response"));
+        } else req.reject(new LspRpcError("LSP " + req.method + ": " + msg.error.message, msg.error.code));
+      } else req.resolve(msg.result);
+      return;
+    }
+    if (typeof msg.method !== "string") return;
+    const params = isRecord(msg.params) ? msg.params : {};
+    if (msg.method === "textDocument/publishDiagnostics") {
+      if (this.isTypeScriptServer) return;
+      const schema = Type.Object({ uri: Type.String(), version: Type.Optional(Type.Integer()), diagnostics: Type.Array(Type.Object({ range: RangeSchema, message: Type.String(), severity: Type.Optional(Type.Number()), source: Type.Optional(Type.String()), code: Type.Optional(Type.Union([Type.String(), Type.Number()])) })) });
+      if (Check(schema, params)) {
+        const document = this.openDocs.get(params.uri);
+        if (!document || document.needsSync || (params.version === undefined ? this.diagnosticLifetimeChanged : params.version !== document.version)) return;
+        this.diagnostics.set(params.uri, params.diagnostics);
+        for (const notify of this.diagWaiters.get(params.uri) ?? []) notify();
       }
       return;
     }
-
-    if (typeof msg.method !== "string") return;
-
-    if (msg.method === "textDocument/publishDiagnostics" && msg.params) {
-      const uri = msg.params.uri;
-      if (typeof uri !== "string") return;
-      const diags = Array.isArray(msg.params.diagnostics)
-        ? (msg.params.diagnostics as LspDiagnostic[])
-        : [];
-      this.diagnostics.set(uri, diags);
-      const w = this.diagWaiters.get(uri);
-      if (w) w();
-      return;
-    }
-
-    // Server → client request (must respond)
-    if (msg.id !== undefined && msg.id !== null) {
-      // workspace/applyEdit needs async work (apply edits to disk) before
-      // we can honestly report success. Handle it out-of-band so the rest
-      // of the message loop isn't blocked.
-      if (msg.method === "workspace/applyEdit") {
-        const reqId = msg.id as number | string;
-        const editParam = (msg.params as { edit?: WorkspaceEdit; label?: string } | undefined)?.edit;
-        if (!editParam) {
-          this.respond(reqId, { applied: false, failureReason: "missing edit" });
-        } else {
-          // Fire-and-respond: invoke the configured applicator, then respond.
-          // Per LSP spec, `applied` means "could be applied", not "changed something".
-          // An empty edit is still successfully applied. Only catch genuine failures.
-          applyWorkspaceEdit(editParam, process.cwd(), uri => { void invalidateAcrossClients(uri); })
-            .then(() => {
-              this.respond(reqId, { applied: true });
-            })
-            .catch(err => {
-              const msg2 = err instanceof Error ? err.message : String(err);
-              this.respond(reqId, { applied: false, failureReason: msg2 });
-            });
-        }
+    if (typeof id !== "number" && typeof id !== "string") return;
+    if (msg.method === "workspace/applyEdit") {
+      const allowance = this.activeApplyAllowance;
+      if (this.applyQuarantined || !allowance || allowance.ctx.signal.aborted || !Check(WorkspaceEditSchema, params.edit)) {
+        this.respond(id, { applied: false, failureReason: "No active matched apply authority" });
         return;
       }
-      let result: unknown = null;
-      if (msg.method === "workspace/configuration") {
-        const n = Array.isArray(msg.params?.items) ? msg.params.items.length : 0;
-        result = new Array(n).fill(null);
-      } else if (msg.method === "workspace/workspaceFolders") {
-        result = [{ uri: this.rootUri, name: "root" }];
-      }
-      this.respond(msg.id as number | string, result);
+      const edit = params.edit;
+      const apply = this.applyQueue.then(() => {
+        throwIfAborted(allowance.ctx.signal);
+        if (this.applyQuarantined || this.activeApplyAllowance?.token !== allowance.token) throw new Error("LSP apply authority expired");
+        return applyWorkspaceEdit(edit, allowance.ctx);
+      }).then(
+        () => this.respond(id, { applied: true }),
+        error => {
+          const failure = error instanceof Error ? error : new Error(String(error));
+          allowance.failedEdits.push(failure);
+          this.respond(id, { applied: false, failureReason: failure.message });
+        },
+      );
+      this.applyQueue = apply;
+      allowance.pendingEdits.add(apply);
+      apply.then(() => allowance.pendingEdits.delete(apply), () => allowance.pendingEdits.delete(apply));
+      return;
     }
-    // Pure notifications (window/logMessage, $/progress) are ignored.
+    let result: unknown = null;
+    if (msg.method === "workspace/configuration") result = Array.isArray(params.items) ? params.items.map(() => null) : [];
+    else if (msg.method === "workspace/workspaceFolders") result = [{ uri: this.rootUri, name: "root" }];
+    this.respond(id, result);
   }
 
   private respond(id: number | string, result: unknown) {
@@ -495,49 +720,128 @@ function clientKey(spec: ServerSpec, projectRoot: string): string {
   return spec.bin + "@" + projectRoot;
 }
 
-const clients = new Map<string, Promise<LspClient>>();
+export class LspSessionPool {
+  readonly entries = new Map<string, Promise<LspClient>>();
+  private live = new Map<string, LspClient>();
+  readonly controller = new AbortController();
+  readonly tracker = new SessionCleanupTracker("lsp");
+  readonly inFlightApplies = new Set<Promise<unknown>>();
 
-async function getClient(spec: ServerSpec, projectRoot: string): Promise<LspClient> {
-  const key = clientKey(spec, projectRoot);
-  let existing = clients.get(key);
-  if (existing) return existing;
+  async getClient(spec: ServerSpec, root: string, retain?: (client: LspClient) => void): Promise<LspClient> {
+    throwIfAborted(this.controller.signal);
+    const key = clientKey(spec, root);
+    const existing = this.entries.get(key);
+    if (existing) {
+      const client = await existing;
+      const changed = await client.needsFreshLifetime();
+      if (this.entries.get(key) !== existing) return this.getClient(spec, root, retain);
+      if (changed) {
+        // Reserve one successor before draining the complete prior tool workflows.
+        const replacement: Promise<LspClient> = Promise.resolve().then(async () => {
+          await client.drainOperations();
+          await Promise.allSettled([...this.inFlightApplies]);
+          throwIfAborted(this.controller.signal);
+          if (this.entries.get(key) !== replacement) throw new Error("LSP acquisition superseded");
+          const documents = client.openDocuments();
+          if (this.live.get(key) === client) this.live.delete(key);
+          const cleanup = client.shutdown(); this.tracker.trackRetiring(cleanup);
+          const outcome = await cleanup;
+          if (!outcome.ok) throw new Error("LSP freshness retirement failed: " + JSON.stringify(outcome));
+          return this.createClient(spec, root, documents, replacement);
+        });
+        this.entries.set(key, replacement);
+        let successor: LspClient;
+        try { successor = await replacement; }
+        catch (error) {
+          if (this.entries.get(key) === replacement) this.entries.delete(key);
+          throw error;
+        }
+        throwIfAborted(this.controller.signal);
+        retain?.(successor);
+        return successor;
+      }
+      throwIfAborted(this.controller.signal);
+      retain?.(client);
+      return client;
+    }
+    const created: Promise<LspClient> = Promise.resolve().then(() => this.createClient(spec, root, [], created));
+    this.entries.set(key, created);
+    let client: LspClient;
+    try { client = await created; }
+    catch (error) {
+      if (this.entries.get(key) === created) this.entries.delete(key);
+      throw error;
+    }
+    throwIfAborted(this.controller.signal);
+    retain?.(client);
+    return client;
+  }
 
-  const created = (async () => {
-    const c = new LspClient(spec, projectRoot);
-    c.onExit = () => {
-      if (clients.get(key) === created) clients.delete(key);
+  private async createClient(spec: ServerSpec, root: string, documents: Array<{ filepath: string; languageId: string }>, reservation: Promise<LspClient>): Promise<LspClient> {
+    throwIfAborted(this.controller.signal);
+    const key = clientKey(spec, root);
+    if (this.entries.get(key) !== reservation) throw new Error("LSP acquisition superseded");
+    const client = new LspClient(spec, root, this.controller.signal);
+    this.live.set(key, client);
+    const retire = () => {
+      if (this.live.get(key) === client) this.live.delete(key);
+      if (this.entries.get(key) === reservation) this.entries.delete(key);
+      this.tracker.trackRetiring(client.shutdown());
+    };
+    client.onExit = retire;
+    const requireOwnership = () => {
+      throwIfAborted(this.controller.signal);
+      if (this.entries.get(key) !== reservation || this.live.get(key) !== client) throw new Error("LSP acquisition superseded");
     };
     try {
-      await c.init();
-    } catch (err) {
-      clients.delete(key);
-      c.shutdown();
-      throw err;
-    }
-    return c;
-  })();
-  clients.set(key, created);
-  return created;
-}
-
-function dropClient(key: string): void {
-  clients.delete(key);
-}
-
-/** Snapshot only-settled clients. Used by `status`, `request`, and workspace fan-out. */
-async function listSettledClients(): Promise<Array<{ key: string; client: LspClient }>> {
-  const settled: Array<{ key: string; client: LspClient }> = [];
-  for (const [key, promise] of clients) {
-    try {
-      // Race against an already-resolved promise; if not resolved, skip.
-      const c = await Promise.race([
-        promise,
-        new Promise<null>(resolve => setImmediate(() => resolve(null))),
-      ]);
-      if (c) settled.push({ key, client: c as LspClient });
-    } catch { /* skip failed clients */ }
+      await client.init();
+      requireOwnership();
+      for (const document of documents) {
+        requireOwnership();
+        try { await client.ensureOpen(document.filepath, document.languageId); }
+        catch (error) {
+          // A failed read has not opened this URI in the successor lifetime.
+          if (!(error instanceof Error && isMissingFileError(error.cause))) throw error;
+        }
+      }
+      requireOwnership();
+      return client;
+    } catch (error) { retire(); throw error; }
   }
-  return settled;
+  invalidate(uri: string): void { for (const client of this.live.values()) client.invalidate(uri); }
+  closeDocument(uri: string): void { for (const client of this.live.values()) client.closeDocument(uri); }
+  context(cwd: string, signal?: AbortSignal): ApplyContext {
+    return {
+      cwd, signal: combinedSignal(this.controller.signal, signal), ledger: new MutationLedger(),
+      invalidate: uri => this.invalidate(uri), closeDocument: uri => this.closeDocument(uri), track: promise => {
+        this.inFlightApplies.add(promise);
+        promise.then(() => this.inFlightApplies.delete(promise), () => this.inFlightApplies.delete(promise));
+        return promise;
+      },
+    };
+  }
+  async dropClient(key: string): Promise<CleanupOutcome | undefined> {
+    this.entries.delete(key);
+    const client = this.live.get(key); this.live.delete(key);
+    if (!client) return undefined;
+    const cleanup = client.shutdown(); this.tracker.trackRetiring(cleanup);
+    return cleanup;
+  }
+  async listSettledClients(): Promise<Array<{ key: string; client: LspClient }>> {
+    const settled: Array<{ key: string; client: LspClient }> = [];
+    for (const [key, promise] of this.entries) {
+      try {
+        const client = await Promise.race([promise, new Promise<null>(resolve => setImmediate(() => resolve(null)))]);
+        if (client) settled.push({ key, client });
+      } catch { }
+    }
+    return settled;
+  }
+  async shutdown(reason: string, sessionId: string): Promise<void> {
+    this.controller.abort();
+    const clients = [...this.live.values()]; this.entries.clear(); this.live.clear();
+    await this.tracker.runSessionShutdown({ reason, sessionId, activeCleanups: clients.map(c => c.shutdown()), drainPromises: [...this.inFlightApplies] });
+  }
 }
 
 // ─── Project root discovery ─────────────────────────────────────────────────
@@ -744,99 +1048,69 @@ function applyTextEditsToString(content: string, edits: TextEdit[]): string {
   return lines.join("\n");
 }
 
-async function applyTextEditsToFile(filePath: string, edits: TextEdit[]): Promise<void> {
-  const content = await readFile(filePath, "utf8");
-  const result = applyTextEditsToString(content, edits);
-  await writeFile(filePath, result, "utf8");
-}
-
-function flattenWorkspaceTextEdits(edit: WorkspaceEdit): Map<string, TextEdit[]> {
-  const out = new Map<string, TextEdit[]>();
-  const push = (uri: string, edits: TextEdit[]) => {
-    if (edits.length === 0) return;
-    const prev = out.get(uri);
-    if (prev) prev.push(...edits);
-    else out.set(uri, [...edits]);
-  };
-  if (edit.changes) {
-    for (const uri in edit.changes) push(uri, edit.changes[uri] ?? []);
-  }
-  if (edit.documentChanges) {
-    for (const change of edit.documentChanges) {
-      if ("textDocument" in change && Array.isArray((change as TextDocumentEdit).edits)) {
-        const tdc = change as TextDocumentEdit;
-        const tes = tdc.edits.filter((e): e is TextEdit => !!e && "range" in e && "newText" in e);
-        push(tdc.textDocument.uri, tes);
+export function applyWorkspaceEdit(input: unknown, ctx: ApplyContext, beforeEffect?: () => void): Promise<string[]> {
+  const operation = (async () => {
+    throwIfAborted(ctx.signal);
+    if (!Check(WorkspaceEditSchema, input)) throw new Error("Invalid LSP workspace edit");
+    const edit = input;
+    const byUri = new Map<string, TextEdit[]>();
+    for (const [uri, edits] of Object.entries(edit.changes ?? {})) byUri.set(uri, [...edits]);
+    for (const change of edit.documentChanges ?? []) {
+      if ("textDocument" in change) {
+        const uri = change.textDocument.uri;
+        byUri.set(uri, [...(byUri.get(uri) ?? []), ...change.edits]);
       }
     }
-  }
-  return out;
-}
-
-async function applyWorkspaceEdit(
-  edit: WorkspaceEdit,
-  cwd: string,
-  invalidateClients: (uri: string) => void,
-): Promise<string[]> {
-  const applied: string[] = [];
-
-  // Coalesce text edits per URI so a single snapshot is mutated once.
-  const byUri = flattenWorkspaceTextEdits(edit);
-  for (const [uri, edits] of byUri) {
-    const filePath = uriToPath(uri);
-    await applyTextEditsToFile(filePath, edits);
-    invalidateClients(uri);
-    applied.push(`Applied ${edits.length} edit(s) to ${formatRelativePath(filePath, cwd)}`);
-  }
-
-  // Resource operations preserve their declared order.
-  if (edit.documentChanges) {
-    for (const change of edit.documentChanges) {
-      if (!("kind" in change) || !change.kind) continue;
-      if (change.kind === "create") {
-        const create = change as CreateFileOp;
-        const filePath = uriToPath(create.uri);
-        const opts = create.options ?? {};
-        let exists = false;
-        try { await stat(filePath); exists = true; } catch { /* not present */ }
-        if (exists && opts.ignoreIfExists && !opts.overwrite) {
-          applied.push(`Skipped create (exists): ${formatRelativePath(filePath, cwd)}`);
-          continue;
-        }
-        await mkdir(dirname(filePath), { recursive: true });
-        await writeFile(filePath, "", "utf8");
-        applied.push(`Created ${formatRelativePath(filePath, cwd)}`);
-      } else if (change.kind === "rename") {
-        const renameOp = change as RenameFileOp;
-        const oldPath = uriToPath(renameOp.oldUri);
-        const newPath = uriToPath(renameOp.newUri);
-        await mkdir(dirname(newPath), { recursive: true });
-        await fsRename(oldPath, newPath);
-        invalidateClients(renameOp.oldUri);
-        invalidateClients(renameOp.newUri);
-        applied.push(
-          `Renamed ${formatRelativePath(oldPath, cwd)} → ${formatRelativePath(newPath, cwd)}`,
-        );
-      } else if (change.kind === "delete") {
-        const del = change as DeleteFileOp;
-        const filePath = uriToPath(del.uri);
-        const opts = del.options ?? {};
-        try {
-          await rm(filePath, { recursive: opts.recursive ?? false });
-          invalidateClients(del.uri);
-          applied.push(`Deleted ${formatRelativePath(filePath, cwd)}`);
-        } catch (err) {
-          if (opts.ignoreIfNotExists) {
-            applied.push(`Skipped delete (missing): ${formatRelativePath(filePath, cwd)}`);
-          } else {
-            throw err;
+    for (const uri of byUri.keys()) parseEditFileUri(uri);
+    for (const change of edit.documentChanges ?? []) {
+      if ("textDocument" in change) parseEditFileUri(change.textDocument.uri);
+      else if (change.kind === "rename") { parseEditFileUri(change.oldUri); parseEditFileUri(change.newUri); }
+      else parseEditFileUri(change.uri);
+    }
+    const prepare = async <T>(promise: Promise<T>): Promise<T> => { const result = await promise; throwIfAborted(ctx.signal); return result; };
+    const effect = async (paths: string[], action: () => Promise<unknown>, description?: string) => {
+      throwIfAborted(ctx.signal); beforeEffect?.(); ctx.ledger.issue(paths);
+      await action();
+      if (description) ctx.ledger.complete(description, paths);
+      throwIfAborted(ctx.signal);
+    };
+    try {
+      for (const [uri, edits] of byUri) {
+        const path = parseEditFileUri(uri);
+        throwIfAborted(ctx.signal);
+        const content = await prepare(readFile(path, "utf8"));
+        const result = applyTextEditsToString(content, edits);
+        await effect([path], () => writeFile(path, result, "utf8"), `Applied ${edits.length} edit(s) to ${formatRelativePath(path, ctx.cwd)}`);
+      }
+      for (const change of edit.documentChanges ?? []) {
+        throwIfAborted(ctx.signal);
+        if ("textDocument" in change) continue;
+        if (change.kind === "create") {
+          const path = parseEditFileUri(change.uri);
+          let exists = false;
+          try { await prepare(stat(path)); exists = true; }
+          catch (error) { throwIfAborted(ctx.signal); if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error; }
+          if (exists && change.options?.ignoreIfExists && !change.options.overwrite) continue;
+          if (exists && !change.options?.overwrite) throw new Error("Create destination exists: " + path);
+          await effect([dirname(path)], () => mkdir(dirname(path), { recursive: true }));
+          await effect([path], () => writeFile(path, "", "utf8"), "Created " + formatRelativePath(path, ctx.cwd));
+        } else if (change.kind === "rename") {
+          const source = parseEditFileUri(change.oldUri), dest = parseEditFileUri(change.newUri);
+          await effect([dirname(dest)], () => mkdir(dirname(dest), { recursive: true }));
+          await effect([source, dest], async () => { await fsRename(source, dest); ctx.closeDocument(change.oldUri); }, `Renamed ${formatRelativePath(source, ctx.cwd)} → ${formatRelativePath(dest, ctx.cwd)}`);
+        } else {
+          const path = parseEditFileUri(change.uri);
+          try { await effect([path], async () => { await rm(path, { recursive: change.options?.recursive ?? false }); ctx.closeDocument(change.uri); }, "Deleted " + formatRelativePath(path, ctx.cwd)); }
+          catch (error) {
+            throwIfAborted(ctx.signal);
+            if (!(change.options?.ignoreIfNotExists && error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
           }
         }
       }
-    }
-  }
-
-  return applied;
+      return [...ctx.ledger.completed];
+    } finally { for (const uri of ctx.ledger.touchedUris) ctx.invalidate(uri); }
+  })();
+  return ctx.track(operation);
 }
 
 // ─── Formatters ────────────────────────────────────────────────────────────
@@ -979,18 +1253,6 @@ function fmtCodeAction(action: CodeActionOrCommand, index: number): string {
 
 // ─── Cross-client URI invalidation ─────────────────────────────────────────
 
-async function invalidateAcrossClients(uri: string): Promise<void> {
-  for (const [, p] of clients) {
-    try {
-      const c = await Promise.race([
-        p,
-        new Promise<null>(resolve => setImmediate(() => resolve(null))),
-      ]);
-      if (c) (c as LspClient).invalidate(uri);
-    } catch { /* skip failed clients */ }
-  }
-}
-
 // ─── rename_file enumeration ───────────────────────────────────────────────
 
 async function enumerateRenamePairs(
@@ -1023,44 +1285,50 @@ async function enumerateRenamePairs(
 // ─── Code-action application ───────────────────────────────────────────────
 
 function isCommandOnly(item: CodeActionOrCommand): item is { title: string; command: string; arguments?: unknown[] } {
-  return typeof (item as { command?: unknown }).command === "string";
+  return typeof item.command === "string";
 }
 
 async function applyCodeActionOrCommand(
   item: CodeActionOrCommand,
   client: LspClient,
-  cwd: string,
+  ctx: ApplyContext,
+  receipt?: DiagnosticReceipt,
 ): Promise<{ title: string; edits: string[]; commands: string[] } | null> {
+  receipt?.assertCurrent();
+  let started = false;
+  const beforeFirstEffect = () => {
+    if (!started) { receipt?.assertCurrent(); started = true; }
+  };
   if (isCommandOnly(item)) {
-    await client.request("workspace/executeCommand", {
+    await client.runAuthorizedExecuteCommand({
       command: item.command,
       arguments: item.arguments ?? [],
-    });
+    }, DEFAULT_REQUEST_TIMEOUT_MS, ctx, beforeFirstEffect);
     return { title: item.title, edits: [], commands: [item.command] };
   }
 
-  let action = item as CodeAction;
+  let action = item;
   // codeAction/resolve fills in .edit if the server deferred it
   if (!action.edit) {
     const resolveProvider =
       typeof client.serverCapabilities.codeActionProvider === "object" &&
-      (client.serverCapabilities.codeActionProvider as { resolveProvider?: boolean })?.resolveProvider;
+      client.serverCapabilities.codeActionProvider.resolveProvider;
     if (resolveProvider) {
-      try {
-        action = await client.request<CodeAction>("codeAction/resolve", action);
-      } catch { /* resolve optional */ }
+      action = await client.request<CodeAction>("codeAction/resolve", action, DEFAULT_REQUEST_TIMEOUT_MS, ctx.signal);
+      receipt?.assertCurrent();
     }
   }
 
   const edits = action.edit
-    ? await applyWorkspaceEdit(action.edit, cwd, uri => { void invalidateAcrossClients(uri); })
+    ? await applyWorkspaceEdit(action.edit, ctx, beforeFirstEffect)
     : [];
+  if (!started) receipt?.assertCurrent();
   const commands: string[] = [];
   if (action.command) {
-    await client.request("workspace/executeCommand", {
+    await client.runAuthorizedExecuteCommand({
       command: action.command.command,
       arguments: action.command.arguments ?? [],
-    });
+    }, DEFAULT_REQUEST_TIMEOUT_MS, ctx, beforeFirstEffect);
     commands.push(action.command.command);
   }
   if (edits.length === 0 && commands.length === 0) return null;
@@ -1090,6 +1358,14 @@ type Action = (typeof ACTIONS)[number];
 // ─── Extension entry point ─────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+  let pool = new LspSessionPool();
+  let sessionId = "unstarted";
+  pi.on("session_start", async (_event, ctx) => {
+    if (pool.entries.size) await pool.shutdown("session_start", sessionId);
+    pool = new LspSessionPool();
+    sessionId = ctx.sessionManager.getSessionId();
+  });
+  pi.on("session_shutdown", async event => { await pool.shutdown(event.reason, sessionId); });
   pi.registerTool({
     name: "lsp",
     label: "LSP",
@@ -1142,10 +1418,49 @@ export default function (pi: ExtensionAPI) {
       })),
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
-      const action = params.action as Action;
-      const cwd = process.cwd();
+      if (!isOneOf(ACTIONS, params.action)) throw new Error("Invalid LSP action");
+      const action = params.action;
+      const cwd = _ctx.cwd;
+      const sessionPool = pool;
+      const applyCtx = sessionPool.context(cwd, _signal);
+      throwIfAborted(applyCtx.signal);
+      const clients = sessionPool.entries;
+      const releases = new Map<LspClient, () => void>();
+      const getClient = (spec: ServerSpec, root: string) => {
+        throwIfAborted(applyCtx.signal);
+        return raceSignal(sessionPool.getClient(spec, root, client => {
+          throwIfAborted(applyCtx.signal);
+          if (!releases.has(client)) releases.set(client, client.retainOperation());
+        }), applyCtx.signal);
+      };
+      const prepareClients = async (entries: Iterable<[string, Promise<LspClient>]>) => {
+        // Every workspace batch acquires in the same resource order. A retained
+        // client can then only wait for a later key, never form a drain cycle.
+        const ordered = [...entries].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+        const results: Array<PromiseSettledResult<{ key: string; client: LspClient }>> = [];
+        for (const [key, promise] of ordered) {
+          try {
+            const client = await raceSignal(promise, applyCtx.signal);
+            results.push({ status: "fulfilled", value: { key, client: await getClient(client.spec, client.projectRoot) } });
+          } catch (reason) {
+            throwIfAborted(applyCtx.signal);
+            // Settle every preparation before ending an ordinarily failed scope.
+            results.push({ status: "rejected", reason });
+          }
+        }
+        throwIfAborted(applyCtx.signal);
+        const settled: Array<{ key: string; client: LspClient }> = [];
+        for (const result of results) {
+          if (result.status === "rejected") throw result.reason;
+          settled.push(result.value);
+        }
+        return settled;
+      };
+      const listSettledClients = () => sessionPool.listSettledClients();
+      const dropClient = (key: string) => sessionPool.dropClient(key);
       const timeoutMs = (params.timeout ?? 15) * 1000;
 
+      try {
       // ── status ──────────────────────────────────────────────────────────
       if (action === "status") {
         const settled = await listSettledClients();
@@ -1171,31 +1486,32 @@ export default function (pi: ExtensionAPI) {
         if (!params.file || params.file === "*") {
           // Reload all
           const keys = Array.from(clients.keys());
-          for (const key of keys) {
-            try {
-              const c = await clients.get(key);
-              if (c) c.shutdown();
-            } catch { /* ignore */ }
-            dropClient(key);
-          }
+          const outcomes = await Promise.all(keys.map(key => dropClient(key)));
+          const failedGroups = outcomes.flatMap(outcome => outcome && !outcome.ok ? [outcome] : []);
+          if (failedGroups.length > 0) return {
+            content: [{ type: "text", text: failedGroups.map(outcome => outcome.error).join("\n") }],
+            details: { action, count: keys.length, error: "cleanup_failed", failedGroups },
+            isError: true,
+          };
           return {
             content: [{ type: "text", text: `Reloaded ${keys.length} server(s).` }],
             details: { action, count: keys.length },
           };
         }
-        const filepath = resolvePath(params.file);
+        const filepath = resolvePath(cwd, params.file);
         const spec = findServerForFile(filepath);
         if (!spec) {
           return {
             content: [{ type: "text", text: `No language server for ${params.file}. Supported: ${SUPPORTED_LIST}` }],
             details: { action, error: "unsupported_extension" },
+            isError: true,
           };
         }
         const root = await getProjectRoot(filepath);
         const key = clientKey(spec, root);
-        const existing = await clients.get(key);
-        if (existing) existing.shutdown();
-        dropClient(key);
+        const outcome = await dropClient(key);
+        if (outcome && !outcome.ok) return { content: [{ type: "text", text: outcome.error }], details: { action, error: "cleanup_failed" },
+            isError: true };
         return {
           content: [{ type: "text", text: `Reloaded ${spec.name} for ${root}.` }],
           details: { action, serverName: spec.name, projectRoot: root },
@@ -1208,14 +1524,16 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Error: file required for capabilities." }],
             details: { action, error: "missing_file" },
+            isError: true,
           };
         }
-        const filepath = resolvePath(params.file);
+        const filepath = resolvePath(cwd, params.file);
         const spec = findServerForFile(filepath);
         if (!spec) {
           return {
             content: [{ type: "text", text: `No language server for ${params.file}. Supported: ${SUPPORTED_LIST}` }],
             details: { action, error: "unsupported_extension" },
+            isError: true,
           };
         }
         let client: LspClient;
@@ -1227,6 +1545,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Failed to start language server: " + msg }],
             details: { action, error: "lsp_init_failed" },
+            isError: true,
           };
         }
         const caps = client.serverCapabilities;
@@ -1242,14 +1561,16 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Error: rename_file requires `file` (source) and `new_name` (destination)." }],
             details: { action, error: "missing_arg" },
+            isError: true,
           };
         }
-        const source = resolvePath(params.file);
-        const dest   = resolvePath(params.new_name);
+        const source = resolvePath(cwd, params.file);
+        const dest   = resolvePath(cwd, params.new_name);
         if (source === dest) {
           return {
             content: [{ type: "text", text: "Error: source and destination are identical." }],
             details: { action, error: "same_path" },
+            isError: true,
           };
         }
         let sourceStat: Awaited<ReturnType<typeof stat>>;
@@ -1257,6 +1578,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `Error: source path does not exist: ${formatRelativePath(source, cwd)}` }],
             details: { action, error: "source_missing" },
+            isError: true,
           };
         }
         try {
@@ -1264,6 +1586,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `Error: destination already exists: ${formatRelativePath(dest, cwd)}` }],
             details: { action, error: "dest_exists" },
+            isError: true,
           };
         } catch { /* good */ }
 
@@ -1272,12 +1595,14 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `Error: directory contains more than ${MAX_RENAME_PAIRS} files; rename in smaller batches.` }],
             details: { action, error: "too_many_files" },
+            isError: true,
           };
         }
         if (enumerated.pairs.length === 0) {
           return {
             content: [{ type: "text", text: "Error: no files to rename." }],
             details: { action, error: "empty" },
+            isError: true,
           };
         }
 
@@ -1289,6 +1614,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `No language server matches ${formatRelativePath(sampleFile, cwd)}. Supported: ${SUPPORTED_LIST}` }],
             details: { action, error: "unsupported_extension" },
+            isError: true,
           };
         }
         let client: LspClient;
@@ -1300,6 +1626,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Failed to start language server: " + msg }],
             details: { action, error: "lsp_init_failed" },
+            isError: true,
           };
         }
 
@@ -1309,15 +1636,16 @@ export default function (pi: ExtensionAPI) {
           edit = await client.request<WorkspaceEdit | null>(
             "workspace/willRenameFiles",
             { files: enumerated.pairs },
-            timeoutMs,
+            timeoutMs, applyCtx.signal,
           );
         } catch (err) {
-          const e = err as Error & { code?: number };
+          const e = err instanceof Error ? err : new Error(String(err));
           // -32601 = method not found. Servers without willRename simply skip edits.
-          if (e.code !== -32601) {
+          if (!(e instanceof LspRpcError && e.code === -32601)) {
             return {
               content: [{ type: "text", text: `willRenameFiles failed: ${e.message}` }],
               details: { action, error: "lsp_failure" },
+              isError: true,
             };
           }
         }
@@ -1347,33 +1675,34 @@ export default function (pi: ExtensionAPI) {
         // Apply: LSP edits FIRST, then move the file(s), then notify with didRenameFiles
         if (edit) {
           try {
-            const applied = await applyWorkspaceEdit(edit, cwd, uri => { void invalidateAcrossClients(uri); });
+            const applied = await applyWorkspaceEdit(edit, applyCtx);
             for (const line of applied) summary.push(`  ${line}`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             return {
               content: [{ type: "text", text: `Failed to apply willRename edits: ${msg}` }],
-              details: { action, error: "apply_failed" },
+              details: { action, error: "apply_failed", ...applyCtx.ledger.details() },
+              isError: true,
             };
           }
         }
         try {
-          await mkdir(dirname(dest), { recursive: true });
-          await fsRename(source, dest);
+          await applyWorkspaceEdit({ documentChanges: [{ kind: "rename", oldUri: fileToUri(source), newUri: fileToUri(dest) }] }, applyCtx);
           summary.push(`  Renamed ${srcLabel} → ${dstLabel}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return {
             content: [{ type: "text", text: `Renamed LSP edits but fs.rename failed: ${msg}` }],
-            details: { action, error: "fs_rename_failed" },
+            details: { action, error: "fs_rename_failed", ...applyCtx.ledger.details() },
+            isError: true,
           };
-        }
+        } finally { for (const uri of applyCtx.ledger.touchedUris) sessionPool.invalidate(uri); }
         try {
           client.notify("workspace/didRenameFiles", { files: enumerated.pairs });
         } catch { /* best-effort */ }
         for (const pair of enumerated.pairs) {
-          await invalidateAcrossClients(pair.oldUri);
-          await invalidateAcrossClients(pair.newUri);
+          sessionPool.closeDocument(pair.oldUri);
+          sessionPool.invalidate(pair.newUri);
         }
         return {
           content: [{ type: "text", text: `Applied rename:\n${summary.join("\n")}` }],
@@ -1388,18 +1717,20 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Error: action=request requires `query` to specify the LSP method name." }],
             details: { action, error: "missing_method" },
+            isError: true,
           };
         }
         let spec: ServerSpec | null = null;
         let filepath: string | null = null;
         if (params.file && params.file !== "*") {
-          const fp = resolvePath(params.file);
+          const fp = resolvePath(cwd, params.file);
           filepath = fp;
           spec = findServerForFile(fp);
           if (!spec) {
             return {
               content: [{ type: "text", text: `No language server for ${params.file}. Supported: ${SUPPORTED_LIST}` }],
               details: { action, error: "unsupported_extension" },
+              isError: true,
             };
           }
         } else {
@@ -1409,6 +1740,7 @@ export default function (pi: ExtensionAPI) {
             return {
               content: [{ type: "text", text: "No active language servers. Pass `file` to start one." }],
               details: { action, error: "no_servers" },
+              isError: true,
             };
           }
           spec = SERVER_MAP[Object.keys(SERVER_MAP).find(e => SERVER_MAP[e].name === settled[0].client.serverName)!];
@@ -1421,6 +1753,7 @@ export default function (pi: ExtensionAPI) {
             return {
               content: [{ type: "text", text: `Error: invalid JSON in payload: ${msg}` }],
               details: { action, error: "bad_payload" },
+              isError: true,
             };
           }
         } else if (filepath) {
@@ -1437,7 +1770,7 @@ export default function (pi: ExtensionAPI) {
 
         let client: LspClient;
         try {
-          const root = filepath ? await getProjectRoot(filepath) : process.cwd();
+          const root = filepath ? await getProjectRoot(filepath) : cwd;
           client = await getClient(spec!, root);
           if (filepath) await client.ensureOpen(filepath, spec!.languageId);
         } catch (err) {
@@ -1445,11 +1778,16 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Failed to prepare LSP server: " + msg }],
             details: { action, error: "lsp_init_failed" },
+            isError: true,
           };
         }
 
         try {
-          const result = await client.request<unknown>(method, requestParams, timeoutMs);
+          throwIfAborted(applyCtx.signal);
+          if (method === "workspace/executeCommand" && params.apply !== true) throw new Error("workspace/executeCommand requires apply: true");
+          const result = method === "workspace/executeCommand"
+            ? await client.runAuthorizedExecuteCommand(requestParams, timeoutMs, applyCtx)
+            : await client.request<unknown>(method, requestParams, timeoutMs, applyCtx.signal);
           const formatted = result === null || result === undefined
             ? "null"
             : typeof result === "string"
@@ -1463,7 +1801,8 @@ export default function (pi: ExtensionAPI) {
           const msg = err instanceof Error ? err.message : String(err);
           return {
             content: [{ type: "text", text: `LSP error on ${method}: ${msg}` }],
-            details: { action, serverName: client.serverName, method, error: msg },
+            details: { action, serverName: client.serverName, method, error: msg, ...applyCtx.ledger.details() },
+            isError: true,
           };
         }
       }
@@ -1475,6 +1814,7 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: "Error: `file` is required (use `*` for workspace scope where supported)." }],
           details: { action, error: "missing_file" },
+          isError: true,
         };
       }
 
@@ -1485,25 +1825,35 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Error: action=symbols with file=* requires `query`." }],
             details: { action, error: "missing_query" },
+            isError: true,
           };
         }
-        // Query every active server in parallel; dedupe by location.
+        // Prepare the complete set in resource order, then query in parallel.
         const settled = await listSettledClients();
         if (settled.length === 0) {
           return {
             content: [{ type: "text", text: "No active language servers. Open a file via another action first." }],
             details: { action, error: "no_servers" },
+            isError: true,
           };
         }
+        const prepared = await prepareClients(settled.map(({ key, client }) => [key, Promise.resolve(client)]));
         const all: Array<SymbolInfo & { _server?: string }> = [];
-        await Promise.all(settled.map(async ({ client }) => {
+        const results = await Promise.allSettled(prepared.map(async ({ client }) => {
           try {
-            const res = await client.request<SymbolInfo[] | null>("workspace/symbol", { query: q }, timeoutMs);
+            const res = await client.request<SymbolInfo[] | null>("workspace/symbol", { query: q }, timeoutMs, applyCtx.signal);
             if (Array.isArray(res)) {
               for (const s of res) all.push({ ...s, _server: client.serverName });
             }
-          } catch { /* server may not support workspace symbols */ }
+          } catch (error) {
+            throwIfAborted(applyCtx.signal);
+            if (error instanceof Error && error.name === "AbortError") throw error;
+            if (error instanceof LspRpcError && error.code === -32601) return;
+            throw error;
+          }
         }));
+        throwIfAborted(applyCtx.signal);
+        for (const result of results) if (result.status === "rejected") throw result.reason;
         if (all.length === 0) {
           return {
             content: [{ type: "text", text: `No workspace symbols match "${q}".` }],
@@ -1523,7 +1873,7 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const filepath = isWorkspace ? null : resolvePath(file);
+      const filepath = isWorkspace ? null : resolvePath(cwd, file);
       let spec: ServerSpec | null = null;
       let client: LspClient | null = null;
       if (filepath) {
@@ -1533,6 +1883,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `No language server configured for .${ext}. Supported: ${SUPPORTED_LIST}` }],
             details: { action, error: "unsupported_extension" },
+            isError: true,
           };
         }
         try {
@@ -1543,6 +1894,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: "Failed to start language server: " + msg }],
             details: { action, error: "lsp_init_failed" },
+            isError: true,
           };
         }
       }
@@ -1552,14 +1904,28 @@ export default function (pi: ExtensionAPI) {
         if (isWorkspace) {
           // No file given — return diagnostics from every currently open URI
           // across all settled clients. Useful after a code change.
-          const settled = await listSettledClients();
+          const settled = await prepareClients(sessionPool.entries);
           if (settled.length === 0) {
             return {
               content: [{ type: "text", text: "No active language servers." }],
               details: { action, count: 0 },
             };
           }
+          const completions = await Promise.allSettled(settled.map(async ({ client: c }) => {
+            for (const document of c.openDocuments()) await c.refreshTypeScriptDiagnostics(pathToFileURL(document.filepath).href, timeoutMs, applyCtx.signal);
+          }));
+          throwIfAborted(applyCtx.signal);
+          for (const result of completions) if (result.status === "rejected") throw result.reason;
           const grouped: string[] = [];
+          const unconfirmed = settled.flatMap(({ client: c }) => c.unconfirmedDiagnosticsUris());
+          throwIfAborted(applyCtx.signal);
+          if (unconfirmed.length > 0) {
+            return {
+              content: [{ type: "text", text: "Diagnostics unconfirmed for: " + unconfirmed.map(uri => formatRelativePath(uriToPath(uri), cwd)).join(", ") }],
+              details: { action, error: "diagnostics_unconfirmed", files: unconfirmed.length },
+              isError: true,
+            };
+          }
           let total = 0;
           for (const { client: c } of settled) {
             for (const [uri, diags] of c.diagnostics) {
@@ -1584,17 +1950,27 @@ export default function (pi: ExtensionAPI) {
         }
         // Single-file diagnostics.
         const uri = pathToFileURL(filepath!).href;
-        const waiter = client!.waitForNextDiagnostics(uri, DIAGNOSTICS_WAIT_MS);
+        const waiterController = new AbortController();
+        const waiter = client!.waitForNextDiagnostics(uri, DIAGNOSTICS_WAIT_MS, combinedSignal(applyCtx.signal, waiterController.signal));
+        void waiter.catch(() => { });
         try {
-          await client!.ensureOpen(filepath!, spec!.languageId);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return {
-            content: [{ type: "text", text: "Failed to open document: " + msg }],
-            details: { action, error: "didopen_failed" },
-          };
-        }
-        await waiter;
+          try {
+            await client!.ensureOpen(filepath!, spec!.languageId);
+          } catch (err) {
+            throwIfAborted(applyCtx.signal);
+            if (err instanceof Error && err.name === "AbortError") throw err;
+            const msg = err instanceof Error ? err.message : String(err);
+            return {
+              content: [{ type: "text", text: "Failed to open document: " + msg }],
+              details: { action, error: "didopen_failed" },
+              isError: true,
+            };
+          }
+          if (client!.isTypeScriptServer) await client!.refreshTypeScriptDiagnostics(uri, timeoutMs, applyCtx.signal);
+          else if (!client!.hasDiagnosticsFor(uri)) await waiter;
+          throwIfAborted(applyCtx.signal);
+          if (!client!.hasDiagnosticsFor(uri)) throw new Error("LSP diagnostics unconfirmed for current document");
+        } finally { waiterController.abort(); }
         const diags = client!.getDiagnostics(uri);
         if (diags.length === 0) {
           return {
@@ -1621,6 +1997,7 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: `Error: action=${action} requires a concrete file path.` }],
           details: { action, error: "missing_file" },
+          isError: true,
         };
       }
       let uri: string;
@@ -1631,6 +2008,7 @@ export default function (pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: "Failed to open document: " + msg }],
           details: { action, error: "didopen_failed" },
+          isError: true,
         };
       }
 
@@ -1645,6 +2023,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `Error: \`line\` is required for action=${action}.` }],
             details: { action, error: "missing_line" },
+            isError: true,
           };
         }
         try {
@@ -1655,6 +2034,7 @@ export default function (pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `Symbol resolution failed: ${msg}` }],
             details: { action, error: "symbol_not_found" },
+            isError: true,
           };
         }
       }
@@ -1662,13 +2042,16 @@ export default function (pi: ExtensionAPI) {
       const relpath = formatRelativePath(filepath, cwd);
 
       try {
+        const receipt = action === "hover" || action === "code_actions"
+          ? await client.refreshTypeScriptDiagnostics(uri, timeoutMs, applyCtx.signal) : undefined;
         switch (action) {
           case "hover": {
             const r = await client.request<{ contents?: unknown } | null>(
               "textDocument/hover",
               { textDocument: { uri }, position: position! },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
+            receipt?.assertCurrent();
             const text = r?.contents ? fmtHoverContents(r.contents) : "";
             return {
               content: [{ type: "text", text: text.trim()
@@ -1686,7 +2069,7 @@ export default function (pi: ExtensionAPI) {
             const r = await client.request<unknown>(
               method,
               { textDocument: { uri }, position: position! },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
             const locs = normalizeLocations(r);
             if (locs.length === 0) {
@@ -1706,7 +2089,7 @@ export default function (pi: ExtensionAPI) {
             const r = await client.request<unknown>(
               "textDocument/references",
               { textDocument: { uri }, position: position!, context: { includeDeclaration: true } },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
             const locs = normalizeLocations(r);
             if (locs.length === 0) {
@@ -1725,7 +2108,7 @@ export default function (pi: ExtensionAPI) {
             const r = await client.request<unknown>(
               "textDocument/documentSymbol",
               { textDocument: { uri } },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
             return {
               content: [{ type: "text", text: fmtDocumentSymbols(r, filepath) }],
@@ -1736,7 +2119,7 @@ export default function (pi: ExtensionAPI) {
             };
           }
           case "code_actions": {
-            const cachedDiags = client.diagnostics.get(uri) ?? [];
+            const cachedDiags = client.getDiagnostics(uri);
             // Filter relevant diagnostics: those overlapping the position.
             const inRange = (d: LspDiagnostic) =>
               comparePosition(d.range.start, position!) <= 0 &&
@@ -1754,8 +2137,9 @@ export default function (pi: ExtensionAPI) {
                   triggerKind: 1,
                 },
               },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
+            receipt?.assertCurrent();
             if (!result || result.length === 0) {
               return {
                 content: [{ type: "text", text: "No code actions available." }],
@@ -1769,6 +2153,7 @@ export default function (pi: ExtensionAPI) {
                 return {
                   content: [{ type: "text", text: "Error: `query` is required when apply=true (action title substring or numeric index)." }],
                   details: { action, error: "missing_query" },
+                  isError: true,
                 };
               }
               const parsedIdx = /^\d+$/.test(sel) ? parseInt(sel, 10) : null;
@@ -1783,7 +2168,7 @@ export default function (pi: ExtensionAPI) {
                   details: { action, serverName: client.serverName, count: result.length },
                 };
               }
-              const applied = await applyCodeActionOrCommand(chosen, client, cwd);
+              const applied = await applyCodeActionOrCommand(chosen, client, applyCtx, receipt);
               if (!applied) {
                 return {
                   content: [{ type: "text", text: `Action "${chosen.title}" produced no edits and no commands.` }],
@@ -1815,12 +2200,13 @@ export default function (pi: ExtensionAPI) {
               return {
                 content: [{ type: "text", text: "Error: rename requires `new_name`." }],
                 details: { action, error: "missing_new_name" },
+                isError: true,
               };
             }
             const result = await client.request<WorkspaceEdit | null>(
               "textDocument/rename",
               { textDocument: { uri }, position: position!, newName: params.new_name },
-              timeoutMs,
+              timeoutMs, applyCtx.signal,
             );
             if (!result) {
               return {
@@ -1830,7 +2216,7 @@ export default function (pi: ExtensionAPI) {
             }
             const shouldApply = params.apply !== false;
             if (shouldApply) {
-              const applied = await applyWorkspaceEdit(result, cwd, u => { void invalidateAcrossClients(u); });
+              const applied = await applyWorkspaceEdit(result, applyCtx);
               return {
                 content: [{ type: "text", text: `Applied rename to "${params.new_name}":\n${applied.map(a => `  ${a}`).join("\n")}` }],
                 details: { action, serverName: client.serverName, applied: true, edits: applied.length },
@@ -1843,7 +2229,7 @@ export default function (pi: ExtensionAPI) {
             };
           }
           default: {
-            const _exhaustive: never = action as never;
+            const _exhaustive: never = action;
             void _exhaustive;
             return {
               content: [{ type: "text", text: `Unknown action: ${action}` }],
@@ -1855,9 +2241,11 @@ export default function (pi: ExtensionAPI) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
           content: [{ type: "text", text: `LSP error: ${msg}` }],
-          details: { action, serverName: client.serverName, error: msg },
+          details: { action, serverName: client.serverName, error: msg, ...applyCtx.ledger.details() },
+          isError: true,
         };
       }
+      } finally { for (const release of releases.values()) release(); }
     },
   });
 }

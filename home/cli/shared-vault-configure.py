@@ -318,7 +318,7 @@ def manifest(path):
             raise Conflict("invalid-manifest-client")
         kind = client.get("kind")
         fields = {"kind", "target", "desired", "overlay", "generated"} if kind == "opencode" else {"kind", "target", "desired"}
-        if (kind not in {"codex", "claude", "cursor", "pi", "opencode"} or kind in seen
+        if (kind not in {"codex", "claude", "cursor", "pi", "opencode", "omp"} or kind in seen
                 or set(client) != fields or not isinstance(client["target"], str)
                 or not Path(client["target"]).is_absolute() or client["target"] in targets
                 or (client["desired"] is not None and not isinstance(client["desired"], dict))

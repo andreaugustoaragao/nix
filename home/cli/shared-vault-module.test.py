@@ -18,7 +18,7 @@ manifest = configure.manifest(manifest_path)
 disabled = configure.manifest(disabled_path)
 connection = json.loads(connection_path.read_text())
 assert all(client["desired"] is None for client in disabled["clients"])
-assert len(manifest["clients"]) == len(disabled["clients"]) == 5
+assert len(manifest["clients"]) == len(disabled["clients"]) == 6
 expected_socket = f"{connection['runtimeDirectory']}/vault-{hashlib.sha256(connection['vaultId'].encode()).hexdigest()[:24]}/api.sock"
 assert connection["socketPath"] == expected_socket
 expected_arguments = ["--socket", expected_socket, "--vault", connection["vaultId"]]
@@ -28,6 +28,7 @@ assert all(entry["command"] == ([mcp] if kind == "opencode" else mcp) for kind, 
 assert entries["opencode"]["timeout"] == {"startup": 20000, "catalog": 20000, "execution": 120000}
 assert entries["opencode"]["disabled"] is False
 assert entries["pi"]["timeout"] == entries["codex"]["tool_timeout_sec"] == 120
+assert entries["omp"]["timeout"] == 120000
 assert entries["claude"] is None, "Claude Code registrations must remain retired"
 assert entries["codex"]["startup_timeout_sec"] == 20
 assert json.loads(opencode_path.read_text())["mcp"]["servers"]["shared-vault"] == entries["opencode"]

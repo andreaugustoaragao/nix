@@ -1,6 +1,21 @@
 (() => {
   // Read-only public DOM adapter. Grounding: T002 dom-publication-v2.json.
-  const visible = e => !!e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+  const rectOffscreen = r => {
+    const left = r.left ?? r.x;
+    const top = r.top ?? r.y;
+    const right = r.right ?? (Number.isFinite(left) && Number.isFinite(r.width) ? left + r.width : undefined);
+    const bottom = r.bottom ?? (Number.isFinite(top) && Number.isFinite(r.height) ? top + r.height : undefined);
+    if (![left, top, right, bottom].every(Number.isFinite)) return false;
+    const vw = typeof innerWidth === 'number' && innerWidth > 0 ? innerWidth : document.documentElement?.clientWidth || 0;
+    const vh = typeof innerHeight === 'number' && innerHeight > 0 ? innerHeight : document.documentElement?.clientHeight || 0;
+    return right <= 0 || bottom <= 0 || (vw > 0 && left >= vw) || (vh > 0 && top >= vh);
+  };
+  const visible = e => {
+    const rects = e.getClientRects();
+    if (!rects.length || getComputedStyle(e).visibility === 'hidden') return false;
+    const ariaHidden = e.getAttribute?.('aria-hidden') === 'true' || !!e.closest?.('[aria-hidden="true"]');
+    return !(ariaHidden && Array.from(rects).every(rectOffscreen));
+  };
   const all = (root, selector) => Array.from(root.querySelectorAll(selector));
   const messageSelector = '[role="group"][data-id][data-user-id][data-message-multiplat-item-id]';
   const blockingDialog = e => e.getAttribute('role') === 'alertdialog' ||
@@ -82,6 +97,10 @@
   }));
   const messages = groups.slice(-40).map(group => {
     const bodies = all(group, '[jsname="bgckF"]');
+    const attachmentCards = bodies.length === 0 ? all(group, '[jsname="sBlcJe"][data-chip-index]') : [];
+    const attachmentOnly = bodies.length === 0 && attachmentCards.length > 0 &&
+      attachmentCards.every(card => all(card, '[role="button"][data-action="7"][title][aria-label]')
+        .some(btn => !!btn.getAttribute('title')?.trim() && !!btn.getAttribute('aria-label')?.trim()));
     const topic = group.closest('[data-topic-id]');
     const busyAncestor = group.closest('[aria-busy="true"]');
     const pending = all(group, '[role="progressbar"],[aria-busy="true"]').some(visible) ||
@@ -91,6 +110,7 @@
     return {
       id: group.getAttribute('data-id'), sender_id: group.getAttribute('data-user-id'),
       body_count: bodies.length,
+      attachment_only: attachmentOnly,
       topic_id: topic?.getAttribute('data-topic-id') ?? null,
       local_only: localOnly, pending, error,
       server: localOnly === 'false' && !pending && !error,
@@ -103,7 +123,7 @@
   const anchor = selection?.anchorNode;
   return {
     version: 1, url: location.href, title: document.title,
-    accounts: all(document, '[aria-label]').filter(e => visible(e) && e.getAttribute('aria-label').startsWith('Google Account:')).map(e => e.getAttribute('aria-label')),
+    accounts: all(document, '[aria-label]').filter(e => visible(e) && e.getAttribute('aria-label').startsWith('Google Account:')).map(e => e.getAttribute('aria-label').replace(/\s+/g, ' ').trim()),
     editors: editors.map(e => ({name: e.getAttribute('aria-label'), ...semantic(e)})),
     send_count: send.length,
     send_enabled: send.length === 1 && !send[0].disabled && send[0].getAttribute('aria-disabled') !== 'true',
@@ -121,7 +141,7 @@
     })),
     message_ids: groups.map(e => e.getAttribute('data-id')),
     identities, messages,
-    publication_supported: messages.length > 0 && messages.every(m => m.id && m.sender_id && m.body_count === 1),
+    publication_supported: messages.length > 0 && messages.every(m => m.id && m.sender_id && (m.body_count === 1 || m.attachment_only)),
     truncated: groups.length > 2000 || identities.length > 2000 || editors.length > 4
   };
 })()

@@ -25,6 +25,7 @@ in
   home.file = {
     ".codex/AGENTS.md".text = lib.mkAfter instructions;
     ".pi/agent/AGENTS.md".text = lib.mkAfter instructions;
+    ".omp/agent/AGENTS.md".text = lib.mkAfter instructions;
   };
 
   xdg.configFile = lib.mkIf (!isServer) {

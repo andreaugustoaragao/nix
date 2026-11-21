@@ -13,7 +13,14 @@ let
   # activation time so secret base URLs (corporate gateway hostnames)
   # never enter /nix/store.
   modelsTemplate = pkgs.writeText "pi-models.json.template" (
-    builtins.toJSON { inherit (cfg) providers; }
+    builtins.toJSON {
+      inherit (cfg)
+        providers
+        defaultModel
+        enabledModels
+        modelThinkingLevels
+        ;
+    }
   );
 
   # Per-placeholder substitution snippets, mirroring the codex.nix
@@ -30,6 +37,44 @@ let
         fi
       fi
     '') cfg.baseUrlSubstitutions
+  );
+  knownLegacy = pkgs.writeText "pi-models-known-legacy.json" (
+    builtins.toJSON {
+      llama-cpp =
+        map
+          (
+            profile:
+            builtins.hashString "sha256" (
+              builtins.toJSON
+                (import ./local-llm.nix {
+                  inherit config lib pkgs;
+                  inherit (profile) isWorkstation isDarwinHost;
+                  hostName = "";
+                  llama-pkgs = { };
+                }).services.piModels.providers.llama-cpp
+            )
+          )
+          [
+            {
+              isWorkstation = true;
+              isDarwinHost = false;
+            }
+            {
+              isWorkstation = false;
+              isDarwinHost = false;
+            }
+            {
+              isWorkstation = false;
+              isDarwinHost = true;
+            }
+          ];
+      litellm = [
+        "d28ad4cc92b9ea14d5514c2d320b966ab34fb0559bb0f771eb5f93b176492d03"
+        (builtins.hashString "sha256" (
+          builtins.toJSON (import ./litellm.nix { }).services.piModels.providers.litellm
+        ))
+      ];
+    }
   );
 in
 {
@@ -78,6 +123,21 @@ in
       '';
     };
 
+    modelThinkingLevels = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.enum [
+          "off"
+          "minimal"
+          "low"
+          "medium"
+          "high"
+          "xhigh"
+        ]
+      );
+      default = { };
+      description = "Managed per-model thinking levels for Pi settings.";
+    };
+
     baseUrlSubstitutions = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
@@ -95,90 +155,24 @@ in
   # symlink at ~/.pi/agent/models.json (from the old direct-write in
   # local-llm.nix) is already gone by the time we materialize the new
   # regular file.
-  config = lib.mkIf (cfg.providers != { }) {
-    home.activation.piModels = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      set -eu
-
-      target_models="${config.home.homeDirectory}/.pi/agent/models.json"
-      target_settings="${config.home.homeDirectory}/.pi/agent/settings.json"
-      mkdir -p "$(dirname "$target_models")"
-
-      rendered="$(cat ${modelsTemplate})"
-      ${substitutionSnippets}
-      printf '%s' "$rendered" | ${pkgs.jq}/bin/jq . > "$target_models.tmp"
-      mv "$target_models.tmp" "$target_models"
-      chmod 0600 "$target_models"
-
-      # Seed enabledModels into settings.json only when not already set,
-      # preserving anything pi's /scoped-models UI may have written
-      # (including the rich {model, thinkingLevel} shape if pi
-      # serializes it there).
-      enabled_models='${builtins.toJSON cfg.enabledModels}'
-      if [[ -f "$target_settings" ]]; then
-        existing="$(cat "$target_settings")"
-      else
-        existing='{}'
-      fi
-
-      # Replace retired per-quant Qwen entries in existing settings.
-      # Unlike initial seeding below, this is a targeted, idempotent
-      # migration and preserves all user-managed scope entries and thinking
-      # levels. It handles both pi's string and rich object representations.
-      existing="$(
-        printf '%s' "$existing" | ${pkgs.jq}/bin/jq \
-          --arg oldPattern 'llama-cpp/qwen3.6-35b-a3b-*' \
-          --arg oldQuant 'llama-cpp/qwen3.6-35b-a3b-q8-local' \
-          --arg new 'llama-cpp/*-local' \
-          'if .enabledModels? != null then
-             .enabledModels |= map(
-               if type == "string" and (. == $oldPattern or . == $oldQuant) then $new
-               elif type == "object" and (.model? == $oldPattern or .model? == $oldQuant) then .model = $new
-               else .
-               end
-             )
-           else .
-           end'
-      )"
-
-      # Keep every WebAI model available when the configured scope is the
-      # full gateway catalog, preserving scopes for other providers.
-      ${lib.optionalString (builtins.elem "litellm/*" cfg.enabledModels) ''
-        existing="$(
-          printf '%s' "$existing" | ${pkgs.jq}/bin/jq '
-            def modelOf:
-              if type == "string" then . else (.model // "") end;
-            if .enabledModels? != null then
-              .enabledModels |= (
-                map(select((modelOf | startswith("litellm/")) | not))
-                + ["litellm/*"]
-              )
-            else .
-            end'
-        )"
-      ''}
-
-      if ! printf '%s' "$existing" | ${pkgs.jq}/bin/jq -e '.enabledModels' >/dev/null 2>&1; then
-        existing="$(
-          printf '%s' "$existing" \
-            | ${pkgs.jq}/bin/jq --argjson em "$enabled_models" '. + {enabledModels: $em}'
-        )"
-      fi
-      ${lib.optionalString (cfg.defaultModel != null) ''
-        existing="$(
-          printf '%s' "$existing" \
-            | ${pkgs.jq}/bin/jq --argjson default ${
-              lib.escapeShellArg (
-                builtins.toJSON {
-                  defaultProvider = builtins.head (lib.splitString "/" cfg.defaultModel);
-                  defaultModel = builtins.elemAt (lib.splitString "/" cfg.defaultModel) 1;
-                }
-              )
-            } '. + $default'
-        )"
-      ''}
-      printf '%s' "$existing" > "$target_settings.tmp"
-      mv "$target_settings.tmp" "$target_settings"
-      chmod 0600 "$target_settings"
-    '';
-  };
+  config.home.activation.piModels = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    set -eu
+    target_models="${config.home.homeDirectory}/.pi/agent/models.json"
+    target_settings="${config.home.homeDirectory}/.pi/agent/settings.json"
+    desired_tmp="$(mktemp)"
+    trap 'rm -f "$desired_tmp"' EXIT
+    chmod 0600 "$desired_tmp"
+    rendered="$(cat ${modelsTemplate})"
+    ${substitutionSnippets}
+    printf '%s' "$rendered" > "$desired_tmp"
+    ${pkgs.python3}/bin/python3 ${./pi-models-configure.py} \
+      --desired "$desired_tmp" \
+      --models-file "$target_models" \
+      --settings-file "$target_settings" \
+      --receipt-file "${config.xdg.stateHome}/pi-models/managed-state.json" \
+      --known-legacy ${knownLegacy} \
+      --litellm-base-url-secret /run/secrets/litellm_base_url
+    rm -f "$desired_tmp"
+    trap - EXIT
+  '';
 }

@@ -533,7 +533,7 @@ def match_harness_text(text: str) -> str:
         return "cursor"
     if "claude" in text:
         return "claude"
-    if re.search(r"(?:^|/|\s)pi(?:\s|$)", text):
+    if re.search(r"(?:^|/|\s)pi(?:-task)?(?:\s|$)", text):
         return "pi"
     return ""
 

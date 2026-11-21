@@ -38,6 +38,7 @@ in
     ./nvim-lazyvim.nix
     ./development.nix
     ./agents.nix
+    ./omp.nix
     ./docker.nix
     ./k9s.nix
     ./fzf.nix

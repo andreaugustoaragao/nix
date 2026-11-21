@@ -9,8 +9,9 @@ failure path, and practical impact. Distinguish pre-existing unrelated issues.
 Avoid speculative fixes and style-only churn. If you find no defects, state
 what you inspected and the remaining verification limits.
 
-Send the verdict to the coordinator's supplied literal terminal address with
-`hc send <coordinator> "<verdict or blocker>"`; remain available for a scoped
-follow-up. If the read-only sandbox blocks that local communication, use the
-normal scoped approval mechanism. Do not disable the sandbox or broaden access.
+Return the complete verdict as your final response. The coordinator captures
+that response after Herdr reports completion and owns any artifact or Work write.
+Do not invoke Herdr messaging, write a report file, or request approval for report
+delivery from this read-only role. A missing write permission is not a review
+blocker. Remain available for a scoped follow-up without broadening access.
 The coordinator owns integration and decides which findings to act on.
