@@ -1,4 +1,10 @@
-{ lib, kubernetesVmAddress, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  kubernetesVmAddress,
+  ...
+}:
 
 # Cross-platform SSH client config — same shape on Linux and macOS.
 #
@@ -33,6 +39,45 @@ let
         "${host},${host}.local ${key}";
     in
     lib.concatStringsSep "\n" (map formatEntry files) + "\n";
+
+  sshConfigCheck = ''
+    ssh_dir="${config.home.homeDirectory}/.ssh"
+    ssh_config="$ssh_dir/config"
+    stamp="$ssh_dir/.config.hm-sha256"
+    src="${config.home.file.".ssh/config".source}"
+
+    if [[ -d "$ssh_config" && ! -L "$ssh_config" ]]; then
+      echo "materializeSshConfig: refusing to overwrite directory $ssh_config" >&2
+      exit 1
+    fi
+
+    if [[ -L "$ssh_config" ]]; then
+      target="$(${pkgs.coreutils}/bin/readlink "$ssh_config")"
+      case "$target" in
+        /nix/store/*-home-manager-files/.ssh/config) ;;
+        *)
+          echo "materializeSshConfig: refusing to overwrite unmanaged symlink $ssh_config -> $target" >&2
+          exit 1
+          ;;
+      esac
+    elif [[ -e "$ssh_config" ]]; then
+      if [[ ! -f "$ssh_config" ]]; then
+        echo "materializeSshConfig: refusing to overwrite non-regular file $ssh_config" >&2
+        exit 1
+      fi
+      if ! ${pkgs.diffutils}/bin/cmp -s "$src" "$ssh_config"; then
+        cur_hash="$(${pkgs.coreutils}/bin/sha256sum "$ssh_config" | ${pkgs.coreutils}/bin/cut -d' ' -f1)"
+        prev_hash=""
+        if [[ -f "$stamp" ]]; then
+          prev_hash="$(${pkgs.coreutils}/bin/cat "$stamp")"
+        fi
+        if [[ -z "$prev_hash" || "$cur_hash" != "$prev_hash" ]]; then
+          echo "materializeSshConfig: refusing to overwrite unmanaged or locally edited $ssh_config" >&2
+          exit 1
+        fi
+      fi
+    fi
+  '';
 in
 {
   programs.ssh = {
@@ -140,6 +185,41 @@ in
       };
     };
   };
+
+  # Materialize ~/.ssh/config as a user-owned 0600 regular file rather than a
+  # symlink to root-owned /nix/store. Inside user-namespaced sandboxes where
+  # UID 0 is unmapped (e.g. bwrap/OMP), root-owned store targets appear as
+  # nobody (65534) and OpenSSH rejects ~/.ssh/config with "Bad owner or permissions".
+  home.file.".ssh/config".enable = lib.mkForce false;
+
+  # Read-only preflight before writeBoundary so a locally edited ~/.ssh/config
+  # aborts activation before Home Manager mutates any other file.
+  home.activation.checkSshConfigCollision = lib.hm.dag.entryBefore [ "writeBoundary" ] ''
+    (
+      ${sshConfigCheck}
+    )
+  '';
+
+  home.activation.materializeSshConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    if [[ -z "''${DRY_RUN:-}" ]]; then
+      (
+        umask 077
+        ${sshConfigCheck}
+        mkdir -p "$ssh_dir"
+        chmod 0700 "$ssh_dir"
+        tmp="$(${pkgs.coreutils}/bin/mktemp "$ssh_dir/.config.XXXXXX")"
+        stamp_tmp="$(${pkgs.coreutils}/bin/mktemp "$ssh_dir/.config.hm-sha256.XXXXXX")"
+        trap 'rm -f "$tmp" "$stamp_tmp"' EXIT
+        ${pkgs.coreutils}/bin/cp "$src" "$tmp"
+        ${pkgs.coreutils}/bin/chmod 0600 "$tmp"
+        ${pkgs.coreutils}/bin/sha256sum "$tmp" | ${pkgs.coreutils}/bin/cut -d' ' -f1 > "$stamp_tmp"
+        ${pkgs.coreutils}/bin/chmod 0600 "$stamp_tmp"
+        ${pkgs.coreutils}/bin/mv -fT "$tmp" "$ssh_config"
+        ${pkgs.coreutils}/bin/mv -fT "$stamp_tmp" "$stamp"
+        trap - EXIT
+      )
+    fi
+  '';
 
   # Declarative known_hosts file for peers. Separate from the default
   # ~/.ssh/known_hosts so interactive ssh additions to ad-hoc hosts
