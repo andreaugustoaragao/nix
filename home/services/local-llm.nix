@@ -180,12 +180,13 @@ in
       # workstation, mac-work, and dev VMs.
       ++ [
         # Health-check the local llama.cpp server (or mac-work LaunchAgent),
-        # then explicitly select this host's local model. Launching bare pi
-        # can fall back to the last cloud model when its persisted scope is
-        # stale, which defeats the purpose of this wrapper.
+        # then explicitly select this host's local model with basic coding
+        # tools enabled (overriding pi-task's --no-tools default while keeping
+        # its lean isolated startup). Launching bare pi can fall back to the
+        # last cloud model when its persisted scope is stale.
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}
-          exec pi-task --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
+          exec pi-task --model ${lib.escapeShellArg "llama-cpp/${model.id}"} --tools read,bash,edit,write "$@"
         '')
       ];
 
