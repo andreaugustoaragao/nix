@@ -118,6 +118,22 @@ class Peer:
                 "cssContentSize": {"x": 0, "y": 0, "width": 800, "height": 600},
                 "cssVisualViewport": {"clientWidth": 800, "clientHeight": 600, "pageX": 0, "pageY": 0, "scale": 1},
             }
+        if method == "DOM.querySelectorAll":
+            if params.get("selector") == "input.missing":
+                return {"nodeIds": []}
+            if params.get("selector") == "input.many":
+                return {"nodeIds": [7, 8]}
+            return {"nodeIds": [7]}
+        if method == "DOM.describeNode":
+            return {"node": {"backendNodeId": 77}}
+        if method == "DOM.resolveNode" and params.get("backendNodeId") == 77:
+            return {"object": {"objectId": "upload-object"}}
+        if method == "Runtime.callFunctionOn" and "HTMLInputElement" in params.get("functionDeclaration", ""):
+            count = params["arguments"][0]["value"]
+            return {"result": {"type": "object", "value": {"accepted": True, "enabled": True, "multiple": False, "count": count}}}
+        if method == "DOM.setFileInputFiles":
+            assert all(path.startswith("/") for path in params["files"])
+            return {}
         if method == "Runtime.evaluate":
             expression = params.get("expression", "")
             if "__native_stall__" in expression:
@@ -246,6 +262,40 @@ def check(launcher):
                 run("resume", task_id)
                 assert any(call["method"] == "Runtime.terminateExecution" for call in peer.calls)
                 assert run("action", task_id, action={"type": "evaluate", "expression": "40+2"})["value"] == 42
+
+            upload_root = root / "uploads"
+            upload_root.mkdir()
+            upload = upload_root / "note.md"
+            upload.write_bytes(b"exact")
+            assert run("action", task_id, action={"type": "upload", "target": {"selector": 'input[type="file"]'}, "files": [str(upload)]}) == {"ok": True, "count": 1}
+            missing = upload_root / "missing.md"
+            os.mkfifo(missing)
+            started = time.monotonic()
+            rejected = run("action", task_id, action={"type": "upload", "target": {"selector": 'input[type="file"]'}, "files": [str(missing)]}, ok=False)
+            assert time.monotonic() - started < 2, rejected
+            assert "regular file" in rejected
+            upload_root.joinpath("link.md").symlink_to(upload)
+            assert "symlink" in run("action", task_id, action={"type": "upload", "target": {"selector": 'input[type="file"]'}, "files": [str(upload_root / "link.md")]}, ok=False)
+            assert "exactly one" in run("action", task_id, action={"type": "upload", "target": {"selector": "input.missing"}, "files": [str(upload)]}, ok=False)
+            assert "exactly one" in run("action", task_id, action={"type": "upload", "target": {"selector": "input.many"}, "files": [str(upload)]}, ok=False)
+            second = upload_root / "second.md"
+            second.write_bytes(b"second")
+            assert "only one file" in run("action", task_id, action={"type": "upload", "target": {"selector": 'input[type="file"]'}, "files": [str(upload), str(second)]}, ok=False)
+            (upload_root / "nested").mkdir()
+            assert "regular file" in run("action", task_id, action={"type": "upload", "target": {"selector": 'input[type="file"]'}, "files": [str(upload_root / "nested")]}, ok=False)
+            refs = root / "tasks" / task_id / "refs-main.json"
+            refs.write_text(json.dumps({"r_old": {"backend_node_id": 77, "loader_id": "stale-loader"}}))
+            assert "stale" in run("action", task_id, action={"type": "upload", "target": {"ref": "r_old"}, "files": [str(upload)]}, ok=False)
+            journal = root / "tasks" / task_id / "journal.json"
+            journal.write_text(json.dumps({"kind": "upload", "page": "main", "started_at": time.time()}))
+            kept = json.loads(record_path.read_text())
+            kept["state"] = "kept"
+            record_path.write_text(json.dumps(kept))
+            refused = run("resume", task_id, ok=False)
+            assert "close its page" in refused
+            assert journal.exists()
+            journal.unlink()
+            run("resume", task_id)
 
             peer.stalled.clear()
             run("action", task_id, "--timeout", "1", action={"type": "screenshot"}, ok=False)

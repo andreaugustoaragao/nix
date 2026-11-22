@@ -25,8 +25,12 @@
   `printf '%s\n' '{"type":"snapshot"}' | browser-task action TASK --page main --timeout 30`
 
   Actions include `navigate`, `snapshot`, `evaluate`, `click`, `fill`, `key`,
-  `wait`, `scroll`, `viewport`, and `screenshot`. Read the tool schema or run
-  `browser-task schema` for their exact arguments. A snapshot returns live
+  `wait`, `scroll`, `viewport`, `screenshot`, and `upload`. Read the tool schema
+  or run `browser-task schema` for their exact arguments. `upload` sets files on
+  one connected, enabled file input in the top document, including a hidden
+  input selected by a unique CSS selector. It accepts 1–4 absolute regular-file
+  paths, at most 25 MiB in total, and rejects symlinks and non-regular files
+  before changing the page. A snapshot returns live
   opaque refs. Use a ref or a unique accessible role and name for `click`,
   `fill`, and `wait`. Take a new snapshot after navigation or page changes;
   a later snapshot or navigation invalidates earlier refs. Inspect page

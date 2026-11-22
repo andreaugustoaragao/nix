@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs::File;
 use std::io::{self, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -16,6 +19,7 @@ const MAX_TEXT: usize = 64 * 1024;
 const MAX_RESULT: usize = 100_000;
 const MAX_SCREENSHOT: usize = 16 * 1024 * 1024;
 const MAX_PIXELS: u64 = 16 * 1024 * 1024;
+const MAX_UPLOAD_BYTES: u64 = 26_214_400;
 
 struct BoundedCount(usize);
 
@@ -53,6 +57,19 @@ pub struct RoleTarget {
     pub name: String,
     #[serde(default)]
     pub exact: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum UploadTarget {
+    Known(Target),
+    Selector(SelectorTarget),
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SelectorTarget {
+    pub selector: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy)]
@@ -108,6 +125,10 @@ pub enum Action {
     Screenshot {
         full_page: Option<bool>,
     },
+    Upload {
+        target: UploadTarget,
+        files: Vec<String>,
+    },
 }
 
 impl Action {
@@ -124,6 +145,7 @@ impl Action {
             Self::Scroll { .. } => "scroll",
             Self::Viewport { .. } => "viewport",
             Self::Screenshot { .. } => "screenshot",
+            Self::Upload { .. } => "upload",
         }
     }
 }
@@ -533,6 +555,293 @@ fn inspect_node(
         .pointer("/result/value")
         .cloned()
         .ok_or_else(|| "target inspection returned no value".into())
+}
+
+fn upload_basename(path: &str) -> Result<&str, String> {
+    if !path.starts_with('/') || path.contains('\0') {
+        return Err("upload path must be absolute".into());
+    }
+    let name = path.rsplit('/').next().unwrap_or("");
+    let bytes = name.as_bytes();
+    if !(1..=180).contains(&bytes.len())
+        || name == "."
+        || name == ".."
+        || bytes
+            .iter()
+            .any(|byte| *byte < 0x20 || *byte == 0x7f || *byte == b'/')
+    {
+        return Err("upload filename is empty, too long, or contains a control character".into());
+    }
+    Ok(name)
+}
+
+struct UploadFile {
+    path: String,
+    size: u64,
+}
+
+fn open_upload(path: &str) -> Result<UploadFile, String> {
+    upload_basename(path)?;
+    let file = File::options()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .map_err(|error| {
+            if error.raw_os_error() == Some(libc::ELOOP) {
+                "upload path is a symlink".to_string()
+            } else {
+                format!("upload path cannot be opened: {error}")
+            }
+        })?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| format!("upload path cannot be inspected: {error}"))?;
+    let mode = metadata.mode();
+    if mode & libc::S_IFMT != libc::S_IFREG {
+        return Err("upload path is not a regular file".into());
+    }
+    if metadata.size() == 0 || metadata.size() > MAX_UPLOAD_BYTES {
+        return Err("upload file must be 1 byte through 25 MiB".into());
+    }
+    let descriptor = file.as_raw_fd();
+    let verified = verified_descriptor_path(path, descriptor, &metadata)?;
+    drop(file);
+    Ok(UploadFile {
+        path: verified,
+        size: metadata.size(),
+    })
+}
+
+fn verified_descriptor_path(
+    path: &str,
+    descriptor: i32,
+    opened: &std::fs::Metadata,
+) -> Result<String, String> {
+    let linked = descriptor_path(descriptor)?;
+    if linked.as_os_str().is_empty() || linked.to_string_lossy().ends_with(" (deleted)") {
+        return Err("upload path changed while it was opened".into());
+    }
+    let confirmed = std::fs::metadata(&linked)
+        .map_err(|error| format!("upload descriptor cannot be verified: {error}"))?;
+    if confirmed.dev() != opened.dev()
+        || confirmed.ino() != opened.ino()
+        || confirmed.mode() & libc::S_IFMT != libc::S_IFREG
+    {
+        return Err("upload path changed while it was opened".into());
+    }
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|error| format!("upload path cannot be verified: {error}"))?;
+    if canonical != linked {
+        return Err("upload path changed while it was opened".into());
+    }
+    canonical
+        .into_os_string()
+        .into_string()
+        .map_err(|_| "upload path is not valid UTF-8".to_string())
+}
+
+fn descriptor_path(descriptor: i32) -> Result<std::path::PathBuf, String> {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_link(format!("/proc/self/fd/{descriptor}"))
+            .map_err(|error| format!("upload descriptor cannot be verified: {error}"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut buffer = [0u8; 4096];
+        let result = unsafe { libc::fcntl(descriptor, libc::F_GETPATH, buffer.as_mut_ptr()) };
+        if result != 0 {
+            return Err(format!(
+                "upload descriptor cannot be verified: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let length = buffer
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(buffer.len());
+        let text = std::str::from_utf8(&buffer[..length])
+            .map_err(|_| "upload path is not valid UTF-8".to_string())?;
+        Ok(std::path::PathBuf::from(text))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let _ = descriptor;
+        Err("upload descriptor verification is unsupported on this platform".into())
+    }
+}
+
+fn upload_files(paths: &[String]) -> Result<Vec<String>, String> {
+    if !(1..=4).contains(&paths.len()) {
+        return Err("upload accepts 1 through 4 files".into());
+    }
+    let mut opened = Vec::with_capacity(paths.len());
+    let mut total = 0u64;
+    let mut names = HashSet::new();
+    for path in paths {
+        let file = open_upload(path)?;
+        total = total.saturating_add(file.size);
+        if total > MAX_UPLOAD_BYTES {
+            return Err("upload exceeds 25 MiB in total".into());
+        }
+        if !names.insert(upload_basename(&file.path)?.to_owned()) {
+            return Err("upload filenames must be unique".into());
+        }
+        opened.push(file.path);
+    }
+    Ok(opened)
+}
+
+fn query_selector(
+    cdp: &mut Cdp,
+    session: &str,
+    selector: &str,
+    deadline: Instant,
+    cancel: &AtomicBool,
+) -> Result<u64, String> {
+    if !(1..=256).contains(&selector.len()) {
+        return Err("upload selector must be 1 through 256 characters".into());
+    }
+    let document = checked_call(
+        cdp,
+        "DOM.getDocument",
+        json!({"depth":0,"pierce":false}),
+        session,
+        deadline,
+        cancel,
+    )?;
+    let root = document
+        .pointer("/root/nodeId")
+        .and_then(Value::as_u64)
+        .ok_or("page document is unavailable")?;
+    let found = checked_call(
+        cdp,
+        "DOM.querySelectorAll",
+        json!({"nodeId": root, "selector": selector}),
+        session,
+        deadline,
+        cancel,
+    )
+    .map_err(|error| format!("upload selector is invalid: {}", truncate(&error, 300)))?;
+    let nodes = found
+        .get("nodeIds")
+        .and_then(Value::as_array)
+        .ok_or("upload selector returned no nodes")?;
+    let ids: Vec<u64> = nodes
+        .iter()
+        .filter_map(Value::as_u64)
+        .filter(|id| *id != 0)
+        .collect();
+    if ids.len() != 1 {
+        return Err("upload selector must match exactly one node".into());
+    }
+    let described = checked_call(
+        cdp,
+        "DOM.describeNode",
+        json!({"nodeId": ids[0]}),
+        session,
+        deadline,
+        cancel,
+    )?;
+    described
+        .pointer("/node/backendNodeId")
+        .and_then(Value::as_u64)
+        .filter(|id| *id != 0)
+        .ok_or_else(|| "upload target is detached".into())
+}
+
+fn upload_target(
+    cdp: &mut Cdp,
+    session: &str,
+    target: &UploadTarget,
+    file_count: usize,
+    refs: &BTreeMap<String, RefRecord>,
+    deadline: Instant,
+    cancel: &AtomicBool,
+) -> Result<u64, String> {
+    let backend = match target {
+        UploadTarget::Known(target) => {
+            target_backend(cdp, session, target, refs, deadline, cancel)?
+                .ok_or_else(|| "target has no accessible match".to_string())?
+        }
+        UploadTarget::Selector(SelectorTarget { selector }) => {
+            query_selector(cdp, session, selector, deadline, cancel)?
+        }
+    };
+    let resolved = checked_call(
+        cdp,
+        "DOM.resolveNode",
+        json!({"backendNodeId": backend}),
+        session,
+        deadline,
+        cancel,
+    )
+    .map_err(|error| {
+        if error.contains("No node with given id") || error.contains("Could not find node") {
+            "target node is detached".to_string()
+        } else {
+            error
+        }
+    })?;
+    let object_id = resolved
+        .pointer("/object/objectId")
+        .and_then(Value::as_str)
+        .ok_or("target node is detached")?;
+    let inspected = checked_call(
+        cdp,
+        "Runtime.callFunctionOn",
+        json!({
+            "objectId": object_id,
+            "functionDeclaration": "function(count) { if (!(this instanceof HTMLInputElement) || this.type !== 'file' || !this.isConnected || this.ownerDocument !== document || this.ownerDocument.defaultView !== top) return {accepted:false}; return {accepted:true, enabled:!this.disabled && this.getAttribute('aria-disabled') !== 'true', multiple:this.multiple, count}; }",
+            "arguments": [{"value": file_count}],
+            "returnByValue": true,
+            "awaitPromise": false
+        }),
+        session,
+        deadline,
+        cancel,
+    )?;
+    if inspected.get("exceptionDetails").is_some() {
+        return Err("upload target cannot be inspected in the main document".into());
+    }
+    let state = inspected
+        .pointer("/result/value")
+        .cloned()
+        .ok_or("upload target inspection returned no value")?;
+    if state.get("accepted").and_then(Value::as_bool) != Some(true) {
+        return Err("upload target is not a connected file input in the top document".into());
+    }
+    if state.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return Err("upload target is disabled".into());
+    }
+    if file_count != 1 && state.get("multiple").and_then(Value::as_bool) != Some(true) {
+        return Err("upload target accepts only one file".into());
+    }
+    Ok(backend)
+}
+
+fn upload(
+    cdp: &mut Cdp,
+    session: &str,
+    target: &UploadTarget,
+    files: &[String],
+    refs: &BTreeMap<String, RefRecord>,
+    deadline: Instant,
+    cancel: &AtomicBool,
+) -> Result<ActionOutput, String> {
+    let verified = upload_files(files)?;
+    let backend = upload_target(cdp, session, target, verified.len(), refs, deadline, cancel)?;
+    checked_call(
+        cdp,
+        "DOM.setFileInputFiles",
+        json!({"files": verified, "backendNodeId": backend}),
+        session,
+        deadline,
+        cancel,
+    )?;
+    Ok(ActionOutput::value(
+        json!({"ok": true, "count": verified.len()}),
+    ))
 }
 
 fn live_target(
@@ -1023,6 +1332,9 @@ pub fn execute(
         }
         Action::Screenshot { full_page } => {
             screenshot(cdp, session, full_page.unwrap_or(false), deadline, cancel)
+        }
+        Action::Upload { target, files } => {
+            upload(cdp, session, target, files, refs, deadline, cancel)
         }
     }
 }

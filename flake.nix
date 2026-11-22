@@ -378,6 +378,9 @@
           workstation-worker-enroll = (pkgs.callPackage ./pkgs/workstation-jobs.nix { }).enroll;
           dev-browser-mcp = pkgs.callPackage ./pkgs/dev-browser-mcp.nix { };
           browser-task = pkgs.callPackage ./pkgs/browser-task.nix { };
+          chat-send = pkgs.callPackage ./pkgs/chat-send.nix {
+            browser-task = self.packages.${system}.browser-task;
+          };
           herdr-agent-preview = pkgs.callPackage ./pkgs/herdr-agent-preview.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
@@ -932,13 +935,17 @@
             pkgs.runCommand "check-chat-send"
               {
                 nativeBuildInputs = [
-                  pkgs.python3
                   pkgs.nodejs
+                  pkgs.diffutils
                 ];
+                chatSend = self.packages.${system}.chat-send;
               }
               ''
-                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/chat-send.test.py
+                cmp -s ${self.outPath}/home/cli/chat-send/scripts/dom_probe.js ${self.outPath}/pkgs/chat-send/internal/chatsend/dom_probe.js
+                cmp -s ${self.outPath}/home/cli/chat-send/scripts/worker-system.txt ${self.outPath}/pkgs/chat-send/cmd/chat-send-task/worker-system.txt
                 node ${self.outPath}/home/cli/chat-send/tests/dom-probe.test.js
+                test -x "$chatSend/bin/chat-send"
+                test -x "$chatSend/bin/chat-send-task"
                 touch "$out"
               '';
           chat-send-worker =
@@ -950,7 +957,6 @@
                 ];
               }
               ''
-                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/chat-send-worker.test.py
                 cp -R ${self.outPath}/home/cli/chat-send worker
                 chmod -R u+w worker
                 mkdir -p worker/node_modules/typebox

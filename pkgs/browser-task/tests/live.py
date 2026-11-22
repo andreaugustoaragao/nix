@@ -19,6 +19,7 @@ HTML = b"""<!doctype html><html lang="en"><meta charset="utf-8">
 #covered{position:relative;width:200px;height:100px}
 #cover{position:absolute;inset:0;background:#bbb;z-index:10}</style>
 <h1>Native CDP fixture</h1>
+<input id="files" type="file" style="display:none">
 <label>Name<input id="name"></label>
 <button id="increment">Increment</button><p id="count">0</p>
 <button id="replace">Replace control</button>
@@ -27,6 +28,8 @@ HTML = b"""<!doctype html><html lang="en"><meta charset="utf-8">
 <div style="height:1600px"></div><button id="bottom">Bottom</button>
 <script>
 window.inputs=[];window.clicks=[];window.keys=[];
+window.uploadReceipt=null;
+files.onchange=()=>{const file=files.files[0]; const reader=new FileReader(); reader.onload=()=>{const bytes=new Uint8Array(reader.result); uploadReceipt={ready:true,name:file.name,size:file.size,bytesHex:Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('')};}; reader.readAsArrayBuffer(file);};
 document.addEventListener('input',e=>inputs.push({trusted:e.isTrusted,value:e.target.value}));
 document.addEventListener('click',e=>clicks.push({trusted:e.isTrusted,id:e.target.id}));
 document.addEventListener('keydown',e=>keys.push({trusted:e.isTrusted,key:e.key}));
@@ -123,6 +126,7 @@ def check(command, port, artifacts=None):
     before = targets(port)
     report = {"checks": [], "screenshot": None}
     with tempfile.TemporaryDirectory(prefix="browser-native-live-") as temporary, fixture() as url:
+        root = Path(temporary)
         browser = Browser(command, Path(temporary))
         try:
             first = browser.start("Native CDP verification", url)
@@ -130,6 +134,24 @@ def check(command, port, artifacts=None):
             assert browser.value(first, "document.title") == "Native CDP fixture"
             assert browser.value(second, "document.title") == "Next document"
             report["checks"].append("separate task targets and completed navigation")
+
+            samples = {
+                "hidden-note.md": b"# hidden exact bytes\n",
+                "hidden-note.pdf": b"%PDF-1.4\nexact hidden bytes\n",
+            }
+            for name, content in samples.items():
+                sample = root / name
+                sample.write_bytes(content)
+                browser.value(first, "window.uploadReceipt=null")
+                browser.action(first, "upload", target={"selector": 'input[type="file"]'}, files=[str(sample)])
+                uploaded = None
+                for _ in range(40):
+                    uploaded = browser.value(first, "window.uploadReceipt")
+                    if uploaded:
+                        break
+                    time.sleep(0.05)
+                assert uploaded == {"ready": True, "name": name, "size": len(content), "bytesHex": content.hex()}, name
+            report["checks"].append("hidden file input preserves markdown and pdf filenames and exact bytes")
 
             snapshot = browser.action(first, "snapshot")
             assert "Increment" in snapshot["text"] and "Name" in snapshot["text"]
@@ -177,15 +199,22 @@ def check(command, port, artifacts=None):
             assert browser.value(first, "({width:innerWidth,height:innerHeight})") == {"width": 800, "height": 600}
             browser.action(first, "click", target={"role": "button", "name": "Bottom"})
             assert browser.value(first, "clicks.some(e => e.id === 'bottom' && e.trusted)") is True
-            previous_scroll = browser.value(first, "scrollY")
+            previous_scroll = 0
+            for _ in range(20):
+                previous_scroll = browser.value(first, "scrollY")
+                if previous_scroll > 0:
+                    break
+                time.sleep(0.05)
             assert previous_scroll > 0
             browser.action(first, "scroll", x=0, y=-2000)
-            for _ in range(20):
-                if browser.value(first, "scrollY") < previous_scroll:
+            observed = previous_scroll
+            for _ in range(40):
+                observed = browser.value(first, "scrollY")
+                if observed < previous_scroll:
                     break
                 time.sleep(0.05)
             else:
-                raise AssertionError("Scroll action did not move the document")
+                raise AssertionError(f"Scroll action did not move the document from {previous_scroll} to {observed}")
             report["checks"].append("viewport persistence, offscreen click and scrolling")
 
             browser.run("open", first, "--page", "other", "--url", url + "/next")

@@ -790,7 +790,7 @@ impl Registry {
                         &fs::read(&journal_path).map_err(|error| error.to_string())?,
                     )
                     .map_err(|error| error.to_string())?;
-                    if matches!(journal.kind.as_str(), "click" | "fill" | "key")
+                    if matches!(journal.kind.as_str(), "click" | "fill" | "key" | "upload")
                         && task
                             .pages
                             .get(journal.page.as_str())
