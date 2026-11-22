@@ -227,16 +227,17 @@ in
       text = builtins.toJSON connection;
     };
 
-    home.activation.sharedVaultClientsPrepare =
-      lib.hm.dag.entryBetween [ "codexConfig" "linkGeneration" ] [ "writeBoundary" ]
-        ''
-          if ${if cfg.enable then "true" else "false"} || [ -e ${lib.escapeShellArg stateDirectory} ]; then
-            run ${configureCommand} --prepare
-          fi
-        '';
+    home.activation.sharedVaultClientsPrepare = lib.mkIf (!(config.my.vaultV2Clients.enable or false)) (
+      lib.hm.dag.entryBetween [ "codexConfig" "linkGeneration" ] [ "writeBoundary" ] ''
+        if ${if cfg.enable then "true" else "false"} || [ -e ${lib.escapeShellArg stateDirectory} ]; then
+          run ${configureCommand} --prepare
+        fi
+      ''
+    );
 
-    # The disabled hooks must survive so older owned registrations can be retired.
-    home.activation.sharedVaultClients =
+    # The disabled hooks must survive on legacy hosts so older owned registrations can be retired,
+    # but are suppressed on v2 hosts where vaultV2Clients owns the shared-vault journal directly.
+    home.activation.sharedVaultClients = lib.mkIf (!(config.my.vaultV2Clients.enable or false)) (
       lib.hm.dag.entryAfter
         [
           "codexConfig"
@@ -247,6 +248,7 @@ in
           if ${if cfg.enable then "true" else "false"} || [ -e ${lib.escapeShellArg stateDirectory} ]; then
             run ${configureCommand} --apply
           fi
-        '';
+        ''
+    );
   };
 }

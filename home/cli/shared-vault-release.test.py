@@ -57,22 +57,22 @@ class ReleaseFixture(unittest.TestCase):
             ".env.example": "SAMPLE=never-archive\n",
             "package.json": json.dumps({"version": "1.2.3", "packageManager": "bun@1.4.2"}) + "\n",
             "bun.lock": "{}\n",
-            "Cargo.toml": "[workspace]\nmembers = ['services/shared-vault']\n",
-            "Cargo.lock": "version = 4\n\n[[package]]\nname = 'shared-vault'\nversion = '0.1.0'\n",
+            "Cargo.toml": "[workspace]\nmembers = ['services/vault-v2-contract', 'services/shared-vault', 'services/local-extractor', 'services/ai-task-scheduler']\n",
+            "Cargo.lock": "version = 4\n\n[[package]]\nname = 'shared-vault'\nversion = '0.2.0'\n",
+            "services/vault-v2-contract/Cargo.toml": "[package]\nname = 'vault-v2-contract'\n",
             "services/shared-vault/Cargo.toml": "[package]\nname = 'shared-vault'\n",
             "services/shared-vault/flake.nix": "{ inputs.nixpkgs.url = 'github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601'; }\n",
             "services/shared-vault/flake.lock": json.dumps({"nodes": {"nixpkgs": {"locked": {
                 "rev": MODULE.SDK_REVISION, "narHash": MODULE.SDK_NAR_HASH}}}}) + "\n",
             "services/shared-vault/src/main.rs": "fn main() {}\n",
-            "services/shared-vault/src/bin/shared-vault-grammar.rs": "fn main() {}\n",
-            "services/shared-vault/helpers/document-extraction.ts": "// fixture\n",
+            "services/local-extractor/Cargo.toml": "[package]\nname = 'local-extractor'\n",
+            "services/local-extractor/src/main.rs": "fn main() {}\n",
+            "services/ai-task-scheduler/Cargo.toml": "[package]\nname = 'ai-task-scheduler'\n",
+            "services/ai-task-scheduler/src/main.rs": "fn main() {}\n",
             "scripts/development-certification.ts": "// fixture\n",
             "scripts/verify-installed-dependencies.ts": "// fixture\n",
             "scripts/verify-installed-patches.ts": "// fixture\n",
             "scripts/automation-runner-bootstrap.ts": "// fixture\n",
-            "scripts/vault-service.ts": "// fixture\n",
-            "scripts/vault.ts": "// fixture\n",
-            "scripts/vault-mcp.ts": "// fixture\n",
             "src/dependency.ts": "export const fixture = true;\n",
         }
         for name, content in files.items():
@@ -135,7 +135,7 @@ class ReleaseFixture(unittest.TestCase):
         content = {"schema": "fulcrum.certification.v1", "status": "PASS", "profile": "release",
                    "candidate": self.revision, "worktree": str(self.repo),
                    "installedDependenciesSha256": MODULE.inventory_dependencies(self.repo / "node_modules"),
-                   "nativeArtifacts": {"schema": "fulcrum.shared-vault.native.v1",
+                   "nativeArtifacts": {"schema": "fulcrum.shared-vault.native.v2",
                                        "candidate": self.revision, "target": MODULE.native_target()[0],
                                        "binaries": {name: hashlib.sha256(self.native_bytes(name)).hexdigest()
                                                     for name in MODULE.NATIVE_BINARIES}}}
@@ -168,18 +168,21 @@ class ReleaseFixture(unittest.TestCase):
                 deps.parent.mkdir(parents=True, exist_ok=True)
                 os.link(binary, deps)
             return b""
-        if phase == "native dispatch completeness":
+        if phase == "native sandbox readiness":
             self.assertEqual(Path(args[0]).parent.name, "native-attested")
+            self.assertEqual(Path(args[0]).name, "vault-extract")
+            self.assertEqual(args[1:], ["check-sandbox", "--json"])
             self.assertEqual(Path(args[0]).stat().st_nlink, 1)
             expected = {"PATH", "HOME", "TMPDIR", "LANG"}
-            if "FULCRUM_CERT_BUN_BIN" in os.environ:
-                expected.add("FULCRUM_CERT_BUN_BIN")
+            for var in ("FULCRUM_CERT_BUN_BIN", "FULCRUM_BWRAP_EXEC"):
+                if var in os.environ:
+                    expected.add(var)
             self.assertEqual(set(environment), expected)
-            return b""
+            return b'{"ok":true}\n'
         return self.real_command(args, cwd, phase, timeout=timeout, environment=environment,
                                  build_paths=build_paths)
 
-    def create(self, state=None, name="release.tar.gz"):
+    def create(self, state=None, name="release.tar.gz", pin_output=None):
         state = state or self.state
         output = state / name
         self.real_command = MODULE.command
@@ -197,15 +200,26 @@ class ReleaseFixture(unittest.TestCase):
 
         with patch.object(Path, "resolve", autospec=True, side_effect=fixture_resolve), \
                 patch.object(MODULE, "command", side_effect=self.fixture_command):
-            return MODULE.create_release(self.repo, self.receipt, output, state)
+            return MODULE.create_release(self.repo, self.receipt, output, state, pin_output=pin_output)
 
     def test_layout_and_determinism(self):
-        first = self.create()
+        pin_path = self.state / "release-pin.json"
+        first = self.create(pin_output=pin_path)
         other = self.private_state("other-state")
         second = self.create(other)
         self.assertEqual(first["hash"], second["hash"])
         self.assertEqual(first["installedDependenciesSha256"],
                          MODULE.inventory_dependencies(self.repo / "node_modules"))
+        expected_native = {name: hashlib.sha256(self.native_bytes(name)).hexdigest()
+                           for name in MODULE.NATIVE_BINARIES}
+        self.assertEqual(first["nativeBinaries"], expected_native)
+        self.assertEqual(json.loads(pin_path.read_text()), {
+            "url": None,
+            "hash": first["hash"],
+            "packageVersion": "1.2.3",
+            "sourceRevision": self.revision,
+            "nativeBinaries": expected_native,
+        })
         self.assertEqual((self.state / "release.tar.gz").read_bytes(), (other / "release.tar.gz").read_bytes())
         self.assertEqual((self.state / "release.tar.gz.sha256").read_text().strip(), first["hash"])
         with tarfile.open(self.state / "release.tar.gz", "r:gz") as archive:
@@ -217,25 +231,17 @@ class ReleaseFixture(unittest.TestCase):
             self.assertIn("shared-vault-release/share/vault-services/node_modules/.bin/foo", names)
             manifest = json.load(archive.extractfile("shared-vault-release/share/vault-services/release.json"))
             self.assertEqual(manifest, {"packageVersion": "1.2.3", "source": {"kind": "artifact", "revision": self.revision}})
-            for name in ("bun", "vault-service", "shared-vault", "shared-vault-grammar", "vault-client", "vault-mcp"):
+            for name in ("bun", "vault-service", "shared-vault", "vault-extract", "ai-task-scheduler"):
                 self.assertIn(f"shared-vault-release/bin/{name}", names)
+            self.assertNotIn("shared-vault-release/bin/shared-vault-grammar", names)
             service = archive.extractfile("shared-vault-release/bin/vault-service").read()
             self.assertIn(b'bin/shared-vault', service)
             self.assertNotIn(b'vault-service.ts', service)
-            unpacked = self.base / "unpacked"
-            unpacked.mkdir()
-            archive.extractall(unpacked, filter="data")
-        launcher = unpacked / "shared-vault-release/bin/vault-client"
-        invoked = subprocess.run(["sh", str(launcher), "--probe"], text=True,
-                                 capture_output=True, check=True)
-        self.assertEqual(json.loads(invoked.stdout)[-1], "--probe")
-        self.assertTrue(json.loads(invoked.stdout)[0].endswith("/scripts/vault.ts"))
         self.assertFalse(list(self.state.glob("release-stage-*")))
         calls = [json.loads(line) for line in self.log.read_text().splitlines()]
         self.assertEqual(sum(call[1:3] == ["scripts/development-certification.ts", "check"] for call in calls), 4)
         self.assertTrue(any("verify-installed-dependencies.ts" in " ".join(call) for call in calls))
         self.assertTrue(any("verify-installed-patches.ts" in " ".join(call) for call in calls))
-
     def test_receipt_checker_and_dependency_verifiers_exclude_loader_overrides(self):
         rogue = self.base / "rogue-bin"
         rogue.mkdir()
@@ -395,8 +401,10 @@ class ReleaseFixture(unittest.TestCase):
         original = json.loads(self.receipt.read_text())
         cases = [
             None,
+            {**original["nativeArtifacts"], "schema": "fulcrum.shared-vault.native.v1"},
             {**original["nativeArtifacts"], "candidate": "0" * 40},
             {**original["nativeArtifacts"], "target": "aarch64-linux" if MODULE.native_target()[0] == "x86_64-linux" else "x86_64-linux"},
+            {**original["nativeArtifacts"], "binaries": {"shared-vault": "0" * 64, "shared-vault-grammar": "0" * 64}},
             {**original["nativeArtifacts"], "binaries": {"shared-vault": "0" * 64}},
             {**original["nativeArtifacts"], "binaries": {**original["nativeArtifacts"]["binaries"], "shared-vault": "0" * 64}},
         ]
@@ -408,9 +416,9 @@ class ReleaseFixture(unittest.TestCase):
         self.assertFalse(list(self.base.glob("bad-native-*/release.tar.gz")))
 
     def test_missing_committed_native_source_is_refused(self):
-        self.git("rm", "services/shared-vault/src/bin/shared-vault-grammar.rs")
+        self.git("rm", "services/local-extractor/src/main.rs")
         self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "missing grammar")
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "missing local-extractor")
         self.revision = self.git("rev-parse", "HEAD").stdout.strip()
         self.write_receipt()
         with self.assertRaises(MODULE.ReleaseError):
@@ -426,7 +434,7 @@ class ReleaseFixture(unittest.TestCase):
                     result = original(args, cwd, phase, timeout, environment, build_paths)
                     if phase == "certified native Cargo build":
                         target = Path(args[-4])
-                        binary = target / "release/shared-vault-grammar"
+                        binary = target / "release/vault-extract"
                         if kind == "missing":
                             binary.unlink()
                         elif kind == "changed":
@@ -460,16 +468,16 @@ class ReleaseFixture(unittest.TestCase):
         reached = []
         def incomplete(args, cwd, phase, timeout=900, environment=None, build_paths=None):
             result = original(args, cwd, phase, timeout, environment, build_paths)
-            if phase == "native dispatch completeness":
+            if phase == "native sandbox readiness":
                 reached.append(phase)
-                raise MODULE.ReleaseError("native dispatch incomplete")
+                return b'{"ok":false,"error":"bwrap missing"}\n'
             return result
         with patch.object(self, "fixture_command", side_effect=incomplete):
             with self.assertRaisesRegex(MODULE.ReleaseError, "failed at native-build") as failure:
                 self.create()
-        self.assertEqual(reached, ["native dispatch completeness"])
+        self.assertEqual(reached, ["native sandbox readiness"])
         self.assertIsInstance(failure.exception.__cause__, MODULE.ReleaseError)
-        self.assertEqual(str(failure.exception.__cause__), "native dispatch incomplete")
+        self.assertEqual(str(failure.exception.__cause__), "native sandbox readiness check failed")
         self.assertFalse((self.state / "release.tar.gz").exists())
 
     def test_cargo_cache_is_lock_bound_and_ambient_build_overrides_are_excluded(self):
@@ -564,7 +572,7 @@ class ReleaseFixture(unittest.TestCase):
                           "import os,sys\nfrom pathlib import Path\n"
                           f"for stage in Path({str(self.state)!r}).glob('release-stage-*/shared-vault-release'):\n"
                           " app=stage/'share/vault-services'\n"
-                          " target=app/'scripts/vault.ts'\n"
+                          " target=app/'scripts/development-certification.ts'\n"
                           " if target.exists():\n"
                           "  target.write_text('UNCERTIFIED SOURCE\\n')\n"
                           "  (app/'src/injected.ts').write_text('UNTRACKED STAGING FILE\\n')\n"
@@ -594,7 +602,7 @@ class ReleaseFixture(unittest.TestCase):
             "source": "Path('src/dependency.ts').write_text('uncertified source\\n')",
             "mode": "Path('src/dependency.ts').chmod(0o755)",
             "private": "Path('.env').write_text('PROBE_ONLY=fixture\\n')",
-            "runtime": "Path('../../bin/vault-client').write_text('changed wrapper\\n')",
+            "runtime": "Path('../../bin/vault-service').write_text('changed wrapper\\n')",
             "removed": "Path('src/dependency.ts').unlink()",
             "directory-link": "shutil.rmtree('src'); Path('src').symlink_to(" + repr(str(self.repo / 'src')) + ")",
         }

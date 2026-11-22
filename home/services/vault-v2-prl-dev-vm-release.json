@@ -1,0 +1,11 @@
+{
+  "hash": "sha256-xyqvXuoCty2o+L0/xca6hH+onofawcQ0Kx30NAq6SEA=",
+  "nativeBinaries": {
+    "ai-task-scheduler": "7782925be68a903cb8ac055a03b1a6224a782da82c738b96873b849b47b38d37",
+    "shared-vault": "289ed14abaa78963e465e049fc992b8d15a8c06007de8911156746094ff60552",
+    "vault-extract": "f74bd6131e906e253876b01d9e96104a1976f84ae4a27356759bf31d151b9c52"
+  },
+  "packageVersion": "0.226.2",
+  "sourceRevision": "a69051d5d1ff4f474df3b887e817ceccba036269",
+  "url": null
+}

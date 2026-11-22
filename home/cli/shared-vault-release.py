@@ -25,11 +25,8 @@ import uuid
 
 
 ROOT_NAME = "shared-vault-release"
-SCRIPTS = {
-    "vault-client": "vault.ts",
-    "vault-mcp": "vault-mcp.ts",
-}
-NATIVE_BINARIES = ("shared-vault", "shared-vault-grammar")
+SCRIPTS: dict[str, str] = {}
+NATIVE_BINARIES = ("shared-vault", "vault-extract", "ai-task-scheduler")
 REQUIRED_SOURCE = {
     "package.json",
     "bun.lock",
@@ -39,8 +36,11 @@ REQUIRED_SOURCE = {
     "services/shared-vault/flake.nix",
     "services/shared-vault/flake.lock",
     "services/shared-vault/src/main.rs",
-    "services/shared-vault/src/bin/shared-vault-grammar.rs",
-    "services/shared-vault/helpers/document-extraction.ts",
+    "services/vault-v2-contract/Cargo.toml",
+    "services/local-extractor/Cargo.toml",
+    "services/local-extractor/src/main.rs",
+    "services/ai-task-scheduler/Cargo.toml",
+    "services/ai-task-scheduler/src/main.rs",
     "scripts/development-certification.ts",
     "scripts/verify-installed-dependencies.ts",
     "scripts/verify-installed-patches.ts",
@@ -57,8 +57,8 @@ SDK_NAR_HASH = "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8="
 CERT_BUN_STORE_ROOT = Path("/nix/store")
 MANAGED_CONTROL_VARIABLES = (
     "PLAYWRIGHT_BROWSERS_PATH", "CHROMIUM_BIN", "FULCRUM_CHROMIUM_PATH", "FULCRUM_TRIVY_BIN",
-    "FULCRUM_OCR_EXEC", "FULCRUM_OFFICE_EXEC", "TESSDATA_PREFIX", "FULCRUM_CERT_BUN_BIN",
-    "LOG_LEVEL", "CI", "TZ",
+    "FULCRUM_BWRAP_EXEC", "FULCRUM_OCR_EXEC", "FULCRUM_OFFICE_EXEC", "TESSDATA_PREFIX",
+    "FULCRUM_CERT_BUN_BIN", "LOG_LEVEL", "CI", "TZ",
 )
 COMMAND_ENVIRONMENT_KEYS = set(MANAGED_CONTROL_VARIABLES) | {
     "PATH", "HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "TMPDIR", "LANG", "NIX_CONFIG",
@@ -423,7 +423,7 @@ def certified_native(raw: dict, checked: dict, revision: str) -> dict[str, str]:
         raise ReleaseError("receipt check did not bind native artifacts")
     if set(evidence) != {"schema", "candidate", "target", "binaries"}:
         raise ReleaseError("native artifact evidence has unexpected fields")
-    if (evidence["schema"] != "fulcrum.shared-vault.native.v1"
+    if (evidence["schema"] != "fulcrum.shared-vault.native.v2"
             or evidence["candidate"] != revision or evidence["target"] != native_target()[0]):
         raise ReleaseError("native artifact evidence is not for this source and target")
     binaries = evidence["binaries"]
@@ -893,7 +893,6 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         'case "$cargo:$rustc:$linker" in /nix/store/*:/nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
         'test "$("$cargo" --version | cut -d" " -f2)" = 1.99.0; '
         'test "$("$rustc" --version | cut -d" " -f2)" = 1.99.0; '
-        'test "$(pkg-config --modversion icu-i18n)" = 78.3; '
         'configured_linker=$(command -v "${CC:-}") || exit 125; '
         'resolver=$(command -v readlink) || exit 125; '
         'case "$configured_linker:$resolver" in /nix/store/*:/nix/store/*) ;; *) exit 125;; esac; '
@@ -903,8 +902,8 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         'test "$(pwd -P)" = "$5"; '
         'export CARGO_HOME="$1" CARGO_TARGET_DIR="$2" CARGO_NET_OFFLINE=true RUSTC="$rustc"; '
         'export "CARGO_TARGET_$3_LINKER=$linker"; '
-        'exec "$cargo" build --release --locked --offline --package shared-vault '
-        '--manifest-path "$4" --bin shared-vault --bin shared-vault-grammar'
+        'exec "$cargo" build --release --locked --offline --workspace --bins '
+        '--manifest-path "$4"'
     )
     target_variable = "X86_64_UNKNOWN_LINUX_GNU" if native_target()[0] == "x86_64-linux" else "AARCH64_UNKNOWN_LINUX_GNU"
     command([str(nix), "develop", "--no-write-lock-file", f"path:{app / 'services/shared-vault'}",
@@ -927,10 +926,17 @@ def build_native(app: Path, temporary: Path, binaries: dict[str, str]) -> tuple[
         "TMPDIR": environment["TMPDIR"],
         "LANG": environment["LANG"],
     }
-    if "FULCRUM_CERT_BUN_BIN" in environment:
-        completeness_environment["FULCRUM_CERT_BUN_BIN"] = environment["FULCRUM_CERT_BUN_BIN"]
-    command([str(attested / "shared-vault"), "--check-complete"], app,
-            "native dispatch completeness", timeout=60, environment=completeness_environment)
+    for var in ("FULCRUM_CERT_BUN_BIN", "FULCRUM_BWRAP_EXEC"):
+        if var in os.environ:
+            completeness_environment[var] = os.environ[var]
+    sandbox_output = command([str(attested / "vault-extract"), "check-sandbox", "--json"], app,
+                             "native sandbox readiness", timeout=60, environment=completeness_environment)
+    try:
+        sandbox_status = json.loads(sandbox_output.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ReleaseError("native sandbox readiness returned invalid JSON") from error
+    if sandbox_status != {"ok": True}:
+        raise ReleaseError("native sandbox readiness check failed")
     if {name: checked_native_binary(attested / name, binaries[name], single_link=True)
             for name in NATIVE_BINARIES} != entries:
         raise ReleaseError("native binary changed during completeness verification")
@@ -951,6 +957,7 @@ def write_runtime(staging: Path, version: str, revision: str,
         shutil.copyfile(native_attested / name, target)
         target.chmod(0o755)
         expected[f"bin/{name}"] = checked_native_binary(target, native_entries[name][3], single_link=True)
+    # Keep bin/vault-service pointing at the certified native shared-vault binary.
     wrapper = binary / "vault-service"
     contents = ("#!/bin/sh\nset -eu\n"
                 'script_dir=${0%/*}\nroot=$(CDPATH= cd -- "$script_dir/.." && pwd -P)\n'
@@ -1169,14 +1176,22 @@ def unlink_owned_link(link: Path, original: Path | None, identity: tuple[int, in
         link.unlink()
 
 
-def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> dict[str, str]:
+def create_release(worktree: Path, receipt: Path, output: Path, state: Path,
+                   pin_output: Path | None = None) -> dict[str, object]:
     worktree, receipt, output, state = checked_paths(worktree, receipt, output, state)
+    if pin_output is not None:
+        if not pin_output.is_absolute() or pin_output.parent != state or not pin_output.name.endswith(".json"):
+            raise ReleaseError("pin output must be a .json directly inside the private state directory")
+        if pin_output.exists() or pin_output.is_symlink():
+            raise ReleaseError("release pin output already exists")
     phase = "source"
     run_id = uuid.uuid4().hex
     archive_temp = None
     sidecar_temp = None
+    pin_temp = None
     archive_identity = None
     sidecar_identity = None
+    pin_identity = None
     staging_path = None
     try:
         revision = clean_revision(worktree)
@@ -1237,10 +1252,26 @@ def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> 
                 target.write(hash_sri + "\n")
                 target.flush()
                 os.fsync(target.fileno())
+            if pin_output is not None:
+                pin_payload = json.dumps({
+                    "url": None,
+                    "hash": hash_sri,
+                    "packageVersion": version,
+                    "sourceRevision": revision,
+                    "nativeBinaries": native_hashes,
+                }, sort_keys=True, indent=2) + "\n"
+                fd, temporary_pin = tempfile.mkstemp(prefix=f"release-pin-{run_id}-", dir=state)
+                pin_temp = Path(temporary_pin)
+                with os.fdopen(fd, "w") as target:
+                    target.write(pin_payload)
+                    target.flush()
+                    os.fsync(target.fileno())
             sidecar = output.with_name(output.name + ".sha256")
             with blocked_publication_signals():
                 os.link(archive_temp, output)
                 os.link(sidecar_temp, sidecar)
+                if pin_output is not None and pin_temp is not None:
+                    os.link(pin_temp, pin_output)
                 directory = os.open(state, os.O_RDONLY | os.O_DIRECTORY)
                 try:
                     os.fsync(directory)
@@ -1253,19 +1284,34 @@ def create_release(worktree: Path, receipt: Path, output: Path, state: Path) -> 
                 archive_temp.unlink()
                 sidecar_temp.unlink()
                 archive_temp = sidecar_temp = None
-        return {"status": "ready", "archive": str(output), "hash": hash_sri,
-                "sourceRevision": revision, "packageVersion": version,
-                "receiptSha256": receipt_sha, "installedDependenciesSha256": dependency_sha}
+                if pin_temp is not None:
+                    pin_info = pin_temp.lstat()
+                    pin_identity = (pin_info.st_dev, pin_info.st_ino)
+                    pin_temp.unlink()
+                    pin_temp = None
+        result: dict[str, object] = {
+            "status": "ready", "archive": str(output), "hash": hash_sri,
+            "sourceRevision": revision, "packageVersion": version,
+            "receiptSha256": receipt_sha, "installedDependenciesSha256": dependency_sha,
+            "nativeBinaries": native_hashes,
+        }
+        if pin_output is not None:
+            result["pin"] = str(pin_output)
+        return result
     except Exception as error:
         held = isinstance(error, UnsettledVerifier)
         with blocked_publication_signals():
             if not held:
                 unlink_owned_link(output, archive_temp, archive_identity)
                 unlink_owned_link(output.with_name(output.name + ".sha256"), sidecar_temp, sidecar_identity)
+                if pin_output is not None:
+                    unlink_owned_link(pin_output, pin_temp, pin_identity)
                 if archive_temp is not None:
                     archive_temp.unlink(missing_ok=True)
                 if sidecar_temp is not None:
                     sidecar_temp.unlink(missing_ok=True)
+                if pin_temp is not None:
+                    pin_temp.unlink(missing_ok=True)
             diagnostic = state / f"failure-{run_id}.json"
             fd = os.open(diagnostic, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, "w") as target:
@@ -1285,13 +1331,15 @@ def main() -> int:
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--state-directory", required=True, type=Path)
+    parser.add_argument("--pin-output", type=Path, default=None)
     args = parser.parse_args()
     def interrupt(_signal, _frame):
         raise ReleaseError("packaging interrupted")
     previous_int = signal.signal(signal.SIGINT, interrupt)
     previous_term = signal.signal(signal.SIGTERM, interrupt)
     try:
-        print(json.dumps(create_release(args.worktree, args.receipt, args.output, args.state_directory), sort_keys=True))
+        print(json.dumps(create_release(args.worktree, args.receipt, args.output, args.state_directory,
+                                        pin_output=args.pin_output), sort_keys=True))
         return 0
     except ReleaseError as error:
         print(str(error), file=sys.stderr)

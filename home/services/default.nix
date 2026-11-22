@@ -36,6 +36,7 @@
   ++ lib.optionals (!isDarwinHost) [
     ./darkman.nix
     ./shared-vault.nix
+    ./vault-v2.nix
   ]
   ++ lib.optionals (!personalOnly && !isDarwinHost) [ ./notes-sync.nix ]
   ++ lib.optionals (!personalOnly && !isDarwinHost && !isServer) [
@@ -43,13 +44,12 @@
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [
     ./registry-forward.nix
-    ./chroma.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "workstation") [
     ./cursor-bridge.nix
   ]
   ++ lib.optionals (!personalOnly && hostName == "prl-dev-vm") [
-    ./shared-vault-prl-dev-vm.nix
+    ./vault-v2-prl-dev-vm.nix
   ]
   ++ lib.optionals (!personalOnly && isDarwinHost) [
     ./notes-sync-darwin.nix

@@ -308,7 +308,7 @@ def reconcile(client, name, state_directory, mode="check"):
 def manifest(path):
     value = decode(snapshot(path, generated=True), "json")
     if (set(value) != {"version", "name", "clients"} or type(value["version"]) is not int
-            or value["version"] != 1 or value["name"] != "shared-vault"
+            or value["version"] != 1 or value["name"] not in ("shared-vault", "ai-task-scheduler")
             or not isinstance(value["clients"], list)):
         raise Conflict("invalid-manifest")
     seen = set()

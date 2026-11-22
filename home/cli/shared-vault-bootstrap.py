@@ -38,9 +38,14 @@ class AssetRedirect(urllib.request.HTTPRedirectHandler):
         return redirected
 
 
+REQUIRED_PIN_FIELDS = {"url", "hash", "packageVersion", "sourceRevision"}
+OPTIONAL_PIN_FIELDS = {"nativeBinaries"}
+NATIVE_BINARIES = {"shared-vault", "vault-extract", "ai-task-scheduler"}
+
+
 def read_pin(path):
     pin = json.loads(path.read_text())
-    if set(pin) != {"url", "hash", "packageVersion", "sourceRevision"}:
+    if not isinstance(pin, dict) or not REQUIRED_PIN_FIELDS.issubset(pin) or not set(pin).issubset(REQUIRED_PIN_FIELDS | OPTIONAL_PIN_FIELDS):
         raise RestoreError("Unexpected release pin fields")
     if not re.fullmatch(r"[a-f0-9]{40}", pin["sourceRevision"]):
         raise RestoreError("Release pin needs a full source commit")
@@ -50,6 +55,12 @@ def read_pin(path):
         raise RestoreError("Release pin needs a SHA256 SRI digest")
     if pin["url"] is not None and not re.fullmatch(r"https://github\.com/andrearagao/fulcrum/releases/download/[A-Za-z0-9._-]+/shared-vault-release\.tar\.gz", pin["url"]):
         raise RestoreError("Release URL must name the private Fulcrum release asset")
+    if "nativeBinaries" in pin:
+        binaries = pin["nativeBinaries"]
+        if (not isinstance(binaries, dict) or set(binaries) != NATIVE_BINARIES
+                or any(not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest)
+                       for digest in binaries.values())):
+            raise RestoreError("Release pin nativeBinaries must bind exact 64-hex digests for v2 binaries")
     return pin
 
 

@@ -32,6 +32,30 @@ class RestoreTests(unittest.TestCase):
                 token.assert_not_called()
                 network.assert_not_called()
 
+
+    def test_v2_pin_validates_native_binaries_map(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pin.json"
+            pin = {
+                "url": None,
+                "sourceRevision": "1" * 40,
+                "packageVersion": "0.226.0",
+                "hash": "sha256-" + base64.b64encode(bytes(32)).decode(),
+                "nativeBinaries": {
+                    "shared-vault": "a" * 64,
+                    "vault-extract": "b" * 64,
+                    "ai-task-scheduler": "c" * 64,
+                },
+            }
+            path.write_text(json.dumps(pin))
+            self.assertEqual(bootstrap.read_pin(path), pin)
+            for bad in [
+                {"shared-vault": "a" * 64, "shared-vault-grammar": "b" * 64},
+                {"shared-vault": "not-hex", "vault-extract": "b" * 64, "ai-task-scheduler": "c" * 64},
+            ]:
+                path.write_text(json.dumps({**pin, "nativeBinaries": bad}))
+                with self.assertRaisesRegex(bootstrap.RestoreError, "nativeBinaries"):
+                    bootstrap.read_pin(path)
     def test_local_only_cli_explains_retained_archive_requirement(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "pin.json"

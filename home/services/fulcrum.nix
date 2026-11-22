@@ -12,8 +12,17 @@
 let
   sourceRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
   shared = config.my.sharedVault or { enable = false; };
-  projectRoot = if shared.enable then "${shared.release}/share/vault-services" else sourceRoot;
-
+  vaultV2 = config.my.vaultV2 or { enable = false; };
+  vaultV2Fulcrum = vaultV2.fulcrumRelease or null;
+  packagedRelease =
+    if vaultV2.enable && vaultV2Fulcrum != null then
+      vaultV2Fulcrum
+    else if shared.enable then
+      shared.release
+    else
+      null;
+  projectRoot =
+    if packagedRelease != null then "${packagedRelease}/share/vault-services" else sourceRoot;
   # Runtime library path for native modules (onnxruntime / sharp in
   # @huggingface/transformers). `libstdc++` is the one that actually
   # broke when we first tried to run under a bare PATH; keep the list
@@ -47,9 +56,12 @@ let
   ];
   binPath = lib.optionalString (hostName == "prl-dev-vm") "${runtimeBinPath}:" + serviceBinPath;
   effectiveRuntimePath = lib.concatStringsSep ":" (
-    lib.optionals shared.enable [
-      "${shared.release}/bin"
+    lib.optionals (packagedRelease != null) [
+      "${packagedRelease}/bin"
       "${projectRoot}/node_modules/.bin"
+    ]
+    ++ lib.optionals (vaultV2.enable && vaultV2.package != packagedRelease) [
+      "${vaultV2.package}/bin"
     ]
     ++ [
       runtimeBinPath
@@ -147,19 +159,26 @@ in
   systemd.user.services.fulcrum = {
     Unit = {
       Description = "Fulcrum — executive operational intelligence (${
-        if shared.enable then "Nix release" else "source"
+        if packagedRelease != null then "Nix release" else "source"
       })";
       Documentation = [ "file://${projectRoot}/docs/README.md" ];
       After = [
         "network-online.target"
       ]
-      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service";
+      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service"
+      ++ lib.optionals vaultV2.enable [
+        "shared-vault-v2.service"
+        "ai-task-scheduler.service"
+      ];
       Wants = [
         "network-online.target"
       ]
-      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service";
-      # Development checkouts are optional; packaged releases are Nix dependencies.
-      ConditionPathExists = lib.mkIf (!shared.enable) projectRoot;
+      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service"
+      ++ lib.optionals vaultV2.enable [
+        "shared-vault-v2.service"
+        "ai-task-scheduler.service"
+      ];
+      ConditionPathExists = lib.mkIf (packagedRelease == null) projectRoot;
     };
 
     Service = {
@@ -178,10 +197,14 @@ in
         # only on hosts that actually run fulcrum from source (see
         # system/networking.nix).
         "FULCRUM_HOST=0.0.0.0"
-        # Vector store — declared as a system OCI container in
-        # system/chroma.nix and bound to localhost:8000. Without this
-        # override Fulcrum falls back to `http://chroma:8000`, which only
-        # resolves inside docker-compose's network.
+      ]
+      ++ lib.optionals vaultV2.enable [
+        # Shared Vault v2 & AI Task Scheduler Unix sockets (ChromaDB retired in ADR-0001/0003).
+        "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"
+        "FULCRUM_SCHEDULER_SOCKET=%t/ai-task-scheduler/api.sock"
+      ]
+      ++ lib.optionals (!vaultV2.enable) [
+        # Legacy/source hosts still run system/chroma.nix on loopback.
         "CHROMA_BASE_URL=http://localhost:8000"
       ]
       ++ lib.optionals (hostName == "prl-dev-vm") [
@@ -317,9 +340,9 @@ in
         export FULCRUM_TLS_KEY=${lib.escapeShellArg runtimeTlsKey}
 
         ${
-          if shared.enable then
+          if packagedRelease != null then
             ''
-              exec ${shared.release}/bin/bun --env-file=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes/.fulcrum/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
+              exec ${packagedRelease}/bin/bun --env-file=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes/.fulcrum/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
             ''
           else
             ''
@@ -327,12 +350,11 @@ in
             ''
         }
       '';
-
       Restart = "on-failure";
       RestartSec = "5s";
       # Bun handles SIGTERM gracefully (drains SSE streams); give it room.
       KillMode = "mixed";
-      TimeoutStopSec = if shared.enable then "180s" else "15s";
+      TimeoutStopSec = if packagedRelease != null then "180s" else "15s";
 
       # Soft resource ceilings to keep a runaway sub-agent from eating the
       # machine. Bump if you hit them in practice.

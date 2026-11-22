@@ -13,6 +13,7 @@
     ./pi.nix
     ./cursor.nix
     ./shared-vault.nix
+    ./vault-v2-clients.nix
     ./herdr.nix
     ./herdr-preview.nix
     ./agent-terminals.nix
@@ -23,6 +24,7 @@
     ./grill-me.nix
     ./graphify.nix
   ];
+  config.my.vaultV2Clients.configureScript = lib.mkDefault ./shared-vault-configure.py;
   options.my.agentHarness = {
     legacyHerdr = lib.mkOption {
       type = lib.types.bool;

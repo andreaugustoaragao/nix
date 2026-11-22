@@ -32,7 +32,11 @@ let
     lib.mapAttrs (_: file: { inherit (file) source text executable; }) (
       lib.filterAttrs (
         path: _:
-        lib.any (prefix: lib.hasPrefix prefix path) [
+        !(builtins.elem path [
+          ".agents/skills/vault-companion"
+          ".cursor/skills/vault-companion"
+        ])
+        && lib.any (prefix: lib.hasPrefix prefix path) [
           ".agents/skills/"
           ".cursor/skills/"
           ".pi/agent/extensions/"
@@ -84,6 +88,20 @@ assert lib.assertMsg (lib.all hasPortableSkills homes)
   "Every development host and worker must install all shared portable skills.";
 assert lib.assertMsg (same managedFiles)
   "VM, workstation and worker must have identical managed skills, instructions and Pi extensions.";
+assert lib.assertMsg
+  (lib.all (
+    home:
+    let
+      hasCompanion =
+        builtins.hasAttr ".agents/skills/vault-companion" home.home.file
+        && builtins.hasAttr ".cursor/skills/vault-companion" home.home.file;
+      hasAnyCompanion =
+        builtins.hasAttr ".agents/skills/vault-companion" home.home.file
+        || builtins.hasAttr ".cursor/skills/vault-companion" home.home.file;
+    in
+    if (home.my.vaultV2.enable or false) then hasCompanion else !hasAnyCompanion
+  ) homes)
+  "vault-companion must be installed under both .agents/skills and .cursor/skills iff my.vaultV2.enable.";
 assert lib.assertMsg (same versions)
   "VM, workstation and worker must pin identical agent and Herdr core versions.";
 assert lib.assertMsg (lib.all (

@@ -1,8 +1,10 @@
 {
   lib,
+  pkgs,
   stdenv,
   fetchurl,
   requireFile,
+  makeWrapper,
   jq,
   python3,
   binutils,
@@ -10,14 +12,19 @@
   openssl,
   zlib,
   libxcb,
+  onnxruntime ? pkgs.onnxruntime,
+  bubblewrap ? pkgs.bubblewrap,
+  poppler-utils ? pkgs.poppler-utils,
+  tesseract ? pkgs.tesseract,
   url,
   hash,
   packageVersion,
   sourceRevision,
+  nativeBinaries ? null,
 }:
 let
-  # Match the committed Rust SDK flake.lock. The host's nixpkgs may carry
-  # ICU 78.3 from a different derivation, which is not the build provider.
+  # Match the committed Rust SDK flake.lock so shared libraries for certified
+  # native binaries stay pinned to the exact toolchain that built them.
   sdkPkgs =
     import
       (builtins.fetchTree {
@@ -28,17 +35,21 @@ let
         narHash = "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8=";
       })
       {
-        system = stdenv.hostPlatform.system;
+        localSystem = stdenv.hostPlatform.system;
         config = { };
         overlays = [ ];
       };
-  sdkIcu = sdkPkgs.icu;
+  nativeRuntimeLibs = lib.makeLibraryPath [
+    sdkPkgs.stdenv.cc.cc.lib
+    zlib
+    openssl
+  ];
   artifact =
     if url == null then
       requireFile {
         inherit hash;
         name = "shared-vault-release.tar.gz";
-        message = "Import the retained certified runtime with shared-vault-bootstrap.py --archive PATH --archive-only before building this local release.";
+        message = "Import the certified runtime archive produced by shared-vault-release.py via shared-vault-bootstrap.py --archive PATH before building this release.";
       }
     else
       fetchurl {
@@ -51,16 +62,29 @@ let
       aarch64-linux = 183;
     }
     .${stdenv.hostPlatform.system} or null;
-  onnxArchitecture = if stdenv.hostPlatform.isx86_64 then "x64" else "arm64";
-  onnxSha256 =
-    if stdenv.hostPlatform.isx86_64 then
-      "ffb75a925ba05e47b235bb66e3e3911714a80b328a9c9425539feb204aa32a23"
-    else
-      "1f549d46250b005580b597f4164984aaf75b3bcb9f3aeb07c7f8a8fe60b23c76";
+  nativeBinaryNames = [
+    "shared-vault"
+    "vault-extract"
+    "ai-task-scheduler"
+  ];
+  nativeChecks = lib.optionalString (nativeBinaries != null) (
+    lib.concatMapStringsSep "\n" (
+      name:
+      let
+        expectedSha = nativeBinaries.${name};
+      in
+      assert builtins.match "[a-f0-9]{64}" expectedSha != null;
+      ''
+        printf '%s  %s\n' ${lib.escapeShellArg expectedSha} "$out/bin/${name}" | sha256sum -c -
+      ''
+    ) nativeBinaryNames
+  );
 in
 assert builtins.match "[a-f0-9]{40}" sourceRevision != null;
 assert stdenv.hostPlatform.isLinux;
-assert lib.getVersion sdkIcu == "78.3";
+assert
+  nativeBinaries == null
+  || lib.attrNames nativeBinaries == lib.sort builtins.lessThan nativeBinaryNames;
 stdenv.mkDerivation {
   pname = "shared-vault-release";
   version = packageVersion;
@@ -68,6 +92,7 @@ stdenv.mkDerivation {
   strictDeps = true;
   nativeBuildInputs = [
     jq
+    makeWrapper
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [
     autoPatchelfHook
@@ -79,7 +104,6 @@ stdenv.mkDerivation {
     openssl
     zlib
     libxcb
-    sdkIcu
   ];
   dontConfigure = true;
   dontBuild = true;
@@ -151,10 +175,10 @@ stdenv.mkDerivation {
     # The archive is fixed-output and must carry its own reviewed identity.
     # Do not synthesize a revision from the Nix checkout or its Git metadata.
     test -z "$(find "$out" -type l -print -quit)"
-    for executable in vault-service shared-vault shared-vault-grammar vault-client vault-mcp bun; do
+    for executable in vault-service shared-vault vault-extract ai-task-scheduler bun; do
       test -f "$out/bin/$executable" && test -x "$out/bin/$executable"
     done
-    patchShebangs --host "$out/bin/vault-service" "$out/bin/vault-client" "$out/bin/vault-mcp"
+    patchShebangs --host "$out/bin/vault-service"
     test -f "$out/share/vault-services/scripts/automation-runner-bootstrap.ts"
     test -f "$out/share/vault-services/release.json"
     jq -e --arg version ${lib.escapeShellArg packageVersion} \
@@ -168,29 +192,36 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  # autoPatchelf runs after postFixup, so restore the certified native bytes
-  # once every fixup hook has completed. The service supplies the managed
-  # library search path needed by the unmodified ONNX library.
+  # autoPatchelf runs after postFixup, so restore the exact certified native
+  # ELF bytes once fixup completes, verify their certified SHA-256 digests, and
+  # then wrap them with Nix runtime environment defaults without altering ELF bytes.
   installCheckPhase = ''
     runHook preInstallCheck
-    for architecture in x64 arm64; do
-      runtime="share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/$architecture/libonnxruntime.so.1"
-      if test -f "$out/$runtime"; then
-        cp -f --remove-destination "./$runtime" "$out/$runtime"
-        chmod 0644 "$out/$runtime"
-        cmp "./$runtime" "$out/$runtime"
-      fi
-    done
-    for executable in shared-vault shared-vault-grammar; do
+    for executable in shared-vault vault-extract ai-task-scheduler; do
       cp -f --remove-destination "./bin/$executable" "$out/bin/$executable"
       chmod 0755 "$out/bin/$executable"
       cmp "./bin/$executable" "$out/bin/$executable"
     done
-    printf '%s  %s\n' ${lib.escapeShellArg onnxSha256} \
-      "$out/share/vault-services/node_modules/onnxruntime-node/bin/napi-v6/linux/${onnxArchitecture}/libonnxruntime.so.1" | sha256sum -c -
-    "$out/bin/shared-vault" --check-complete
-    test -x "$out/bin/shared-vault-grammar"
-    test -s "$out/share/vault-services/services/shared-vault/helpers/document-extraction.ts"
+    ${nativeChecks}
+
+    wrapProgram "$out/bin/shared-vault" \
+      --prefix LD_LIBRARY_PATH : "${nativeRuntimeLibs}" \
+      --set-default FULCRUM_ONNXRUNTIME_LIBRARY "${onnxruntime}/lib/libonnxruntime.so"
+
+    wrapProgram "$out/bin/vault-extract" \
+      --set-default FULCRUM_BWRAP_EXEC "${bubblewrap}/bin/bwrap" \
+      --set-default FULCRUM_PDFTOTEXT_EXEC "${poppler-utils}/bin/pdftotext" \
+      --set-default FULCRUM_PDFTOPPM_EXEC "${poppler-utils}/bin/pdftoppm" \
+      --set-default FULCRUM_OCR_EXEC "${tesseract}/bin/tesseract" \
+      --set-default TESSDATA_PREFIX "${tesseract}/share/tessdata"
+
+    wrapProgram "$out/bin/ai-task-scheduler" \
+      --set-default FULCRUM_BWRAP_EXEC "${bubblewrap}/bin/bwrap"
+
+    for executable in shared-vault vault-extract ai-task-scheduler; do
+      cmp "./bin/$executable" "$out/bin/.$executable-wrapped"
+      "$out/bin/$executable" --help >/dev/null
+    done
     ! grep -F 'scripts/vault-service.ts' "$out/bin/vault-service"
     grep -F 'bin/shared-vault' "$out/bin/vault-service"
     test -s "$out/share/vault-services/src/index.ts"
@@ -210,11 +241,10 @@ stdenv.mkDerivation {
   passthru = {
     sharedVaultSourceRevision = sourceRevision;
     sharedVaultArchiveHash = hash;
-    sharedVaultSdkIcu = sdkIcu;
     sharedVaultSdkCcLib = sdkPkgs.stdenv.cc.cc.lib;
   };
   meta = {
-    description = "Hash-pinned shared vault service, CLI and MCP release";
+    description = "Hash-pinned Fulcrum v2 runtime, shared-vault, vault-extract, and ai-task-scheduler release";
     platforms = [
       "x86_64-linux"
       "aarch64-linux"
