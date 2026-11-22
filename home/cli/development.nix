@@ -250,10 +250,8 @@ in
       PYTHONDONTWRITEBYTECODE = "1";
 
       # NOTE: OPENAI_* are intentionally NOT set globally. They would shadow a
-      # real key for any OpenAI-compatible tool, and the base URL/model are
-      # only valid on the host running the local llama.cpp server. The
-      # local-qwen-code wrapper (home/services/local-llm.nix) exports the
-      # correct OPENAI_API_KEY/BASE_URL/MODEL at launch, where they apply.
+      # real key for any OpenAI-compatible tool, and the local llama.cpp
+      # endpoint is configured per harness via `services.piModels` and `local-pi`.
 
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";

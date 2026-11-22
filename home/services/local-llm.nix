@@ -7,7 +7,6 @@
   # decoding). See the nixpkgs-llama input comment in flake.nix.
   llama-pkgs,
   isWorkstation,
-  hostName,
   isDarwinHost ? false,
   ...
 }:
@@ -78,7 +77,7 @@ let
     llama-cpp-rocm
   ];
 
-  # Probe / start helper shared by `local-pi` and `local-qwen-code`.
+  # Probe / start helper used by `local-pi`.
   # On workstation this kicks the local systemd user service and polls
   # 127.0.0.1. mac-work and VM hosts probe its LaunchAgent; VM failures
   # include remote diagnostics because the server runs on mac-work.
@@ -187,25 +186,6 @@ in
         (pkgs.writeShellScriptBin "local-pi" ''
           ${ensureLocalLlm}
           exec pi-task --model ${lib.escapeShellArg "llama-cpp/${model.id}"} "$@"
-        '')
-      ]
-      ++ lib.optionals (hostName != "prl-dev-vm") [
-        (pkgs.writeShellScriptBin "local-qwen-code" ''
-          ${ensureLocalLlm}
-
-          export OPENAI_API_KEY=local
-          export OPENAI_BASE_URL=${baseUrl}
-          export OPENAI_MODEL=${model.id}
-
-          if command -v qwen >/dev/null 2>&1; then
-            exec qwen "$@"
-          fi
-          if command -v qwen-code >/dev/null 2>&1; then
-            exec qwen-code "$@"
-          fi
-
-          echo "qwen-code is not installed yet. Open a new shell after Home Manager activation, or run install-qwen-code." >&2
-          exit 1
         '')
       ];
 
