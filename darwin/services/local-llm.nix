@@ -2,35 +2,40 @@
   config,
   pkgs,
   lib,
-  inputs,
-  # Reuse the pinned nixpkgs llama.cpp derivation, replacing only its
-  # source with PrismML's fork on Darwin. Linux keeps upstream llama.cpp.
-  llama-pkgs,
   owner,
   homePrefix,
   ...
 }:
 
 let
-  # Bonsai's PQ2_0 tensors and Hadamard activation transform are only
-  # implemented by PrismML's fork. Keep using nixpkgs' Darwin build
-  # recipe so Metal and Accelerate are configured in the usual way.
-  llama-cpp-metal = llama-pkgs.llama-cpp.overrideAttrs (_oldAttrs: {
-    pname = "llama-cpp-prism";
-    version = "10709";
-    src = inputs.prism-llama;
-    npmDepsHash = "sha256-2Q7XhaLAArmviOLdQsNbYTfdyDE5pW9lR26cRHEVl9k=";
-  });
+  # Package Unsloth's official b12588-mix-c0c3de8 macOS arm64 prebuilt
+  # (commit 883286076): Unsloth's tagged source rev lacks their CI-merged
+  # inkling2 + DSpark + banded Metal FA PR stack.
+  llama-cpp-metal = pkgs.stdenvNoCC.mkDerivation {
+    pname = "llama-cpp-unsloth";
+    version = "12588-mix-c0c3de8";
+    src = pkgs.fetchurl {
+      url = "https://github.com/unslothai/llama.cpp/releases/download/b12588-mix-c0c3de8/llama-b12588-mix-c0c3de8-bin-macos-arm64.tar.gz";
+      sha256 = "229def18e27ed740ec4f3a6508f084b25630e08d8a87ada40b00622fc496ceb8";
+    };
+    dontConfigure = true;
+    dontBuild = true;
+    dontFixup = true;
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out/bin"
+      cp -a . "$out/bin/"
+      runHook postInstall
+    '';
+  };
 
-  # PQ2_0 is PrismML's preferred Apple-Silicon packing. It is slightly
-  # larger than PTQ1_0 but has cheaper unpacking and is the variant for
-  # which PrismML publishes M5 Max Metal results.
   model = {
-    id = "bonsai-2-27b-local";
-    name = "Bonsai 2 27B Local (PQ2_0)";
-    repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
-    file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
-    mmprojFile = "Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf";
+    id = "inkling-2-mini-local";
+    name = "Inkling 2 Mini Local (UD-Q4_K_XL + DSpark)";
+    repo = "unsloth/Inkling-2-Mini-GGUF";
+    file = "Inkling-2-Mini-UD-Q4_K_XL.gguf";
+    mmprojFile = "mmproj-F16.gguf";
+    draftFile = "dspark-Inkling-2-Mini-Q8_0.gguf";
     contextWindow = 262144;
     maxTokens = 8192;
   };
@@ -41,6 +46,8 @@ let
   modelUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.file}?download=true";
   mmprojPath = "${modelDir}/${model.mmprojFile}";
   mmprojUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.mmprojFile}?download=true";
+  draftPath = "${modelDir}/${model.draftFile}";
+  draftUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.draftFile}?download=true";
 
   # Parallels Shared-network host stub — the Mac's own IP on the
   # bridge100 interface (verified via `ifconfig` on mac-work). NOT
@@ -66,7 +73,7 @@ let
     mkdir -p ${lib.escapeShellArg modelDir}
 
     if [ ! -s ${lib.escapeShellArg modelPath} ]; then
-      echo "Downloading ${model.name} (~7.2GB) -> ${modelPath}"
+      echo "Downloading ${model.name} (~16.4GiB) -> ${modelPath}"
       ${pkgs.curl}/bin/curl \
         --location \
         --fail \
@@ -77,7 +84,7 @@ let
     fi
 
     if [ ! -s ${lib.escapeShellArg mmprojPath} ]; then
-      echo "Downloading ${model.name} vision projector (~629MB) -> ${mmprojPath}"
+      echo "Downloading ${model.name} vision projector (~610MiB) -> ${mmprojPath}"
       ${pkgs.curl}/bin/curl \
         --location \
         --fail \
@@ -86,18 +93,32 @@ let
         ${lib.escapeShellArg mmprojUrl}
       mv ${lib.escapeShellArg "${mmprojPath}.tmp"} ${lib.escapeShellArg mmprojPath}
     fi
+
+    if [ ! -s ${lib.escapeShellArg draftPath} ]; then
+      echo "Downloading ${model.name} DSpark drafter (~384MiB) -> ${draftPath}"
+      ${pkgs.curl}/bin/curl \
+        --location \
+        --fail \
+        --continue-at - \
+        --output ${lib.escapeShellArg "${draftPath}.tmp"} \
+        ${lib.escapeShellArg draftUrl}
+      mv ${lib.escapeShellArg "${draftPath}.tmp"} ${lib.escapeShellArg draftPath}
+    fi
   '';
 
-  # PrismML's published Metal invocation uses full GPU offload and flash
-  # attention. Keep the existing large prefill batches and six P-core
-  # worker threads; unlike the old Qwen MTP model, Bonsai has no embedded
-  # draft head, so speculative-decoding flags must not be passed.
+  # Inkling 2 Mini on Metal: keep --ubatch-size 512 to bound the
+  # relative-bias compute buffer (~11.8 GiB @ 262K ctx), enable the
+  # 3-token DSpark drafter, and apply Inkling's official sampling defaults.
   startScript = pkgs.writeShellScript "local-llm-start" ''
     set -euo pipefail
     ${ensureModel}
     exec ${llama-cpp-metal}/bin/llama-server \
       --model ${lib.escapeShellArg modelPath} \
       --mmproj ${lib.escapeShellArg mmprojPath} \
+      --model-draft ${lib.escapeShellArg draftPath} \
+      --spec-type draft-dspark \
+      --spec-draft-n-max 3 \
+      --n-gpu-layers-draft 99 \
       --alias ${model.id} \
       --host ${bindHost} \
       --port ${toString port} \
@@ -105,11 +126,15 @@ let
       --n-gpu-layers 99 \
       --flash-attn on \
       --batch-size 2048 \
-      --ubatch-size 2048 \
+      --ubatch-size 512 \
       --threads 6 \
       --parallel 1 \
       --cont-batching \
-      --jinja
+      --jinja \
+      --temp 1.0 \
+      --top-p 1.0 \
+      --top-k 0 \
+      --min-p 0.0
   '';
 in
 {
@@ -134,7 +159,7 @@ in
   # to ~/.local/share/llm/models/. Mirrors the workstation pattern
   # where `local-llm.service` is a systemd --user unit.
   #
-  # The first activation kicks off a ~7.8GB model + vision-projector
+  # The first activation kicks off a ~17.4GiB model + projector + drafter
   # download via curl --continue-at -; subsequent starts are instant.
   # launchd will restart the agent on crash; ThrottleInterval=30s
   # prevents a tight loop if `bindHost` isn't up (e.g. Parallels not

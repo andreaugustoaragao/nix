@@ -16,8 +16,8 @@ let
   # Model identity differs per server:
   #   - workstation (16 GB VRAM, ROCm): forced into Q4_K_XL by
   #     `--n-cpu-moe 28`. Alias `qwen3.6-35b-a3b-local`.
-  #   - dev VMs (client → mac-work): PrismML Bonsai 2 27B PQ2_0,
-  #     served by the forked Metal backend in darwin/services/local-llm.nix.
+  #   - dev VMs (client → mac-work): Inkling 2 Mini UD-Q4_K_XL + DSpark,
+  #     served by the Unsloth Metal backend in darwin/services/local-llm.nix.
   # The `repo`/`file` fields are only consulted on the server side
   # (workstation systemd unit + download script); VM clients only
   # care about `id`, `contextWindow`, `maxTokens` for models.json.
@@ -34,10 +34,10 @@ let
       }
     else
       {
-        id = "bonsai-2-27b-local";
-        name = "Bonsai 2 27B Local (PQ2_0)";
-        repo = "prism-ml/Ternary-Bonsai-2-27B-gguf";
-        file = "Ternary-Bonsai-2-27B-PQ2_0.gguf";
+        id = "inkling-2-mini-local";
+        name = "Inkling 2 Mini Local (UD-Q4_K_XL + DSpark)";
+        repo = "unsloth/Inkling-2-Mini-GGUF";
+        file = "Inkling-2-Mini-UD-Q4_K_XL.gguf";
         input = [
           "text"
           "image"
@@ -231,32 +231,26 @@ in
     apiKey = "local";
     compat = {
       supportsDeveloperRole = false;
-      supportsReasoningEffort = false;
+      supportsReasoningEffort = !isWorkstation;
       supportsUsageInStreaming = !isWorkstation;
     };
     models = [
-      (
-        {
-          inherit (model)
-            id
-            name
-            input
-            contextWindow
-            maxTokens
-            ;
-          reasoning = false;
-          cost = {
-            input = 0;
-            output = 0;
-            cacheRead = 0;
-            cacheWrite = 0;
-          };
-        }
-        // lib.optionalAttrs (!isWorkstation) {
-          # The shared Bonsai endpoint supports this native no-thinking switch.
-          samplingParams.chat_template_kwargs.enable_thinking = false;
-        }
-      )
+      {
+        inherit (model)
+          id
+          name
+          input
+          contextWindow
+          maxTokens
+          ;
+        reasoning = !isWorkstation;
+        cost = {
+          input = 0;
+          output = 0;
+          cacheRead = 0;
+          cacheWrite = 0;
+        };
+      }
     ];
   };
 
