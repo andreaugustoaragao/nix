@@ -318,6 +318,11 @@ in
     | architect runners | gpt-6-astra, gpt-6-sol |
     | interrogate reviewers | gpt-6-astra, gpt-6-sol |
 
+    Provider split: the table above lists native ChatGPT `codex-openai` model
+    IDs (`gpt-6-astra`, `gpt-6-sol`), because ChatGPT Codex accounts reject
+    `gpt-6.2-*`. When running via `codex-webai` (LiteLLM), use `gpt-6.2-astra`
+    in place of `gpt-6-astra` and `gpt-6.2-sol` in place of `gpt-6-sol`.
+
     Validate models and reasoning levels against the current session's agent
     tool before spawning. Pass model and reasoning effort separately; never
     append effort or speed suffixes to a model name. If a configured model is
@@ -364,7 +369,7 @@ in
 
   home.file.".local/bin/codex-webai" = lib.mkIf (!personalOnly) {
     source = pkgs.writeShellScript "codex-webai" ''
-      exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model_provider="litellm"' "$@"
+      exec "${config.home.homeDirectory}/.local/bin/codex" -c 'model="gpt-6.2-sol"' -c 'model_provider="litellm"' "$@"
     '';
   };
 

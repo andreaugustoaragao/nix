@@ -894,10 +894,10 @@ in
     ++ lib.optionals (!personalOnly && !isServer) [ "litellm/*" ]
     ++ lib.optionals (config.services.piModels.providers ? llama-cpp) [ "llama-cpp/*-local" ];
 
-    services.piModels.defaultModel = lib.mkIf (!personalOnly && !isServer) "litellm/gpt-6.1-sol";
+    services.piModels.defaultModel = lib.mkIf (!personalOnly && !isServer) "litellm/gpt-6.2-sol";
 
     services.piModels.modelThinkingLevels = lib.mkIf (!personalOnly && !isServer) {
-      "litellm/gpt-6.1-sol" = "high";
+      "litellm/gpt-6.2-sol" = "high";
     };
     assertions = [
       {

@@ -112,8 +112,8 @@ assert lib.assertMsg (
 ) "VM, workstation and worker must share cloud models and defaults.";
 assert lib.assertMsg (lib.all (
   home:
-  home.services.piModels.defaultModel == "litellm/gpt-6.1-sol"
-  && home.services.piModels.modelThinkingLevels."litellm/gpt-6.1-sol" == "high"
+  home.services.piModels.defaultModel == "litellm/gpt-6.2-sol"
+  && home.services.piModels.modelThinkingLevels."litellm/gpt-6.2-sol" == "high"
   &&
     lib.hasPrefix "${home.my.agentHarness.piManagedExtensions}/"
       home.home.file.".pi/agent/extensions/lsp.ts".source

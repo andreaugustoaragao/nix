@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / 'home/services/pi-models-configure.py'
 LOCAL = 'llama-cpp/*-local'
-CLOUD = 'litellm/gpt-6.1-sol'
+CLOUD = 'litellm/gpt-6.2-sol'
 QWEN = 'llama-cpp/qwen3.6-35b-a3b-*'
 COST = dict(input=0, output=0, cacheRead=0, cacheWrite=0)
 LOCAL_PROVIDER = dict(
@@ -150,7 +150,7 @@ class Reconciliation(unittest.TestCase):
                     provider['models'][0][field] = value
                 else:
                     provider[field] = value
-                settings = dict(defaultProvider='litellm', defaultModel='gpt-6.1-sol', enabledModels=['litellm/*'])
+                settings = dict(defaultProvider='litellm', defaultModel='gpt-6.2-sol', enabledModels=['litellm/*'])
                 f.seed({'litellm': provider}, settings)
                 models, actual, receipt, stderr = f.run(desired())
                 self.assertEqual(models, {'providers': {'litellm': provider}})

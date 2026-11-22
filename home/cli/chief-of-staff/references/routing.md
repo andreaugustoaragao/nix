@@ -18,9 +18,9 @@ standard speed, never Fast, Auto or an unverified effort variant.
 | Focused fixes, iterative debugging, tests and narrow refactoring | `pi --model litellm/gemini-4-hydrogen` | Hydrogen, default effort unqualified |
 | Bounded implementation from a clear specification, established-pattern wiring and coding with computer-use verification | `pi --model litellm/gpt-6.1-terra` | Terra, default effort unqualified; verify required tools |
 | Independent candidate review | Fresh Carbon or Astra, selected independently of the implementer | Use the exact Carbon route above or Astra route below; preserve connector-bound exceptions and any opposite-model design-peer requirement |
-| Email, Google Drive or calendar, including connector-dependent review | `codex-openai`, keep its configured connectors | `gpt-6.1-sol`; `gpt-6-astra` for difficult synthesis/reasoning. Verified medium for bounded Sol work, high for difficult reasoning, xhigh only when warranted and supported |
-| Explicit complex-coding escalation or necessary Codex capability | `codex-openai`, with task-specific reason | `gpt-6.1-sol` or `gpt-6-astra`; verify supported effort, high for substantial difficulty, xhigh only when justified |
-| Carbon unavailable for design authoring or UI/UX assessment | `codex-openai` | `gpt-6-astra`, high normally; verify at startup and record Carbon's unavailability. An Astra-authored design still requires Carbon peer review |
+| Email, Google Drive or calendar, including connector-dependent review | `codex-openai`, keep its configured connectors | `gpt-6.1-sol`; `gpt-6-astra` for difficult synthesis/reasoning (native ChatGPT Codex catalog; LiteLLM/WebAI routes use `gpt-6.2-sol` / `gpt-6.2-astra`). Verified medium for bounded Sol work, high for difficult reasoning, xhigh only when warranted and supported |
+| Explicit complex-coding escalation or necessary Codex capability | `codex-openai`, with task-specific reason | `gpt-6.1-sol` or `gpt-6-astra` (or `codex-webai` with `gpt-6.2-sol` / `gpt-6.2-astra` when native connectors aren't needed); verify supported effort, high for substantial difficulty, xhigh only when justified |
+| Carbon unavailable for design authoring or UI/UX assessment | `codex-openai` | `gpt-6-astra` (native ChatGPT Codex catalog; `gpt-6.2-astra` on LiteLLM/WebAI), high normally; verify at startup and record Carbon's unavailability. An Astra-authored design still requires Carbon peer review |
 | Required peer of authored architecture/UX design | Carbon authors → fresh Astra; Astra authors → fresh Carbon | Use the routes above; high normally where qualified, Pi default unqualified. Unavailable opposite peer leaves the gate pending |
 
 Sol/Astra also remain available for explicit user selection, required connectors,
@@ -63,13 +63,16 @@ Gemini CLI through LiteLLM remains experimental, not an automatic choice.
 
 Use explicit `codex-openai`/`codex-webai` launchers, not bare `codex` with an
 assumed provider. Verify route, model, effort and required tools/connectors at
-startup. `codex-webai` is authorized for the same Astra/Sol model only after an
-observed OpenAI-route failure such as outage, exhausted allowance or persistent
-authentication/transport errors. Record and report the reason; reconcile
-uncertain in-flight work first. A poor answer, one slow response or subscription
-balancing is not a route failure. Keep email/Drive/calendar work on
-`codex-openai`; if connectors are unavailable, report the blocker. Return new
-assignments to OpenAI when healthy without churning an active fallback session.
+startup. Keep email/Drive/calendar and other connector-bound work strictly on
+`codex-openai` (`gpt-6.1-sol` / `gpt-6-astra`); if connectors are unavailable,
+report the blocker. For connector-free Codex work, or after an observed
+OpenAI-route failure (outage, exhausted allowance or persistent
+authentication/transport errors), `codex-webai` is authorized with
+`gpt-6.2-sol` / `gpt-6.2-astra`. When falling back from a failed `codex-openai`
+run, record and report the reason and reconcile uncertain in-flight work first;
+a poor answer, one slow response or subscription balancing is not a route
+failure. Return connector-bound or OpenAI-preferred assignments to healthy
+`codex-openai` without churning an active session.
 
 ## Design, UI and candidate gates
 

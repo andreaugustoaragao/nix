@@ -13,6 +13,8 @@ from pathlib import Path
 # USD per 1M tokens: (input, cache_read, cache_write, output)
 # Thinking/reasoning tokens bill at the output rate unless separated by provider.
 PRICING = {
+    "gpt-6.2-astra": (10.0, 1.0, 0.0, 50.0),
+    "gpt-6.2-sol": (2.0, 0.10, 0.0, 10.0),
     "gpt-6-astra": (10.0, 1.0, 0.0, 50.0),
     "gpt-6.1-sol": (2.0, 0.10, 0.0, 10.0),
     "gpt-6-sol": (2.0, 0.10, 0.0, 10.0),
