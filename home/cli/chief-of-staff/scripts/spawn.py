@@ -161,7 +161,7 @@ def main() -> int:
     parser.add_argument("--cwd", required=True, help="Absolute working directory")
     parser.add_argument("--tab-id", help="Explicit worker tab ID (< 4 splits)")
     parser.add_argument("--tab-name", help="Worker tab name if creating or matching a tab")
-    parser.add_argument("--harness", default="auto", choices=["auto", "codex", "pi", "opencode", "cursor", "shell"])
+    parser.add_argument("--harness", default="auto", choices=["auto", "codex", "pi", "cursor", "shell"])
     parser.add_argument("--model", default="unspecified", help="Recorded model/effort for portfolio tracking")
     parser.add_argument("--scope", default="", help="Allowed paths / scope")
     parser.add_argument("--deliverable", default="", help="Expected deliverable")
@@ -262,8 +262,6 @@ def main() -> int:
             harness = "cursor"
         elif prog in ("pi", "pi-task"):
             harness = "pi"
-        elif "opencode" in prog:
-            harness = "opencode"
         else:
             harness = "shell"
 

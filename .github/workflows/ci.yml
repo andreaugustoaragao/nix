@@ -1,6 +1,6 @@
 # CI for the flake: lint checks as derivations + per-host evaluation.
 #
-# Two layers, mirroring the CLAUDE.md quality gates:
+# Two layers, mirroring the AGENTS.md quality gates:
 #   lint — builds .#checks (nixfmt --check, statix, deadnix). Cheap;
 #          fails fast on style/anti-pattern/dead-code drift.
 #   eval — evaluates each host's system.build.toplevel drvPath. This

@@ -17,7 +17,6 @@ let
   roots = [
     ".agents/skills"
     ".cursor/skills"
-    ".config/opencode/skills"
   ];
   hasPortableSkills =
     home:
@@ -36,7 +35,6 @@ let
         lib.any (prefix: lib.hasPrefix prefix path) [
           ".agents/skills/"
           ".cursor/skills/"
-          ".config/opencode/skills/"
           ".pi/agent/extensions/"
           ".pi/agent/skills/"
           ".pi/agent/themes/"
@@ -64,18 +62,6 @@ let
       ];
       mcp_servers = builtins.removeAttrs template.mcp_servers [ "shared_vault" ];
     };
-  opencode =
-    home:
-    let
-      value = builtins.fromJSON (
-        builtins.unsafeDiscardStringContext home.xdg.configFile."opencode/opencode.jsonc".text
-      );
-    in
-    value
-    // {
-      providers = builtins.removeAttrs value.providers [ "llama-cpp" ];
-      mcp.servers = builtins.removeAttrs value.mcp.servers [ "shared-vault" ];
-    };
   versions =
     home:
     map (package: { inherit (package) pname version; }) (
@@ -86,8 +72,6 @@ let
           "pi"
           "pi-coding-agent"
           "cursor-agent"
-          "opencode"
-          "opencode2"
           "herdr-core"
           "agent-hub"
           "herdr-agent-preview"
@@ -140,8 +124,6 @@ assert lib.assertMsg (lib.all (
     home.home.file.".pi/agent/extensions/lib/lifecycle.ts".source
     == "${home.my.agentHarness.piManagedExtensions}/lib/lifecycle.ts"
 ) homes) "Full Pi uses the high-thinking WebAI default and one co-located lifecycle bundle.";
-assert lib.assertMsg (same opencode)
-  "VM, workstation and worker must share OpenCode defaults, cloud models and MCP.";
 assert lib.assertMsg (
   vmHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
   == workstationHome.xdg.configFile."herdr-app/layouts/main-flat.json".source

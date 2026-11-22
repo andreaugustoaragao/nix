@@ -56,13 +56,10 @@ rustPlatform.buildRustPackage {
 
   # Materialize the per-agent hook shims under $out/share/pi-rs/agent-hooks/
   # with the absolute /nix/store path of the pi-rs binary substituted in.
-  # Home-manager modules for claude/cursor/codex/pi reference these.
+  # Home-manager modules for cursor/codex/pi reference these.
   postInstall = ''
     mkdir -p $out/share/pi-rs/agent-hooks
 
-    substitute ${./agent-hooks/claude-rewrite.sh.in} \
-      $out/share/pi-rs/agent-hooks/claude-rewrite.sh \
-      --replace-fail @pi-rs@ $out/bin/pi-rs
     substitute ${./agent-hooks/cursor-rewrite.sh.in} \
       $out/share/pi-rs/agent-hooks/cursor-rewrite.sh \
       --replace-fail @pi-rs@ $out/bin/pi-rs

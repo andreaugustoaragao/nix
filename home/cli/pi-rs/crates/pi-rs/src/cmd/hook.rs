@@ -6,14 +6,9 @@
 //!
 //! Per-agent protocols:
 //!
-//! - **claude** (PreToolUse): stdin JSON has `tool_name`, `tool_input.command`.
-//!   Passthrough → exit 0, empty stdout. Rewrite → exit 0, stdout JSON:
-//!   `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": "...", "updatedInput": {<original tool_input with command replaced>}}}`.
-//!
 //! - **cursor** (preToolUse): stdin JSON has `tool_input.command`.
 //!   Passthrough → exit 0, stdout `{}`. Rewrite → exit 0, stdout JSON:
 //!   `{"permission": "allow", "updated_input": {"command": "<new>"}}`.
-//!
 //! Tokenization failures, missing keys, and parse errors all map to
 //! passthrough so a malformed hook input never breaks the agent.
 
@@ -26,8 +21,6 @@ use crate::rewrite::{Decision, config::Config, rewrite};
 
 #[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum Agent {
-    /// Claude Code PreToolUse hook protocol.
-    Claude,
     /// Cursor / cursor-agent preToolUse hook protocol.
     Cursor,
 }
@@ -82,46 +75,18 @@ fn decide(input: &str, agent: Agent) -> serde_json::Result<String> {
 
 /// Per-agent passthrough output.
 ///
-/// Claude is happy with empty stdout. Cursor expects `{}` so the hook
-/// response is always a valid JSON document.
+/// Cursor expects `{}` so the hook response is always a valid JSON document.
 fn render_passthrough(agent: Agent) -> String {
     match agent {
-        Agent::Claude => String::new(),
         Agent::Cursor => "{}".into(),
     }
 }
 
 /// Per-agent rewrite envelope.
-fn render_rewrite(agent: Agent, payload: &Value, new_cmd: &str) -> serde_json::Result<String> {
+fn render_rewrite(agent: Agent, _payload: &Value, new_cmd: &str) -> serde_json::Result<String> {
     match agent {
-        Agent::Claude => render_claude_rewrite(payload, new_cmd),
         Agent::Cursor => render_cursor_rewrite(new_cmd),
     }
-}
-
-fn render_claude_rewrite(payload: &Value, new_cmd: &str) -> serde_json::Result<String> {
-    // Preserve all original tool_input fields (description, timeout, etc.)
-    // and only override `command`.
-    let mut tool_input = payload
-        .get("tool_input")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
-    if let Some(map) = tool_input.as_object_mut() {
-        map.insert("command".into(), Value::String(new_cmd.to_string()));
-    } else {
-        // tool_input wasn't an object — shouldn't happen, but synthesize.
-        tool_input = json!({ "command": new_cmd });
-    }
-
-    let response = json!({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason": "pi-rs auto-rewrite",
-            "updatedInput": tool_input,
-        }
-    });
-    serde_json::to_string(&response)
 }
 
 fn render_cursor_rewrite(new_cmd: &str) -> serde_json::Result<String> {
@@ -136,87 +101,33 @@ fn render_cursor_rewrite(new_cmd: &str) -> serde_json::Result<String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn claude_passthrough_is_empty() {
-        assert_eq!(render_passthrough(Agent::Claude), "");
-    }
 
     #[test]
     fn decide_empty_input_is_passthrough() {
-        assert_eq!(decide("", Agent::Claude).unwrap(), "");
         assert_eq!(decide("", Agent::Cursor).unwrap(), "{}");
     }
 
     #[test]
     fn decide_malformed_json_is_passthrough() {
-        assert_eq!(decide("not json", Agent::Claude).unwrap(), "");
         assert_eq!(decide("{ malformed", Agent::Cursor).unwrap(), "{}");
     }
 
     #[test]
     fn decide_missing_command_is_passthrough() {
-        let input = r#"{"tool_name":"Bash","tool_input":{"description":"no cmd"}}"#;
-        assert_eq!(decide(input, Agent::Claude).unwrap(), "");
+        let input = r#"{"tool_input":{"description":"no cmd"}}"#;
+        assert_eq!(decide(input, Agent::Cursor).unwrap(), "{}");
     }
-
     #[test]
     fn decide_unknown_command_is_passthrough() {
         // No rule for `foozle` — the rewrite oracle resolves to passthrough,
         // and decide() then emits the agent's passthrough form.
         let input = r#"{"tool_name":"Bash","tool_input":{"command":"foozle"}}"#;
-        assert_eq!(decide(input, Agent::Claude).unwrap(), "");
         assert_eq!(decide(input, Agent::Cursor).unwrap(), "{}");
     }
 
     #[test]
     fn cursor_passthrough_is_empty_object() {
         assert_eq!(render_passthrough(Agent::Cursor), "{}");
-    }
-
-    #[test]
-    fn claude_rewrite_envelope_shape() {
-        let payload = json!({
-            "tool_name": "Bash",
-            "tool_input": { "command": "git status", "description": "check repo" }
-        });
-        let out = render_claude_rewrite(&payload, "pi-rs git status").unwrap();
-        let parsed: Value = serde_json::from_str(&out).unwrap();
-
-        // Top-level shape: must have hookSpecificOutput.
-        let hso = parsed
-            .get("hookSpecificOutput")
-            .expect("hookSpecificOutput");
-        assert_eq!(hso.get("hookEventName"), Some(&json!("PreToolUse")));
-        assert_eq!(hso.get("permissionDecision"), Some(&json!("allow")));
-        assert!(
-            hso.get("permissionDecisionReason")
-                .and_then(|v| v.as_str())
-                .is_some(),
-            "permissionDecisionReason must be present"
-        );
-
-        // updatedInput: command replaced, OTHER fields preserved.
-        let updated = hso.get("updatedInput").expect("updatedInput");
-        assert_eq!(updated.get("command"), Some(&json!("pi-rs git status")));
-        assert_eq!(
-            updated.get("description"),
-            Some(&json!("check repo")),
-            "original tool_input fields (description) must be preserved"
-        );
-    }
-
-    #[test]
-    fn claude_rewrite_synthesizes_tool_input_when_missing() {
-        // Defensive: stdin without a tool_input field shouldn't crash;
-        // we synthesize a fresh one with just the rewritten command.
-        let payload = json!({ "tool_name": "Bash" });
-        let out = render_claude_rewrite(&payload, "pi-rs git status").unwrap();
-        let parsed: Value = serde_json::from_str(&out).unwrap();
-        let updated = parsed
-            .get("hookSpecificOutput")
-            .and_then(|v| v.get("updatedInput"))
-            .expect("updatedInput");
-        assert_eq!(updated.get("command"), Some(&json!("pi-rs git status")));
     }
 
     #[test]

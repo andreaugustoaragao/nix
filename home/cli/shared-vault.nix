@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  isServer ? false,
   ...
 }:
 let
@@ -73,16 +72,6 @@ let
       args = [ ];
       timeout = 120000;
     };
-    opencode = {
-      type = "local";
-      command = [ command ];
-      disabled = false;
-      timeout = {
-        startup = 20000;
-        catalog = 20000;
-        execution = 120000;
-      };
-    };
   };
   entryFor =
     name: if cfg.enable && builtins.elem name cfg.clients then nativeEntries.${name} else null;
@@ -118,12 +107,12 @@ let
           desired = entryFor "omp";
         }
         {
+          # Retire registrations owned by earlier generations.
           kind = "opencode";
           target = "${config.xdg.configHome}/opencode/opencode.jsonc";
           overlay = "${config.xdg.configHome}/opencode/opencode.json";
-          desired = entryFor "opencode";
-          generated =
-            if isServer then null else toString config.xdg.configFile."opencode/opencode.jsonc".source;
+          desired = null;
+          generated = null;
         }
       ];
     }
@@ -171,7 +160,6 @@ in
           "codex"
           "cursor"
           "pi"
-          "opencode"
           "omp"
         ]
       );
@@ -179,7 +167,6 @@ in
         "codex"
         "cursor"
         "pi"
-        "opencode"
         "omp"
       ];
       description = "Native registrations to install; removed clients are retired using their ownership journal.";
@@ -194,20 +181,12 @@ in
       readOnly = true;
       description = "Expected native registrations for activation and drift checks.";
     };
-    opencodeServers = lib.mkOption {
-      type = lib.types.attrsOf lib.types.anything;
-      readOnly = true;
-      description = "Native registration consumed by the existing OpenCode JSONC owner.";
-    };
   };
 
   config = {
     my.sharedVault = {
       connectionFile = "${config.xdg.configHome}/shared-vault/connection.json";
       registrationManifest = manifest;
-      opencodeServers = lib.optionalAttrs (entryFor "opencode" != null) {
-        shared-vault = entryFor "opencode";
-      };
     };
     assertions = [
       {
@@ -235,10 +214,6 @@ in
             )
           );
         message = "Shared vault runtime must be canonical and its derived socket path at most 103 bytes.";
-      }
-      {
-        assertion = !cfg.enable || (!isServer || !(builtins.elem "opencode" cfg.clients));
-        message = "OpenCode configuration is unavailable on server profiles; remove it from sharedVault.clients.";
       }
     ];
 

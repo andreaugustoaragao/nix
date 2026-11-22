@@ -56,12 +56,6 @@ let
         "workbench.preferredDarkColorTheme" = "Gruvbox Dark Medium";
         "workbench.preferredLightColorTheme" = "Gruvbox Light Medium";
       };
-      "@CONFIG@/opencode/cli.json" = json {
-        theme = {
-          name = "system";
-          mode = "system";
-        };
-      };
       "${config.home.homeDirectory}/.pi/agent/settings.json" = json {
         theme = "gruvbox-light/gruvbox-dark";
       };

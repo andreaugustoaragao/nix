@@ -87,9 +87,6 @@ in
         session.resume_agents_on_restore = true;
       };
     };
-    "opencode/plugins/herdr-agent-state.js".source = "${assets}/opencode/herdr-agent-state.js";
-    "opencode/herdr-tui-session.js".source = "${assets}/opencode/herdr-tui-session.js";
-    "opencode/herdr-opencode/tui.js".source = "${assets}/opencode/herdr-opencode/tui.js";
   };
 
   # Agent-owned JSON stays writable. Merge only Herdr entries after Codex's

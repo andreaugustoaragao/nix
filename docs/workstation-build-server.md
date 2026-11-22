@@ -120,8 +120,8 @@ each machine. Each machine keeps its own configuration checkout and runtime stat
 Do not copy mutable agent homes between machines.
 
 The `agent-desktop-parity` flake check compares all three profiles. It checks the
-managed skills and instructions, Pi extensions, agent versions, Codex and Cursor
-configuration, OpenCode configuration, and cloud models. Store hashes can differ
+managed skills and instructions, Pi extensions, agent versions, Codex, Cursor,
+and OMP configuration, and cloud models. Store hashes can differ
 between CPU architectures. Local model providers and the deferred Shared Vault
 registration are deliberate exceptions. A divergent harness fails the check.
 

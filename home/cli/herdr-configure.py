@@ -62,34 +62,10 @@ def codex_hooks(value, script):
     return result
 
 
-def plugin_config(value, key, plugin):
-    result = copy.deepcopy(value)
-    plugins = result.setdefault(key, [])
-    if not isinstance(plugins, list):
-        raise ValueError(f"OpenCode {key} must be an array")
-    if not any(entry == plugin or (isinstance(entry, list) and entry[:1] == [plugin])
-               for entry in plugins):
-        plugins.append(plugin)
-    return result
-
 
 def configure(home, config_home, state_home):
     codex = home / ".codex/hooks.json"
     write(codex, codex_hooks(load(codex), home / ".codex/herdr-agent-state.sh"))
-    opencode = config_home / "opencode"
-    # Match Herdr's V1 registration while allowing JSONC and existing plugins.
-    tui = opencode / "tui.json"
-    if not tui.exists():
-        tui = opencode / "tui.jsonc"
-    write(tui, plugin_config(load(tui), "plugin", "./herdr-tui-session.js"))
-    cli = opencode / "cli.json"
-    # Let OpenCode import old TUI preferences before creating its V2 config.
-    if not cli.exists() and ((opencode / "tui.json").exists()
-                             or (state_home / "opencode/kv.json").exists()):
-        print("Herdr: OpenCode V2 preference migration pending; start opencode2, then rebuild.")
-        return
-    write(cli, plugin_config(load(cli), "plugins", "./herdr-opencode"))
-
 
 def retire(home, config_home, state_home):
     script = str(home / ".codex/herdr-agent-state.sh")

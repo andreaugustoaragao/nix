@@ -37,7 +37,7 @@
       set -ag terminal-features "xterm-256color:RGB"
       # Pass through CSI u modified-key sequences (Shift+Enter,
       # Ctrl+Enter, etc.) from the outer terminal to inner apps like
-      # Claude Code and Neovim.
+      # Pi, Codex, and Neovim.
       set -g extended-keys on
       set -g extended-keys-format csi-u
       set -as terminal-features 'xterm*:extkeys'

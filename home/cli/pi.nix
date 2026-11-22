@@ -128,7 +128,7 @@ let
   #   2. https://context7.com/api/v2/context     — get docs for a library
   #
   # API key is optional (read from CONTEXT7_API_KEY env var). Works
-  # without it at lower rate limits, same as the Claude Code plugin.
+  # without it at lower rate limits.
   context7Extension = pkgs.writeText "context7.ts" ''
     /**
      * Pi extension: `context7` tool for library documentation lookup.
@@ -489,7 +489,7 @@ let
   # Pi extension: bash-command rewrite hook for pi-rs token compression.
   # Sits on the `tool_call` event; for every Bash tool invocation, calls
   # `pi-rs rewrite` and mutates `event.input.command` if a rule fires.
-  # Mirror of the per-agent shims for claude/cursor/codex — same binary
+  # Mirror of the per-agent shims for cursor/codex — same binary
   # contract, single source of truth in rewrite/rules.rs.
   #
   # The template lives in the source tree and is also copied verbatim
@@ -785,8 +785,7 @@ in
     # spawn `pi-rs <subcommand>` without baking a per-host store path. Same
     # binary, three triples (x86_64-linux, aarch64-linux, aarch64-darwin).
     # piRs backs the code-* extensions; mcp-nixos is spawned per call by
-    # the `nixos` bridge extension (and is the same binary Claude Code
-    # registers over stdio via `claude mcp add`).
+    # the `nixos` bridge extension.
     home.packages = [
       piRs
       browserTask
@@ -867,8 +866,7 @@ in
     home.file.".pi/agent/extensions/code-hash.ts".source = ./pi-extensions/code-hash.ts;
 
     # One-shot NixOS bridge supplements Pi native MCP. This tool spawns
-    # the mcp-nixos server (home.packages) over stdio per call. Claude Code
-    # talks to the same binary directly; this exists only because pi can't.
+    # the mcp-nixos server (home.packages) over stdio per call.
     home.file.".pi/agent/extensions/mcp-nixos.ts".source = "${piManagedExtensions}/mcp-nixos.ts";
 
     # Directory-style `web_fetch` and `web_search` extensions, both forked

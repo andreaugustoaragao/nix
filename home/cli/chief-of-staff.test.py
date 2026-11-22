@@ -89,7 +89,7 @@ class ChiefOfStaffSkillTests(unittest.TestCase):
 
     def test_harness_selection_and_safety_contract_survive(self):
         contract = (CANONICAL / "references/herdr-workflow.md").read_text()
-        for harness in ("Cursor", "OpenCode", "Codex"):
+        for harness in ("Cursor", "Pi", "Codex"):
             self.assertIn(harness, contract)
         self.assertIn("different harness", contract)
         self.assertIn("session resume ID", contract)

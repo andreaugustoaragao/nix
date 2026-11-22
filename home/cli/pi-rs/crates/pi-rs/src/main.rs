@@ -67,7 +67,7 @@ enum Command {
     AstEdit(cmd::ast::AstEditArgs),
     /// Apply the rewrite oracle to a shell command string.
     Rewrite(cmd::rewrite::RewriteArgs),
-    /// AI-agent bash hook protocol adapter (claude | cursor).
+    /// AI-agent bash hook protocol adapter (cursor).
     Hook(cmd::hook::HookArgs),
 
     // External-tool wrappers.

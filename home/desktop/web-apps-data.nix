@@ -168,22 +168,6 @@
     profile = "Personal";
   }
   {
-    key = "claude";
-    name = "Claude";
-    icon = "claude";
-    url = "https://claude.ai";
-    mode = "app";
-    profile = "Work";
-  }
-  {
-    key = "claude-new";
-    name = "Claude (New Chat)";
-    icon = "claude";
-    url = "https://claude.ai/new";
-    mode = "app";
-    profile = "Work";
-  }
-  {
     key = "youtube";
     name = "YouTube";
     icon = "youtube";

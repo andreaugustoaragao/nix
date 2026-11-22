@@ -32,7 +32,6 @@ let
   roots = [
     ".agents/skills"
     ".cursor/skills"
-    "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ];
 in
 {

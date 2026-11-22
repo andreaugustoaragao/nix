@@ -106,5 +106,4 @@ Use the installed CLI's `vault --help` if a command contract changes. Check
 service identity against the release pin, then test a real note search and the
 Fulcrum web application. Installed acceptance remains distinct from a Nix
 evaluation or a successful archive download. The existing release acceptance
-record covers scheduler execution and the five configured harnesses; Claude
-provider authentication still depends on its private login state.
+record covers scheduler execution and the configured harnesses.

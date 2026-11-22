@@ -32,6 +32,4 @@ in
   # Preserve other installed skills by managing only pstack's subtree.
   home.file.".agents/skills/pstack".source = pstackSkills;
 
-  # OpenCode v2 uses its native configuration directory for skill discovery.
-  xdg.configFile."opencode/skills/pstack".source = pstackSkills;
 }

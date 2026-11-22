@@ -314,130 +314,6 @@ def find_pi_session_file(term: dict) -> str | None:
     return None
 
 
-def open_opencode_db():
-    db = Path.home() / ".local/share/opencode/opencode.db"
-    if not db.is_file():
-        return None
-    try:
-        return sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=0.5)
-    except Exception:
-        return None
-
-
-def resolve_opencode_session(con, term: dict, claimed_ids: set[str]) -> str | None:
-    labels = term.get("labels") or {}
-    snap_raw = labels.get("herdr-preview.session")
-    if snap_raw:
-        try:
-            snap = json.loads(snap_raw)
-            snap_file = snap.get("file")
-            if snap_file and os.path.isfile(snap_file):
-                with open(snap_file, "r", encoding="utf-8", errors="ignore") as f:
-                    sid = json.load(f).get("session")
-                if sid:
-                    return sid
-        except Exception:
-            pass
-
-    title = (term.get("title") or "").strip()
-    if title.startswith("OC | "):
-        title = title[5:].strip()
-    cwd = ((term.get("foreground") or {}).get("cwd") or term.get("cwd") or "").strip()
-    created_ms = int(term.get("created_ms") or 0)
-
-    if title and title.lower() not in ("opencode", "oc"):
-        if cwd:
-            rows = con.execute(
-                "SELECT id FROM session_v2 WHERE directory = ? AND title = ? ORDER BY time_updated DESC LIMIT 5",
-                (cwd, title),
-            ).fetchall()
-            for (sid,) in rows:
-                if sid not in claimed_ids:
-                    return sid
-        rows = con.execute(
-            "SELECT id FROM session_v2 WHERE title = ? ORDER BY time_updated DESC LIMIT 5",
-            (title,),
-        ).fetchall()
-        for (sid,) in rows:
-            if sid not in claimed_ids:
-                return sid
-
-    if cwd:
-        rows = con.execute(
-            "SELECT id FROM session_v2 WHERE directory = ? AND time_updated >= ? ORDER BY time_updated DESC LIMIT 10",
-            (cwd, max(0, created_ms - 5000)),
-        ).fetchall()
-        for (sid,) in rows:
-            if sid not in claimed_ids:
-                return sid
-    return None
-
-
-def parse_opencode_session(con, sid: str) -> dict | None:
-    row = con.execute(
-        """
-        SELECT id, title, cost, tokens_input, tokens_output, tokens_reasoning,
-               tokens_cache_read, tokens_cache_write, model
-        FROM session_v2 WHERE id = ?
-        """,
-        (sid,),
-    ).fetchone()
-    if not row:
-        return None
-
-    _, _, native_cost, s_in, s_out, s_reas, s_cr, s_cw, s_model_raw = row
-    default_model = ""
-    if s_model_raw:
-        try:
-            mobj = json.loads(s_model_raw)
-            pid = mobj.get("providerID", "")
-            mid = mobj.get("id", "")
-            default_model = f"{pid}/{mid}" if pid and mid else mid
-        except Exception:
-            pass
-
-    by_model: dict[str, dict[str, int]] = {}
-    msgs = con.execute("SELECT data FROM session_message WHERE session_id = ? ORDER BY seq", (sid,)).fetchall()
-    for (raw,) in msgs:
-        try:
-            d = json.loads(raw)
-        except Exception:
-            continue
-        toks = d.get("tokens")
-        if not toks:
-            continue
-        mobj = d.get("model") or {}
-        pid = mobj.get("providerID", "")
-        mid = mobj.get("id", "")
-        model = f"{pid}/{mid}" if pid and mid else (mid or default_model or "unknown")
-        bucket = by_model.setdefault(model, empty_tokens())
-        cache = toks.get("cache") or {}
-        add_tokens(
-            bucket,
-            {
-                "input": int(toks.get("input", 0) or 0),
-                "cache_read": int(cache.get("read", 0) or 0),
-                "cache_write": int(cache.get("write", 0) or 0),
-                "output": int(toks.get("output", 0) or 0),
-                "reasoning": int(toks.get("reasoning", 0) or 0),
-            },
-        )
-
-    if not by_model and any((s_in, s_out, s_reas, s_cr, s_cw)):
-        by_model[default_model or "unknown"] = {
-            "input": int(s_in or 0),
-            "cache_read": int(s_cr or 0),
-            "cache_write": int(s_cw or 0),
-            "output": int(s_out or 0),
-            "reasoning": int(s_reas or 0),
-        }
-
-    res = finalize_models("opencode", sid, default_model, by_model)
-    if native_cost and float(native_cost) > 0:
-        res["cost"] = float(native_cost)
-        res["rateSource"] = "opencode"
-    return res
-
 
 def finalize_models(harness: str, session_id: str, primary_model: str, by_model: dict[str, dict[str, int]]) -> dict:
     totals = empty_tokens()
@@ -527,12 +403,8 @@ def match_harness_text(text: str) -> str:
         return ""
     if "codex" in text:
         return "codex"
-    if "opencode" in text:
-        return "opencode"
     if "cursor" in text:
         return "cursor"
-    if "claude" in text:
-        return "claude"
     if re.search(r"(?:^|/|\s)pi(?:-task)?(?:\s|$)", text):
         return "pi"
     return ""
@@ -580,8 +452,6 @@ def main():
     with ThreadPoolExecutor(max_workers=8) as pool:
         terms = list(pool.map(enrich_terminal, raw_terms))
 
-    oc_con = open_opencode_db()
-    claimed_oc: set[str] = set()
     results = {}
     cache = load_cache()
     cache_before = json.dumps(cache, sort_keys=True)
@@ -626,17 +496,7 @@ def main():
                         results[addr] = parsed
                 continue
 
-            if harness == "opencode" and oc_con is not None:
-                sid = resolve_opencode_session(oc_con, term, claimed_oc)
-                if sid:
-                    claimed_oc.add(sid)
-                    parsed = parse_opencode_session(oc_con, sid)
-                    if parsed:
-                        results[addr] = parsed
-                continue
     finally:
-        if oc_con is not None:
-            oc_con.close()
         if json.dumps(cache, sort_keys=True) != cache_before:
             save_cache(cache)
 

@@ -20,10 +20,10 @@ export async function readAgent(address) {
   const terminal = JSON.parse(result.stdout);
   const snapshot = await boundSnapshot(terminal);
   const agent = snapshot?.agent || terminal.status?.app;
-  if (!['codex', 'claude-code', 'pi', 'omp', 'oh-my-pi', 'opencode'].includes(agent)) {
-    throw new Error('This agent has no supported Markdown transcript reader yet. Supported agents: Codex, Claude Code, pi and OpenCode.');
+  if (!['codex', 'pi', 'omp', 'oh-my-pi'].includes(agent)) {
+    throw new Error('This agent has no supported Markdown transcript reader yet. Supported agents: Codex and pi.');
   }
-  if (!snapshot && ['pi', 'opencode'].includes(agent)) throw new Error('Reload pi with /reload, or restart OpenCode, to load the Herdr Preview integration.');
+  if (!snapshot && agent === 'pi') throw new Error('Reload pi with /reload to load the Herdr Preview integration.');
   const transcript = snapshot || await processTranscript(terminal.foreground?.pid, agent);
   // Recheck after reading: a restart or foreground switch must not show old output.
   const current = JSON.parse((await run('hc', ['get', address], { timeout: 5000, maxBuffer: 1024 * 1024 })).stdout);

@@ -12,7 +12,6 @@
     ./codex.nix
     ./pi.nix
     ./cursor.nix
-    ./opencode.nix
     ./shared-vault.nix
     ./herdr.nix
     ./herdr-preview.nix

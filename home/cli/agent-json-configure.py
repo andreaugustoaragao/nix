@@ -27,7 +27,7 @@ def validate(value, kind):
         for entry in entries:
             if not isinstance(entry, dict):
                 raise ValueError(f"hooks.{event} entries must be objects")
-            handlers = entry.get("hooks") if kind == "claude" else [entry]
+            handlers = [entry]
             if not isinstance(handlers, list) or not all(
                 isinstance(handler, dict) for handler in handlers
             ):
@@ -73,14 +73,10 @@ def overlay(current, desired):
 
 def strip_hooks(current, owned, kind):
     for event, entries in owned.items():
-        handlers = (
-            [handler for entry in entries for handler in entry["hooks"]]
-            if kind == "claude" else entries
-        )
-
+        handlers = entries
         def managed(handler):
             # Commands are identities within an event, even if an editor has
-            # regrouped Claude matchers or changed a timeout on our handler.
+            # changed a timeout on our handler.
             return any(
                 handler.get("command") == old["command"]
                 if "command" in old else handler == old
@@ -89,11 +85,7 @@ def strip_hooks(current, owned, kind):
 
         remaining = []
         for entry in current.get(event, []):
-            if kind == "claude":
-                kept = [handler for handler in entry["hooks"] if not managed(handler)]
-                if kept or not entry["hooks"]:
-                    remaining.append({**entry, "hooks": kept})
-            elif not managed(entry):
+            if not managed(entry):
                 remaining.append(entry)
         if remaining:
             current[event] = remaining
@@ -153,7 +145,7 @@ def configure(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--kind", choices=["claude", "cursor"], required=True)
+    parser.add_argument("--kind", choices=["cursor"], required=True)
     parser.add_argument("--target", type=Path, required=True)
     parser.add_argument("--desired", type=Path, required=True)
     parser.add_argument("--state", type=Path, required=True)

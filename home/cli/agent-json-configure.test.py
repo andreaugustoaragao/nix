@@ -16,16 +16,7 @@ NEW = "/nix/store/new-pi-rs/share/pi-rs/agent-hooks/rewrite.sh"
 ORCA = {"command": "/home/user/.local/share/orca/hook", "timeout": 30}
 
 
-def settings(kind, command):
-    if kind == "claude":
-        return {
-            "model": "opus[1m]",
-            "env": {"ENABLE_LSP_TOOL": "1"},
-            "statusLine": {"type": "command", "command": command + "-statusline"},
-            "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-                {"type": "command", "command": command},
-            ]}]},
-        }
+def settings(_kind, command):
     return {"version": 1, "hooks": {"preToolUse": [
         {"matcher": "Bash", "command": command},
         {"command": "agent-hub cursor-hook"},
@@ -68,22 +59,14 @@ class ActivationTest(unittest.TestCase):
         return json.loads(self.target.read_text())
 
     def commands(self, value, kind):
-        if kind == "claude":
-            return [handler["command"] for entries in value["hooks"].values()
-                    for entry in entries for handler in entry["hooks"]]
         return [entry["command"] for entries in value["hooks"].values() for entry in entries]
 
     def add_external(self, value, kind):
         value["userPreference"] = {"theme": "dark"}
-        if kind == "claude":
-            value["env"]["USER_SETTING"] = "keep"
-            # Editors may append to the same matcher group as a managed hook.
-            value["hooks"]["PreToolUse"][0]["hooks"].append({"type": "command", **ORCA})
-        else:
-            value["hooks"]["preToolUse"].append(copy.deepcopy(ORCA))
+        value["hooks"]["preToolUse"].append(copy.deepcopy(ORCA))
 
     def test_old_symlink_detaches_without_touching_store_then_reconciles(self):
-        for kind in ("claude", "cursor"):
+        for kind in ("cursor",):
             with self.subTest(kind=kind):
                 self.target.unlink(missing_ok=True)
                 self.state.unlink(missing_ok=True)
@@ -112,13 +95,10 @@ class ActivationTest(unittest.TestCase):
                     self.assertEqual(self.commands(current, kind).count(ORCA["command"]), 1)
                     self.assertEqual(self.commands(current, kind).count(NEW), 1)
                     self.assertEqual(current["userPreference"], {"theme": "dark"})
-                if kind == "claude":
-                    self.assertEqual(current["env"]["USER_SETTING"], "keep")
-                    self.assertEqual(current["statusLine"]["command"], NEW + "-statusline")
                 self.legacy.chmod(0o600)
 
     def test_changed_and_removed_managed_entries_preserve_external_values(self):
-        for kind in ("claude", "cursor"):
+        for kind in ("cursor",):
             with self.subTest(kind=kind):
                 self.state.unlink(missing_ok=True)
                 original = settings(kind, OLD)
@@ -135,12 +115,9 @@ class ActivationTest(unittest.TestCase):
                 removed = self.activate(kind)
                 self.assertEqual(self.commands(removed, kind), [ORCA["command"]])
                 self.assertEqual(removed["userPreference"], {"theme": "dark"})
-                if kind == "claude":
-                    self.assertEqual(removed["env"], {"USER_SETTING": "keep"})
-                    self.assertNotIn("statusLine", removed)
 
     def test_malformed_config_or_manifest_is_not_overwritten(self):
-        for kind in ("claude", "cursor"):
+        for kind in ("cursor",):
             for invalid in ('{"hooks":', '[]', '{"hooks": {"bad": 42}}'):
                 for symlink in (False, True):
                     with self.subTest(kind=kind, invalid=invalid, symlink=symlink):
@@ -167,7 +144,7 @@ class ActivationTest(unittest.TestCase):
             self.assertEqual(self.state.read_text(), "{}")
 
     def test_interrupted_update_retires_both_journaled_command_sets(self):
-        for kind in ("claude", "cursor"):
+        for kind in ("cursor",):
             for applied in (OLD, NEW):
                 with self.subTest(kind=kind, applied=applied):
                     current = settings(kind, applied)
@@ -185,7 +162,7 @@ class ActivationTest(unittest.TestCase):
                     self.assertEqual(self.activate(kind), result)
 
     def test_interruption_after_linking_keeps_legacy_ownership(self):
-        for kind in ("claude", "cursor"):
+        for kind in ("cursor",):
             with self.subTest(kind=kind):
                 self.target.unlink(missing_ok=True)
                 self.state.unlink(missing_ok=True)

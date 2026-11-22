@@ -60,7 +60,7 @@ Fulcrum continues to use its own built-in private browser and sign-in controls.
 
 ## Give an agent browser work
 
-Describe the task normally. Codex, Pi, Claude, and OpenCode receive the same routing instructions.
+Describe the task normally. Codex, Pi, Cursor, and OMP receive the same routing instructions.
 Requests to inspect an app you develop use `development`. Requests involving signed-in services use `accounts`.
 Specify the profile in your request when the distinction is ambiguous.
 

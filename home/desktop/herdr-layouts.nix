@@ -138,5 +138,14 @@ in
       find "$dst" -maxdepth 4 \( -name '*.hm-backup' -o -type l ! -name 'node_modules' \) -delete
       cp -rf --no-preserve=mode "$src"/. "$dst"/
     '') syncedMods
+    + ''
+      opencodePreviewDir=${lib.escapeShellArg "${config.xdg.configHome}/herdr-app/mods/preview/integrations/opencode"}
+      if [ -e "$opencodePreviewDir/tui.js" ] || [ -L "$opencodePreviewDir/tui.js" ]; then
+        run ${pkgs.coreutils}/bin/rm -f -- "$opencodePreviewDir/tui.js"
+      fi
+      if [ -d "$opencodePreviewDir" ]; then
+        run ${pkgs.coreutils}/bin/rmdir --ignore-fail-on-non-empty -- "$opencodePreviewDir"
+      fi
+    ''
   );
 }

@@ -32,7 +32,7 @@ def state_root() -> Path:
 
 
 def conversation_id() -> str:
-    for key in ("CODEX_THREAD_ID", "CODEX_CONVERSATION_ID", "PI_SESSION_ID", "OPENCODE_SESSION_ID"):
+    for key in ("CODEX_THREAD_ID", "CODEX_CONVERSATION_ID", "PI_SESSION_ID"):
         val = (os.environ.get(key) or "").strip()
         if val:
             return f"{key}={val}"
@@ -358,7 +358,7 @@ def main() -> int:
 
     harnesses = {
         name: shutil.which(name) is not None
-        for name in ("codex", "pi", "pi-task", "opencode", "herdr-cursor", "cursor-agent")
+        for name in ("codex", "pi", "pi-task", "herdr-cursor", "cursor-agent")
     }
 
     try:

@@ -17,7 +17,7 @@ import uuid
 
 SYSTEMS = ("x86_64-linux", "aarch64-linux")
 KINDS = ("nix", "cargo", "agent", "run")
-AGENTS = ("codex", "pi", "cursor-agent", "opencode2")
+AGENTS = ("codex", "pi", "cursor-agent")
 HOST = "workstation-worker"
 
 

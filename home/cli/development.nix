@@ -180,9 +180,6 @@ in
         # AI/ML Development
         (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).client
         (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).enroll
-        (pkgs.callPackage ../../pkgs/opencode2.nix {
-          memoryLimit = isBuildWorker;
-        }) # OpenCode v2, available as opencode2
       ]
       ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
         pkgs.lazydocker

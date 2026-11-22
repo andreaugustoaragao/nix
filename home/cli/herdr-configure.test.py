@@ -30,7 +30,7 @@ class IntegrationTests(unittest.TestCase):
     def test_preserves_other_handlers_and_removes_legacy_herdr_hooks(self):
         path = self.home / ".codex/hooks.json"
         script = self.home / ".codex/herdr-agent-state.sh"
-        other = {"type": "command", "command": "pi-rs hook claude"}
+        other = {"type": "command", "command": "pi-rs hook cursor"}
         configure.write(path, {"description": "keep", "hooks": {
             "PreToolUse": [{"matcher": "Bash", "hooks": [
                 other, {"type": "command", "command": f"bash '{script}' working"},
@@ -43,23 +43,12 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(len(result["hooks"]["SessionStart"]), 1)
 
     def test_repeated_activation_keeps_files_and_preferences(self):
-        cli = self.config / "opencode/cli.json"
-        configure.write(cli, {"theme": "catppuccin", "plugins": ["another-plugin"]})
-        tui = self.config / "opencode/tui.jsonc"
-        tui.write_text('// Preserve preferences, accepting JSONC.\n{"keybinds": {"leader": "ctrl+a"},}\n')
         self.reconcile()
-        paths = [self.home / ".codex/hooks.json", cli, tui]
+        paths = [self.home / ".codex/hooks.json"]
         before = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
         self.reconcile()
         self.assertEqual(before, [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths])
-        self.assertEqual(configure.load(cli)["plugins"], ["another-plugin", "./herdr-opencode"])
-        self.assertEqual(configure.load(cli)["theme"], "catppuccin")
-        self.assertEqual(configure.load(tui)["keybinds"], {"leader": "ctrl+a"})
-
-    def test_existing_plugin_options_are_preserved(self):
-        config = {"plugins": [["./herdr-opencode", {"custom": True}]]}
-        self.assertEqual(configure.plugin_config(config, "plugins", "./herdr-opencode"), config)
-
+        self.assertEqual(len(configure.load(paths[0])["hooks"]["SessionStart"]), 1)
     def test_retirement_preserves_desktop_and_agent_hub_integrations(self):
         codex = self.home / ".codex/hooks.json"
         script = self.home / ".codex/herdr-agent-state.sh"
@@ -94,17 +83,6 @@ class IntegrationTests(unittest.TestCase):
         configure.retire(self.home, self.config, self.state)
         self.assertEqual(list(self.home.iterdir()), [])
 
-    def test_migration_is_deferred_then_converges(self):
-        legacy = self.config / "opencode/tui.json"
-        configure.write(legacy, {"theme": "personal"})
-        self.reconcile()
-        cli = self.config / "opencode/cli.json"
-        self.assertFalse(cli.exists())
-        # Simulate the agent completing its native V1 preference migration.
-        configure.write(cli, {"theme": "personal"})
-        self.reconcile()
-        self.assertEqual(configure.load(cli), {"theme": "personal", "plugins": ["./herdr-opencode"]})
-
     def test_invalid_config_is_not_overwritten(self):
         path = self.home / ".codex/hooks.json"
         path.parent.mkdir()
@@ -113,24 +91,8 @@ class IntegrationTests(unittest.TestCase):
             self.reconcile()
         self.assertEqual(path.read_text(), '{"hooks": ["invalid"]}')
 
-    def test_opencode_tui_loads_through_home_manager_symlinks(self):
-        assets = ASSETS / "opencode"
-        entrypoint, = assets.rglob("tui.js")
-        plugin = self.config / "opencode/herdr-opencode/tui.js"
-        plugin.parent.mkdir(parents=True)
-        plugin.symlink_to(entrypoint)
-        helper = plugin.parent.parent / "herdr-tui-session.js"
-        helper.symlink_to(assets / "herdr-tui-session.js")
-        subprocess.run([
-            "node", "--input-type=module", "-e",
-            'import assert from "node:assert/strict";'
-            f'const {{ default: plugin }} = await import({json.dumps(plugin.as_uri())});'
-            'assert.equal(plugin.id, "herdr.opencode.session-selection");'
-            'assert.equal(typeof plugin.setup, "function");',
-        ], check=True, timeout=5)
-
     def test_session_hooks_report_to_the_pane_socket(self):
-        for agent in ("claude", "codex", "cursor", "grok"):
+        for agent in ("codex", "cursor", "grok"):
             with self.subTest(agent=agent), socket.socket(socket.AF_UNIX) as server:
                 address = self.home / f"{agent}.sock"
                 server.bind(str(address))

@@ -1,5 +1,4 @@
 {
-  config,
   lib,
   pkgs,
   ...
@@ -30,12 +29,10 @@ let
   '';
   roots = [
     ".agents/skills"
-    ".claude/skills"
     ".cursor/skills"
     ".grok/skills"
     ".gemini/skills"
     ".qwen/skills"
-    "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ];
 in
 {

@@ -43,7 +43,6 @@ let
       };
       modules = [
         ./shared-vault.nix
-        ./opencode.nix
       ]
       ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ ../services/shared-vault.nix ]
       ++ [
@@ -210,7 +209,6 @@ let
   connection =
     pkgs.writeText "shared-vault-test-connection.json"
       enabled.xdg.configFile."shared-vault/connection.json".text;
-  opencode = enabled.xdg.configFile."opencode/opencode.jsonc".source;
   python = pkgs.python3.withPackages (ps: [
     ps.tomlkit
     ps.json5
@@ -278,7 +276,7 @@ pkgs.runCommand "check-shared-vault-module" { } ''
   PYTHONDONTWRITEBYTECODE=1 ${lib.getExe python} shared-vault-module.test.py \
     ${enabled.my.sharedVault.registrationManifest} \
     ${disabled.my.sharedVault.registrationManifest} \
-    ${connection} ${opencode} ${launchers} ${activation}
+    ${connection} ${launchers} ${activation}
   ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
     ${lib.getExe python} -c 'import json,sys; assert json.load(open(sys.argv[1]))["recordings"] == {"directory":"/tmp/shared-vault-fixture-recordings"}' \
       ${serviceEnabled.xdg.configFile."shared-vault/service.json".source}

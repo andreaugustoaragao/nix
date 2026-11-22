@@ -14,7 +14,7 @@ export async function boundSnapshot(terminal) {
   if (!raw) return null;
   let binding;
   try { binding = JSON.parse(raw); } catch { return null; }
-  if (binding.version !== 1 || !['pi', 'opencode'].includes(binding.agent)
+  if (binding.version !== 1 || binding.agent !== 'pi'
     || binding.pid !== terminal.foreground?.pid || typeof binding.file !== 'string') return null;
   if (binding.start !== await processStart(binding.pid)) return null;
   const info = await readFile(binding.file, 'utf8');

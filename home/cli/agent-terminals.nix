@@ -15,7 +15,6 @@ let
   skillRoots = [
     ".agents/skills"
     ".cursor/skills"
-    "${lib.removePrefix "${config.home.homeDirectory}/" config.xdg.configHome}/opencode/skills"
   ]
   ++ lib.optionals config.my.agentHarness.legacyHerdr [
     ".grok/skills"
@@ -157,6 +156,5 @@ in
         shell = [ (lib.getExe pkgs.fish) ];
       };
     };
-    "opencode/AGENTS.md".text = lib.mkAfter instructions;
   };
 }

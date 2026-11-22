@@ -5,7 +5,7 @@ export function selectedAgent(focus, agents, remembered, { terminals = [], panes
     if (agents.some(agent => agent.address === terminal.address)) continue;
     let binding;
     try { binding = JSON.parse(terminal.labels?.["herdr-preview.session"] || "null"); } catch { continue; }
-    if (binding?.version !== 1 || !["pi", "opencode"].includes(binding.agent)) continue;
+    if (binding?.version !== 1 || binding.agent !== "pi") continue;
     const pane = panes.find(pane => pane.terminal === terminal.address);
     if (pane) agents.push({ ...pane, address: terminal.address, app: binding.agent });
   }

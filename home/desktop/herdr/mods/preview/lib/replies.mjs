@@ -29,7 +29,7 @@ export function assistantReplies(messages) {
     const text = textContent(message.content);
     if (message.role === 'user') {
       if (/^<hc(?:\s|>)[\s\S]*<\/hc>\s*$/.test(text.trim())) continue;
-      // Claude wraps tool results in user messages; those are not new questions.
+      // Skip tool-result-only user messages; those are not new questions.
       if (!text.trim() && Array.isArray(message.content) && message.content.some(part => part?.type === 'tool_result')) continue;
       question = userQuestion(message, text);
       continue;

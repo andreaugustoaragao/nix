@@ -13,9 +13,6 @@ export function assistantMessages(text, agent) {
     if (agent === 'codex') {
       if (record.type !== 'response_item' || record.payload?.type !== 'message') continue;
       message = record.payload;
-    } else if (agent === 'claude-code') {
-      if (!['user', 'assistant'].includes(record.type)) continue;
-      message = record.message;
     } else {
       if (record.type !== 'message') continue;
       message = record.message;
@@ -65,9 +62,6 @@ export async function processTranscript(pid, agent, proc = '/proc') {
         const meta = data.metadata;
         if (meta?.type !== 'session_meta' || meta.payload?.source !== 'cli') continue;
         candidates.push({ file, session: meta.payload.id, cwd: meta.payload.cwd, ...data });
-      } else if (agent === 'claude-code') {
-        if (!file.includes('/.claude/projects/')) continue;
-        candidates.push({ file, session: path.basename(file, '.jsonl'), ...data });
       } else if (data.metadata?.type === 'session') {
         candidates.push({ file, session: data.metadata.id, cwd: data.metadata.cwd, ...data });
       }

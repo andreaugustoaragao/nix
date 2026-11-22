@@ -13,7 +13,7 @@
     GOBIN = lib.mkDefault "$HOME/.local/share/go/bin";
     PATH = [ "$HOME/.local/share/go/bin" ];
     JAVA_HOME = "/run/current-system/sw/lib/openjdk";
-    # Make Node.js (used by Claude Code, etc.) use the system CA bundle with enterprise certs
+    # Make Node.js use the system CA bundle with enterprise certs
     NODE_EXTRA_CA_CERTS = "/etc/ssl/certs/ca-certificates.crt";
     ENABLE_TOOL_SEARCH = "true";
   }

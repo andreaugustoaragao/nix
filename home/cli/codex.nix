@@ -28,7 +28,7 @@ let
   # Lifecycle hooks inherit the Codex process environment; they do not
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
   # adapter identity only in this launcher, never in home.sessionVariables
-  # or shell initialization shared with Cursor, Claude, and Pi.
+  # or shell initialization shared with Cursor and Pi.
   # Let project and user configuration select the sandbox and approval reviewer.
   # Keep hook-trust prompts disabled for the shared repository hooks.
   # Use the immutable package directly to avoid recursing through PATH.

@@ -14,6 +14,6 @@ _:
 
   # HM emits the zoxide init near the top of ~/.zshrc, which trips the
   # doctor warning about late init. zoxide still works; the message
-  # just clutters Claude Code's shell-output capture.
+  # just clutters agent shell-output capture.
   home.sessionVariables._ZO_DOCTOR = "0";
 }

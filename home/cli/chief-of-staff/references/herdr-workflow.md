@@ -123,7 +123,7 @@ hc run --bg --name t001-impl --cwd /absolute/worktree -- herdr-cursor grok-4.7-h
 ```
 
 The Cursor wrapper supplies worker instructions and the assignment as its initial
-prompt argument. For Pi or OpenCode, use the current CLI's interactive launch
+prompt argument. For Pi, use the current CLI's interactive launch
 syntax, include the client-neutral role instructions installed at
 `~/.agents/skills/herdr-coordinate/implementer.md` or `reviewer.md`,
 and verify `first_message.sent` and the startup screen. Do not use a one-shot

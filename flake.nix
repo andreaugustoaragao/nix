@@ -388,7 +388,6 @@
           herdr-agent-preview = pkgs.callPackage ./pkgs/herdr-agent-preview.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
-          opencode2 = pkgs.callPackage ./pkgs/opencode2.nix { };
           omp = pkgs.callPackage ./pkgs/omp.nix { };
           herdr = pkgs.callPackage ./pkgs/herdr.nix { };
           herdr-core = pkgs.callPackage ./pkgs/herdr-core.nix { };
@@ -800,13 +799,13 @@
       );
 
       # `nix fmt` runs the RFC 166 formatter (nixfmt), matching the
-      # CLAUDE.md quality gate. Exposed for every system in appSystems.
+      # AGENTS.md quality gate. Exposed for every system in appSystems.
       formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
       # Quality gates as derivations: `nix flake check` (and CI) builds
       # these, so a formatting drift, statix warning, or dead binding
       # fails the build instead of relying on manual discipline. Same
-      # three tools CLAUDE.md mandates. `self.outPath` is the clean
+      # three tools AGENTS.md mandates. `self.outPath` is the clean
       # flake source (git-index snapshot, no untracked files), so local
       # runs match what CI sees.
       checks = forEachAppSystem (

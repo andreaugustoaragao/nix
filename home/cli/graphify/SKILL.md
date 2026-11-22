@@ -7,7 +7,7 @@ disable-model-invocation: true
 # Graphify
 
 Use the Nix-installed `graphify` CLI. This skill works through the terminal in
-Codex, Pi, and OpenCode; it does not require a client-specific subagent tool.
+Codex, Pi, Cursor, and OMP; it does not require a client-specific subagent tool.
 
 ## Select the checkout
 

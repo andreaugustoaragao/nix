@@ -1,7 +1,7 @@
 //! Rewrite oracle: maps shell commands to their pi-rs-compressed equivalents.
 //!
 //! Consumed by `pi-rs rewrite "<cmd>"` (the agent-facing API) and by
-//! `pi-rs hook claude|cursor` (the protocol-specific adapters). Per-agent
+//! `pi-rs hook cursor` (the protocol-specific adapter). Per-agent
 //! shim scripts and the pi TS extension all funnel through the same
 //! [`rewrite()`] function.
 //!

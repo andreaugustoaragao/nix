@@ -8,14 +8,10 @@ const GENERIC_TITLES = new Set([
   "nu",
   "nushell",
   "codex",
-  "opencode",
   "pi",
   "pi-task",
   "cursor",
   "cursor-agent",
-  "claude",
-  "claude code",
-  "claude-code",
   "grok",
   "gemini",
   "qwen",
@@ -79,7 +75,7 @@ export function isAgentTerm(term, pane) {
     return true;
   }
   const cmd = Array.isArray(term.argv) ? term.argv.join(" ") : "";
-  return /\b(herdr-cursor|cursor-agent|codex|opencode|claude|pi(?:-task)?|gemini|grok)\b/i.test(cmd);
+  return /\b(herdr-cursor|cursor-agent|codex|pi(?:-task)?|gemini|grok)\b/i.test(cmd);
 }
 
 export function localHerdrId(id) {

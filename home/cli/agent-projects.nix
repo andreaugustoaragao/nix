@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  isServer ? false,
   ...
 }:
 
@@ -28,7 +27,4 @@ in
     ".omp/agent/AGENTS.md".text = lib.mkAfter instructions;
   };
 
-  xdg.configFile = lib.mkIf (!isServer) {
-    "opencode/AGENTS.md".text = lib.mkAfter instructions;
-  };
 }
