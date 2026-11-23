@@ -64,8 +64,7 @@ worktrees; it cannot lock out humans or other Git tools. It rechecks state and
 pushes the checked commit OID, but Git and remote state can still change after a
 check. No rollback or atomic transaction across a network is promised.
 
-When chief-of-staff is already active, return the command result to that
-coordinator. Hydrogen may interpret the bounded JSON or summarize an exception
-when available and authorized; it is optional and does not replace the command.
-Use a model only for an exception that requires judgment, preserve task scope,
-and stop for a user decision when the needed action is outside that scope.
+Hydrogen may interpret the bounded JSON or summarize an exception when
+available and authorized; it is optional and does not replace the command. Use
+a model only for an exception that requires judgment, preserve task scope, and
+stop for a user decision when the needed action is outside that scope.

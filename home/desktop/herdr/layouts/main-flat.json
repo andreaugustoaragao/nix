@@ -216,13 +216,6 @@
                       "content": {
                         "mod": "personal-costs"
                       }
-                    },
-                    {
-                      "id": "work-progress",
-                      "type": "block",
-                      "content": {
-                        "mod": "work"
-                      }
                     }
                   ],
                   "active": "files"
@@ -257,20 +250,6 @@
               "size": {
                 "weight": 1
               }
-            },
-            {
-              "id": "work-indicator",
-              "type": "block",
-              "content": {
-                "mod": "work",
-                "props": {
-                  "compact": true
-                }
-              },
-              "size": {
-                "px": 288
-              },
-              "min": 160
             }
           ]
         },

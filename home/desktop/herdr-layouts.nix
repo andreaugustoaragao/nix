@@ -56,7 +56,6 @@ let
     "auto-namer"
     "personal-costs"
     "preview"
-    "work"
     "work-intake"
   ];
   customLayouts = [

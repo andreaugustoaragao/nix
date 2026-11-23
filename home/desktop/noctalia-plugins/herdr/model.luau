@@ -46,9 +46,9 @@ local function buildDisplay(spaceName, tabName, paneName, app)
         else
             subtitle = spaceName
         end
-    elseif tabName == "chief-of-staff" then
+    elseif tabName == "lead" or tabName == "chief-of-staff" then
         title = spaceName
-        subtitle = "chief-of-staff"
+        subtitle = "lead"
     elseif tabName ~= "" and not isNumeric(tabName) then
         title = tabName
         subtitle = spaceName

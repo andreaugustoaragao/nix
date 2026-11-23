@@ -96,10 +96,9 @@ let
 
       ## Naming & layout rules
 
-      - **Chief-of-staff per space:** allow at most one `chief-of-staff` per
-        space, in a tab named `chief-of-staff` (`herdr.role=chief-of-staff`).
-        Open all child agents of that coordinator on separate worker tabs in the
-        same space with up to 4 splits per tab, never inside `chief-of-staff`.
+      - **Lead tab per space:** each space has one `lead` tab (`herdr.role=lead`,
+        first tab by default). Open child agents on separate worker tabs in the
+        same space with up to 4 splits per tab, never inside `lead`.
       - **Spaces (`herdr-app do space.new --name`):** use `<repo>` for a main
         checkout, `<repo> · <worktree-or-branch>` for a linked worktree, and
         disambiguate with `· <topic>` if a space for that repo already exists.

@@ -3,7 +3,9 @@ import { spaces, panes, terminals, exec, hc, run, notify, shared, setShared, nex
 import {
   cleanTitle,
   worktreeQualifier,
-  isChiefTabName,
+  LEAD_TAB_NAME,
+  isLeadTabName,
+  selectLeadTab,
   isAgentTerm,
   localHerdrId,
   isPlaceholderTabName,
@@ -130,82 +132,50 @@ export default class AutoNamer extends View {
     });
   }
 
-  async enforceChiefOfStaff(sp, ps, allTerms, termByAddr, paneByTerm, panesByTab, now) {
-    const chiefTabBySpace = new Map();
+  async enforceLeadTab(sp, ps, allTerms, termByAddr, paneByTerm, panesByTab, now) {
+    const leadTabBySpace = new Map();
     const liveTerms = allTerms.filter((t) => t.state === "live");
 
     for (const s of sp) {
       const tabs = s.tabs ?? [];
+      if (!tabs.length) continue;
       const tabSet = new Set(tabs.map((t) => t.id));
       const spacePanes = ps.filter((p) => tabSet.has(p.tab));
 
-      let chiefTerm = null;
-      let chiefTab = null;
+      const { leadTab, leadTerm } = selectLeadTab({
+        tabs,
+        spacePanes,
+        liveTerms,
+        termByAddr,
+        paneByTerm,
+        panesByTab,
+        autoTabs: this.autoTabs,
+      });
 
-      // 1. Explicit herdr.role=chief-of-staff or name=chief-of-staff terminal in this space.
-      for (const p of spacePanes) {
-        if (!p.terminal) continue;
-        const term = termByAddr.get(p.terminal);
-        if (!term) continue;
-        if (
-          term.labels?.["herdr.role"] === "chief-of-staff" ||
-          term.labels?.["herdr.name"] === "chief-of-staff" ||
-          term.name === "chief-of-staff"
-        ) {
-          chiefTerm = term;
-          chiefTab = tabs.find((t) => t.id === p.tab) ?? null;
-          break;
-        }
+      if (!leadTab) continue;
+      leadTabBySpace.set(s.id, leadTab.id);
+
+      // Ensure the single coordinator tab is literally named "lead".
+      if (leadTab.name !== LEAD_TAB_NAME && this.canAct(`tb:${leadTab.id}`, now)) {
+        this.autoTabs[leadTab.id] = LEAD_TAB_NAME;
+        run("tab.rename", { id: leadTab.id, name: LEAD_TAB_NAME });
       }
 
-      // 2. Existing tab named chief-of-staff / Chief of staff.
-      if (!chiefTab) {
-        chiefTab = tabs.find((t) => isChiefTabName(t.name)) ?? null;
-        if (chiefTab) {
-          const lead = (panesByTab.get(chiefTab.id) ?? []).find((p) => p.terminal && isAgentTerm(termByAddr.get(p.terminal), p));
-          if (lead) chiefTerm = termByAddr.get(lead.terminal) ?? null;
-        }
+      // Tag the lead terminal with herdr.role=lead.
+      if (leadTerm && leadTerm.labels?.["herdr.role"] !== LEAD_TAB_NAME && this.canAct(`role:${leadTerm.address}`, now)) {
+        await hc(["label", leadTerm.address, `herdr.role=${LEAD_TAB_NAME}`]).catch(() => null);
       }
 
-      // 3. Agent terminal in this space that has live child agents.
-      if (!chiefTab) {
-        for (const p of spacePanes) {
-          if (!p.terminal) continue;
-          const term = termByAddr.get(p.terminal);
-          if (!isAgentTerm(term, p)) continue;
-          const hasChildAgent = liveTerms.some((k) => k.parent === term.address && isAgentTerm(k, paneByTerm.get(k.address)));
-          if (hasChildAgent) {
-            chiefTerm = term;
-            chiefTab = tabs.find((t) => t.id === p.tab) ?? null;
-            break;
-          }
-        }
-      }
-
-      if (!chiefTab) continue;
-      chiefTabBySpace.set(s.id, chiefTab.id);
-
-      // Ensure the single coordinator tab is literally named "chief-of-staff".
-      if (chiefTab.name !== "chief-of-staff" && this.canAct(`tb:${chiefTab.id}`, now)) {
-        this.autoTabs[chiefTab.id] = "chief-of-staff";
-        run("tab.rename", { id: chiefTab.id, name: "chief-of-staff" });
-      }
-
-      // Tag the chief terminal with herdr.role=chief-of-staff.
-      if (chiefTerm && chiefTerm.labels?.["herdr.role"] !== "chief-of-staff" && this.canAct(`role:${chiefTerm.address}`, now)) {
-        await hc(["label", chiefTerm.address, "herdr.role=chief-of-staff"]).catch(() => null);
-      }
-
-      // Prevent duplicate chief-of-staff tabs in the same space.
+      // Prevent duplicate lead tabs in the same space.
       for (const tab of tabs) {
-        if (tab.id !== chiefTab.id && isChiefTabName(tab.name) && this.canAct(`dup:${tab.id}`, now)) {
+        if (tab.id !== leadTab.id && isLeadTabName(tab.name) && this.canAct(`dup:${tab.id}`, now)) {
           delete this.autoTabs[tab.id];
           run("tab.rename", { id: tab.id, name: "" });
           if (!this.warnedDuplicates.has(tab.id)) {
             this.warnedDuplicates.add(tab.id);
             notify({
-              title: "Single chief-of-staff per space",
-              body: `Space "${s.name}" already has a chief-of-staff tab.`,
+              title: "Single lead tab per space",
+              body: `Space "${s.name}" already has a lead tab.`,
               level: "warning",
               timeout: 6000,
             });
@@ -213,13 +183,13 @@ export default class AutoNamer extends View {
         }
       }
 
-      if (!chiefTerm) continue;
+      if (!leadTerm) continue;
 
-      // Enforce all child agents of chiefTerm open on other tabs with up to 4 splits per tab.
-      const childAgents = liveTerms.filter((k) => k.parent === chiefTerm.address && isAgentTerm(k, paneByTerm.get(k.address)));
+      // Enforce all child agents of leadTerm open on other tabs with up to 4 splits per tab.
+      const childAgents = liveTerms.filter((k) => k.parent === leadTerm.address && isAgentTerm(k, paneByTerm.get(k.address)));
       if (!childAgents.length) continue;
 
-      const workerTabs = tabs.filter((t) => t.id !== chiefTab.id);
+      const workerTabs = tabs.filter((t) => t.id !== leadTab.id);
       const workerCounts = new Map(workerTabs.map((t) => [t.id, (panesByTab.get(t.id) ?? []).length]));
       const childAddrSet = new Set(childAgents.map((k) => k.address));
       const tabsWithChildren = new Set(
@@ -227,12 +197,11 @@ export default class AutoNamer extends View {
           .filter((t) => (panesByTab.get(t.id) ?? []).some((p) => p.terminal && childAddrSet.has(p.terminal)))
           .map((t) => t.id),
       );
-
       let nextSeq = 1;
       const machinePrefix = s.machine ? `${s.machine}/` : "";
       const freshTabId = () => {
         for (;;) {
-          const local = `tbwk${chiefTerm.address}_${nextSeq++}`;
+          const local = `tbwk${leadTerm.address}_${nextSeq++}`;
           const full = `${machinePrefix}${local}`;
           if (!tabSet.has(full) && !workerCounts.has(full)) return full;
         }
@@ -245,7 +214,7 @@ export default class AutoNamer extends View {
           }
         }
         for (const [id, cnt] of workerCounts.entries()) {
-          if (cnt < MAX_SPLITS_PER_WORKER_TAB && id !== chiefTab.id && tabs.every((t) => t.id !== id || tabsWithChildren.has(t.id) || cnt === 0)) {
+          if (cnt < MAX_SPLITS_PER_WORKER_TAB && id !== leadTab.id && tabs.every((t) => t.id !== id || tabsWithChildren.has(t.id) || cnt === 0)) {
             return id;
           }
         }
@@ -260,9 +229,9 @@ export default class AutoNamer extends View {
         if (pane) {
           this.pendingTabForChild.delete(child.address);
           const count = workerCounts.get(pane.tab) ?? (panesByTab.get(pane.tab) ?? []).length;
-          if (pane.tab === chiefTab.id || (pane.tab !== chiefTab.id && count > MAX_SPLITS_PER_WORKER_TAB)) {
+          if (pane.tab === leadTab.id || (pane.tab !== leadTab.id && count > MAX_SPLITS_PER_WORKER_TAB)) {
             if (this.canAct(`park:${child.address}`, now)) {
-              if (pane.tab !== chiefTab.id) workerCounts.set(pane.tab, count - 1);
+              if (pane.tab !== leadTab.id) workerCounts.set(pane.tab, count - 1);
               run("terminal.park", { terminal: child.address });
             }
           }
@@ -289,7 +258,7 @@ export default class AutoNamer extends View {
       }
     }
 
-    return chiefTabBySpace;
+    return leadTabBySpace;
   }
 
   async reconcile(now) {
@@ -322,8 +291,8 @@ export default class AutoNamer extends View {
       panesByTab.get(p.tab).push(p);
     }
 
-    // 0. Enforce single chief-of-staff tab per space & child agents in worker tabs (<= 4 splits).
-    const chiefTabBySpace = await this.enforceChiefOfStaff(sp, ps, allTerms, termByAddr, paneByTerm, panesByTab, now);
+    // 0. Enforce single lead tab per space & child agents in worker tabs (<= 4 splits).
+    const leadTabBySpace = await this.enforceLeadTab(sp, ps, allTerms, termByAddr, paneByTerm, panesByTab, now);
 
     const spaceCwds = new Map(sp.map((s) => [s.id, spaceCwd(s, ps)]));
     const gitBySpace = new Map();
@@ -399,17 +368,17 @@ export default class AutoNamer extends View {
       }
     }
 
-    // 2. Auto-name tabs per space (never overwrite manual tab names or chief-of-staff).
+    // 2. Auto-name tabs per space (never overwrite manual tab names or lead).
     for (const s of sp) {
       const spaceGit = gitBySpace.get(s.id);
-      const chiefTabId = chiefTabBySpace.get(s.id);
+      const leadTabId = leadTabBySpace.get(s.id);
       const tabs = s.tabs ?? [];
       const manualNames = new Set();
       const autoTabsInSpace = [];
 
       for (const tab of tabs) {
-        if (tab.id === chiefTabId) {
-          manualNames.add("chief-of-staff");
+        if (tab.id === leadTabId) {
+          manualNames.add(LEAD_TAB_NAME);
           continue;
         }
         const placeholder = !tab.named || isPlaceholderTabName(tab.name);

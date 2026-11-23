@@ -18,7 +18,7 @@
     ./herdr-preview.nix
     ./agent-terminals.nix
     ./agent-projects.nix
-    ./herdr-coordinate.nix
+    ./herdr-helpers.nix
     ./pstack.nix
     ./portable-skills.nix
     ./grill-me.nix

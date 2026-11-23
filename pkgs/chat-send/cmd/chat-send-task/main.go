@@ -49,8 +49,6 @@ type taskOptions struct {
 	Send         bool
 	MentionEmail string
 	MentionQuery string
-	Portfolio    string
-	TaskID       string
 	RoutesFile   string
 	StateDir     string
 }
@@ -421,18 +419,6 @@ func launchArgs(opts taskOptions, directory string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opts.Portfolio != "" {
-		if opts.TaskID == "" {
-			return nil, chatsend.Stop("portfolio_requires_existing_task_id")
-		}
-		args := []string{
-			"chief-of-staff-spawn", "--portfolio", opts.Portfolio, "--task-id", opts.TaskID,
-			"--goal", "Prepare the bounded Google Chat job", "--role", "check", "--name", name,
-			"--tab-name", "Chat messages", "--cwd", directory, "--harness", "pi",
-			"--model", "litellm/" + modelName + "/low", "--no-codex-name", "--",
-		}
-		return append(args, run...), nil
-	}
 	args := []string{"hc", "run", "--bg", "--name", name, "--cwd", directory}
 	return append(args, run...), nil
 }
@@ -780,18 +766,6 @@ func parseTaskArgs(argv []string) (taskOptions, error) {
 				return opts, err
 			}
 			opts.MentionQuery = v
-		case "--portfolio":
-			v, err := readVal()
-			if err != nil {
-				return opts, err
-			}
-			opts.Portfolio = v
-		case "--task-id":
-			v, err := readVal()
-			if err != nil {
-				return opts, err
-			}
-			opts.TaskID = v
 		case "--routes-file":
 			v, err := readVal()
 			if err != nil {
@@ -805,7 +779,7 @@ func parseTaskArgs(argv []string) (taskOptions, error) {
 			}
 			opts.StateDir = v
 		case "-h", "--help":
-			fmt.Fprintln(os.Stderr, "Usage: chat-send-task [status|cancel] --operation ID [--route ALIAS --brief FILE [--send] [--mention-email EMAIL --mention-query QUERY] [--portfolio DIR --task-id ID]] [--routes-file FILE] [--state-dir DIR]")
+			fmt.Fprintln(os.Stderr, "Usage: chat-send-task [status|cancel] --operation ID [--route ALIAS --brief FILE [--send] [--mention-email EMAIL --mention-query QUERY]] [--routes-file FILE] [--state-dir DIR]")
 			os.Exit(0)
 		default:
 			return opts, fmt.Errorf("unknown flag: %s", key)

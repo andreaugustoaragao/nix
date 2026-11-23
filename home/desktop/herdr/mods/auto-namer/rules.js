@@ -10,6 +10,8 @@ const GENERIC_TITLES = new Set([
   "codex",
   "pi",
   "pi-task",
+  "π",
+  "omp",
   "cursor",
   "cursor-agent",
   "grok",
@@ -20,7 +22,8 @@ const GENERIC_TITLES = new Set([
 export function cleanTitle(raw) {
   if (!raw) return "";
   return String(raw)
-    .replace(/^[\s\u2800-\u28FF●○◉·•▸▹►▻◆◇▪▫★☆✦✧⚡✓✔✕✖⚠⏳⌛🔄]+/u, "")
+    .replace(/^\s*π(?:\s*[:·•>!|-]+(?:\s+|$)|\s+)/u, "")
+    .replace(/^[\s\u2800-\u28FF●○◉·•▸▹►▻◆◇▪▫★☆✦✧⚡✓✔✕✖⚠⏳⌛🔄>!]+(?:\s+|$)/u, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -65,8 +68,10 @@ export function relativeSubdir(cwd, root) {
   return parts.length <= 2 ? parts.join("/") : parts.slice(-2).join("/");
 }
 
-export function isChiefTabName(name) {
-  return /^chief[- ]of[- ]staff$/i.test(String(name ?? "").trim());
+export const LEAD_TAB_NAME = "lead";
+
+export function isLeadTabName(name) {
+  return /^(?:lead|chief[- ]of[- ]staff)$/i.test(String(name ?? "").trim());
 }
 
 export function isAgentTerm(term, pane) {
@@ -75,7 +80,66 @@ export function isAgentTerm(term, pane) {
     return true;
   }
   const cmd = Array.isArray(term.argv) ? term.argv.join(" ") : "";
-  return /\b(herdr-cursor|cursor-agent|codex|pi(?:-task)?|gemini|grok)\b/i.test(cmd);
+  return /\b(herdr-cursor|cursor-agent|codex|omp|pi(?:-task)?|gemini|grok)\b/i.test(cmd);
+}
+
+export function selectLeadTab({ tabs, spacePanes, liveTerms, termByAddr, paneByTerm, panesByTab, autoTabs }) {
+  if (!tabs?.length) return { leadTab: null, leadTerm: null };
+
+  // 1. Explicit herdr.role=lead (or legacy chief-of-staff) / explicit name.
+  for (const p of spacePanes) {
+    if (!p.terminal) continue;
+    const term = termByAddr.get(p.terminal);
+    if (!term) continue;
+    const role = term.labels?.["herdr.role"];
+    const labelName = term.labels?.["herdr.name"];
+    if (
+      role === LEAD_TAB_NAME ||
+      role === "chief-of-staff" ||
+      isLeadTabName(labelName) ||
+      isLeadTabName(term.name)
+    ) {
+      return { leadTab: tabs.find((t) => t.id === p.tab) ?? null, leadTerm: term };
+    }
+  }
+
+  // 2. Existing tab named lead (or legacy chief-of-staff).
+  const namedLead = tabs.find((t) => isLeadTabName(t.name)) ?? null;
+  if (namedLead) {
+    const leadPane = (panesByTab.get(namedLead.id) ?? []).find(
+      (p) => p.terminal && isAgentTerm(termByAddr.get(p.terminal), p),
+    );
+    return { leadTab: namedLead, leadTerm: leadPane ? termByAddr.get(leadPane.terminal) ?? null : null };
+  }
+
+  // 3. Agent terminal in this space that has live child agents.
+  for (const p of spacePanes) {
+    if (!p.terminal) continue;
+    const term = termByAddr.get(p.terminal);
+    if (!isAgentTerm(term, p)) continue;
+    const hasChildAgent = liveTerms.some(
+      (k) => k.parent === term.address && isAgentTerm(k, paneByTerm.get(k.address)),
+    );
+    if (hasChildAgent) {
+      return { leadTab: tabs.find((t) => t.id === p.tab) ?? null, leadTerm: term };
+    }
+  }
+
+  // 4. Fresh-space fallback: promote the first tab (index 0) when it hosts an agent terminal
+  //    and is unnamed, placeholder-named, or auto-owned (never overwrite user-named tabs).
+  const firstTab = tabs[0];
+  const firstPlaceholder = !firstTab.named || isPlaceholderTabName(firstTab.name);
+  const firstOwnedByAuto = Boolean(firstTab.named && autoTabs && firstTab.name === autoTabs[firstTab.id]);
+  if (firstPlaceholder || firstOwnedByAuto) {
+    const firstAgentPane = (panesByTab.get(firstTab.id) ?? []).find(
+      (p) => p.terminal && isAgentTerm(termByAddr.get(p.terminal), p),
+    );
+    if (firstAgentPane) {
+      return { leadTab: firstTab, leadTerm: termByAddr.get(firstAgentPane.terminal) ?? null };
+    }
+  }
+
+  return { leadTab: null, leadTerm: null };
 }
 
 export function localHerdrId(id) {

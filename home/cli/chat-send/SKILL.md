@@ -3,7 +3,7 @@ name: chat-send
 description: Draft and send Google Chat messages through a minimal Terra/Pi worker, or deliver exact supplied text with the managed accounts browser.
 ---
 
-For routine drafting from supplied facts, use `chat-send-task --route ALIAS --brief FILE --operation STABLE_ID`. This is the task-specific default: a fresh Pi session, WebAI `gpt-6.1-terra`, low effort, and only the fixed delivery tool. Put the recipient's name, requested action, relevant facts and exact code in a short self-contained brief. Keep research and source retrieval in the caller; do not give the worker the backlog, notes vault or full conversation. Read [the worker reference](references/worker.md) for lifecycle, private results and chief-of-staff tracking.
+For routine drafting from supplied facts, use `chat-send-task --route ALIAS --brief FILE --operation STABLE_ID`. This is the task-specific default: a fresh Pi session, WebAI `gpt-6.1-terra`, low effort, and only the fixed delivery tool. Put the recipient's name, requested action, relevant facts and exact code in a short self-contained brief. Keep research and source retrieval in the caller; do not give the worker the backlog, notes vault or full conversation. Read [the worker reference](references/worker.md) for lifecycle and private results.
 
 An explicit user request to send authorizes `--send` without a redundant approval round. Otherwise the worker stops at preview. Reuse the operation ID to check status; never relaunch an uncertain operation under a new ID. Missing facts or a browser failure return to the caller for attention.
 

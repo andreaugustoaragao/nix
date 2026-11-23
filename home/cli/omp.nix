@@ -156,6 +156,7 @@ let
     statusLine.preset = "full";
     display.subagentLivePreview = true;
     tui.vimMode = true;
+    title.refreshAfterPrompts = 10;
     startup.checkUpdate = false;
     astGrep.enabled = true;
     github.enabled = true;

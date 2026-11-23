@@ -33,14 +33,13 @@ so tool commands and hooks inherit the calling terminal's context.
 When creating or arranging Herdr Desktop / core items (`herdr-app`, `hc`), name
 them explicitly instead of leaving numbered defaults or unnamed sessions:
 
-- **Chief-of-staff topology:** each space may have at most one
-  `chief-of-staff`, in a tab named `chief-of-staff` (`herdr.role=chief-of-staff`).
-  All child agents of that coordinator must open on separate worker tabs in the
-  same space, with up to 4 splits per tab (never inside `chief-of-staff`).
+- **Lead tab per space:** each space has one `lead` tab (`herdr.role=lead`,
+  first tab by default). Open child agents on separate worker tabs in the same
+  space, up to 4 splits per tab (never inside `lead`).
 - **Spaces (`space.new` / `space.rename`):** `<repo>` for main checkouts, or
   `<repo> · <worktree-or-branch>` for linked worktrees; disambiguate if another
   space already uses `<repo>`.
-- **Tabs (`tab.new` / `tab.rename`):** `chief-of-staff` for the coordinator tab;
+- **Tabs (`tab.new` / `tab.rename`):** `lead` for the primary coordinator tab;
   concise topic/task name for other tabs (e.g. `Auth review`,
   `T020 · Fast startup`), never generic `"1"` or bare agent names.
 - **Splits & `hc` terminals (`hc run --name`, `hc label`):** kebab-case

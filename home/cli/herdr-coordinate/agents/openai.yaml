@@ -1,6 +1,0 @@
-interface:
-  display_name: "Herdr coordinate (compatibility alias)"
-  short_description: "Alias for the ongoing chief-of-staff backlog workflow"
-  default_prompt: "Use $herdr-coordinate as an alias for $chief-of-staff, reusing the current backlog and shared Herdr worker limit."
-policy:
-  allow_implicit_invocation: false

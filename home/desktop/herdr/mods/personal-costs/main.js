@@ -30,7 +30,7 @@ function icon(p, size, color) {
 function termDisplayName(term, tab, progName) {
   const explicit = (term?.labels?.["herdr.name"] || term?.name || term?.labels?.["herdr.auto_name"] || "").trim();
   if (explicit) return explicit;
-  if (tab?.named && tab?.name && tab.name !== "chief-of-staff") return tab.name;
+  if (tab?.named && tab?.name && tab.name !== "lead" && tab.name !== "chief-of-staff") return tab.name;
   return progName || term?.address || "Agent";
 }
 

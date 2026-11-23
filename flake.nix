@@ -927,10 +927,15 @@
             ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/agent-host-context.test.py
             touch "$out"
           '';
-          chief-of-staff = pkgs.runCommand "check-chief-of-staff-skill" { } ''
-            PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 ${self.outPath}/home/cli/chief-of-staff.test.py
-            touch "$out"
-          '';
+          auto-namer =
+            pkgs.runCommand "check-auto-namer"
+              {
+                nativeBuildInputs = [ pkgs.nodejs ];
+              }
+              ''
+                node --test ${self.outPath}/home/desktop/herdr/mods/auto-namer/rules.test.mjs
+                touch "$out"
+              '';
           chat-send =
             pkgs.runCommand "check-chat-send"
               {

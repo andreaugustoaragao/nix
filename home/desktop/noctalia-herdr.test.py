@@ -149,7 +149,7 @@ assert(#model.collect({spaces = {}}, {terminals = {}}).agents == 0)
 local model = require("./model.luau")
 local window = {spaces = {
     {name = "system", active = true, tabs = {
-        {name = "chief-of-staff", active = true, terminals = {
+        {name = "lead", active = true, terminals = {
             {terminal = "t1", status = "working", app = "codex", sub_agents = {"t2", "t3"}},
         }},
         {name = "Runtime adapters", terminals = {
@@ -177,7 +177,7 @@ local transitions = {}
 local snap1 = model.collect(window, core, 100000, transitions)
 local byAddr = {}
 for _, a in ipairs(snap1.agents) do byAddr[a.address] = a end
-assert(byAddr.t1.title == "system" and byAddr.t1.subtitle == "chief-of-staff")
+assert(byAddr.t1.title == "system" and byAddr.t1.subtitle == "lead")
 assert(byAddr.t2.title == "t014-impl" and byAddr.t2.subtitle == "system · Runtime adapters")
 assert(byAddr.t4.title == "t001-query-fixture-fix" and byAddr.t4.subtitle == "fulcrum", "redundant tab name must not duplicate")
 assert(byAddr.t1.since == 100000)
@@ -295,7 +295,7 @@ assert(toggled == "aragao/herdr:agents")
         run_luau(HOST + (PLUGINS / "panel.luau").read_text() + r'''
 local a = {address = "t1", title = "widget", subtitle = "nix", fullTitle = "nix / widget", app = "codex", status = "working", turn = 15, since = 700000, active = true}
 local b = {address = "vps/t2", title = "review", subtitle = "remote · api", fullTitle = "remote / api / review", app = "pi", status = "blocked", turn = 4, since = 940000}
-local c = {address = "t3", title = "idle-space", subtitle = "chief-of-staff", fullTitle = "idle-space / chief-of-staff", app = "codex", status = "idle", since = 400000}
+local c = {address = "t3", title = "idle-space", subtitle = "lead", fullTitle = "idle-space / lead", app = "codex", status = "idle", since = 400000}
 noctalia.state.set("snapshot", {phase = "ready", agents = {b, a, c}, working = 1, attention = 1, errors = 0, done = 0, idle = 1})
 assert(panelTree == nil, "closed panels must not redraw")
 onOpen()
