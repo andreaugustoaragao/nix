@@ -256,10 +256,10 @@
     "fulcrum-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1795454525,
-        "narHash": "sha256-jvHAliA0U2iGRrDeYz/UrQOZHqL27OeDVcrXmXvTQHQ=",
+        "lastModified": 1795454746,
+        "narHash": "sha256-NiNx9V1vMVh1bl39+o32JfNNQzQn3thxPrCtkMpxoVk=",
         "ref": "release/fulcrum-v2",
-        "rev": "5be5b627c93c09d0008d59ee18dccd5dccd1d526",
+        "rev": "f1dae05860ea7ef57ed5181c8b566872438170d5",
         "revCount": 2207,
         "type": "git",
         "url": "file:///home/aragao/projects/work/fulcrum-v2-release"
