@@ -35,7 +35,6 @@
   ++ lib.optionals (!personalOnly && !isServer) [ ./litellm.nix ]
   ++ lib.optionals (!isDarwinHost) [
     ./darkman.nix
-    ./shared-vault.nix
     ./vault-v2.nix
   ]
   ++ lib.optionals (!personalOnly && !isDarwinHost) [ ./notes-sync.nix ]

@@ -11,16 +11,9 @@
 
 let
   sourceRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
-  shared = config.my.sharedVault or { enable = false; };
   vaultV2 = config.my.vaultV2 or { enable = false; };
   vaultV2Fulcrum = vaultV2.fulcrumRelease or null;
-  packagedRelease =
-    if vaultV2.enable && vaultV2Fulcrum != null then
-      vaultV2Fulcrum
-    else if shared.enable then
-      shared.release
-    else
-      null;
+  packagedRelease = if vaultV2.enable && vaultV2Fulcrum != null then vaultV2Fulcrum else null;
   projectRoot =
     if packagedRelease != null then "${packagedRelease}/share/vault-services" else sourceRoot;
   # Runtime library path for native modules (onnxruntime / sharp in
@@ -165,7 +158,6 @@ in
       After = [
         "network-online.target"
       ]
-      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service"
       ++ lib.optionals vaultV2.enable [
         "shared-vault-v2.service"
         "ai-task-scheduler.service"
@@ -173,7 +165,6 @@ in
       Wants = [
         "network-online.target"
       ]
-      ++ lib.optional (shared.enable && (shared.service.enable or false)) "shared-vault.service"
       ++ lib.optionals vaultV2.enable [
         "shared-vault-v2.service"
         "ai-task-scheduler.service"
@@ -251,10 +242,7 @@ in
         "MATRIX_USER_ID=@maui-alerts:matrix.faragao.net"
         "MATRIX_DEVICE_ID=AeSV8hGVoC"
         "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
-      ]
-      ++ lib.optionals shared.enable (
-        lib.mapAttrsToList (name: value: "${name}=${value}") shared.service.environment
-      );
+      ];
       # OpenAI-compatible inference is routed through the same corporate
       # LiteLLM gateway and bearer token that Codex uses. Both values stay
       # in sops-managed runtime files; the wrapper exports the conventional

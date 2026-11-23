@@ -253,6 +253,23 @@
         "type": "github"
       }
     },
+    "fulcrum-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795396515,
+        "narHash": "sha256-1UDFLf7N+VFMag01+Jg9H1jAw110+7Iu3+ZhINodtoA=",
+        "ref": "main",
+        "rev": "c33adc4309ed9bddd1753b0313abe0a1f370b5f6",
+        "revCount": 2205,
+        "type": "git",
+        "url": "ssh://git@github-work/andrearagao/fulcrum.git"
+      },
+      "original": {
+        "ref": "main",
+        "type": "git",
+        "url": "ssh://git@github-work/andrearagao/fulcrum.git"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -416,6 +433,7 @@
         "dank-greeter": "dank-greeter",
         "disko": "disko",
         "dms": "dms",
+        "fulcrum-src": "fulcrum-src",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nix-index-database": "nix-index-database",

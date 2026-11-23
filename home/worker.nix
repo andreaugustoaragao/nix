@@ -11,7 +11,6 @@
     ./worker-desktop.nix
     ./services/pi-models.nix
     ./services/litellm.nix
-    ./services/shared-vault.nix
   ];
   home = {
     username = owner.name;

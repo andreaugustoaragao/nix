@@ -13,7 +13,6 @@
     ./codex.nix
     ./pi.nix
     ./cursor.nix
-    ./shared-vault.nix
     ./vault-v2-clients.nix
     ./herdr.nix
     ./herdr-preview.nix

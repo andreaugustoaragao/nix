@@ -84,6 +84,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    fulcrum-src = {
+      url = "git+ssh://git@github-work/andrearagao/fulcrum.git?ref=main";
+      flake = false;
+    };
+
   };
 
   outputs =
@@ -450,6 +455,17 @@
           folio = pkgs.callPackage ./pkgs/folio.nix { };
           vereda = pkgs.callPackage ./pkgs/vereda.nix { };
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
+          fulcrum-vault-v2 = pkgs.callPackage ./pkgs/vault-v2.nix {
+            src = inputs.fulcrum-src;
+          };
+          fulcrum-node-modules = pkgs.callPackage ./pkgs/fulcrum-node-modules.nix {
+            src = inputs.fulcrum-src;
+          };
+          fulcrum-app = pkgs.callPackage ./pkgs/fulcrum-app.nix {
+            src = inputs.fulcrum-src;
+            sourceRevision = inputs.fulcrum-src.rev;
+            fulcrumNodeModules = self.packages.${system}.fulcrum-node-modules;
+          };
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           workstation-rootful-docker-retire =
@@ -1083,38 +1099,8 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-configure.test.py
                 touch "$out"
               '';
-          shared-vault-release =
-            pkgs.runCommand "check-shared-vault-release"
-              {
-                nativeBuildInputs = [
-                  pkgs.python3
-                  pkgs.git
-                ]
-                ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.binutils ];
-              }
-              ''
-                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-release.test.py
-                touch "$out"
-              '';
-          shared-vault-bootstrap =
-            pkgs.runCommand "check-shared-vault-bootstrap"
-              {
-                nativeBuildInputs = [
-                  pkgs.python3
-                  pkgs.git
-                ];
-              }
-              ''
-                export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/shared-vault-bootstrap.test.py
-                touch "$out"
-              '';
           fulcrum-packaged-runtime = import ./home/services/fulcrum-release-check.nix {
             inherit pkgs home-manager;
-          };
-          shared-vault-module = import ./home/cli/shared-vault-check.nix {
-            inherit home-manager;
-            pkgs = pkgs.extend inputs.rust-overlay.overlays.default;
           };
           notes-sync =
             pkgs.runCommand "check-notes-sync"

@@ -3,21 +3,22 @@
 The committed Nix flake selects the system packages, four agent clients
 (Codex, Cursor, Pi, OMP), independent Vault v2 overlay (`shared-vault-v2`),
 standalone AI task scheduler (`ai-task-scheduler`), Fulcrum web service, and
-notes synchronization. `home/services/vault-v2-prl-dev-vm-release.json` pins
-the aarch64-linux runtime (`0.226.2`) by full Fulcrum commit, archive SRI hash,
-and native binary SHA-256 digests (`shared-vault`, `vault-extract`,
-`ai-task-scheduler`). A null `url` selects a local-only release: retain its
-certified archive privately outside `/tmp` (e.g.
-`~/.local/share/fulcrum-releases/release-0.226.2/shared-vault-release-0.226.2.tar.gz`)
-and import it with `--pin` and `--archive-only` before rebuilding. This mode
-performs no runtime download or publication; a fresh Nix store cannot recover
-from the committed config alone without the retained archive.
+notes synchronization. The `fulcrum-src` flake input in `flake.nix` / `flake.lock`
+pins Fulcrum by exact Git commit and NAR hash and builds three split derivations:
 
-The runtime archive contains certified source, built web assets and installed
-native dependencies. It does not contain credentials, Git metadata or mutable
-vault data. The service runs directly from the resulting Nix store package.
-Activation does not create source checkouts or install dependencies. Nix
-configuration generations retain the package for rollback and garbage collection.
+- `pkgs/vault-v2.nix` (`fulcrum-vault-v2`): Rust binaries (`shared-vault`,
+  `vault-extract`, `ai-task-scheduler`), filtered to `Cargo.toml`, `Cargo.lock`,
+  and `services/` so TypeScript-only updates hit the Nix store cache.
+- `pkgs/fulcrum-node-modules.nix` (`fulcrum-node-modules`): fixed-output
+  production dependency closure (verified against `bun.lock` and `patches/`),
+  cached across releases until dependencies or patches change.
+- `pkgs/fulcrum-app.nix` (`fulcrum-app`): stages runtime source, links
+  production `node_modules`, runs `bun scripts/build-web.ts`, emits `release.json`
+  bound to `fulcrum-src.rev`, and verifies the built web payload.
+
+No local release tarballs or bootstrap import steps are required. All services
+run directly from `/nix/store`. Nix configuration generations retain closures
+for rollback and garbage collection.
 
 Fulcrum Desktop has a separate source revision and unpacked SHA256 in
 `home/desktop/fulcrum-source.json`. Its Nix derivation fetches that fixed source
@@ -25,36 +26,41 @@ archive. It does not read a development checkout or the runtime's Git history.
 
 ## Restore code and configuration
 
-Use the `prl-dev-vm` NixOS host configuration on aarch64-linux. Other hosts still
-evaluate, but this native archive is not an x86_64 or Darwin release.
+Use the `prl-dev-vm` NixOS host configuration on `aarch64-linux`. Other hosts still
+evaluate, but the Linux runtime packages are built for `aarch64-linux` / `x86_64-linux`.
 
-Prerequisites are Nix with flakes, Git, Python 3, access to the private Fulcrum
-repository and the host's SOPS decryption key. Private GitHub downloads use
-`GH_TOKEN`, `GITHUB_TOKEN` or Git's existing HTTPS credential helper. Credentials
-are removed on asset/source redirects and never enter the release pins or Nix
-store. Runtime and desktop inputs are both verified against committed hashes.
+Prerequisites are Nix with flakes, Git, SSH access to the private Fulcrum
+repository (`github-work` host alias), and the host's SOPS decryption key.
 
 ```sh
 mkdir -p ~/projects/personal
 git clone git@github.com:andreaugustoaragao/nix.git ~/projects/personal/nix
 cd ~/projects/personal/nix
-python3 home/cli/shared-vault-bootstrap.py \
-  --pin home/services/vault-v2-prl-dev-vm-release.json \
-  --archive ~/.local/share/fulcrum-releases/release-0.226.2/shared-vault-release-0.226.2.tar.gz \
-  --archive-only
-nix build --no-link .#nixosConfigurations.prl-dev-vm.config.home-manager.users.aragao.my.vaultV2.package
+nix build --no-link .#fulcrum-vault-v2 .#fulcrum-node-modules .#fulcrum-app
 nix flake check --no-build --all-systems
 ```
 
+To update Fulcrum to a newly merged `main` commit:
+
+```sh
+cd ~/projects/personal/nix
+nix flake update fulcrum-src
+nix build --no-link .#fulcrum-vault-v2 .#fulcrum-node-modules .#fulcrum-app
+```
+
+To certify a candidate commit before merging to `main`, realize the split
+outputs with `--override-input fulcrum-src "git+file://$WORKTREE?rev=$CANDIDATE"`
+and pass the resulting `/nix/store` paths to `bun run dev:certify -- run` via
+`--realized-vault`, `--realized-app`, and `--realized-node-modules`. Because
+`fulcrum-app` embeds `fulcrum-src.rev` in `release.json`, a `git merge --no-ff`
+keeps identical `fulcrum-vault-v2` and `fulcrum-node-modules` store paths while
+rebuilding `fulcrum-app` (~2s) for the merge commit; after locking the merge
+commit with `nix flake update fulcrum-src`, verify the Home Manager target's
+realized app output with `bun run dev:certify -- check --receipt "$RECEIPT_FILE"
+--integrated-commit "$MERGE_COMMIT" --realized-app "$DEPLOYED_APP_PATH"` before
+activation.
 Keep production services and sync timers stopped while restoring the mutable
 state below. Activation is a separate final step after that restore.
-Both `--pin home/services/vault-v2-prl-dev-vm-release.json` and
-`--archive-only` are required for Vault v2: `shared-vault-bootstrap.py` still
-defaults to the retired v1 pin and its non-`--archive-only` build target points
-at the disabled `my.sharedVault.release` attribute. The import verifies the
-archive SRI hash and adds the fixed-output `shared-vault-release.tar.gz` to the
-local Nix store without starting services or touching mutable state. Re-run the
-import if Nix garbage collection removes the fixed-output archive.
 
 ## Restore mutable state
 

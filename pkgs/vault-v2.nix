@@ -3,8 +3,8 @@
 #   - vault-extract      (contained PDF/OOXML/OCR Local Extractor CLI)
 #   - ai-task-scheduler  (standalone scheduler with Capability Profiles, CLI & MCP)
 #
-# Replaces the legacy Bun vault-service, shared-vault-grammar, and ChromaDB stack
-# per docs/adr/0001..0004.
+# Filtered to Cargo.toml, Cargo.lock, and services/ so TypeScript-only Fulcrum
+# releases hit the Nix store cache in 0s without recompiling Rust.
 {
   lib,
   pkgs,
@@ -12,18 +12,36 @@
   onnxruntimeLib ? "${pkgs.onnxruntime}/lib/libonnxruntime.so",
 }:
 let
+  rustToolchain = pkgs.callPackage ./rust-toolchain.nix { };
+  rustPlatform = pkgs.makeRustPlatform {
+    cargo = rustToolchain;
+    rustc = rustToolchain;
+  };
+  srcRoot = toString src;
+  rustSrc = builtins.path {
+    name = "fulcrum-rust-src";
+    path = src;
+    filter =
+      path: _type:
+      let
+        rel = lib.removePrefix "${srcRoot}/" path;
+      in
+      rel == "Cargo.toml" || rel == "Cargo.lock" || rel == "services" || lib.hasPrefix "services/" rel;
+  };
   runtimeLibs = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
     pkgs.openssl
   ];
 in
-pkgs.rustPlatform.buildRustPackage {
+rustPlatform.buildRustPackage {
   pname = "fulcrum-vault-v2";
+  # Keep crate workspace version independent of package.json so TS-only
+  # Fulcrum version bumps reuse the cached Rust build.
   version = "0.2.0";
-  inherit src;
+  src = rustSrc;
 
-  cargoLock.lockFile = "${src}/Cargo.lock";
+  cargoLock.lockFile = "${rustSrc}/Cargo.lock";
   buildAndTestSubdir = ".";
   cargoBuildFlags = [
     "--workspace"
@@ -49,6 +67,17 @@ pkgs.rustPlatform.buildRustPackage {
 
     wrapProgram "$out/bin/ai-task-scheduler" \
       --set-default FULCRUM_BWRAP_EXEC "${pkgs.bubblewrap}/bin/bwrap"
+
+    ln -s "$out/bin/shared-vault" "$out/bin/vault-service"
+  '';
+
+  doInstallCheck = true;
+  installCheckPhase = ''
+    runHook preInstallCheck
+    for executable in shared-vault vault-extract ai-task-scheduler; do
+      "$out/bin/$executable" --help >/dev/null
+    done
+    runHook postInstallCheck
   '';
 
   meta = {
