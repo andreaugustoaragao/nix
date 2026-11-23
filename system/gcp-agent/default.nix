@@ -19,7 +19,7 @@ let
     runtimeInputs = with pkgs; [
       coreutils
       gawk
-      herdrCore
+      # herdrCore invoked via absolute store path under runuser below.
       procps
       python3
       systemd
@@ -56,14 +56,47 @@ let
         uid=$(id -u ${lib.escapeShellArg owner.name})
         hc_sock="/run/user/$uid/herdr-core/default.sock"
         if [[ -S "$hc_sock" ]]; then
-          if runuser -u ${lib.escapeShellArg owner.name} -- env HC_SOCKET="$hc_sock" hc ls --json 2>/dev/null \
-            | python3 -c 'import json,sys; ts=json.load(sys.stdin).get("terminals",[]); sys.exit(0 if any(t.get("state")=="live" and t.get("status") in ("working","blocked") for t in ts) else 1)'; then
-            busy=1
+          hc_rc=0
+          hc_out=$(runuser -u ${lib.escapeShellArg owner.name} -- env HC_SOCKET="$hc_sock" ${lib.getExe herdrCore} ls --json 2>/dev/null) || hc_rc=$?
+          if (( hc_rc == 0 )); then
+            py_rc=0
+            python3 -c '
+      import json, sys
+      try:
+          data = json.load(sys.stdin)
+      except Exception:
+          sys.exit(2)
+      if not isinstance(data, dict) or "error" in data or not isinstance(data.get("terminals"), list):
+          sys.exit(2)
+      def is_working(t):
+          if not isinstance(t, dict) or t.get("state") != "live" or "/" in (t.get("address") or ""):
+              return False
+          st = t.get("status")
+          if isinstance(st, dict):
+              st = st.get("state")
+          return st == "working"
+      sys.exit(0 if any(is_working(t) for t in data["terminals"]) else 1)
+      ' <<< "$hc_out" || py_rc=$?
+          else
+            py_rc=2
           fi
+          case "$py_rc" in
+            0)
+              busy=1
+              ;;
+            1)
+              ;;
+            *)
+              if pgrep -u ${lib.escapeShellArg owner.name} -f 'herdr-core(-wrapped)? serve($| )' >/dev/null 2>&1; then
+                echo "Herdr status query failed (hc_rc=$hc_rc, py_rc=$py_rc) while herdr-core is running; treating VM as busy." >&2
+                busy=1
+              fi
+              ;;
+          esac
         fi
       fi
 
-      if (( busy == 0 )) && pgrep -u ${lib.escapeShellArg owner.name} -x 'omp|pi|codex|cursor-agent|claude|cargo|rustc|nix|nix-build|go|make' >/dev/null 2>&1; then
+      if (( busy == 0 )) && pgrep -u ${lib.escapeShellArg owner.name} -x 'cargo|rustc|nix|nix-build|go|make' >/dev/null 2>&1; then
         busy=1
       fi
 
