@@ -192,7 +192,7 @@ in
         "FULCRUM_CALLBACK_SOCKET=%t/fulcrum-v2/callback.sock"
         "FULCRUM_WEB_DIST_DIR=${projectRoot}/v2/web/dist"
         "FULCRUM_PACKAGE_ROOT=${projectRoot}"
-        "FULCRUM_TRUST_LOOPBACK=1"
+        "FULCRUM_LOCAL_PORT=3102"
         "FULCRUM_WORK_INTAKE_STATE_DIR=${config.xdg.dataHome}/fulcrum-v2/work-intake"
       ]
       ++ lib.optionals (packagedRelease != null && (vaultV2.workIntakePackage or null) != null) [
