@@ -50,12 +50,18 @@ assert packagedV2.Service.WorkingDirectory == runtimeRoot;
 assert !(packagedV2.Unit ? ConditionPathExists);
 assert source.Service.WorkingDirectory == "${fixtureHome}/projects/work/fulcrum";
 assert source.Unit.ConditionPathExists == source.Service.WorkingDirectory;
-assert builtins.elem "FULCRUM_DATA_DIR=${fixtureHome}/projects/work/notes/.fulcrum"
+assert builtins.elem "FULCRUM_V2_STATE_DIR=${fixtureHome}/.local/share/fulcrum-v2/app"
+  packagedV2.Service.Environment;
+assert builtins.elem "FULCRUM_VAULT_DIR=${fixtureHome}/projects/work/notes"
   packagedV2.Service.Environment;
 assert builtins.elem "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"
   packagedV2.Service.Environment;
 assert builtins.elem "FULCRUM_SCHEDULER_SOCKET=%t/ai-task-scheduler/api.sock"
   packagedV2.Service.Environment;
+assert builtins.elem "FULCRUM_CALLBACK_SOCKET=%t/fulcrum-v2/callback.sock"
+  packagedV2.Service.Environment;
+assert !(builtins.elem "FULCRUM_DATA_DIR=${fixtureHome}/projects/work/notes/.fulcrum"
+  packagedV2.Service.Environment);
 assert !(builtins.elem "CHROMA_BASE_URL=http://localhost:8000" packagedV2.Service.Environment);
 assert builtins.elem "CHROMA_BASE_URL=http://localhost:8000" source.Service.Environment;
 assert
@@ -64,8 +70,8 @@ assert builtins.elem "file://${runtimeRoot}/docs/README.md" packagedV2.Unit.Docu
 pkgs.runCommand "check-fulcrum-packaged-runtime" { } ''
   execStart=${builtins.head packagedV2.Service.ExecStart}
   grep -F -- ${lib.escapeShellArg "${appPkg}/bin/bun"} "$execStart"
-  grep -F -- ${lib.escapeShellArg "${runtimeRoot}/src/index.ts"} "$execStart"
-  grep -F -- ${lib.escapeShellArg "--env-file=${fixtureHome}/projects/work/notes/.fulcrum/.env"} "$execStart"
+  grep -F -- ${lib.escapeShellArg "${runtimeRoot}/v2/server/src/main.ts"} "$execStart"
+  grep -F -- ${lib.escapeShellArg "${fixtureHome}/.local/share/fulcrum-v2/app/.env"} "$execStart"
   if grep -F -- ${lib.escapeShellArg "${fixtureHome}/projects/work/fulcrum"} "$execStart"; then
     echo 'Packaged service still depends on a development checkout' >&2
     exit 1
