@@ -1,17 +1,12 @@
 {
+  config,
   lib,
   pkgs,
-  hostName,
   ...
 }:
 
 let
-  ompEnabled = builtins.elem hostName [
-    "prl-dev-vm"
-    "workstation"
-    "workstation-worker"
-    "gcp-agent-wk"
-  ];
+  ompEnabled = config.my.agentHarness.omp.enable;
   cursorStatus = pkgs.writeShellApplication {
     name = "herdr-cursor-status";
     runtimeInputs = [

@@ -64,15 +64,11 @@ let
     cp -rL ${codeToolsFiles}/. "$out/"
   '';
   cursorAgent = pkgs.writeShellScript "cursor-agent" ''
-    exec ${agents.cursor-agent}/bin/cursor-agent --plugin-dir ${codeTools} "$@"
+    exec ${agents.cursor-agent}/bin/cursor-agent \
+      --plugin-dir ${codeTools} \
+      --plugin-dir ${config.my.agentHarness.pstackPackage} \
+      "$@"
   '';
-  agentHubHooks =
-    lib.optional config.my.agentHarness.agentHub.enable {
-      command = "${lib.getExe (pkgs.callPackage ../../pkgs/agent-hub.nix { })} cursor-hook";
-    }
-    ++ lib.optional (!config.my.agentHarness.agentHub.enable) {
-      command = ''if [ -x "${config.home.homeDirectory}/.local/bin/agent-hub" ]; then "${config.home.homeDirectory}/.local/bin/agent-hub" cursor-hook; else printf '{}\n'; fi'';
-    };
   # Cursor / cursor-agent reads ~/.cursor/hooks.json for hook registration.
   # The format mirrors Claude Code's hook config in spirit: a list of
   # event entries, each with a matcher and a command to invoke.
@@ -83,23 +79,12 @@ let
   hooksData = {
     version = 1;
     hooks = {
-      sessionStart =
-        agentHubHooks
-        ++ lib.optional config.my.agentHarness.legacyHerdr {
-          command = "bash '${config.home.homeDirectory}/.cursor/herdr-agent-state.sh' session";
-        };
-      sessionEnd = agentHubHooks;
-      beforeSubmitPrompt = agentHubHooks;
-      afterAgentResponse = agentHubHooks;
-      postToolUse = agentHubHooks;
-      stop = map (hook: hook // { loop_limit = 1; }) agentHubHooks;
       preToolUse = [
         {
           matcher = "Shell";
           command = "${piRs}/share/pi-rs/agent-hooks/cursor-rewrite.sh";
         }
-      ]
-      ++ agentHubHooks;
+      ];
     };
   };
   hooks = pkgs.writeText "cursor-hooks.json" (builtins.toJSON hooksData);

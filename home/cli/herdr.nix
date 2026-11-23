@@ -2,95 +2,16 @@
   config,
   lib,
   pkgs,
-  appearance,
   ...
 }:
 
 let
-  herdr = pkgs.callPackage ../../pkgs/herdr.nix { };
   python = pkgs.python3.withPackages (pythonPkgs: [ pythonPkgs.json5 ]);
-  assets = "${herdr}/share/herdr/integrations";
-  # These paths are also inspected by `herdr integration status`.
-  integrations = {
-    ".codex/herdr-agent-state.sh" = "codex/herdr-agent-state.sh";
-    ".cursor/herdr-agent-state.sh" = "cursor/herdr-agent-state.sh";
-    ".grok/hooks/herdr-agent-state.sh" = "grok/herdr-agent-state.sh";
-    ".pi/agent/extensions/herdr-agent-state.ts" = "pi/herdr-agent-state.ts";
-  };
 in
 {
-  home.packages = lib.optional config.my.agentHarness.legacyHerdr herdr;
-
-  home.file = lib.mkIf config.my.agentHarness.legacyHerdr (
-    lib.mkMerge [
-      (lib.mapAttrs (_: asset: {
-        source = "${assets}/${asset}";
-        executable = lib.hasSuffix ".sh" asset;
-        # Replace previous copies installed by Herdr with the same pinned assets.
-        force = true;
-      }) integrations)
-      {
-        ".grok/hooks/herdr.json" = {
-          force = true;
-          text = builtins.toJSON {
-            hooks.SessionStart = [
-              {
-                hooks = [
-                  {
-                    type = "command";
-                    command = "sh '${config.home.homeDirectory}/.grok/hooks/herdr-agent-state.sh' session";
-                    timeout = 10;
-                  }
-                ];
-              }
-            ];
-          };
-        };
-      }
-    ]
-  );
-
-  xdg.configFile = lib.mkIf config.my.agentHarness.legacyHerdr {
-    "herdr/config.toml" = {
-      force = true;
-      source = (pkgs.formats.toml { }).generate "herdr-config.toml" {
-        onboarding = false;
-        theme = lib.optionalAttrs appearance.isGruvbox {
-          name = "gruvbox";
-          auto_switch = true;
-          dark_name = "gruvbox";
-          light_name = "gruvbox-light";
-        };
-        update = {
-          # The executable and integrations are updated together through Nix.
-          version_check = false;
-          manifest_check = true;
-        };
-        keys = {
-          # Keep tmux's prefix, pane navigation, new-tab, and zoom defaults.
-          split_vertical = "prefix+percent";
-          split_horizontal = "prefix+double_quote";
-          workspace_picker = [
-            "prefix+w"
-            "prefix+f"
-          ];
-          resize_pane_left = "prefix+shift+h";
-          resize_pane_down = "prefix+shift+j";
-          resize_pane_up = "prefix+shift+k";
-          resize_pane_right = "prefix+shift+l";
-        };
-        ui = {
-          agent_panel_sort = "priority";
-          status_indicators = "symbols";
-          toast.delivery = "system";
-        };
-        session.resume_agents_on_restore = true;
-      };
-    };
-  };
-
-  # Agent-owned JSON stays writable. Merge only Herdr entries after Codex's
-  # config activation, preserving other hooks, plugins, and TUI preferences.
+  # Keep the ownership-aware legacy hook retirement activation so former
+  # legacy-Herdr hosts cleanly drop dangling Codex/OpenCode/Pi hook entries
+  # after activation without touching unrelated user preferences.
   home.activation.herdrIntegrations =
     lib.hm.dag.entryAfter
       [
@@ -102,6 +23,16 @@ in
           --home ${lib.escapeShellArg config.home.homeDirectory} \
           --config-home ${lib.escapeShellArg config.xdg.configHome} \
           --state-home ${lib.escapeShellArg config.xdg.stateHome} \
-          ${lib.optionalString (!config.my.agentHarness.legacyHerdr) "--retire-legacy"}
+          --retire-legacy
       '';
+
+  # Stop the retired agent-hub user unit if it is still running from an earlier
+  # generation; Home Manager removes the managed unit and symlink files.
+  home.activation.retireAgentHub = lib.mkIf pkgs.stdenv.hostPlatform.isLinux (
+    lib.hm.dag.entryAfter [ "reloadSystemd" ] ''
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user stop agent-hub.service >/dev/null 2>&1 || true
+      fi
+    ''
+  );
 }

@@ -5,13 +5,21 @@
   ...
 }:
 let
+  python = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);
   directories = lib.filterAttrs (_: kind: kind == "directory") (builtins.readDir ./portable-skills);
   sources = lib.mapAttrs (
     name: _:
-    builtins.path {
-      name = "${name}-skill";
-      path = ./portable-skills + "/${name}";
-    }
+    let
+      src = builtins.path {
+        name = "${name}-skill-src";
+        path = ./portable-skills + "/${name}";
+      };
+    in
+    pkgs.runCommand "${name}-skill" { } ''
+      cp -r ${src} "$out"
+      chmod -R u+w "$out"
+      ${lib.getExe python} ${./make-explicit-skill.py} "$out"
+    ''
   ) directories;
   retireBackup = pkgs.writeShellScript "retire-portable-skill-backup" ''
     set -eu

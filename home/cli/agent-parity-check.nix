@@ -77,7 +77,6 @@ let
           "pi-coding-agent"
           "cursor-agent"
           "herdr-core"
-          "agent-hub"
           "herdr-agent-preview"
           "omp"
         ]
@@ -164,6 +163,21 @@ assert lib.assertMsg (lib.all (
   in
   ompPkg != null && (home.home.file.".local/bin/omp".source or null) == lib.getExe ompPkg
 ) homes) "VM, workstation and worker must install and expose omp.";
+assert lib.assertMsg (lib.all
+  (
+    home:
+    builtins.hasAttr ".agents/skills/pocock" home.home.file
+    && builtins.hasAttr ".agents/skills/pstack" home.home.file
+    && builtins.hasAttr ".agents/skills/graphify" home.home.file
+    && builtins.hasAttr ".cursor/skills/graphify" home.home.file
+    && builtins.hasAttr ".agents/skills/frontend-design" home.home.file
+    && builtins.hasAttr ".cursor/skills/frontend-design" home.home.file
+    && builtins.hasAttr ".cursor/skills/grill-with-docs" home.home.file
+    && builtins.hasAttr ".cursor/skills/pocock-tdd" home.home.file
+    && builtins.hasAttr ".cursor/skills/pocock-teach" home.home.file
+  )
+  homes
+) "VM, workstation and worker must install Pocock, pstack, graphify, and frontend-design skills.";
 pkgs.runCommand "check-agent-harness-parity" { } ''
   touch "$out"
 ''

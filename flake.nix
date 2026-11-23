@@ -420,7 +420,6 @@
           uml-viewer = umlViewer;
         }
         // nixpkgs.lib.optionalAttrs (system != "x86_64-darwin") {
-          agent-hub = pkgs.callPackage ./pkgs/agent-hub.nix { };
           inherit (ubTools) crapper dryer mutator;
           ub-tools = pkgs.symlinkJoin {
             name = "ub-tools";

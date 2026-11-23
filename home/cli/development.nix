@@ -10,30 +10,8 @@
 }:
 
 let
-  extraAiTools =
-    hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent;
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
-
-  # Script to install qwen-code via npm
-  install-qwen-code = pkgs.writeShellScriptBin "install-qwen-code" ''
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$NPM_CONFIG_PREFIX/bin"
-    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
-    ${pkgs.nodejs_22}/bin/npm install -g @qwen-code/qwen-code
-    echo "qwen-code installed successfully!"
-    echo "Make sure $HOME/.npm-global/bin is in your PATH"
-  '';
-
-  # Script to install Google Gemini CLI via npm
-  install-gemini-cli = pkgs.writeShellScriptBin "install-gemini-cli" ''
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$NPM_CONFIG_PREFIX/bin"
-    export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
-    ${pkgs.nodejs_22}/bin/npm install -g @google/gemini-cli
-    echo "Gemini CLI installed successfully!"
-    echo "Run 'gemini' to start using it"
-  '';
 
   # Script to install goplay (Go Playground client) via go install
   install-goplay = pkgs.writeShellScriptBin "install-goplay" ''
@@ -192,10 +170,6 @@ in
             (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
             pkgs.playwright-driver.browsers
           ]
-      ++ lib.optionals extraAiTools [
-        install-qwen-code
-        install-gemini-cli
-      ]
       ++ [
         # Static analysis / SAST — pinned to stable (1.161.0). Unstable's 1.164.0
         # ships a semgrep-core that segfaults on startup on aarch64-linux

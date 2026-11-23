@@ -24,7 +24,12 @@ let
     inherit (unstable-pkgs) go gopls;
   };
   browserTask = pkgs.callPackage ../../pkgs/browser-task.nix { };
-
+  python = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);
+  frontendDesignSkill = pkgs.runCommand "frontend-design-skill" { } ''
+    cp -r ${./codex-skills/frontend-design} "$out"
+    chmod -R u+w "$out"
+    ${lib.getExe python} ${./make-explicit-skill.py} "$out"
+  '';
   # Lifecycle hooks inherit the Codex process environment; they do not
   # receive shell_environment_policy.set in codex-cli 0.153.4. Set the
   # adapter identity only in this launcher, never in home.sessionVariables
@@ -230,139 +235,12 @@ in
     and changes that do not depend on an uncertain external API. Use
     openaiDeveloperDocs for Codex/OpenAI behavior and configuration.
 
-    # Graphify
-
-    Use the Nix-installed graphify CLI for initial discovery on architecture,
-    execution-flow, dependency, and change-impact tasks. Work in the selected
-    project checkout; do not index a parent containing multiple repositories
-    or divergent worktrees. Follow ~/.agents/skills/graphify/SKILL.md for local
-    code-only indexing, exclusions, and supported languages.
-
-    Prefer an existing graphify-out/graph.json that matches the checkout and
-    source revision. Build or refresh it when useful and supported, using the
-    managed skill's settings to disable model calls and limit indexing workers.
-    Use native query --budget 2000, explain, path, and affected commands; pass
-    --graph explicitly when querying outside the graph's checkout.
-
-    Treat graph results as leads. Confirm relationships with current source
-    and LSP, and runtime behavior with project verification. Graphs can miss
-    HTTP, event-bus, dynamic-registration, and language boundaries. If Graphify
-    is unavailable, fails, or cannot index the target language, continue with
-    LSP and focused source queries. Keep semantic extraction opt-in as the
-    managed skill requires.
-
-    # Pstack in Codex
-
-    Apply this section when a pstack skill is invoked. It controls execution
-    and overrides the bundled Cursor model defaults for Codex only. Preserve
-    project instructions and their rules for delegation, review, and commits.
-    These preferences do not enable autonomous work or change the parent model.
-
-    ## Execution policy
-
-    Use relevant pstack coding, design, writing, and verification guidance.
-
-    Invoking poteto-mode does not authorize automatic workflow routing,
-    agent panels, or delegation. This restriction also applies to skills
-    that pstack invokes indirectly.
-
-    Default to direct implementation by the current agent. Use multi-agent
-    workflows only when explicitly requested or authorized for the task.
-
-    When delegation is authorized:
-
-    - Delegate complete, independent pieces of work with clear ownership.
-    - Reuse the implementation agent for corrections and follow-ups.
-    - Use a fresh reviewer when independent review is warranted.
-    - Do not launch another agent solely because a fix or retry is needed.
-
-    Keep approved design decisions closed unless new evidence invalidates them.
-
-    Repeat tests or reviews only for changed behavior, new evidence, or
-    missing required coverage. Reuse valid passing evidence.
-
-    These rules override conflicting pstack workflow and delegation defaults.
-    Preserve project-required verification and explicit user instructions.
-
-    ## Authorized delegation and model setup
-
-    For codebase exploration, grounding, and review, use Graphify under the
-    guidance above before delegation when it can help. Pass workers the graph
-    path, checkout/revision, relevant entry points, and a compact task-specific
-    result rather than the full graph, including in no-history forks. Use this
-    context to focus how/architect exploration, arena/swarm assignments, and
-    interrogate/blast-radius impact checks. Workers verify findings in their
-    own checkout; reviewers form independent conclusions from the evidence.
-    The coordinator owns graph creation and refresh; workers query it without
-    concurrent rebuilds. Use history and records to establish design rationale.
-
-    Budget: large (xhigh starting reasoning effort).
-
-    | Pstack role | Model |
-    |---|---|
-    | feature, refactoring | gpt-6-sol |
-    | bug-fix | gpt-6-sol |
-    | perf-issue | gpt-6-sol |
-    | hillclimb | gpt-6-sol |
-    | judgment and prose | gpt-6-astra |
-    | hardest tasks | gpt-6-astra |
-    | how explorer | gpt-6-sol |
-    | how explainer | gpt-6-astra |
-    | why investigators | gpt-6-sol |
-    | why synthesizer | gpt-6-astra |
-    | reflect tooling | gpt-6-sol |
-    | reflect judgment, divergent, synthesizer | gpt-6-astra |
-    | arena runners | gpt-6-astra, gpt-6-sol |
-    | arena cross-judge pool | gpt-6-astra, gpt-6-sol |
-    | swarm workers | gpt-6-sol |
-    | architect runners | gpt-6-astra, gpt-6-sol |
-    | interrogate reviewers | gpt-6-astra, gpt-6-sol |
-
-    Provider split: the table above lists native ChatGPT `codex-openai` model
-    IDs (`gpt-6-astra`, `gpt-6-sol`), because ChatGPT Codex accounts reject
-    `gpt-6.2-*`. When running via `codex-webai` (LiteLLM), use `gpt-6.2-astra`
-    in place of `gpt-6-astra` and `gpt-6.2-sol` in place of `gpt-6-sol`.
-
-    Validate models and reasoning levels against the current session's agent
-    tool before spawning. Pass model and reasoning effort separately; never
-    append effort or speed suffixes to a model name. If a configured model is
-    unavailable, ask for a replacement and pause only the affected delegation.
-    Do not substitute another version silently. The aliases inherit-parent and
-    auto omit both overrides and retain the parent model and effort.
-
-    Use Codex's available agent tools for pstack Task calls. With explicit model
-    or effort overrides, use a supported limited-history or no-history fork,
-    and supply the task, constraints, file paths, and required role instructions.
-    Resolve bundled role prompts from the installed pstack agents directory;
-    do not pass Cursor-only role names as native Codex agent types. Each panel
-    entry runs one agent; the cross-judge pool selects one different model from
-    the parent when available. These are different OpenAI models, not a
-    cross-provider panel. Follow the session's concurrency limit.
-
-    When setup-pstack is invoked in Codex, use this table as the current mapping
-    and the session's agent tool as the source of available models and efforts.
-    Offer small (medium), medium (high), large (xhigh), or unlimited (max).
-    These are reasoning presets, not spending caps. Preserve aliases and role
-    choices when changing the budget. If an effort is unsupported, offer the
-    highest supported level at or below it. Show the complete proposed mapping
-    and confirm changes before saving, as the setup skill requires.
-
-    This file is Nix-managed. Persist setup changes in the Pstack in Codex
-    section of ~/projects/personal/nix/home/cli/codex.nix, which generates
-    ~/.codex/AGENTS.md. Preserve unrelated source changes. Do not write Cursor
-    rules, edit Nix store files, or overwrite the runtime config. Validate the
-    Nix source and report activation as pending until it has actually run;
-    new chats load the generated instructions after activation.
-
     ${import ./browser-instructions.nix}
   '';
 
-  # Codex discovers this user-level skill in every project. Keep the
-  # adapted instructions and upstream license together in the Nix store.
-  home.file.".agents/skills/frontend-design".source = builtins.path {
-    name = "codex-frontend-design-skill";
-    path = ./codex-skills/frontend-design;
-  };
+  # User-level explicit-only frontend-design skill across OMP, Codex, and Cursor.
+  home.file.".agents/skills/frontend-design".source = frontendDesignSkill;
+  home.file.".cursor/skills/frontend-design".source = frontendDesignSkill;
 
   # The managed launcher preserves terminal context around the pinned binary.
   home.file.".local/bin/codex".source = codexLauncher;

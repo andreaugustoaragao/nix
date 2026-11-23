@@ -3,18 +3,12 @@
   lib,
   pkgs,
   osConfig ? { },
-  hostName,
   personalOnly ? false,
   appearance,
   ...
 }:
 let
-  enabled = builtins.elem hostName [
-    "prl-dev-vm"
-    "workstation"
-    "workstation-worker"
-    "gcp-agent-wk"
-  ];
+  enabled = config.my.agentHarness.omp.enable;
   omp = pkgs.callPackage ../../pkgs/omp.nix { };
   python = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);
   mcpNixosCaBundle = osConfig.security.pki.caBundle or "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -158,6 +152,10 @@ let
     display.subagentLivePreview = true;
     tui.vimMode = true;
     title.refreshAfterPrompts = 10;
+    skills.customDirectories = [
+      "${config.home.homeDirectory}/.agents/skills/pocock"
+      "${config.home.homeDirectory}/.agents/skills/pstack/skills"
+    ];
     startup.checkUpdate = false;
     astGrep.enabled = true;
     github.enabled = true;
