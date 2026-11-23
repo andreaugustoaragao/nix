@@ -192,6 +192,11 @@ in
         "FULCRUM_CALLBACK_SOCKET=%t/fulcrum-v2/callback.sock"
         "FULCRUM_WEB_DIST_DIR=${projectRoot}/v2/web/dist"
         "FULCRUM_PACKAGE_ROOT=${projectRoot}"
+        "FULCRUM_TRUST_LOOPBACK=1"
+        "FULCRUM_WORK_INTAKE_STATE_DIR=${config.xdg.dataHome}/fulcrum-v2/work-intake"
+      ]
+      ++ lib.optionals (packagedRelease != null && (vaultV2.workIntakePackage or null) != null) [
+        "FULCRUM_WORK_INTAKE_CLI=${vaultV2.workIntakePackage}/bin/work-intake"
       ]
       ++ lib.optionals (packagedRelease == null && vaultV2.enable) [
         "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"
