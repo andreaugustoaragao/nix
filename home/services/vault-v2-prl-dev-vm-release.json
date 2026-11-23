@@ -1,11 +1,11 @@
 {
-  "hash": "sha256-xyqvXuoCty2o+L0/xca6hH+onofawcQ0Kx30NAq6SEA=",
+  "hash": "sha256-r4OCMbYtT1N8iFj1MSlnE3+j2kxLBCCrof6U8boBOYo=",
   "nativeBinaries": {
     "ai-task-scheduler": "7782925be68a903cb8ac055a03b1a6224a782da82c738b96873b849b47b38d37",
-    "shared-vault": "289ed14abaa78963e465e049fc992b8d15a8c06007de8911156746094ff60552",
+    "shared-vault": "0a102f85aa317b6a7797d750774b400a49ee29ff325e3caeb2b58aa9ff866c5d",
     "vault-extract": "f74bd6131e906e253876b01d9e96104a1976f84ae4a27356759bf31d151b9c52"
   },
-  "packageVersion": "0.226.2",
-  "sourceRevision": "a69051d5d1ff4f474df3b887e817ceccba036269",
+  "packageVersion": "0.227.0",
+  "sourceRevision": "c33adc4309ed9bddd1753b0313abe0a1f370b5f6",
   "url": null
 }
