@@ -4,6 +4,7 @@
   pkgs,
   hostName,
   isBuildWorker ? false,
+  isCloudAgent ? false,
   ...
 }:
 let
@@ -21,6 +22,7 @@ in
     type = lib.types.bool;
     default =
       isBuildWorker
+      || isCloudAgent
       || builtins.elem hostName [
         "prl-dev-vm"
         "workstation"

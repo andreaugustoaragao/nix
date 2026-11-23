@@ -65,6 +65,15 @@ stateVersion = "26.05"
 address = "172.30.76.2"
 colorScheme = "gruvbox"
 
+
+# Remote AI agent coding VM on GCP (Axion ARM64, IAP-only SSH, Vertex AI ADC).
+[machines.gcp-agent-wk]
+isWorkMachine = true
+hostName = "gcp-agent-wk"
+platform = "aarch64-linux"
+profile = "gcp-agent"
+stateVersion = "26.05"
+colorScheme = "gruvbox"
 # Same shape as prl-dev-vm, but runs under VMware Fusion on Apple
 # Silicon (mac-work). The hypervisor split lives entirely in
 # hardware/<host>/hardware-configuration.nix — vmw_pvscsi/vmxnet3 and

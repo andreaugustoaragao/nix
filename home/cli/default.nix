@@ -6,6 +6,7 @@
   appearance,
   hostName,
   isBuildWorker ? false,
+  isCloudAgent ? false,
   # Provided via specialArgs in flake.nix; safe to use in `imports`.
   # Reading pkgs.stdenv.hostPlatform inside imports triggers infinite
   # recursion since pkgs comes from _module.args, which depends on
@@ -49,13 +50,17 @@ in
     # files. Loaded on Linux and macOS; agent/askpass wiring stays
     # platform-specific (see gpg.nix on Linux).
   ]
-  ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
-    ./mise.nix
-  ]
+  ++
+    lib.optionals
+      (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+      [
+        ./mise.nix
+      ]
   ++ lib.optionals (!personalOnly) [ ./ssh-config.nix ]
+  ++ lib.optionals (!personalOnly && !isBuildWorker && !isCloudAgent) [ ./gcp-agent.nix ]
   ++ lib.optionals isBuildWorker [ ./worker-git-credentials.nix ]
   ++ lib.optionals personalOnly [ ./personal-identity.nix ]
-  ++ lib.optionals (!isDarwinHost && !isBuildWorker) [
+  ++ lib.optionals (!isDarwinHost && !isBuildWorker && !isCloudAgent) [
     # gpg/ssh-agent management here is built on systemd-user units +
     # Linux paths (pinentry-qt, gcr-ssh-agent masking). macOS uses
     # launchd + the system keychain; wire that separately if needed.
@@ -64,7 +69,7 @@ in
     # separately-imported module.
     ./desktop-entries.nix
   ]
-  ++ lib.optionals (!isDarwinHost && !personalOnly && !isBuildWorker) [
+  ++ lib.optionals (!isDarwinHost && !personalOnly && !isBuildWorker && !isCloudAgent) [
     ./gpg.nix
     ./ssh-add-keys.nix
     ./gpg-add-keys.nix
@@ -240,20 +245,27 @@ in
       # - cargo-*, gitui, jq, httpie moved to development.nix
       # - direnv moved to development.nix as a program
     ]
-    ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
-      screenfetch
-      awscli2
-      tectonic
-      broot
-      yazi
-      screen
-      # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
-      # channel ships 1.91.1; use unstable until the channel revert
-      # (NixOS/nixpkgs#512626) propagates.
-      unstable-pkgs.zellij
-    ]
     ++
-      lib.optionals (isLinux && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker))
+      lib.optionals
+        (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+        [
+          screenfetch
+          awscli2
+          tectonic
+          broot
+          yazi
+          screen
+          # zellij 0.44.1 in nixos-25.11 channel needs rustc 1.92 but the
+          # channel ships 1.91.1; use unstable until the channel revert
+          # (NixOS/nixpkgs#512626) propagates.
+          unstable-pkgs.zellij
+        ]
+    ++
+      lib.optionals
+        (
+          isLinux
+          && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+        )
         [
           # Terminal Winamp — only in unstable for now.
           # Linux-only: cliamp's IPC test binds a unix socket under

@@ -183,6 +183,25 @@ in
         StrictHostKeyChecking = "yes";
         UserKnownHostsFile = "~/.ssh/known_hosts_peers";
       };
+
+      # Remote AI agent coding VM on GCP (Axion ARM64, IAP-only SSH).
+      "gcp-agent-wk" = {
+        HostName = "gcp-agent-wk";
+        User = "aragao";
+        IdentityFile = "~/.ssh/id_ed25519_gcp_agent_wk";
+        IdentitiesOnly = true;
+        ProxyCommand = "gcloud compute start-iap-tunnel gcp-agent-wk 22 --listen-on-stdin --project=core-optimized-lab --zone=us-west3-a --quiet";
+      };
+
+      # Opt-in wake-on-SSH alias: starts gcp-agent-wk if stopped before tunneling.
+      # Kept separate from `gcp-agent-wk` so Herdr's background reconnect stays passive.
+      "gcp-agent-wk-wake" = {
+        HostName = "gcp-agent-wk";
+        User = "aragao";
+        IdentityFile = "~/.ssh/id_ed25519_gcp_agent_wk";
+        IdentitiesOnly = true;
+        ProxyCommand = "gcp-agent-wake --proxy";
+      };
     };
   };
 

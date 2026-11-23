@@ -13,6 +13,7 @@ let
     "prl-dev-vm"
     "workstation"
     "workstation-worker"
+    "gcp-agent-wk"
   ];
   omp = pkgs.callPackage ../../pkgs/omp.nix { };
   python = pkgs.python3.withPackages (ps: [ ps.pyyaml ]);

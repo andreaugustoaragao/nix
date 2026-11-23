@@ -79,6 +79,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =
@@ -142,6 +147,7 @@
         };
         isWorkstation = host.profile == "workstation";
         isBuildWorker = host.profile == "worker";
+        isCloudAgent = host.profile == "gcp-agent";
         # Branding follows ownership, independently of the hardware profile.
         isWorkMachine = host.isWorkMachine or false;
         # Opt-in isolation for fresh personal installations. Existing hosts
@@ -152,12 +158,13 @@
           "vm"
           "kubernetes"
           "worker"
+          "gcp-agent"
         ];
         isServer = builtins.elem host.profile [
           "server"
           "kubernetes"
+          "gcp-agent"
         ];
-        # The dedicated cluster uses its own module set below.
         hostAddress = host.address or null;
         kubernetesVmAddress = metadata.machines.prl-k8s-vm.address;
         isDarwinHost = isDarwinPlatform host.platform;
@@ -293,6 +300,24 @@
                     useGlobalPkgs = true;
                     extraSpecialArgs = setSpecialArgs host;
                     users.${metadata.user.name} = import ./home/worker.nix;
+                  };
+                }
+              ]
+            else if host.profile == "gcp-agent" then
+              [
+                inputs.disko.nixosModules.disko
+                { nixpkgs.overlays = [ inputs.rust-overlay.overlays.default ]; }
+                ./system/gcp-agent
+                inputs.nix-index-database.nixosModules.nix-index
+                sops-nix.nixosModules.sops
+                home-manager.nixosModules.home-manager
+                {
+                  home-manager = {
+                    useUserPackages = true;
+                    useGlobalPkgs = true;
+                    extraSpecialArgs = setSpecialArgs host;
+                    users.${metadata.user.name} = import ./home/gcp-agent.nix;
+                    backupFileExtension = "hm-backup";
                   };
                 }
               ]

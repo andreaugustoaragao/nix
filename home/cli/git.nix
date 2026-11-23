@@ -3,6 +3,7 @@
   lib,
   pkgs,
   personalOnly,
+  isCloudAgent ? false,
   appearance,
   ...
 }:
@@ -16,6 +17,8 @@ let
   # is fixing).
   workConfigPath = "${config.home.homeDirectory}/.config/git/work.gitconfig";
   workEmailSecret = "/run/secrets/git_email_work";
+  sshSigningKey = "${config.home.homeDirectory}/.ssh/id_ed25519_signing.pub";
+  workSigningKey = if isCloudAgent then sshSigningKey else "D8BAA25EFB1D5C5F";
 in
 
 {
@@ -55,6 +58,9 @@ in
         user = {
           name = "andreaugustoaragao";
           email = "andrearag@gmail.com";
+        }
+        // lib.optionalAttrs isCloudAgent {
+          signingkey = sshSigningKey;
         };
 
         init.defaultBranch = "main";
@@ -63,9 +69,16 @@ in
         # Re-enable GPG signing with proper keys configured
         commit.gpgsign = true;
         tag.gpgsign = true;
-        # GPG program path
-        gpg.program = "${pkgs.gnupg}/bin/gpg";
-
+        gpg =
+          if isCloudAgent then
+            {
+              format = "ssh";
+              ssh.allowedSignersFile = "${config.home.homeDirectory}/.ssh/allowed_signers";
+            }
+          else
+            {
+              program = "${pkgs.gnupg}/bin/gpg";
+            };
         # Let gh broker HTTPS credentials for github.com so we never
         # need a stored PAT or `git config --global credential.helper`
         # (the latter fails on Home Manager since ~/.config/git/config
@@ -96,7 +109,9 @@ in
               name = "andreaugustoaragao";
               email = "andrearag@gmail.com";
               signingkey =
-                if personalOnly then
+                if isCloudAgent then
+                  sshSigningKey
+                else if personalOnly then
                   "${config.home.homeDirectory}/.ssh/id_ed25519_personal.pub"
                 else
                   "E42EDF7958831F08";
@@ -136,7 +151,7 @@ in
       [user]
         name = andrearagao
         email = $email
-        signingkey = D8BAA25EFB1D5C5F
+        signingkey = ${workSigningKey}
       EOF
           mv "$target.tmp" "$target"
           chmod 0600 "$target"

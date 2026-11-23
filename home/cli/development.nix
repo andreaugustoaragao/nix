@@ -5,11 +5,13 @@
   unstable-pkgs,
   hostName,
   isBuildWorker ? false,
+  isCloudAgent ? false,
   ...
 }:
 
 let
-  extraAiTools = hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker;
+  extraAiTools =
+    hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent;
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   ubTools = pkgs.callPackage ../../pkgs/ub-tools.nix { };
 
@@ -181,12 +183,15 @@ in
         (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).client
         (pkgs.callPackage ../../pkgs/workstation-jobs.nix { }).enroll
       ]
-      ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) [
-        pkgs.lazydocker
-        (pkgs.callPackage ../../pkgs/uml-viewer.nix { })
-        (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
-        pkgs.playwright-driver.browsers
-      ]
+      ++
+        lib.optionals
+          (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+          [
+            pkgs.lazydocker
+            (pkgs.callPackage ../../pkgs/uml-viewer.nix { })
+            (pkgs.callPackage ../../pkgs/agent-browser-background.nix { })
+            pkgs.playwright-driver.browsers
+          ]
       ++ lib.optionals extraAiTools [
         install-qwen-code
         install-gemini-cli
@@ -222,7 +227,7 @@ in
         lib.optionals
           (
             pkgs.stdenv.hostPlatform.isLinux
-            && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker)
+            && (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
           )
           (
             with pkgs;
@@ -256,9 +261,12 @@ in
       # Development paths
       PATH = "$PATH:$HOME/.local/bin:${config.xdg.dataHome}/go/bin:$HOME/.cargo/bin:$HOME/.npm-global/bin";
     }
-    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker) {
-      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
-    };
+    //
+      lib.optionalAttrs
+        (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+        {
+          PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+        };
 
     activation = {
       # The initial local installation works before a system rebuild. Once

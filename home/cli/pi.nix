@@ -5,6 +5,7 @@
   personalOnly,
   osConfig ? { },
   isServer ? false,
+  isCloudAgent ? false,
   appearance,
   ...
 }:
@@ -891,12 +892,14 @@ in
     services.piModels.enabledModels = [
       "anthropic/claude-opus-4-7"
     ]
-    ++ lib.optionals (!personalOnly && !isServer) [ "litellm/*" ]
+    ++ lib.optionals (!personalOnly && (!isServer || isCloudAgent)) [ "litellm/*" ]
     ++ lib.optionals (config.services.piModels.providers ? llama-cpp) [ "llama-cpp/*-local" ];
 
-    services.piModels.defaultModel = lib.mkIf (!personalOnly && !isServer) "litellm/gpt-6.2-sol";
+    services.piModels.defaultModel = lib.mkIf (
+      !personalOnly && (!isServer || isCloudAgent)
+    ) "litellm/gpt-6.2-sol";
 
-    services.piModels.modelThinkingLevels = lib.mkIf (!personalOnly && !isServer) {
+    services.piModels.modelThinkingLevels = lib.mkIf (!personalOnly && (!isServer || isCloudAgent)) {
       "litellm/gpt-6.2-sol" = "high";
     };
     assertions = [

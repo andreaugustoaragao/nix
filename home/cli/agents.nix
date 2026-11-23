@@ -3,6 +3,7 @@
   pkgs,
   hostName,
   isBuildWorker ? false,
+  isCloudAgent ? false,
   ...
 }:
 {
@@ -35,6 +36,7 @@
             "workstation"
           ]
           || isBuildWorker
+          || isCloudAgent
         );
       description = "Retain the older Herdr TUI integrations instead of core-managed terminals.";
     };
