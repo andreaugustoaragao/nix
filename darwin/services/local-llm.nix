@@ -11,8 +11,9 @@ let
   # Package Unsloth's official b12651-mix-c7059d6 macOS arm64 prebuilt
   # (commit d426a3774): includes the inkling2 looped-layer + MoE cache +
   # fused DSpark (device-buffer target features) + chunked/banded Metal FA
-  # PR stack. Benchmarked on mac-work (M5 Max) against b12588-mix-c0c3de8:
-  # +40% prefill and +14-18% decode (paired with --spec-draft-n-max 1).
+  # PR stack. Exclusive interleaved A/B on mac-work (M5 Max) against
+  # b12588-mix-c0c3de8 + --spec-draft-n-max 3: +18-29% prefill (5K/20K),
+  # +18-24% decode (temp=1.0/greedy), and -12% short TTFT.
   llama-cpp-metal = pkgs.stdenvNoCC.mkDerivation {
     pname = "llama-cpp-unsloth";
     version = "12651-mix-c7059d6";
@@ -121,7 +122,7 @@ let
   # - Use --spec-draft-n-max 1: on this 128-expert top-8 MoE, k=3 amplifies
   #   active expert reads (~22.8% vs 6.25%) beyond temp=1.0 acceptance
   #   (making k=3 slower than no drafter), while k=1 wins both greedy and
-  #   temp=1.0 (+14-18% vs b12588 k=3).
+  #   temp=1.0 (+18-24% vs b12588 k=3).
   startScript = pkgs.writeShellScript "local-llm-start" ''
     set -euo pipefail
     ${ensureModel}
