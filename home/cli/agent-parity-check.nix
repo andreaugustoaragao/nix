@@ -163,8 +163,8 @@ assert lib.assertMsg (lib.all (
   in
   ompPkg != null && (home.home.file.".local/bin/omp".source or null) == lib.getExe ompPkg
 ) homes) "VM, workstation and worker must install and expose omp.";
-assert lib.assertMsg (lib.all
-  (
+assert lib.assertMsg
+  (lib.all (
     home:
     builtins.hasAttr ".agents/skills/pocock" home.home.file
     && builtins.hasAttr ".agents/skills/pstack" home.home.file
@@ -172,12 +172,15 @@ assert lib.assertMsg (lib.all
     && builtins.hasAttr ".cursor/skills/graphify" home.home.file
     && builtins.hasAttr ".agents/skills/frontend-design" home.home.file
     && builtins.hasAttr ".cursor/skills/frontend-design" home.home.file
+    && builtins.hasAttr ".agents/skills/unslop-ui" home.home.file
+    && builtins.hasAttr ".cursor/skills/unslop-ui" home.home.file
+    && builtins.hasAttr ".agents/skills/inference-optimisation" home.home.file
+    && builtins.hasAttr ".cursor/skills/inference-optimisation" home.home.file
     && builtins.hasAttr ".cursor/skills/grill-with-docs" home.home.file
     && builtins.hasAttr ".cursor/skills/pocock-tdd" home.home.file
     && builtins.hasAttr ".cursor/skills/pocock-teach" home.home.file
-  )
-  homes
-) "VM, workstation and worker must install Pocock, pstack, graphify, and frontend-design skills.";
+  ) homes)
+  "VM, workstation and worker must install Pocock, pstack, graphify, frontend-design, unslop-ui, and inference-optimisation skills.";
 pkgs.runCommand "check-agent-harness-parity" { } ''
   touch "$out"
 ''

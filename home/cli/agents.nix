@@ -21,6 +21,8 @@
     ./portable-skills.nix
     ./pocock.nix
     ./graphify.nix
+    ./unslop-ui.nix
+    ./inference-optimisation.nix
   ];
   config.my.vaultV2Clients.configureScript = lib.mkDefault ./shared-vault-configure.py;
   options.my.agentHarness = {
