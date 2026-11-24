@@ -597,7 +597,7 @@ fn open_upload(path: &str) -> Result<UploadFile, String> {
         .metadata()
         .map_err(|error| format!("upload path cannot be inspected: {error}"))?;
     let mode = metadata.mode();
-    if mode & libc::S_IFMT != libc::S_IFREG {
+    if mode & u32::from(libc::S_IFMT) != u32::from(libc::S_IFREG) {
         return Err("upload path is not a regular file".into());
     }
     if metadata.size() == 0 || metadata.size() > MAX_UPLOAD_BYTES {
@@ -625,7 +625,7 @@ fn verified_descriptor_path(
         .map_err(|error| format!("upload descriptor cannot be verified: {error}"))?;
     if confirmed.dev() != opened.dev()
         || confirmed.ino() != opened.ino()
-        || confirmed.mode() & libc::S_IFMT != libc::S_IFREG
+        || confirmed.mode() & u32::from(libc::S_IFMT) != u32::from(libc::S_IFREG)
     {
         return Err("upload path changed while it was opened".into());
     }
