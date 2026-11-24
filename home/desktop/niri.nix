@@ -336,8 +336,9 @@ in
         default-column-width { proportion 0.5; }
     }
 
+    // Vereda file-chooser portal picker opens floating and centered on the active output.
     window-rule {
-        match app-id="^io\\.github\\.yazi_rune\\.Picker$"
+        match app-id="^io\\.github\\.andrearagao\\.vereda\\.Picker$"
         open-floating true
         default-column-width { fixed 1000; }
         default-window-height { fixed 680; }
