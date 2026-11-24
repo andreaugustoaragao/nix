@@ -139,6 +139,9 @@ let
       judge = "litellm/gpt-6.1-terra:low";
       tiny = "litellm/gpt-6-luna";
       web = "web/exa";
+      pstack_code = "litellm/gpt-6.2-sol:high";
+      pstack_explore = "litellm/gemini-4-hydrogen:high";
+      pstack_gemini = "litellm/gemini-4-neon:xhigh";
     };
     cycleOrder = [
       "smol"
@@ -163,6 +166,7 @@ let
     bashInterceptor.enabled = true;
     bash.gitGuard = true;
     advisor.enabled = true;
+    task.perCallModel = "on";
     task.agentModelOverrides = {
       sonic = "cursor/composer-2.5-fast:medium,litellm/gemini-4-hydrogen:medium";
       reviewer = "litellm/gpt-6.2-astra:high";

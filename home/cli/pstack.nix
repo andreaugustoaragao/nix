@@ -25,24 +25,13 @@ let
     # Provide Cursor plugin manifest location for `cursor-agent --plugin-dir`.
     cp "$out/plugin.json" "$out/.cursor-plugin/plugin.json"
 
-    # Keep Codex-specific pstack policy inside the bundle instead of global ~/.codex/AGENTS.md.
-    cp ${./pstack-codex.md} "$out/docs/codex.md"
-    ${lib.getExe python} - "$out" <<'PY'
-    import re
-    import sys
-    from pathlib import Path
-
-    root = Path(sys.argv[1])
-    note = "\n> **Codex:** Read [Pstack in Codex](../../docs/codex.md) for Codex execution policy, delegation limits, and model/role mappings.\n"
-    for rel in ("skills/poteto-mode/SKILL.md", "skills/setup-pstack/SKILL.md"):
-        path = root / rel
-        text = path.read_text(encoding="utf-8")
-        match = re.match(r"\A---\n.*?\n---\n", text, re.DOTALL)
-        if not match:
-            raise SystemExit(f"Missing frontmatter in {path}")
-        path.write_text(text[:match.end()] + note + text[match.end():], encoding="utf-8")
-    PY
-
+    # Install Nix-managed harness adapters and replace conflicting upstream
+    # model defaults, Cursor rule-file writes, and Claude/Grok-only family checks.
+    mkdir -p "$out/docs/harness"
+    cp ${./pstack/harness-omp.md} "$out/docs/harness/omp.md"
+    cp ${./pstack/harness-cursor.md} "$out/docs/harness/cursor.md"
+    cp ${./pstack/harness-codex.md} "$out/docs/harness/codex.md"
+    ${lib.getExe python} ${./pstack/patch-pstack.py} "$out"
     # Enforce explicit-only invocation across all pstack skills (including setup-pstack)
     # for OMP, Cursor, and Codex.
     ${lib.getExe python} ${./make-explicit-skill.py} "$out"/skills/*
