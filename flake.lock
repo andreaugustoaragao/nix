@@ -256,11 +256,11 @@
     "fulcrum-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1795483058,
-        "narHash": "sha256-XILMMHs9wgSVEVjudud5iQIu8oH84HXxr9NtYDoZyX4=",
+        "lastModified": 1795483240,
+        "narHash": "sha256-W4CtzPqI036JQgd87QfoOLk2XwVbCpuLXkB1bPADSgU=",
         "ref": "main",
-        "rev": "4a2760188fd0f0ae4a5e729756b17b0d165133d2",
-        "revCount": 2213,
+        "rev": "a46cf10e5680580216a32e526efd46e916fb5677",
+        "revCount": 2214,
         "type": "git",
         "url": "ssh://git@github-work/andrearagao/fulcrum.git"
       },
