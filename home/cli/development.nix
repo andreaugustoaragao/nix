@@ -179,6 +179,9 @@ in
         # workaround. Stable scans cleanly with no SSL issues.
         pkgs.semgrep
 
+        # Python linter/formatter/LSP pulled from unstable for the latest rule set.
+        unstable-pkgs.ruff
+
         # Go toolchain pulled from unstable to get the newer runtime (stable
         # nixpkgs' default `go` lags). The companion tools follow so they're
         # built against the same Go stdlib as the runtime.
