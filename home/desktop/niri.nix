@@ -29,9 +29,30 @@ let
   # Use 150% scaling on the work VM with Retina enabled.
   virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   startGraphicalSession = pkgs.writeShellScript "start-niri-graphical-session" ''
-    set -e
+    set -euo pipefail
+    systemctl="${pkgs.systemd}/bin/systemctl"
+    niri="${unstable-pkgs.niri}/bin/niri"
+
+    # Do not hijack the primary session's systemd/D-Bus environment when a nested
+    # niri instance starts alongside an already-live compositor.
+    if "$systemctl" --user is-active --quiet niri-graphical-session.service; then
+      existing_socket="$("$systemctl" --user show-environment | ${pkgs.gnused}/bin/sed -n 's/^NIRI_SOCKET=//p')"
+      if [ -n "$existing_socket" ] && [ "$existing_socket" != "''${NIRI_SOCKET:-}" ] && [ -S "$existing_socket" ] \
+        && NIRI_SOCKET="$existing_socket" "$niri" msg version >/dev/null 2>&1; then
+        exit 0
+      fi
+    fi
+
+    : "''${XDG_CURRENT_DESKTOP:=niri}"
+    : "''${XDG_SESSION_DESKTOP:=niri}"
+    : "''${XDG_SESSION_TYPE:=wayland}"
+    export XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+
     ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd WAYLAND_DISPLAY NIRI_SOCKET XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DISPLAY
-    ${pkgs.systemd}/bin/systemctl --user start niri-graphical-session.service
+    "$systemctl" --user start niri-graphical-session.service
+    # Reload any portal already D-Bus-activated before env/graphical-session.target were ready.
+    "$systemctl" --user reset-failed xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service 2>/dev/null || true
+    "$systemctl" --user try-restart xdg-desktop-portal.service
   '';
 
   # Daily-driver terminal (see ./default-terminal.nix for selection

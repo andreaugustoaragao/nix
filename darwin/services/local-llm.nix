@@ -8,15 +8,17 @@
 }:
 
 let
-  # Package Unsloth's official b12588-mix-c0c3de8 macOS arm64 prebuilt
-  # (commit 883286076): Unsloth's tagged source rev lacks their CI-merged
-  # inkling2 + DSpark + banded Metal FA PR stack.
+  # Package Unsloth's official b12651-mix-c7059d6 macOS arm64 prebuilt
+  # (commit d426a3774): includes the inkling2 looped-layer + MoE cache +
+  # fused DSpark (device-buffer target features) + chunked/banded Metal FA
+  # PR stack. Benchmarked on mac-work (M5 Max) against b12588-mix-c0c3de8:
+  # +40% prefill and +14-18% decode (paired with --spec-draft-n-max 1).
   llama-cpp-metal = pkgs.stdenvNoCC.mkDerivation {
     pname = "llama-cpp-unsloth";
-    version = "12588-mix-c0c3de8";
+    version = "12651-mix-c7059d6";
     src = pkgs.fetchurl {
-      url = "https://github.com/unslothai/llama.cpp/releases/download/b12588-mix-c0c3de8/llama-b12588-mix-c0c3de8-bin-macos-arm64.tar.gz";
-      sha256 = "229def18e27ed740ec4f3a6508f084b25630e08d8a87ada40b00622fc496ceb8";
+      url = "https://github.com/unslothai/llama.cpp/releases/download/b12651-mix-c7059d6/llama-b12651-mix-c7059d6-bin-macos-arm64.tar.gz";
+      sha256 = "fb1eb013113962d2e874e5d93b4db912549c38ddc7285acc247b49e1300e1fdd";
     };
     dontConfigure = true;
     dontBuild = true;
@@ -33,9 +35,15 @@ let
     id = "inkling-2-mini-local";
     name = "Inkling 2 Mini Local (UD-Q4_K_XL + DSpark)";
     repo = "unsloth/Inkling-2-Mini-GGUF";
+    # Pinned HF revision so fresh hosts download the exact benchmarked
+    # artifacts — notably the faster 402 MB padded-vocab DSpark drafter
+    # (renamed to *_Old.gguf upstream, sha256 2ec78510...) rather than
+    # the heavier 504 MB mainline drafter.
+    hfRev = "8078d149286eec7193795413b9e0643da6d11fa1";
     file = "Inkling-2-Mini-UD-Q4_K_XL.gguf";
     mmprojFile = "mmproj-F16.gguf";
     draftFile = "dspark-Inkling-2-Mini-Q8_0.gguf";
+    draftRemoteFile = "dspark-Inkling-2-Mini-Q8_0_Old.gguf";
     contextWindow = 262144;
     maxTokens = 8192;
   };
@@ -43,11 +51,11 @@ let
   homeDir = "${homePrefix}/${owner.name}";
   modelDir = "${homeDir}/.local/share/llm/models";
   modelPath = "${modelDir}/${model.file}";
-  modelUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.file}?download=true";
+  modelUrl = "https://huggingface.co/${model.repo}/resolve/${model.hfRev}/${model.file}?download=true";
   mmprojPath = "${modelDir}/${model.mmprojFile}";
-  mmprojUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.mmprojFile}?download=true";
+  mmprojUrl = "https://huggingface.co/${model.repo}/resolve/${model.hfRev}/${model.mmprojFile}?download=true";
   draftPath = "${modelDir}/${model.draftFile}";
-  draftUrl = "https://huggingface.co/${model.repo}/resolve/main/${model.draftFile}?download=true";
+  draftUrl = "https://huggingface.co/${model.repo}/resolve/${model.hfRev}/${model.draftRemoteFile}?download=true";
 
   # Parallels Shared-network host stub — the Mac's own IP on the
   # bridge100 interface (verified via `ifconfig` on mac-work). NOT
@@ -106,9 +114,14 @@ let
     fi
   '';
 
-  # Inkling 2 Mini on Metal: keep --ubatch-size 512 to bound the
-  # relative-bias compute buffer (~11.8 GiB @ 262K ctx), enable the
-  # 3-token DSpark drafter, and apply Inkling's official sampling defaults.
+  # Inkling 2 Mini on Metal (M5 Max hill-climb):
+  # - Keep --ubatch-size 512 (beats 256/1024/2048 on prefill and bounds the
+  #   relative-bias compute buffer at 262K ctx) and F16 KV (q8_0 KV halves
+  #   Metal decode/prefill on this 8-full-layer SWA hybrid).
+  # - Use --spec-draft-n-max 1: on this 128-expert top-8 MoE, k=3 amplifies
+  #   active expert reads (~22.8% vs 6.25%) beyond temp=1.0 acceptance
+  #   (making k=3 slower than no drafter), while k=1 wins both greedy and
+  #   temp=1.0 (+14-18% vs b12588 k=3).
   startScript = pkgs.writeShellScript "local-llm-start" ''
     set -euo pipefail
     ${ensureModel}
@@ -117,7 +130,7 @@ let
       --mmproj ${lib.escapeShellArg mmprojPath} \
       --model-draft ${lib.escapeShellArg draftPath} \
       --spec-type draft-dspark \
-      --spec-draft-n-max 3 \
+      --spec-draft-n-max 1 \
       --n-gpu-layers-draft 99 \
       --alias ${model.id} \
       --host ${bindHost} \

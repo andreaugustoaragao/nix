@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,9 @@ root = Path(os.environ['TEST_ROOT'])
 with (root / 'events').open('a') as log:
     log.write(json.dumps([Path(sys.argv[0]).name, *sys.argv[1:]]) + '\\n')
 if Path(sys.argv[0]).name == 'niri':
+    if sys.argv[1:3] == ['msg', 'version']:
+        live = os.environ.get('LIVE_NIRI_SOCKET', '')
+        sys.exit(0 if live and os.environ.get('NIRI_SOCKET') == live else 1)
     (root / 'desktop.json').write_text(json.dumps({key: os.environ.get(key) for key in
         ('XDG_CURRENT_DESKTOP', 'XDG_SESSION_DESKTOP', 'XDG_SESSION_TYPE')}))
     if os.environ.get('WAIT_FOR_SIGNAL'):
@@ -39,12 +43,18 @@ if Path(sys.argv[0]).name == 'niri':
         stub.chmod(0o755)
         for name in ("niri", "systemctl"):
             (self.root / name).symlink_to(stub)
-        self.env = dict(
-            os.environ,
-            TEST_ROOT=str(self.root),
-            NIRI_BIN=str(self.root / "niri"),
-            SYSTEMCTL_BIN=str(self.root / "systemctl"),
-        )
+        self.runtime = self.root / "runtime"
+        self.runtime.mkdir()
+        self.env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("NIRI_SOCKET", "LIVE_NIRI_SOCKET")
+        } | {
+            "TEST_ROOT": str(self.root),
+            "XDG_RUNTIME_DIR": str(self.runtime),
+            "NIRI_BIN": str(self.root / "niri"),
+            "SYSTEMCTL_BIN": str(self.root / "systemctl"),
+        }
 
     def launch(self, **env):
         process = subprocess.Popen(
@@ -94,6 +104,37 @@ if Path(sys.argv[0]).name == 'niri':
         self.assertEqual(process.wait(timeout=5), 143)
         self.assertTrue((self.root / "terminated").exists())
         self.assert_cleanup()
+
+    def _make_socket(self, name: str) -> Path:
+        sock_path = self.runtime / name
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        srv.bind(str(sock_path))
+        self.addCleanup(srv.close)
+        return sock_path
+
+    def test_duplicate_session_rejected_without_systemd_mutations(self):
+        sock_path = self._make_socket("niri.wayland-1.1234.sock")
+        proc = subprocess.run(
+            ["bash", str(Path(__file__).with_name("niri-session.sh"))],
+            env=self.env | {"LIVE_NIRI_SOCKET": str(sock_path)},
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("refusing to start", proc.stderr)
+        events = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(events, [["niri", "msg", "version"]])
+
+    def test_stale_niri_socket_does_not_block_login(self):
+        self._make_socket("niri.wayland-1.9999.sock")
+        self.assertEqual(self.launch().wait(timeout=5), 0)
+        events = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(events[0], ["niri", "msg", "version"])
+        shutdown = ["systemctl", "--user", "start", "--job-mode=replace-irreversibly", "niri-shutdown.target"]
+        self.assertEqual(events[1], shutdown)
+        self.assertEqual(events[2], ["niri", "--session"])
+        self.assertEqual(events[3], shutdown)
 
 
 if __name__ == "__main__":
