@@ -267,7 +267,7 @@
     key = "fulcrum";
     name = "Fulcrum";
     icon = "fulcrum";
-    url = "https://localhost:3100";
+    url = "https://localhost:3102";
     mode = "app";
     profile = "Work";
   }

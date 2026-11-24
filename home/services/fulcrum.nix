@@ -174,74 +174,39 @@ in
 
     Service = {
       Type = "exec";
-      RuntimeDirectory = lib.mkIf (hostName == "prl-dev-vm") "fulcrum-desktop";
-      RuntimeDirectoryMode = lib.mkIf (hostName == "prl-dev-vm") "0700";
+      RuntimeDirectory = if packagedRelease != null then "fulcrum-v2" else lib.mkIf (hostName == "prl-dev-vm") "fulcrum-desktop";
+      RuntimeDirectoryMode = if packagedRelease != null then "0700" else lib.mkIf (hostName == "prl-dev-vm") "0700";
       WorkingDirectory = projectRoot;
       Environment = [
         "PATH=${binPath}:/run/current-system/sw/bin"
         "LD_LIBRARY_PATH=${fulcrumLibs}"
         "NODE_OPTIONS=--max-old-space-size=4096"
         "FULCRUM_PORT=3100"
-        # Bind to all interfaces so peers on the LAN (e.g., the
-        # Parallels host mac-work reaching this VM at
-        # prl-dev-vm.local:3100) can hit it. The firewall opens 3100
-        # only on hosts that actually run fulcrum from source (see
-        # system/networking.nix).
         "FULCRUM_HOST=0.0.0.0"
       ]
-      ++ lib.optionals vaultV2.enable [
-        # Shared Vault v2 & AI Task Scheduler Unix sockets (ChromaDB retired in ADR-0001/0003).
+      ++ lib.optionals (packagedRelease != null) [
+        "FULCRUM_V2_STATE_DIR=${config.xdg.dataHome}/fulcrum-v2/app"
+        "FULCRUM_VAULT_DIR=${config.home.homeDirectory}/projects/work/notes"
+        "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"
+        "FULCRUM_SCHEDULER_SOCKET=%t/ai-task-scheduler/api.sock"
+        "FULCRUM_CALLBACK_SOCKET=%t/fulcrum-v2/callback.sock"
+        "FULCRUM_WEB_DIST_DIR=${projectRoot}/v2/web/dist"
+        "FULCRUM_PACKAGE_ROOT=${projectRoot}"
+        "FULCRUM_LOCAL_PORT=3102"
+        "FULCRUM_WORK_INTAKE_STATE_DIR=${config.xdg.dataHome}/fulcrum-v2/work-intake"
+      ]
+      ++ lib.optionals (packagedRelease != null && (vaultV2.workIntakePackage or null) != null) [
+        "FULCRUM_WORK_INTAKE_CLI=${vaultV2.workIntakePackage}/bin/work-intake"
+      ]
+      ++ lib.optionals (packagedRelease == null && vaultV2.enable) [
         "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"
         "FULCRUM_SCHEDULER_SOCKET=%t/ai-task-scheduler/api.sock"
       ]
       ++ lib.optionals (!vaultV2.enable) [
-        # Legacy/source hosts still run system/chroma.nix on loopback.
         "CHROMA_BASE_URL=http://localhost:8000"
       ]
-      ++ lib.optionals (hostName == "prl-dev-vm") [
-        "FULCRUM_RECORDINGS_DIR=${config.home.homeDirectory}/recordings/calls"
-        "FULCRUM_RECORD_CALL_BIN=/etc/profiles/per-user/${config.home.username}/bin/record-call"
-        "FULCRUM_RECORDING_GOOGLE_ACCOUNT=aragao@avaya.com"
-        "FULCRUM_RECORDING_BROWSER_BIN=${pkgs.callPackage ../../pkgs/dev-browser.nix { }}/bin/dev-browser"
-      ]
-      # The local desktop uses the authenticated loopback listener and
-      # owner-only session bootstrap. Existing HTTPS and browser auth stay intact.
-      ++ lib.optionals (hostName == "prl-dev-vm") [
-        "FULCRUM_DESKTOP_PORT=3102"
-        "FULCRUM_DESKTOP_SOCKET=%t/fulcrum-desktop/session.sock"
-      ]
-      # Voice-message transcription. Non-workstation hosts have no
-      # local whisper binary on PATH (the Dockerfile bakes one in,
-      # but source-mode fulcrum doesn't), so the upstream adapter's
-      # CLI shellout would fail. Point it at mac-work's whisper-server
-      # LaunchAgent (darwin/services/whisper-server.nix), reached over
-      # the Parallels shared network via mDNS. Adapter checks for this
-      # env and switches to HTTP mode — see whisper-adapter.ts.
-      ++ lib.optionals (!isWorkstation) [
-        "WHISPER_SERVER_URL=http://mac-work.local:8081/v1/audio/transcriptions"
-      ]
-      ++ [
-        # Reuse the vault's .fulcrum/ as the on-disk data dir so config.json,
-        # sessions.json, conversations.db, vault.db, etc. travel with the
-        # notes repo across machines — instead of fulcrum spinning up an
-        # empty .agents/ next to the source checkout on each new host.
+      ++ lib.optionals (packagedRelease == null) [
         "FULCRUM_DATA_DIR=${config.home.homeDirectory}/projects/work/notes/.fulcrum"
-        # Matrix bot — reuses the @maui-alerts identity that already exists
-        # on matrix.faragao.net (see system/matrix-alert.nix). The access
-        # token lives in sops as matrix/bot_token; we point Fulcrum at the
-        # file path via the _FILE env-var convention so the cleartext never
-        # ends up in /proc/<pid>/environ.
-        #
-        # device_id was minted at the same time as the token; the server
-        # returns it via /_matrix/client/v3/account/whoami. Fulcrum needs
-        # it to call session.startClient — if we pass a different value the
-        # homeserver returns a fresh device on each restart which fragments
-        # E2E keys. The alert room is unencrypted so this currently doesn't
-        # bite, but we set the real device_id anyway for future-proofing.
-        "MATRIX_HOMESERVER_URL=https://matrix.faragao.net"
-        "MATRIX_USER_ID=@maui-alerts:matrix.faragao.net"
-        "MATRIX_DEVICE_ID=AeSV8hGVoC"
-        "MATRIX_ACCESS_TOKEN_FILE=${osConfig.sops.secrets."matrix/bot_token".path}"
       ];
       # OpenAI-compatible inference is routed through the same corporate
       # LiteLLM gateway and bearer token that Codex uses. Both values stay
@@ -330,7 +295,12 @@ in
         ${
           if packagedRelease != null then
             ''
-              exec ${packagedRelease}/bin/bun --env-file=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes/.fulcrum/.env"} ${lib.escapeShellArg "${projectRoot}/src/index.ts"}
+              v2_env=${lib.escapeShellArg "${config.xdg.dataHome}/fulcrum-v2/app/.env"}
+              if [ -f "$v2_env" ]; then
+                exec ${packagedRelease}/bin/bun --env-file="$v2_env" ${lib.escapeShellArg "${projectRoot}/v2/server/src/main.ts"}
+              else
+                exec ${packagedRelease}/bin/bun --no-env-file ${lib.escapeShellArg "${projectRoot}/v2/server/src/main.ts"}
+              fi
             ''
           else
             ''

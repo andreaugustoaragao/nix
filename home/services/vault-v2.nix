@@ -76,6 +76,48 @@ let
     unattended = true
     timeout_sec = 900
     memory_max_mb = 2048
+
+    [[profiles]]
+    id = "fulcrum-persona"
+    description = "Fulcrum v2 persona turn over private Unix callback socket"
+    runner_kind = "fulcrum_persona"
+    allowed_roots = ["${cfg.notesDir}"]
+    working_dir = "${cfg.notesDir}"
+    allow_network = false
+    unattended = true
+    timeout_sec = 300
+    memory_max_mb = 512
+    fulcrum_endpoint = "unix://${cfg.runtimeDir}/fulcrum-v2/callback.sock"
+    fulcrum_token_env = "FULCRUM_SCHEDULER_TOKEN"
+    ${lib.optionalString (cfg.workIntakePackage != null) ''
+
+    [[profiles]]
+    id = "work-intake"
+    description = "External Fulcrum Work Intake deterministic pipeline"
+    runner_kind = "work_intake"
+    executable = "${cfg.workIntakePackage}/bin/work-intake"
+    allowed_roots = ["${cfg.notesDir}"]
+    working_dir = "${cfg.notesDir}"
+    allow_network = false
+    unattended = true
+    timeout_sec = 600
+    memory_max_mb = 1024
+    intake_state_dir = "${cfg.stateRoot}/work-intake"
+    ''}
+  '';
+
+  schedulerStart = pkgs.writeShellScript "ai-task-scheduler-start" ''
+    set -eu
+    app_state=${lib.escapeShellArg "${cfg.stateRoot}/app"}
+    intake_state=${lib.escapeShellArg "${cfg.stateRoot}/work-intake"}
+    mkdir -p "$app_state" "$intake_state"
+    chmod 700 "$app_state" "$intake_state"
+    key_file="$app_state/scheduler-dispatch.key"
+    if [ ! -f "$key_file" ]; then
+      (umask 077 && ${pkgs.openssl}/bin/openssl rand -hex 32 > "$key_file.tmp" && mv -n "$key_file.tmp" "$key_file")
+    fi
+    export FULCRUM_SCHEDULER_TOKEN="$(cat "$key_file")"
+    exec ${cfg.package}/bin/ai-task-scheduler serve --config ${schedulerConfig}
   '';
 
 in
@@ -86,10 +128,15 @@ in
       type = lib.types.package;
       description = "Built fulcrum-vault-v2 package providing shared-vault, vault-extract, and ai-task-scheduler.";
     };
+    workIntakePackage = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      description = "Packaged external Work Intake CLI (ADR-0006).";
+    };
     fulcrumRelease = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = null;
-      description = "Certified immutable Fulcrum application Nix package (share/vault-services + bin/bun) once commit-bound certification completes.";
+      description = "Certified immutable Fulcrum v2 application Nix package (share/vault-services + bin/bun).";
     };
     vaultId = lib.mkOption {
       type = lib.types.str;
@@ -140,6 +187,9 @@ in
         for bin in shared-vault vault-extract ai-task-scheduler; do
           ln -s "${cfg.package}/bin/$bin" "$out/bin/$bin"
         done
+        ${lib.optionalString (cfg.workIntakePackage != null) ''
+          ln -s "${cfg.workIntakePackage}/bin/work-intake" "$out/bin/work-intake"
+        ''}
       '')
     ];
 
@@ -188,7 +238,7 @@ in
       };
       Service = {
         Type = "exec";
-        ExecStart = "${cfg.package}/bin/ai-task-scheduler serve --config ${schedulerConfig}";
+        ExecStart = "${schedulerStart}";
         RuntimeDirectory = "ai-task-scheduler";
         RuntimeDirectoryMode = "0700";
         UMask = "0077";

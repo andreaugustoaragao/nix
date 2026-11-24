@@ -457,13 +457,20 @@
           fulcrum-vault-v2 = pkgs.callPackage ./pkgs/vault-v2.nix {
             src = inputs.fulcrum-src;
           };
+          fulcrum-work-intake = pkgs.callPackage ./pkgs/fulcrum-work-intake.nix {
+            src = inputs.fulcrum-src;
+          };
           fulcrum-node-modules = pkgs.callPackage ./pkgs/fulcrum-node-modules.nix {
+            src = inputs.fulcrum-src;
+          };
+          fulcrum-v2-web-node-modules = pkgs.callPackage ./pkgs/fulcrum-v2-web-node-modules.nix {
             src = inputs.fulcrum-src;
           };
           fulcrum-app = pkgs.callPackage ./pkgs/fulcrum-app.nix {
             src = inputs.fulcrum-src;
             sourceRevision = inputs.fulcrum-src.rev;
             fulcrumNodeModules = self.packages.${system}.fulcrum-node-modules;
+            fulcrumV2WebNodeModules = self.packages.${system}.fulcrum-v2-web-node-modules;
           };
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
