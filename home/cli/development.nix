@@ -109,7 +109,8 @@ in
 
         # Security Scanning
         gitleaks # Secret detection in source & git history
-        trivy # Dependency & container vulnerability scanner
+        # Pinned to 0.74.0 to match Fulcrum's exact `scripts/run-trivy.sh` gate.
+        (pkgs.callPackage ../../pkgs/trivy.nix { })
 
         # Build Tools & Compilers (needed for nvim-treesitter & LuaSnip)
         gcc # C compiler
