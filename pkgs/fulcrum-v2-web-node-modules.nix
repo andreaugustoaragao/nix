@@ -19,10 +19,7 @@ let
       let
         rel = lib.removePrefix "${srcRoot}/" path;
       in
-      rel == "v2"
-      || rel == "v2/web"
-      || rel == "v2/web/package.json"
-      || rel == "v2/web/bun.lock";
+      rel == "v2" || rel == "v2/web" || rel == "v2/web/package.json" || rel == "v2/web/bun.lock";
   };
   outputHash =
     fodHashes.${stdenv.hostPlatform.system}

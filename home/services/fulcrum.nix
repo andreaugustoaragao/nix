@@ -5,7 +5,6 @@
   unstable-pkgs,
   lib,
   hostName,
-  isWorkstation,
   ...
 }:
 
@@ -174,8 +173,13 @@ in
 
     Service = {
       Type = "exec";
-      RuntimeDirectory = if packagedRelease != null then "fulcrum-v2" else lib.mkIf (hostName == "prl-dev-vm") "fulcrum-desktop";
-      RuntimeDirectoryMode = if packagedRelease != null then "0700" else lib.mkIf (hostName == "prl-dev-vm") "0700";
+      RuntimeDirectory =
+        if packagedRelease != null then
+          "fulcrum-v2"
+        else
+          lib.mkIf (hostName == "prl-dev-vm") "fulcrum-desktop";
+      RuntimeDirectoryMode =
+        if packagedRelease != null then "0700" else lib.mkIf (hostName == "prl-dev-vm") "0700";
       WorkingDirectory = projectRoot;
       Environment = [
         "PATH=${binPath}:/run/current-system/sw/bin"

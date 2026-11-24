@@ -60,8 +60,8 @@ assert builtins.elem "FULCRUM_SCHEDULER_SOCKET=%t/ai-task-scheduler/api.sock"
   packagedV2.Service.Environment;
 assert builtins.elem "FULCRUM_CALLBACK_SOCKET=%t/fulcrum-v2/callback.sock"
   packagedV2.Service.Environment;
-assert !(builtins.elem "FULCRUM_DATA_DIR=${fixtureHome}/projects/work/notes/.fulcrum"
-  packagedV2.Service.Environment);
+assert
+  !(builtins.elem "FULCRUM_DATA_DIR=${fixtureHome}/projects/work/notes/.fulcrum" packagedV2.Service.Environment);
 assert !(builtins.elem "CHROMA_BASE_URL=http://localhost:8000" packagedV2.Service.Environment);
 assert builtins.elem "CHROMA_BASE_URL=http://localhost:8000" source.Service.Environment;
 assert

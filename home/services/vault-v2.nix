@@ -91,18 +91,18 @@ let
     fulcrum_token_env = "FULCRUM_SCHEDULER_TOKEN"
     ${lib.optionalString (cfg.workIntakePackage != null) ''
 
-    [[profiles]]
-    id = "work-intake"
-    description = "External Fulcrum Work Intake deterministic pipeline"
-    runner_kind = "work_intake"
-    executable = "${cfg.workIntakePackage}/bin/work-intake"
-    allowed_roots = ["${cfg.notesDir}"]
-    working_dir = "${cfg.notesDir}"
-    allow_network = false
-    unattended = true
-    timeout_sec = 600
-    memory_max_mb = 1024
-    intake_state_dir = "${cfg.stateRoot}/work-intake"
+      [[profiles]]
+      id = "work-intake"
+      description = "External Fulcrum Work Intake deterministic pipeline"
+      runner_kind = "work_intake"
+      executable = "${cfg.workIntakePackage}/bin/work-intake"
+      allowed_roots = ["${cfg.notesDir}"]
+      working_dir = "${cfg.notesDir}"
+      allow_network = false
+      unattended = true
+      timeout_sec = 600
+      memory_max_mb = 1024
+      intake_state_dir = "${cfg.stateRoot}/work-intake"
     ''}
   '';
 
