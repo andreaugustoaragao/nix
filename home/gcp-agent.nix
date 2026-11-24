@@ -42,7 +42,7 @@
     mkdir -p "$ssh_dir"
     chmod 0700 "$ssh_dir"
     if [ ! -f "$key" ]; then
-      ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -N "" -C "aragao@gcp-agent-wk-signing" -f "$key" >/dev/null
+      ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -N "" -C "aragao@gcp-aragao-agent-wk-signing" -f "$key" >/dev/null
     fi
     chmod 0600 "$key"
     chmod 0644 "$pub"

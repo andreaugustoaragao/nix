@@ -3,15 +3,15 @@ keys:
   - &tala_key age1duv6mr4u5vqylmasxs5cg5mcd5n29xmxklfrhcl5zp7v7ggs8syq0ef5fz
   - &mac_work_key age19t38gfv96p76sx7x56qlhclwdnejna73k6qslletrjh6j97f34zqwhd302
   - &prl_dev_vm_key age124a5zdlqgqpgxqsz0k7yljzf7haavch863y63qlrx2mkqlgcn33sl4du4s
-  - &gcp_agent_wk_key age1mq37cg9dx6dp54s939ywyxavw7qnj7ady9mh68kmyehzkl32eg6sr9vjxv
+  - &gcp_aragao_agent_wk_key age1mq37cg9dx6dp54s939ywyxavw7qnj7ady9mh68kmyehzkl32eg6sr9vjxv
 
 creation_rules:
-  - path_regex: secrets/gcp/gcp-agent-wk\.yaml$
+  - path_regex: secrets/gcp/gcp-aragao-agent-wk\.yaml$
     key_groups:
       - age:
           - *admin_key
           - *prl_dev_vm_key
-          - *gcp_agent_wk_key
+          - *gcp_aragao_agent_wk_key
   - path_regex: secrets/workers/workstation-worker\.yaml$
     key_groups:
       - age:

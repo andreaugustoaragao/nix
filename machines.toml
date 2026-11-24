@@ -67,9 +67,9 @@ colorScheme = "gruvbox"
 
 
 # Remote AI agent coding VM on GCP (Axion ARM64, IAP-only SSH, Vertex AI ADC).
-[machines.gcp-agent-wk]
+[machines.gcp-aragao-agent-wk]
 isWorkMachine = true
-hostName = "gcp-agent-wk"
+hostName = "gcp-aragao-agent-wk"
 platform = "aarch64-linux"
 profile = "gcp-agent"
 stateVersion = "26.05"

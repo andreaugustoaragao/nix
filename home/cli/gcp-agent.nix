@@ -5,7 +5,7 @@
 let
   project = "core-optimized-lab";
   zone = "us-west3-a";
-  instance = "gcp-agent-wk";
+  instance = "gcp-aragao-agent-wk";
 
   wake = pkgs.writeShellApplication {
     name = "gcp-agent-wake";

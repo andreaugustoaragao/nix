@@ -165,7 +165,7 @@ in
   ];
 
   sops = {
-    defaultSopsFile = ../../secrets/gcp/gcp-agent-wk.yaml;
+    defaultSopsFile = ../../secrets/gcp/gcp-aragao-agent-wk.yaml;
     validateSopsFiles = true;
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
     secrets = {
@@ -257,7 +257,7 @@ in
     ];
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+ZJ5BDn32O6G/ZKaKahrW2SMY2frAjlTBMGwiF+xb+ aragao@gcp-agent-wk"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+ZJ5BDn32O6G/ZKaKahrW2SMY2frAjlTBMGwiF+xb+ aragao@gcp-aragao-agent-wk"
     ];
   };
 
