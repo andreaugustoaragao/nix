@@ -13,6 +13,16 @@ let
   integratedShell = useDms || useNoctalia;
   iconTheme = if integratedShell then "Papirus-Dark" else "Yaru-blue";
   iconPkg = if integratedShell then pkgs.papirus-icon-theme else pkgs.yaru-theme;
+  # adw-gtk3 6.5 ships a gtk-4.0/libadwaita.css using GTK 4.20 @media rules that
+  # GTK 4.18 portals (xdg-desktop-portal-gnome) reject with parser warnings.
+  # GTK4 apps already receive native Adwaita + ~/.config/gtk-4.0/gruvbox.css.
+  adwGtk3Only = pkgs.runCommand "adw-gtk3-gtk3-only" { } ''
+    for variant in adw-gtk3 adw-gtk3-dark; do
+      mkdir -p "$out/share/themes/$variant"
+      ln -s "${pkgs.adw-gtk3}/share/themes/$variant/gtk-3.0" "$out/share/themes/$variant/gtk-3.0"
+      ln -s "${pkgs.adw-gtk3}/share/themes/$variant/index.theme" "$out/share/themes/$variant/index.theme"
+    done
+  '';
 in
 {
   gtk = {
@@ -80,7 +90,7 @@ in
     pkgs.adwaita-icon-theme
   ]
   ++ lib.optionals appearance.isGruvbox [
-    pkgs.adw-gtk3
+    adwGtk3Only
     pkgs.gruvbox-gtk-theme
   ];
   xdg.configFile = lib.mkIf appearance.isGruvbox {

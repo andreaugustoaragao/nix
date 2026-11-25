@@ -128,5 +128,9 @@
       (pkgs.callPackage ../../pkgs/herdr-app.nix { })
       (pkgs.callPackage ../../pkgs/herdr-core.nix { })
       (pkgs.callPackage ../../pkgs/vitals.nix { })
+    ]
+    ++ lib.optionals (hostName == "prl-dev-vm") [
+      swayimg
+      file-roller
     ];
 }

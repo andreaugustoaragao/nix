@@ -6,6 +6,7 @@
   personalOnly,
   lockScreen,
   appearance ? null,
+  homeDirectory ? null,
   preview ? false,
 }:
 let
@@ -16,10 +17,32 @@ lib.recursiveUpdate (lib.recursiveUpdate
   (builtins.fromTOML (builtins.readFile ./noctalia-personal.toml))
   {
     shell = {
-      font_family = "Cantarell";
+      font_family = "Noto Sans";
       # The compositor's existing auth agent owns the graphical logind session.
       polkit_agent = false;
       launch_apps_as_systemd_services = !preview;
+      niri_overview_type_to_launch_enabled = true;
+      niri_overview_close_on_launch_enabled = true;
+      readline_shortcuts = true;
+      window_switcher = {
+        mru = true;
+      };
+      screenshot = {
+        annotate = true;
+        copy_to_clipboard = true;
+        save_to_file = true;
+        freeze_screen = true;
+        show_region_dimensions = true;
+        show_region_hint = true;
+        close_on_copy = true;
+        close_on_save = true;
+      }
+      // lib.optionalAttrs (homeDirectory != null) {
+        directory = "${homeDirectory}/pictures/screenshots";
+      };
+    }
+    // lib.optionalAttrs (homeDirectory != null) {
+      avatar_path = "${homeDirectory}/.face";
     };
     theme = {
       builtin = if appearance != null && appearance.isGruvbox then "Gruvbox" else "Catppuccin";

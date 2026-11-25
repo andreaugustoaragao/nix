@@ -2,6 +2,7 @@
 
 {
   fonts.packages = with pkgs; [
+    geist-font
     noto-fonts
     noto-fonts-cjk-sans
     noto-fonts-color-emoji

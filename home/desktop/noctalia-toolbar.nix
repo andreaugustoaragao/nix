@@ -79,7 +79,7 @@ in
       show_labels = true;
       show_icons = false;
       max_label_chars = 2;
-      hide_when_empty = false;
+      hide_when_empty = true;
       show_all_outputs = false;
     };
     active_window = {
@@ -144,7 +144,7 @@ in
   };
   system.monitor.enabled = true;
   weather = {
-    enabled = true;
+    enabled = false;
     unit = "celsius";
     effects = false;
   };

@@ -46,6 +46,7 @@ in
           lockScreen
           appearance
           ;
+        inherit (config.home) homeDirectory;
         inherit (config.my) displays;
       };
     };

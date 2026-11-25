@@ -18,43 +18,34 @@ let
       "dev.zed.Zed.desktop"
     else
       "local.folio.Reader.desktop";
-  imageDefaults =
-    lib.genAttrs
-      (
-        [
-          "image/avif"
-          "image/bmp"
-          "image/gif"
-          "image/jpeg"
-          "image/jpg"
-          "image/pjpeg"
-          "image/png"
-          "image/svg+xml"
-          "image/webp"
-          "image/x-bmp"
-          "image/x-png"
-        ]
-        ++ lib.optionals (hostName != "prl-dev-vm" && hostName != "workstation") [
-          "image/heif"
-          "image/jxl"
-          "image/pbm"
-          "image/tiff"
-          "image/x-exr"
-          "image/x-portable-anymap"
-          "image/x-portable-bitmap"
-          "image/x-portable-graymap"
-          "image/x-portable-pixmap"
-          "image/x-targa"
-          "image/x-tga"
-        ]
-      )
-      (
-        _:
-        if (hostName == "prl-dev-vm" || hostName == "workstation") then
-          "brave-browser.desktop"
-        else
-          "swayimg.desktop"
-      );
+  imageDefaults = lib.genAttrs (
+    [
+      "image/avif"
+      "image/bmp"
+      "image/gif"
+      "image/jpeg"
+      "image/jpg"
+      "image/pjpeg"
+      "image/png"
+      "image/svg+xml"
+      "image/webp"
+      "image/x-bmp"
+      "image/x-png"
+    ]
+    ++ lib.optionals (hostName != "workstation") [
+      "image/heif"
+      "image/jxl"
+      "image/pbm"
+      "image/tiff"
+      "image/x-exr"
+      "image/x-portable-anymap"
+      "image/x-portable-bitmap"
+      "image/x-portable-graymap"
+      "image/x-portable-pixmap"
+      "image/x-targa"
+      "image/x-tga"
+    ]
+  ) (_: if hostName == "workstation" then "brave-browser.desktop" else "swayimg.desktop");
   textViewer =
     if (hostName == "prl-dev-vm" || hostName == "workstation") then
       "local.folio.Reader.desktop"
@@ -206,21 +197,26 @@ in
     }
     // officeDefaults
     // imageDefaults
-    // lib.optionalAttrs (hostName != "prl-dev-vm" && hostName != "workstation") {
-      # Nautilus provides the installed archive browsing/extraction handler.
-      "application/bzip2" = "org.gnome.Nautilus.desktop";
-      "application/gzip" = "org.gnome.Nautilus.desktop";
-      "application/vnd.rar" = "org.gnome.Nautilus.desktop";
-      "application/x-7z-compressed" = "org.gnome.Nautilus.desktop";
-      "application/x-bzip2-compressed-tar" = "org.gnome.Nautilus.desktop";
-      "application/x-compressed-tar" = "org.gnome.Nautilus.desktop";
-      "application/x-gzip" = "org.gnome.Nautilus.desktop";
-      "application/x-tar" = "org.gnome.Nautilus.desktop";
-      "application/x-xz" = "org.gnome.Nautilus.desktop";
-      "application/x-xz-compressed-tar" = "org.gnome.Nautilus.desktop";
-      "application/x-zstd-compressed-tar" = "org.gnome.Nautilus.desktop";
-      "application/zip" = "org.gnome.Nautilus.desktop";
-      "application/zstd" = "org.gnome.Nautilus.desktop";
-    };
+    // lib.optionalAttrs (hostName != "workstation") (
+      let
+        archiveHandler =
+          if hostName == "prl-dev-vm" then "org.gnome.FileRoller.desktop" else "org.gnome.Nautilus.desktop";
+      in
+      lib.genAttrs [
+        "application/bzip2"
+        "application/gzip"
+        "application/vnd.rar"
+        "application/x-7z-compressed"
+        "application/x-bzip2-compressed-tar"
+        "application/x-compressed-tar"
+        "application/x-gzip"
+        "application/x-tar"
+        "application/x-xz"
+        "application/x-xz-compressed-tar"
+        "application/x-zstd-compressed-tar"
+        "application/zip"
+        "application/zstd"
+      ] (_: archiveHandler)
+    );
   };
 }

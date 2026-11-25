@@ -252,12 +252,12 @@ in
     cursor {
         xcursor-size 24
         hide-when-typing
-        hide-after-inactive-ms 1000
+        hide-after-inactive-ms 3000
     }
 
     // Input configuration (similar to Hyprland input)
     input {
-        focus-follows-mouse
+        focus-follows-mouse max-scroll-amount="0%"
         ${lib.optionalString (hostName != "prl-dev-vm") ''
           // Keep the cursor cue for keyboard-driven monitor focus on other hosts.
           warp-mouse-to-focus mode="center-xy"
@@ -336,20 +336,17 @@ in
     window-rule {
         match is-active=false
         opacity 0.92
-        background-effect {
-            blur true
-        }
+        ${lib.optionalString (!isVm) ''
+          background-effect {
+              blur true
+          }
+        ''}
     }
 
-    // Brave: opaque when focused, slight dim when unfocused
+    // Keep browser, video playback, and capture windows opaque when unfocused
     window-rule {
-        match app-id=r#"^brave"#
+        match app-id=r#"^(brave|mpv|com\.obsproject\.Studio)"#
         opacity 1.0
-    }
-
-    window-rule {
-        match app-id=r#"^brave"# is-active=false
-        opacity 0.95
     }
 
     window-rule {
@@ -497,7 +494,12 @@ in
         Mod+Backslash { spawn "bitwarden"; }
         Mod+Shift+A { spawn "browser-app" "--class=brave-grok" "https://grok.com"; }
         Mod+Shift+X { spawn "browser-app" "--class=brave-x-twitter" "https://x.com"; }
-        Mod+S { spawn "window-switcher"; }
+        ${
+          if useNoctalia then
+            ''Mod+S { spawn "${noctalia}" "msg" "window-switcher"; }''
+          else
+            ''Mod+S { spawn "window-switcher"; }''
+        }
 
         // Menu and launcher
         ${
@@ -528,6 +530,10 @@ in
         Mod+Ctrl+F {fullscreen-window; }
         Mod+F { maximize-column; }
         Mod+V { toggle-window-floating; }
+        Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+        Mod+O repeat=false { toggle-overview; }
+        Mod+Shift+C { center-column; }
+        Mod+Shift+Slash { show-hotkey-overlay; }
 
         // Focus movement (arrow keys and vim keys). Horizontal motion
         // falls through to the neighboring monitor when at the edge.
@@ -615,8 +621,19 @@ in
         // Mod+Shift+F → niri-native focused-output capture. (Previously
         // spawned `screenshot output` → hyprshot, which needs Hyprland IPC
         // and silently failed under niri on every host.)
-        Mod+Shift+S { spawn "screenshot-niri"; }
-        Mod+Shift+F { spawn "screenshot-niri" "output"; }
+        ${
+          if useNoctalia then
+            ''
+              Mod+Shift+S { spawn "${noctalia}" "msg" "screenshot-region"; }
+              Mod+Alt+S { spawn "${noctalia}" "msg" "screenshot-annotate"; }
+              Mod+Shift+F { spawn "${noctalia}" "msg" "screenshot-fullscreen"; }
+            ''
+          else
+            ''
+              Mod+Shift+S { spawn "screenshot-niri"; }
+              Mod+Shift+F { spawn "screenshot-niri" "output"; }
+            ''
+        }
         
         ${lib.optionalString lockScreen (
           if useNoctalia then
@@ -673,6 +690,10 @@ in
           Mod+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
           Mod+Period { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
           Mod+Alt+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
+          Mod+Shift+Semicolon { spawn "${noctalia}" "msg" "notification-dnd-toggle"; }
+          Mod+Ctrl+Semicolon { spawn "${noctalia}" "msg" "notification-clear-active"; }
+          Mod+Shift+I { spawn "${noctalia}" "msg" "caffeine-toggle"; }
+          Mod+Alt+N { spawn "${noctalia}" "msg" "nightlight-toggle"; }
           Mod+N { spawn "${if personalOnly then "codium" else "notes"}"; }
         ''}
 
@@ -709,8 +730,18 @@ in
         }
 
         // Precise media adjustments with Alt
-        Alt+XF86AudioRaiseVolume { spawn "pamixer" "-i" "1"; }
-        Alt+XF86AudioLowerVolume { spawn "pamixer" "-d" "1"; }
+        ${
+          if useNoctalia then
+            ''
+              Alt+XF86AudioRaiseVolume { spawn "${noctalia}" "msg" "volume-up" "1"; }
+              Alt+XF86AudioLowerVolume { spawn "${noctalia}" "msg" "volume-down" "1"; }
+            ''
+          else
+            ''
+              Alt+XF86AudioRaiseVolume { spawn "pamixer" "-i" "1"; }
+              Alt+XF86AudioLowerVolume { spawn "pamixer" "-d" "1"; }
+            ''
+        }
         Alt+XF86MonBrightnessUp { spawn "brightnessctl" "set" "+1%"; }
         Alt+XF86MonBrightnessDown { spawn "brightnessctl" "set" "1%-"; }
 

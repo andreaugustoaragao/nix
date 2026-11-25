@@ -449,7 +449,7 @@ in {
                 "fontFamily": "Noto Sans",
                 "fontWeight": 500,
                 "fontScale": 1,
-                "shellFont": "Cantarell",
+                "shellFont": "Noto Sans",
                 "thickness": 40,
                 "radius": 16,
                 "scale": 0.825,
