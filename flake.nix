@@ -411,6 +411,9 @@
           chat-send = pkgs.callPackage ./pkgs/chat-send.nix {
             browser-task = self.packages.${system}.browser-task;
           };
+          email-send = pkgs.callPackage ./pkgs/email-send.nix {
+            browser-task = self.packages.${system}.browser-task;
+          };
           herdr-agent-preview = pkgs.callPackage ./pkgs/herdr-agent-preview.nix { };
           rust-toolchain = pkgs.callPackage ./pkgs/rust-toolchain.nix { };
           pi-rs = pkgs.callPackage ./home/cli/pi-rs { };
@@ -998,6 +1001,16 @@
                 node ${self.outPath}/home/cli/chat-send/tests/dom-probe.test.js
                 test -x "$chatSend/bin/chat-send"
                 test -x "$chatSend/bin/chat-send-task"
+                touch "$out"
+              '';
+          email-send =
+            pkgs.runCommand "check-email-send"
+              {
+                emailSend = self.packages.${system}.email-send;
+              }
+              ''
+                test -x "$emailSend/bin/email-send"
+                test -f ${self.outPath}/home/cli/email-send/SKILL.md
                 touch "$out"
               '';
           chat-send-worker =

@@ -34,6 +34,7 @@ in
     ./git.nix
     ./repo-sync.nix
     ./chat-send.nix
+    ./email-send.nix
     ./fastfetch.nix
     ./btop.nix
     ./nvim-lazyvim.nix
