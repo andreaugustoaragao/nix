@@ -31,5 +31,7 @@ in
     NIX_SSL_CERT_FILE = "${bundle}";
     GIT_SSL_CAINFO = "${bundle}";
     CURL_CA_BUNDLE = "${bundle}";
+    NODE_EXTRA_CA_CERTS = "${bundle}";
+    REQUESTS_CA_BUNDLE = "${bundle}";
   };
 }

@@ -1,4 +1,6 @@
 {
+  config,
+  lib,
   pkgs,
   hostName,
   owner,
@@ -26,6 +28,9 @@ let
   #   - matrix message body truncation cap (Element rendering goes
   #     unreadable past ~10KB)
   matrixMaxBytes = 8000;
+  # Rotate /var/log/darwin-auto-upgrade.log once it exceeds 2 MiB so the
+  # append-only launchd log doesn't grow unbounded.
+  logMaxBytes = 2097152;
 
   upgradeScript = pkgs.writeShellApplication {
     name = "darwin-auto-upgrade";
@@ -35,6 +40,7 @@ let
       pkgs.jq
       pkgs.nvd
       pkgs.gnugrep
+      config.nix.package
     ];
     text = ''
       LOG="${logFile}"
@@ -42,8 +48,21 @@ let
       HOST="${hostName}"
       FLAKE="${flakeUrl}"
       USER_NAME="${owner.name}"
+      PROFILE="/nix/var/nix/profiles/system"
 
-      log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG" >&2; }
+      # Launchd redirects both StandardOutPath and StandardErrorPath to
+      # $LOG (O_APPEND), so write to stderr/stdout directly without `tee`.
+      log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >&2; }
+
+      # Bounded log rotation: copy to $LOG.1 and truncate in place so
+      # launchd's open O_APPEND file descriptor stays valid.
+      if [ -f "$LOG" ]; then
+        log_size=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+        if [ "$log_size" -gt ${toString logMaxBytes} ]; then
+          cp -f "$LOG" "$LOG.1" 2>/dev/null || true
+          : > "$LOG"
+        fi
+      fi
 
       # mkdir-as-mutex: atomic on any POSIX FS, no flock needed (and
       # macOS BSD userland has no flock(1)). Trap on EXIT so a crashed
@@ -52,8 +71,9 @@ let
         log "another upgrade run already in progress (lock $LOCK held), skipping"
         exit 0
       fi
-      trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
-
+      work_dir=$(mktemp -d /tmp/darwin-auto-upgrade.XXXXXX)
+      trap 'rm -rf "$work_dir"; rmdir "$LOCK" 2>/dev/null || true' EXIT
+      cd "$work_dir"
       # Desktop notification — launchd daemons run as root, so we have
       # to cross into the active GUI user's session via `launchctl
       # asuser <uid>` for the notification to actually appear in their
@@ -99,49 +119,62 @@ let
           || log "matrix post failed (non-fatal)"
       }
 
-      # `nvd diff` between the two most recent system profiles.
-      # Returns the marker string if there is nothing to diff (first
-      # run after install, or no generation change). We use a glob +
-      # filtered loop rather than `ls | grep` because
-      # writeShellApplication enforces shellcheck and rejects SC2010.
+      # Diff two explicit system profile generations via `nvd diff`.
       nvd_diff() {
-        local prev curr sorted g base num
-        local gens=()
-        # nullglob makes the loop run zero times when no system-*-link
-        # exists yet (fresh install, pre-first-generation).
-        shopt -s nullglob
-        for g in /nix/var/nix/profiles/system-*-link; do
-          base=''${g##*/}
-          num=''${base#system-}
-          num=''${num%-link}
-          if [[ "$num" =~ ^[0-9]+$ ]]; then
-            gens+=("$g")
-          fi
-        done
-        shopt -u nullglob
-        if [ "''${#gens[@]}" -lt 2 ]; then
+        local prev="$1" curr="$2"
+        if [ -z "$prev" ] || [ -z "$curr" ] || [ "$prev" = "$curr" ]; then
           echo "(no previous generation to compare)"
           return
         fi
-        sorted=$(printf '%s\n' "''${gens[@]}" | sort -V)
-        prev=$(printf '%s\n' "$sorted" | tail -2 | head -1)
-        curr=$(printf '%s\n' "$sorted" | tail -1)
-        if [ "$prev" = "$curr" ]; then
-          echo "(no previous generation to compare)"
-        else
-          NO_COLOR=1 nvd diff "$prev" "$curr" 2>&1 \
-            || echo "(nvd diff failed)"
+        NO_COLOR=1 nvd diff "$prev" "$curr" 2>&1 \
+          || echo "(nvd diff failed)"
+      }
+
+      profile_link_path() {
+        local target
+        target=$(readlink "$PROFILE" 2>/dev/null || true)
+        if [ -n "$target" ]; then
+          echo "/nix/var/nix/profiles/$target"
+        fi
+      }
+
+      profile_gen_num() {
+        local target
+        target=$(readlink "$PROFILE" 2>/dev/null || true)
+        if [[ "$target" =~ ^system-([0-9]+)-link$ ]]; then
+          echo "''${BASH_REMATCH[1]}"
         fi
       }
 
       log "auto-upgrade starting for $HOST against $FLAKE"
 
-      # Step 1: build. Catches evaluation errors and broken inputs
-      # without touching the running system. tee+pipefail preserves
-      # the rebuild's exit status across the log capture.
+      # Resolve mutable HEAD once into a content-addressed URL so build
+      # and switch operate on the exact same revision.
       set +e
-      ${darwinRebuild} build --flake "$FLAKE#$HOST" --refresh 2>&1 | tee -a "$LOG"
-      build_status=''${PIPESTATUS[0]}
+      meta_json=$(nix --extra-experimental-features 'nix-command flakes' \
+        flake metadata --json --refresh "$FLAKE")
+      meta_status=$?
+      set -e
+      if [ "$meta_status" -ne 0 ]; then
+        log "flake metadata resolution failed (exit $meta_status)"
+        notify "darwin-rebuild failed" "Failed to resolve $FLAKE on $HOST. See $LOG"
+        matrix_post \
+          "darwin-rebuild metadata FAILED on $HOST — see $LOG" \
+          "darwin-rebuild metadata <b>FAILED</b> on <b>$HOST</b> — see <code>$LOG</code>"
+        exit 1
+      fi
+      pinned_flake=$(printf '%s' "$meta_json" | jq -r '.url // empty')
+      if [ -z "$pinned_flake" ]; then
+        log "flake metadata returned empty locked URL"
+        exit 1
+      fi
+      log "pinned revision: $pinned_flake"
+
+      # Step 1: build against the pinned revision. Catches evaluation
+      # errors and broken inputs without touching the running system.
+      set +e
+      ${darwinRebuild} build --flake "$pinned_flake#$HOST"
+      build_status=$?
       set -e
       if [ "$build_status" -ne 0 ]; then
         log "darwin-rebuild build failed (exit $build_status)"
@@ -152,43 +185,56 @@ let
         exit 1
       fi
 
-      # Step 2: activate. If activation fails — bad LaunchAgent,
-      # broken Brewfile, /Applications symlink conflict — attempt a
-      # rollback to the previous generation before alerting.
+      # Capture the active generation right before switching so we only
+      # roll back if the profile actually advances, and diff the exact
+      # before/after generations on success.
+      pre_link=$(profile_link_path)
+      pre_gen=$(profile_gen_num)
+
+      # Step 2: activate the exact same pinned revision.
       set +e
-      ${darwinRebuild} switch --flake "$FLAKE#$HOST" --refresh 2>&1 | tee -a "$LOG"
-      switch_status=''${PIPESTATUS[0]}
+      ${darwinRebuild} switch --flake "$pinned_flake#$HOST"
+      switch_status=$?
       set -e
+      post_link=$(profile_link_path)
       if [ "$switch_status" -ne 0 ]; then
-        log "darwin-rebuild switch failed (exit $switch_status), attempting rollback"
-        notify "darwin-rebuild switch failed" "Rolling back on $HOST"
-        set +e
-        ${darwinRebuild} rollback 2>&1 | tee -a "$LOG"
-        rollback_status=''${PIPESTATUS[0]}
-        set -e
-        if [ "$rollback_status" -eq 0 ]; then
-          log "rollback succeeded"
-          notify "darwin-rebuild rolled back" "Activation failed; previous generation restored on $HOST"
-          matrix_post \
-            "darwin-rebuild switch FAILED on $HOST — rolled back to previous generation. See $LOG" \
-            "darwin-rebuild switch <b>FAILED</b> on <b>$HOST</b> — <b>rolled back</b>. See <code>$LOG</code>"
+        if [ -n "$pre_gen" ] && [ "$post_link" != "$pre_link" ]; then
+          log "darwin-rebuild switch failed (exit $switch_status) after advancing profile, rolling back to generation $pre_gen"
+          notify "darwin-rebuild switch failed" "Rolling back to generation $pre_gen on $HOST"
+          set +e
+          ${darwinRebuild} --switch-generation "$pre_gen"
+          rollback_status=$?
+          set -e
+          if [ "$rollback_status" -eq 0 ]; then
+            log "rollback to generation $pre_gen succeeded"
+            notify "darwin-rebuild rolled back" "Activation failed; generation $pre_gen restored on $HOST"
+            matrix_post \
+              "darwin-rebuild switch FAILED on $HOST — rolled back to generation $pre_gen. See $LOG" \
+              "darwin-rebuild switch <b>FAILED</b> on <b>$HOST</b> — <b>rolled back to generation $pre_gen</b>. See <code>$LOG</code>"
+          else
+            log "rollback to generation $pre_gen ALSO failed (exit $rollback_status) — manual intervention required"
+            notify "ROLLBACK FAILED" "Manual intervention required on $HOST"
+            matrix_post \
+              "darwin-rebuild switch AND rollback FAILED on $HOST — manual intervention required" \
+              "darwin-rebuild switch <b>AND rollback FAILED</b> on <b>$HOST</b> — manual intervention required"
+          fi
         else
-          log "rollback ALSO failed (exit $rollback_status) — manual intervention required"
-          notify "ROLLBACK FAILED" "Manual intervention required on $HOST"
+          log "darwin-rebuild switch failed (exit $switch_status); profile did not advance (still $pre_link), skipping rollback"
+          notify "darwin-rebuild switch failed" "Switch errored before profile change on $HOST. See $LOG"
           matrix_post \
-            "darwin-rebuild switch AND rollback FAILED on $HOST — manual intervention required" \
-            "darwin-rebuild switch <b>AND rollback FAILED</b> on <b>$HOST</b> — manual intervention required"
+            "darwin-rebuild switch FAILED on $HOST (profile unchanged) — see $LOG" \
+            "darwin-rebuild switch <b>FAILED</b> on <b>$HOST</b> (profile unchanged) — see <code>$LOG</code>"
         fi
         exit 1
       fi
 
       # Step 3: success path. Quiet if the generation did not change —
       # we don't need a daily "nothing happened" notification.
-      diff_text=$(nvd_diff)
-      if [ "$diff_text" = "(no previous generation to compare)" ]; then
+      if [ -z "$post_link" ] || [ "$post_link" = "$pre_link" ]; then
         log "no generation change, exiting quietly"
         exit 0
       fi
+      diff_text=$(nvd_diff "$pre_link" "$post_link")
 
       # Truncate the diff for Matrix readers (full text is in $LOG).
       if (( ''${#diff_text} > ${toString matrixMaxBytes} )); then
@@ -208,10 +254,10 @@ let
   };
 in
 {
-  # Pre-touch the log file so the launchd job's StandardOutPath /
+  # Pre-touch the log file via postActivation (custom activationScripts
+  # keys are ignored by nix-darwin) so the launchd job's StandardOutPath /
   # StandardErrorPath have a writable target on first activation.
-  # Without this the first run dies with "no such file or directory".
-  system.activationScripts.darwinAutoUpgradeLog.text = ''
+  system.activationScripts.postActivation.text = lib.mkAfter ''
     if [ ! -e "${logFile}" ]; then
       /usr/bin/touch "${logFile}"
       /bin/chmod 0644 "${logFile}"
@@ -245,8 +291,17 @@ in
       # the activated system profile. The wrapper script has its own
       # writeShellApplication PATH, but darwin-rebuild's child
       # processes inherit *this* PATH.
+      # Include the corporate CA bundle from darwin/certs.nix so both
+      # `nix flake metadata`/`darwin-rebuild` and `curl` (Matrix alerts)
+      # trust the Netskope/corp TLS chain under launchd.
       EnvironmentVariables = {
-        PATH = "/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        PATH = "/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        inherit (config.environment.variables)
+          SSL_CERT_FILE
+          NIX_SSL_CERT_FILE
+          GIT_SSL_CAINFO
+          CURL_CA_BUNDLE
+          ;
       };
 
       StandardOutPath = logFile;

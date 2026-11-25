@@ -16,6 +16,7 @@
     ./caffeinate.nix
     ./sops.nix
     ./certs.nix
+    ./browsers.nix
     ./auto-upgrade.nix
     ./services
   ];

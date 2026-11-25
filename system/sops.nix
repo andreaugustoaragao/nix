@@ -148,16 +148,19 @@
       # graphical session (Bitwarden CLI/Google Workspace MCP).
       # No client on a headless server, so don't materialize.
       "bitwarden/master_password" = {
+        sopsFile = ../secrets/bitwarden.yaml;
         owner = owner.name;
         group = "users";
         mode = "0400";
       };
       "bitwarden/server_url" = {
+        sopsFile = ../secrets/bitwarden.yaml;
         owner = owner.name;
         group = "users";
         mode = "0400";
       };
       "bitwarden/email" = {
+        sopsFile = ../secrets/bitwarden.yaml;
         owner = owner.name;
         group = "users";
         mode = "0400";

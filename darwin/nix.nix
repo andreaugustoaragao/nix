@@ -19,8 +19,9 @@ _:
       # nix-darwin runs the daemon as root; trust the primary user so
       # `nix build` from a normal shell uses the daemon's substituters
       # without prompting.
+      # nix-darwin already includes `root` in the default list; adding it
+      # again emits `trusted-users = root root @admin` in /etc/nix/nix.conf.
       trusted-users = [
-        "root"
         "@admin"
       ];
     };

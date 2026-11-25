@@ -79,18 +79,9 @@
         mode = "0400";
       };
 
-      "bitwarden/master_password" = {
-        owner = owner.name;
-        mode = "0400";
-      };
-      "bitwarden/server_url" = {
-        owner = owner.name;
-        mode = "0400";
-      };
-      "bitwarden/email" = {
-        owner = owner.name;
-        mode = "0400";
-      };
+      # Bitwarden CLI secrets are intentionally omitted on mac-work
+      # (and excluded from mac-work's sops recipients via
+      # secrets/bitwarden.yaml): macOS uses Bitwarden Desktop only.
       litellm_api_key = {
         owner = owner.name;
         mode = "0400";

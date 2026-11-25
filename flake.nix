@@ -1063,6 +1063,19 @@
                 PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/noctalia-nix-rebuild.test.py
                 touch "$out"
               '';
+          darwin-nix-rebuild =
+            pkgs.runCommand "check-darwin-nix-rebuild"
+              {
+                nativeBuildInputs = [
+                  pkgs.git
+                  pkgs.python3
+                ];
+              }
+              ''
+                export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/cli/darwin-nix-rebuild.test.py
+                touch "$out"
+              '';
           noctalia-herdr =
             pkgs.runCommand "check-noctalia-herdr"
               {

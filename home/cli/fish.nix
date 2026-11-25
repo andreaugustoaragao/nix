@@ -110,6 +110,14 @@ in
     # match darwin/sops.nix's keyFile.
     shellInit = lib.mkIf isDarwin ''
       set -gx SOPS_AGE_KEY_FILE $HOME/.config/sops/age/keys.txt
+      if test -d /opt/homebrew
+        set -gx HOMEBREW_PREFIX /opt/homebrew
+        set -gx HOMEBREW_CELLAR /opt/homebrew/Cellar
+        set -gx HOMEBREW_REPOSITORY /opt/homebrew
+        # Append after Nix profiles so Homebrew formulae (`brew`, `borders`,
+        # `mac-menu`) are reachable without shadowing Nix-managed tools.
+        fish_add_path --global --append --path /opt/homebrew/bin /opt/homebrew/sbin
+      end
     '';
 
     interactiveShellInit = appearance.render ''
@@ -147,7 +155,12 @@ in
       }
 
       # Puppeteer / Chrome DevTools MCP
-      set -gx PUPPETEER_EXECUTABLE_PATH /etc/profiles/per-user/aragao/bin/brave
+      set -gx PUPPETEER_EXECUTABLE_PATH ${
+        if isDarwin then
+          ''"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"''
+        else
+          "/etc/profiles/per-user/aragao/bin/brave"
+      }
 
       # Codex talks to the corporate LiteLLM gateway via env_key; load
       # the decrypted token from sops if it has been deployed on this

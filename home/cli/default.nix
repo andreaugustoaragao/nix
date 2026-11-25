@@ -116,6 +116,9 @@ in
     ./ssh-agent-macos.nix
     # alt-s window switcher: aerospace list-windows + mac-menu +
     # aerospace focus. macOS counterpart to home/desktop/window-switcher.nix.
+    # User-triggered nix-darwin build + macOS GUI-authorized activation
+    # (`darwin-nix-rebuild`, Darwin counterpart to noctalia-nix-rebuild).
+    ./darwin-nix-rebuild.nix
     ./aerospace-window-switcher.nix
     # `notes` picker — mac-menu + osascript fallback + Ghostty/nvim.
     # macOS counterpart to home/desktop/notes.nix's wofi flow. Pairs
@@ -160,7 +163,6 @@ in
 
       # General tools
       code2prompt # CLI tool with token counting functionality
-      bitwarden-cli
       curlie
       xh
       wget
@@ -236,12 +238,10 @@ in
       inkscape
       imagemagick # provides convert command
 
-      # Snacks.image inline-render dependencies (nvim opens images
-      # rendered through these CLIs via the kitty graphics protocol):
-      #   - ghostscript → `gs` for embedded PDF rendering
-      #   - mermaid-cli → `mmdc` for Mermaid diagrams (pulls Chromium)
+      # Snacks.image inline-render dependency (`gs` for embedded PDF
+      # rendering; `mermaid-cli` stays Linux-only below to avoid pulling
+      # a nixpkgs Chromium closure onto Darwin).
       ghostscript
-      mermaid-cli
 
       # Development tools that moved to development.nix:
       # - All language servers, compilers, and dev tools
@@ -304,6 +304,11 @@ in
         # macOS ships traceroute in /usr/sbin/traceroute; the nixpkgs
         # build is Linux-only.
         traceroute
+        # Bitwarden CLI is Linux-only (mac-work uses Bitwarden Desktop
+        # without local CLI credentials).
+        bitwarden-cli
+        # Snacks.image Mermaid renderer (`mmdc`, pulls Chromium).
+        mermaid-cli
       ]
     );
 

@@ -1,4 +1,9 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  appearance,
+  ...
+}:
 
 # AeroSpace tiling-WM config, mirroring the niri keymap from
 # home/desktop/niri.nix as closely as an i3-style tiler permits.
@@ -30,7 +35,7 @@ let
   binPath = "${config.home.profileDirectory}/bin";
 in
 {
-  xdg.configFile."aerospace/aerospace.toml".text = ''
+  xdg.configFile."aerospace/aerospace.toml".text = appearance.render ''
     # Start AeroSpace at login. brew installs a launchd agent; this
     # toggle makes it active on first activation.
     start-at-login = true
@@ -45,9 +50,8 @@ in
     # it to AeroSpace startup means borders comes up and goes down
     # with the WM; no separate LaunchAgent to manage.
     #
-    # Colors are Catppuccin Mocha:
-    #   - lavender #b4befe → active (focused window)
-    #   - surface1 #45475a → inactive (any other tile)
+    # Colors track `appearance` via `appearance.render` (Gruvbox Dark on
+    # mac-work; Catppuccin Mocha fallback): active = lavender, inactive = surface1.
     after-startup-command = [
       'exec-and-forget /opt/homebrew/bin/borders active_color=0xffb4befe inactive_color=0xff45475a width=4.0 style=round hidpi=on'
     ]
