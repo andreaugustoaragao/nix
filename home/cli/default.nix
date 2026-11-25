@@ -39,6 +39,7 @@ in
     ./btop.nix
     ./nvim-lazyvim.nix
     ./development.nix
+    ./rust.nix
     ./agents.nix
     ./omp.nix
     ./docker.nix
