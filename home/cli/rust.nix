@@ -10,6 +10,12 @@ let
   rustToolchain = pkgs.callPackage ../../pkgs/rust-toolchain.nix { };
   rustcTarget = pkgs.stdenv.hostPlatform.rust.rustcTarget;
 
+  # Use target.<triple>.linker instead of target.<triple>.rustflags because
+  # Cargo treats target-level rustflags and project [build].rustflags as
+  # mutually exclusive (suppressing project flags like Vitals' -L path).
+  moldCc = pkgs.writeShellScriptBin "mold-cc" ''
+    exec ${pkgs.stdenv.cc}/bin/cc -B${pkgs.mold}/bin -fuse-ld=mold "$@"
+  '';
   rustStorageGc = pkgs.writeShellApplication {
     name = "rust-storage-gc";
     runtimeInputs = [
@@ -53,7 +59,7 @@ in
         rustc-wrapper = "${lib.getExe pkgs.sccache}"
 
         [target.${rustcTarget}]
-        rustflags = ["-C", "link-arg=-B${pkgs.mold}/bin", "-C", "link-arg=-fuse-ld=mold"]
+        linker = "${lib.getExe moldCc}"
       '';
     };
 
