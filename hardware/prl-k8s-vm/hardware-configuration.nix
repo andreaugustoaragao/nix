@@ -62,6 +62,10 @@ in
   # Kubelet uses the default failSwapOn=true; provision sufficient VM RAM.
   swapDevices = [ ];
 
+  services.udev.extraRules = ''
+    ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+  '';
+
   # prl-tools automatically mounts Mac shares. A headless cluster only
   # needs the kernel's virtual hardware drivers and network time sync.
   hardware.parallels.enable = false;

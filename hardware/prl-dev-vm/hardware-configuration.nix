@@ -20,6 +20,8 @@
         "xhci_pci"
         "usbhid"
         "sr_mod"
+        "ahci"
+        "nvme"
         "virtio_balloon"
         "virtio_mmio"
         "virtio_net"
@@ -42,6 +44,9 @@
     # Enable btrfs support
     supportedFilesystems = [ "btrfs" ];
   };
+  services.udev.extraRules = ''
+    ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
+  '';
 
   # Filesystem configuration
   fileSystems = {
@@ -144,16 +149,16 @@
   };
   hardware.parallels = {
     enable = true;
-    # Match Parallels Desktop on mac-work until nixpkgs-unstable packages 27.0.3.
+    # Match Parallels Desktop on mac-work until nixpkgs-unstable packages 27.1.0.
     package =
       let
-        version = "27.0.3-58680";
+        version = "27.1.0-58756";
       in
       unstable-pkgs.prl-tools.overrideAttrs {
         inherit version;
         src = unstable-pkgs.fetchurl {
           url = "https://download.parallels.com/desktop/v27/${version}/ParallelsDesktop-${version}.dmg";
-          hash = "sha256-MBF1rZS8hXWts/TO0k6XB6MowOQiAzDMTpK9Habaa+o=";
+          hash = "sha256-3sh18YutPqbpLgLNXIe5pr9gMGx2z6RnWe7/3RJq7Vc=";
         };
       };
   };
