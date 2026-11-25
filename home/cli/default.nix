@@ -53,7 +53,13 @@ in
   ]
   ++
     lib.optionals
-      (hostName != "prl-dev-vm" && hostName != "workstation" && !isBuildWorker && !isCloudAgent)
+      (
+        hostName != "prl-dev-vm"
+        && hostName != "workstation"
+        && hostName != "mac-work"
+        && !isBuildWorker
+        && !isCloudAgent
+      )
       [
         ./mise.nix
       ]

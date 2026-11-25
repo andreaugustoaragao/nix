@@ -66,6 +66,18 @@ in
         init.defaultBranch = "main";
         pull.rebase = false;
         push.autoSetupRemote = true;
+        # Performance: untracked directory cache, index v4 / skipHash,
+        # automatic commit-graph maintenance on fetch, and built-in FSEvents
+        # fsmonitor daemon on macOS (Git's built-in fsmonitor--daemon is
+        # macOS/Windows only, not Linux).
+        core = {
+          untrackedCache = true;
+        }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          fsmonitor = true;
+        };
+        feature.manyFiles = true;
+        fetch.writeCommitGraph = true;
         # Re-enable GPG signing with proper keys configured
         commit.gpgsign = true;
         tag.gpgsign = true;

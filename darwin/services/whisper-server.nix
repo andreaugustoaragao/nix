@@ -117,10 +117,9 @@ in
       StandardOutPath = "/tmp/whisper-server.out";
       StandardErrorPath = "/tmp/whisper-server.err";
       ThrottleInterval = 30;
-      # Adaptive throttles when idle; HTTP clients do not signal XPC activity.
-      # Startup is forced below because launchd can defer RunAtLoad on remote
-      # nix-darwin activation, regardless of ProcessType.
-      ProcessType = "Adaptive";
+      # Interactive prevents launchd from throttling this HTTP daemon when
+      # idle (matching local-llm.nix; HTTP clients do not signal XPC activity).
+      ProcessType = "Interactive";
       # See local-llm.nix for the full rationale — launchd's bare env
       # breaks curl behind the corporate MITM proxy. Re-use the
       # combined corporate + system bundle from darwin/certs.nix so

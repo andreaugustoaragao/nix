@@ -155,6 +155,11 @@ let
   };
 
   tomlFormat = pkgs.formats.toml { };
+  # Pre-generate the full fish init script at build time to avoid spawning
+  # `starship init fish | source` (~28 ms) on every interactive shell launch.
+  starshipFishInit = pkgs.runCommand "starship-init.fish" { } ''
+    ${pkgs.starship}/bin/starship init fish --print-full-init > "$out"
+  '';
 in
 
 {
@@ -169,7 +174,7 @@ in
   '';
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
-    ${pkgs.starship}/bin/starship init fish | source
+    source ${starshipFishInit}
   '';
 
   home.sessionVariables.STARSHIP_CONFIG = "${config.xdg.configHome}/starship/starship.toml";

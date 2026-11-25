@@ -11,6 +11,10 @@ _:
       # Use all CPU cores per build; pick parallel build count automatically.
       cores = 0;
       max-jobs = "auto";
+      # Raise transfer buffer and parallelism for faster binary cache fetches
+      # on fast links (default is 64 MiB / 25 connections).
+      download-buffer-size = 268435456;
+      http-connections = 50;
 
       # NOTE: do NOT set `auto-optimise-store` on Darwin — current
       # nix versions warn it can corrupt the store. Use the periodic

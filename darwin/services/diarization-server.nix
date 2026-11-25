@@ -86,7 +86,8 @@ in
         StandardOutPath = "/tmp/diarization-server.out";
         StandardErrorPath = "/tmp/diarization-server.err";
         ThrottleInterval = 30;
-        ProcessType = "Adaptive";
+        # Interactive prevents launchd from throttling idle HTTP requests.
+        ProcessType = "Interactive";
       };
     };
 

@@ -26,5 +26,8 @@
 {
   system.activationScripts.power.text = lib.mkAfter ''
     /usr/bin/pmset -c sleep 0
+    # High Power Mode on AC only (2 = high power, 0 = automatic on battery)
+    # for sustained Metal inference, builds, and VM throughput.
+    /usr/bin/pmset -c powermode 2
   '';
 }

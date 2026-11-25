@@ -54,7 +54,6 @@
         $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/personal"
         echo "Created project directories"
       '';
-
       # Prevent Home Manager backup collisions (e.g., .gtkrc-2.0.hm-backup2)
       cleanupHmBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Remove stale Home Manager backup files that can block activation
@@ -65,6 +64,9 @@
 
   # Let Home Manager manage itself
   programs.home-manager.enable = true;
+  # Skip rebuilding the mandb cache on every package change (~40s saved per
+  # rebuild on macOS; `man <topic>` still resolves directly via MANPATH).
+  programs.man.generateCaches = false;
 
   # Default _module.args so headless hosts (tala / mac-work) can import
   # ./cli without the wallpapers derivation pulled in by ./desktop. The

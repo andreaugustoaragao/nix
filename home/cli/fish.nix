@@ -9,6 +9,11 @@
 
 let
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
+  # Pre-generate the static fish init at build time instead of spawning
+  # `any-nix-shell fish --info-right | source` (~50 ms) on every shell launch.
+  anyNixShellFishInit = pkgs.runCommand "any-nix-shell-init.fish" { } ''
+    ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right > "$out"
+  '';
 in
 {
   # Fish shell configuration
@@ -122,7 +127,7 @@ in
 
     interactiveShellInit = appearance.render ''
       # Any-nix-shell integration for better nix-shell experience
-      ${pkgs.any-nix-shell}/bin/any-nix-shell fish --info-right | source
+      source ${anyNixShellFishInit}
 
       # ${if appearance.isGruvbox then "Gruvbox Dark" else "Catppuccin Mocha"} shell syntax colors.
       set -g fish_color_autosuggestion 6c7086

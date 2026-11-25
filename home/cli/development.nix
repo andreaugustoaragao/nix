@@ -97,6 +97,7 @@ in
         cargo-nextest # Next-generation test runner
         cargo-tarpaulin # Code coverage tool
         cargo-criterion # Benchmarking
+        sccache # Shared Rust/C/C++ compilation cache (opt-in via RUSTC_WRAPPER=sccache)
 
         # Java Development
         openjdk21 # Java runtime
@@ -225,12 +226,12 @@ in
       GOPATH = "${config.xdg.dataHome}/go";
       GOBIN = "${config.xdg.dataHome}/go/bin";
 
-      # Rust
+      # Rust (opt-in sccache cache config; keep RUSTC_WRAPPER / CARGO_INCREMENTAL
+      # per-command so single-crate incremental dev loops stay untouched)
       CARGO_HOME = "$HOME/.cargo";
       RUSTUP_HOME = "$HOME/.rustup";
-
-      # Python
-      PYTHONDONTWRITEBYTECODE = "1";
+      SCCACHE_DIR = "${config.xdg.cacheHome}/sccache";
+      SCCACHE_CACHE_SIZE = "20G";
 
       # NOTE: OPENAI_* are intentionally NOT set globally. They would shadow a
       # real key for any OpenAI-compatible tool, and the local llama.cpp
