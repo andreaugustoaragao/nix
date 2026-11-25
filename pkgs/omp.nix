@@ -6,23 +6,23 @@
   buildFHSEnv ? null,
 }:
 let
-  version = "19.0.1";
+  version = "19.1.1";
   sources = {
     aarch64-linux = {
       target = "linux-arm64";
-      hash = "sha256-I37eD0mU1h9SOALEz1YtTki650wYit15LQbQUbkHzs8=";
+      hash = "sha256-8CL3IMSJnrJMbl403LuumK4F9VMrsD6X3/wCz8jdmm8=";
     };
     x86_64-linux = {
       target = "linux-x64";
-      hash = "sha256-bO7wRDCFG7EFDG/aOvRnQS60ShHfCm/4Eh/mAQE8VBU=";
+      hash = "sha256-BOlJD5OU2m1oBEdMwuQes9GPjiYhXfSzS91K1MDYpAE=";
     };
     aarch64-darwin = {
       target = "darwin-arm64";
-      hash = "sha256-L+Qgu9APgYmYFuUcvuuVk6+lnZNo1iydPnhTXVQOMvY=";
+      hash = "sha256-1aMySs2YN1oBaYobDAGL5Iyu0pVsiqkEStE3/kO8BAA=";
     };
     x86_64-darwin = {
       target = "darwin-x64";
-      hash = "sha256-jWJQLu3ox6QzEXmENNCjGhwCSjq8Vr7cTaIAzM+U/qE=";
+      hash = "sha256-b/7LIqn+AamPkPkaLvBKaXhQojv03eg62tL+gOUag1M=";
     };
   };
   source = sources.${stdenv.hostPlatform.system};

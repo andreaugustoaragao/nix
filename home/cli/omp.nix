@@ -163,10 +163,13 @@ let
     astGrep.enabled = true;
     github.enabled = true;
     lsp.diagnosticsOnEdit = true;
+    lsp.requestTimeout = 30;
+    checkpoint.enabled = true;
     bashInterceptor.enabled = true;
     bash.gitGuard = true;
     advisor.enabled = true;
     task.perCallModel = "on";
+    task.isolation.enabled = true;
     task.agentModelOverrides = {
       sonic = "cursor/composer-2.5-fast:medium,litellm/gemini-4-hydrogen:medium";
       reviewer = "litellm/gpt-6.2-astra:high";
