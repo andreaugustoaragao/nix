@@ -160,6 +160,7 @@ let
       "${config.home.homeDirectory}/.agents/skills/pstack/skills"
     ];
     startup.checkUpdate = false;
+    startup.quiet = true;
     astGrep.enabled = true;
     github.enabled = true;
     lsp.diagnosticsOnEdit = true;
