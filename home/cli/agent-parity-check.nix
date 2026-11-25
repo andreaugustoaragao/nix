@@ -176,11 +176,17 @@ assert lib.assertMsg
     && builtins.hasAttr ".cursor/skills/unslop-ui" home.home.file
     && builtins.hasAttr ".agents/skills/inference-optimisation" home.home.file
     && builtins.hasAttr ".cursor/skills/inference-optimisation" home.home.file
+    && builtins.hasAttr ".agents/skills/modern-web-guidance" home.home.file
+    && builtins.hasAttr ".cursor/skills/modern-web-guidance" home.home.file
+    && (
+      lib.findFirst (p: (p.pname or p.name or "") == "modern-web-guidance") null home.home.packages
+      != null
+    )
     && builtins.hasAttr ".cursor/skills/grill-with-docs" home.home.file
     && builtins.hasAttr ".cursor/skills/pocock-tdd" home.home.file
     && builtins.hasAttr ".cursor/skills/pocock-teach" home.home.file
   ) homes)
-  "VM, workstation and worker must install Pocock, pstack, graphify, frontend-design, unslop-ui, and inference-optimisation skills.";
+  "VM, workstation and worker must install Pocock, pstack, graphify, frontend-design, unslop-ui, inference-optimisation, and modern-web-guidance skills.";
 pkgs.runCommand "check-agent-harness-parity" { } ''
   touch "$out"
 ''
