@@ -135,7 +135,7 @@ let
       commit = "cursor/composer-2.5-fast:low,litellm/gpt-6-luna:low";
       widget = "cursor/composer-2.5:low,litellm/gpt-6-luna";
       slow = "litellm/gpt-6.2-astra:xhigh";
-      advisor = "litellm/gpt-6.2-sol:medium";
+      advisor = "litellm/gpt-6.2-astra:high";
       judge = "litellm/gpt-6.1-terra:low";
       tiny = "litellm/gpt-6-luna";
       web = "web/exa";
@@ -186,8 +186,8 @@ let
         "litellm/gemini-4-carbon:high"
       ];
       advisor = [
+        "litellm/gpt-6.2-sol:high"
         "cursor/grok-4.7-fast:medium"
-        "litellm/gpt-6.2-astra:medium"
       ];
       task = [
         "litellm/gpt-6.2-sol:auto"
