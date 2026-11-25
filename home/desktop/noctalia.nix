@@ -76,9 +76,8 @@ in
         MemoryMin = "512M";
         MemoryLow = "1G";
         OOMScoreAdjust = 100;
-        RestartSec = 2;
         Environment = [
-          "TERMINAL=${term.command}"
+          "\"TERMINAL=${term.command}\""
           "PATH=${
             lib.makeBinPath [
               package

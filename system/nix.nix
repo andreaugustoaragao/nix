@@ -35,6 +35,10 @@
         else
           "auto";
 
+      # Match darwin/nix.nix binary-cache throughput settings (keeps build caps intact).
+      download-buffer-size = 268435456;
+      http-connections = 50;
+
       # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
       auto-optimise-store = true;
     };

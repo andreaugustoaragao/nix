@@ -145,7 +145,12 @@ in
         "docker"
         "kubectl"
       ];
-      theme = "robbyrussell";
+      # Starship renders the prompt; skipping robbyrussell shaves startup overhead.
+      theme = "";
+      extraConfig = ''
+        DISABLE_AUTO_UPDATE=true
+        DISABLE_MAGIC_FUNCTIONS=true
+      '';
     };
 
     initContent = ''

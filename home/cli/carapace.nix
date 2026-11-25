@@ -11,6 +11,10 @@ let
     HOME="$TMPDIR" ${pkgs.carapace}/bin/carapace _carapace fish \
       | ${pkgs.gnused}/bin/sed '/^fish_add_path /d' > "$out"
   '';
+  carapaceZshInit = pkgs.runCommand "carapace-init.zsh" { } ''
+    HOME="$TMPDIR" ${pkgs.carapace}/bin/carapace _carapace zsh \
+      | ${pkgs.gnused}/bin/sed '/^export PATH=/d' > "$out"
+  '';
 in
 {
   # Multi-shell completion engine — knows ~1200 CLIs out of the box
@@ -19,10 +23,14 @@ in
   programs.carapace = {
     enable = true;
     enableFishIntegration = false;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
   };
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
     source ${carapaceFishInit}
+  '';
+
+  programs.zsh.initContent = lib.mkAfter ''
+    source ${carapaceZshInit}
   '';
 }

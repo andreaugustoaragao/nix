@@ -36,6 +36,7 @@
     loader = lib.mkMerge [
       # Default systemd-boot configuration for non-workstation machines
       (lib.mkIf (!isWorkstation) {
+        timeout = lib.mkDefault 1;
         systemd-boot.enable = true;
         systemd-boot.configurationLimit = 10;
         efi.canTouchEfiVariables = true;

@@ -160,6 +160,9 @@ let
   starshipFishInit = pkgs.runCommand "starship-init.fish" { } ''
     ${pkgs.starship}/bin/starship init fish --print-full-init > "$out"
   '';
+  starshipZshInit = pkgs.runCommand "starship-init.zsh" { } ''
+    ${pkgs.starship}/bin/starship init zsh --print-full-init > "$out"
+  '';
 in
 
 {
@@ -170,13 +173,12 @@ in
   home.packages = [ pkgs.starship ];
 
   programs.zsh.initContent = lib.mkAfter ''
-    eval "$(${pkgs.starship}/bin/starship init zsh)"
+    source ${starshipZshInit}
   '';
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
     source ${starshipFishInit}
   '';
-
   home.sessionVariables.STARSHIP_CONFIG = "${config.xdg.configHome}/starship/starship.toml";
 
   # Both palette variants as immutable store files. The active config
