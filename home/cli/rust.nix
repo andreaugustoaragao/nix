@@ -41,18 +41,12 @@ in
   config = lib.mkIf (hostName == "prl-dev-vm") {
     home = {
       packages = [
-        pkgs.sccache
         pkgs.mold
         pkgs.cargo-sweep
         pkgs.cargo-cache
         pkgs.duperemove
         rustStorageGc
       ];
-
-      sessionVariables = {
-        SCCACHE_DIR = lib.mkDefault "${config.home.homeDirectory}/.cache/sccache";
-        SCCACHE_CACHE_SIZE = lib.mkDefault "20G";
-      };
 
       file.".cargo/config.toml".text = ''
         [build]

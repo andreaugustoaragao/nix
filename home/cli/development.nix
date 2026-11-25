@@ -230,8 +230,8 @@ in
       # per-command so single-crate incremental dev loops stay untouched)
       CARGO_HOME = "$HOME/.cargo";
       RUSTUP_HOME = "$HOME/.rustup";
-      SCCACHE_DIR = "${config.xdg.cacheHome}/sccache";
-      SCCACHE_CACHE_SIZE = "20G";
+      SCCACHE_DIR = lib.mkDefault "${config.xdg.cacheHome}/sccache";
+      SCCACHE_CACHE_SIZE = lib.mkDefault "20G";
 
       # NOTE: OPENAI_* are intentionally NOT set globally. They would shadow a
       # real key for any OpenAI-compatible tool, and the local llama.cpp
