@@ -135,7 +135,7 @@ let
       commit = "cursor/composer-2.5-fast:low,litellm/gpt-6-luna:low";
       widget = "cursor/composer-2.5:low,litellm/gpt-6-luna";
       slow = "litellm/gpt-6.2-astra:xhigh";
-      advisor = "litellm/gpt-6.2-astra:high";
+      advisor = "litellm/gpt-6.2-astra:high,litellm/gemini-4-carbon:high";
       judge = "litellm/gpt-6.1-terra:low";
       tiny = "litellm/gpt-6-luna";
       web = "web/exa";
@@ -172,7 +172,7 @@ let
     task.isolation.enabled = true;
     task.agentModelOverrides = {
       sonic = "cursor/composer-2.5-fast:medium,litellm/gemini-4-hydrogen:medium";
-      reviewer = "litellm/gpt-6.2-astra:high";
+      reviewer = "litellm/gpt-6.2-astra:high,litellm/gemini-4-carbon:high";
     };
     retry.fallbackChains = {
       default = [
@@ -189,6 +189,12 @@ let
         "litellm/gemini-4-carbon:high"
       ];
       advisor = [
+        "litellm/gemini-4-carbon:high"
+        "litellm/gpt-6.2-sol:high"
+        "cursor/grok-4.7-fast:medium"
+      ];
+      "litellm/gpt-6.2-astra:high" = [
+        "litellm/gemini-4-carbon:high"
         "litellm/gpt-6.2-sol:high"
         "cursor/grok-4.7-fast:medium"
       ];
