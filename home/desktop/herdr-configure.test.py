@@ -71,6 +71,43 @@ class LayoutAdoption(unittest.TestCase):
             module.configure(self.root, "absent", "herdr-app")
         self.assertFalse((self.root / "shared.json").exists())
 
+    def test_programs_merge_preserves_custom_launchers_shells_and_interpreters(self):
+        target = self.root / "programs.json"
+        target.write_text(
+            json.dumps(
+                {
+                    "shells": ["xonsh"],
+                    "interpreters": ["pipx"],
+                    "programs": {
+                        "my-agent": {"name": "My Agent", "run": ["my-agent"]},
+                    },
+                }
+            )
+        )
+        declared = Path(__file__).parent / "herdr/programs.json"
+        with patch.object(module.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
+            module.configure(self.root, "main-flat", "herdr-app", declared)
+        merged = json.loads(target.read_text())
+        self.assertEqual(merged["shells"], ["xonsh"])
+        self.assertEqual(merged["interpreters"], ["pipx"])
+        self.assertEqual(merged["programs"]["my-agent"], {"name": "My Agent", "run": ["my-agent"]})
+        self.assertEqual(merged["programs"]["omp"]["run"], ["omp"])
+        self.assertEqual(merged["programs"]["omp"]["name"], "OMP")
+
+    def test_programs_merge_creates_file_when_absent(self):
+        declared = Path(__file__).parent / "herdr/programs.json"
+        module.reconcile_programs(self.root, declared)
+        merged = json.loads((self.root / "programs.json").read_text())
+        self.assertEqual(merged["programs"]["omp"]["run"], ["omp"])
+
+    def test_invalid_programs_file_is_preserved(self):
+        target = self.root / "programs.json"
+        target.write_text("broken")
+        declared = Path(__file__).parent / "herdr/programs.json"
+        with self.assertRaises(ValueError):
+            module.reconcile_programs(self.root, declared)
+        self.assertEqual(target.read_text(), "broken")
+
 
 class PackagedDependencies(unittest.TestCase):
     def test_custom_layout_mods_are_in_the_nix_source(self):

@@ -108,12 +108,13 @@ in
         "herdrSyncedMods"
       ]
       ''
-          run ${lib.getExe pkgs.python3} ${./herdr-configure.py} \
-            --root ${lib.escapeShellArg "${config.xdg.configHome}/herdr-app"} \
-            --layout main-flat \
-        --app ${
-          if isDarwinHost then "herdr-app" else lib.getExe (pkgs.callPackage ../../pkgs/herdr-app.nix { })
-        }
+        run ${lib.getExe pkgs.python3} ${./herdr-configure.py} \
+          --root ${lib.escapeShellArg "${config.xdg.configHome}/herdr-app"} \
+          --layout main-flat \
+          --programs ${lib.escapeShellArg "${customRoot}/programs.json"} \
+          --app ${
+            if isDarwinHost then "herdr-app" else lib.getExe (pkgs.callPackage ../../pkgs/herdr-app.nix { })
+          }
       '';
 
   home.activation.herdrSyncedMods = lib.hm.dag.entryAfter [ "writeBoundary" ] (
