@@ -41,7 +41,10 @@ rustPlatform.buildRustPackage {
   version = "0.2.0";
   src = rustSrc;
 
-  cargoLock.lockFile = "${rustSrc}/Cargo.lock";
+  # Read Cargo.lock from `src` directly so `nix flake check --no-build` works on
+  # cold stores where filtered `builtins.path` (`rustSrc`) is not materialized,
+  # while keeping `src = rustSrc` so TS-only bumps still hit the Rust build cache.
+  cargoLock.lockFileContents = builtins.readFile "${src}/Cargo.lock";
   buildAndTestSubdir = ".";
   cargoBuildFlags = [
     "--workspace"
