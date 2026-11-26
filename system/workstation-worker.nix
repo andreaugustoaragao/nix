@@ -37,6 +37,10 @@ let
       pkgs.systemd
       pkgs.polkit
     ];
+    derivationArgs = {
+      preferLocalBuild = true;
+      allowSubstitutes = false;
+    };
     text = ''
       echo 'Authenticate to restart the worker VM with the installed Nix image. Persistent home and jobs stay on their separate disk.'
       systemd-run --user --unit=workstation-worker-update --property=Type=exec \

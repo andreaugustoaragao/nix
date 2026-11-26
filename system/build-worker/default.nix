@@ -71,6 +71,8 @@ in
       cores = 10;
       max-jobs = 2;
       auto-optimise-store = true;
+      min-free = 30 * 1024 * 1024 * 1024;
+      max-free = 60 * 1024 * 1024 * 1024;
       secret-key-files = [ "${identity}/cache.sec" ];
       trusted-public-keys = map lib.fileContents (builtins.filter builtins.pathExists clientSigningKeys);
     };

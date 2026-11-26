@@ -28,17 +28,23 @@
     options = [ "noatime" ];
   };
   swapDevices = [ ];
-  system.build.workerImage = pkgs.callPackage (modulesPath + "/../lib/make-disk-image.nix") {
-    inherit config;
-    # Upstream cptofs hard-codes a 100 MiB embedded kernel, too small for this closure.
-    pkgs = pkgs // {
-      lkl = pkgs.callPackage ../../pkgs/lkl-cptofs.nix { };
-    };
-    name = "workstation-worker-image";
-    format = "qcow2";
-    partitionTableType = "legacy";
-    diskSize = "auto";
-    additionalSpace = "2G";
-    copyChannel = false;
-  };
+  system.build.workerImage =
+    lib.overrideDerivation
+      (pkgs.callPackage (modulesPath + "/../lib/make-disk-image.nix") {
+        inherit config;
+        # Upstream cptofs hard-codes a 100 MiB embedded kernel, too small for this closure.
+        pkgs = pkgs // {
+          lkl = pkgs.callPackage ../../pkgs/lkl-cptofs.nix { };
+        };
+        name = "workstation-worker-image";
+        format = "qcow2";
+        partitionTableType = "legacy";
+        diskSize = "auto";
+        additionalSpace = "2G";
+        copyChannel = false;
+      })
+      (_: {
+        preferLocalBuild = true;
+        allowSubstitutes = false;
+      });
 }
