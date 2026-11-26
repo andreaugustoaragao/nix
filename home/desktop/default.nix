@@ -133,5 +133,9 @@
       swayimg
       file-roller
       (pkgs.callPackage ../../pkgs/grok-bot.nix { })
+    ]
+    ++ lib.optionals (hostName == "workstation") [
+      unstable-pkgs.antigravity-ide-fhs
+      unstable-pkgs.antigravity-hub
     ];
 }
