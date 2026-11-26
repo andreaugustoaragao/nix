@@ -12,19 +12,21 @@ in
 {
   systemd.user.services.prl-display-layout = {
     Unit = {
-      Description = "Place Niri outputs using the Parallels host display layout";
-      After = [ "niri-graphical-session.service" ];
-      PartOf = [ "niri-graphical-session.service" ];
+      Description = "Place Wayland outputs using the Parallels host display layout";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
     };
     Service = {
       Environment = [
         "NIRI_BIN=${unstable-pkgs.niri}/bin/niri"
+        "HYPRCTL_BIN=${pkgs.hyprland}/bin/hyprctl"
         "TAIL_BIN=${pkgs.coreutils}/bin/tail"
       ];
       ExecStart = "${layoutSync}/bin/prl-display-layout";
       Restart = "on-failure";
       RestartSec = 2;
     };
-    Install.WantedBy = [ "niri-graphical-session.service" ];
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 }

@@ -17,6 +17,7 @@ let
   fileManager =
     if config.programs.vereda.enable then lib.getExe config.programs.vereda.package else "thunar";
   noctalia = lib.getExe unstable-pkgs.noctalia;
+  virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   # Daily-driver terminal selection (see ./default-terminal.nix). VMs
   # fall back to kitty because ghostty's OpenGL renderer needs a GL
   # version the guest 3D driver doesn't expose.
@@ -92,6 +93,10 @@ let
         "$mainMod, period, exec, ${noctalia} msg panel-toggle control-center"
         "$mainMod SHIFT, D, exec, ${noctalia} msg theme-mode-toggle"
         "$mainMod ALT, V, exec, ${noctalia} msg panel-toggle clipboard"
+        "$mainMod SHIFT, semicolon, exec, ${noctalia} msg notification-dnd-toggle"
+        "$mainMod CTRL, semicolon, exec, ${noctalia} msg notification-clear-active"
+        "$mainMod SHIFT, I, exec, ${noctalia} msg caffeine-toggle"
+        "$mainMod ALT, N, exec, ${noctalia} msg nightlight-toggle"
       ]
     else
       lib.optionals useDms [
@@ -111,8 +116,8 @@ let
         ", XF86AudioMicMute, exec, ${noctalia} msg mic-mute"
         ", XF86MonBrightnessUp, exec, ${noctalia} msg brightness-up"
         ", XF86MonBrightnessDown, exec, ${noctalia} msg brightness-down"
-        "ALT, XF86AudioRaiseVolume, exec, pamixer -i 1"
-        "ALT, XF86AudioLowerVolume, exec, pamixer -d 1"
+        "ALT, XF86AudioRaiseVolume, exec, ${noctalia} msg volume-up 1"
+        "ALT, XF86AudioLowerVolume, exec, ${noctalia} msg volume-down 1"
         "ALT, XF86MonBrightnessUp, exec, brightnessctl set +1%"
         "ALT, XF86MonBrightnessDown, exec, brightnessctl set 1%-"
       ]
@@ -289,7 +294,9 @@ in
       monitor = [
         "DP-2, 3840x2160@120, 0x0, 1.5, transform, 3"
         "DP-1, 3840x2160@144, 1440x0, 1.25"
-        "Virtual-1, preferred, auto, 2.0"
+        "Virtual-1, preferred, auto, ${virtualOutputScale}"
+        "Virtual-2, preferred, auto, ${virtualOutputScale}"
+        "Virtual-3, preferred, auto, ${virtualOutputScale}"
         ", preferred, auto, auto"
       ];
 
@@ -353,6 +360,11 @@ in
         };
       };
 
+      # Match niri's cursor hiding without abrupt 1s disappearances.
+      cursor = {
+        inactive_timeout = 3;
+        hide_on_key_press = true;
+      };
       # General settings (Omarchy + Catppuccin). Hyprland's native
       # scrolling layout is a close match for Niri: each workspace is an
       # unbounded tape of columns, and opening a window does not resize the
@@ -373,7 +385,7 @@ in
         rounding = 10; # Round borders
 
         shadow = {
-          enabled = true;
+          enabled = !isVm;
           range = 4;
           render_power = 3;
           color = "rgba(1a1a1aee)";
@@ -387,9 +399,9 @@ in
         };
       };
 
-      # Simplified animations to reduce memory usage
+      # VM: disable animations to spare virgl GPU work, matching home/desktop/niri.nix.
       animations = {
-        enabled = "yes";
+        enabled = if isVm then "no" else "yes";
 
         bezier = [
           "easeOutQuint, 0.23, 1, 0.32, 1"
@@ -436,8 +448,12 @@ in
         vrr = 1; # Enable VRR if supported
       };
 
-      # Hyprland 0.55 moved VFR from misc to debug.
-      debug.vfr = true;
+      # Hyprland 0.55 moved VFR from misc to debug. Parallels windowed resizes
+      # can report arbitrary widths/heights not cleanly divisible by 1.5.
+      debug = {
+        vfr = true;
+        disable_scale_checks = hostName == "prl-dev-vm";
+      };
 
       # Hyprland 0.55 uses named v3 rules. Keeping them declarative fixes
       # config verification while preserving the prior Omarchy/Niri behavior.
@@ -483,7 +499,7 @@ in
             };
             chromium_opacity = {
               "match:tag" = "chromium-based-browser";
-              opacity = "1 0.97";
+              opacity = "1 1";
             };
             firefox_opacity = {
               "match:tag" = "firefox-based-browser";
@@ -527,13 +543,18 @@ in
               float = true;
               center = true;
             };
+            vereda_file_chooser = {
+              "match:class" = "^io[.]github[.]andrearagao[.]vereda[.]Picker$";
+              float = true;
+              center = true;
+              size = "1000 680";
+            };
             gtk_file_chooser = {
               "match:class" = "^xdg-desktop-portal-(gtk|gnome)$";
               float = true;
               center = true;
               size = "960 680";
             };
-
             floating_window_tag = {
               "match:class" =
                 "(blueberry[.]py|Impala|Wiremix|org[.]gnome[.]NautilusPreviewer|com[.]gabm[.]satty|Omarchy|About|TUI[.]float)";
@@ -580,6 +601,7 @@ in
           "bitwarden"
           "hidden_parallels_clipboard"
           "main_picker"
+          "vereda_file_chooser"
           "gtk_file_chooser"
           "pavucontrol"
         ]
@@ -598,13 +620,18 @@ in
       bind = [
         # Applications
         "$mainMod, Return, exec, ${term.command}"
+        ", F8, exec, quake-terminal"
         "$mainMod SHIFT, T, exec, ${fileManager}"
         "$mainMod SHIFT, B, exec, browser-default"
         "$mainMod, backslash, exec, bitwarden"
-        "$mainMod SHIFT, A, exec, browser-app https://grok.com"
-        "$mainMod SHIFT, X, exec, browser-app https://x.com"
-        "$mainMod, S, exec, window-switcher"
-
+        "$mainMod SHIFT, A, exec, browser-app --class=brave-grok https://grok.com"
+        "$mainMod SHIFT, X, exec, browser-app --class=brave-x-twitter https://x.com"
+        (
+          if useNoctalia then
+            "$mainMod, S, exec, ${noctalia} msg window-switcher"
+          else
+            "$mainMod, S, exec, window-switcher"
+        )
         # Launcher
         (
           if useNoctalia then
@@ -628,7 +655,7 @@ in
         "$mainMod CTRL, F, fullscreen, 0"
         "$mainMod, F, fullscreen, 1"
         "$mainMod, V, togglefloating,"
-
+        "$mainMod SHIFT, C, layoutmsg, center"
         # Focus (arrows + hjkl). `layoutmsg focus` follows the horizontal
         # tape and brings the selected column into view.
         "$mainMod, left, layoutmsg, focus l"
@@ -687,11 +714,23 @@ in
         "$mainMod SHIFT, minus, resizeactive, 0 -100"
         "$mainMod SHIFT, equal, resizeactive, 0 100"
 
-        # Screenshots. Niri Mod+Shift+S uses screenshot-niri (niri-
-        # native overlay); Hyprland uses the hyprshot-based script.
-        "$mainMod SHIFT, S, exec, screenshot"
-        "$mainMod SHIFT, F, exec, screenshot output"
-
+        # Screenshots. Use Noctalia's native region/annotate/fullscreen tools
+        # when Noctalia owns the shell (matching home/desktop/niri.nix).
+      ]
+      ++ (
+        if useNoctalia then
+          [
+            "$mainMod SHIFT, S, exec, ${noctalia} msg screenshot-region"
+            "$mainMod ALT, S, exec, ${noctalia} msg screenshot-annotate"
+            "$mainMod SHIFT, F, exec, ${noctalia} msg screenshot-fullscreen"
+          ]
+        else
+          [
+            "$mainMod SHIFT, S, exec, screenshot"
+            "$mainMod SHIFT, F, exec, screenshot output"
+          ]
+      )
+      ++ [
         # Same fullscreen animated branding screensaver toggle as the Niri session.
         "$mainMod CTRL, S, exec, screensaver"
 

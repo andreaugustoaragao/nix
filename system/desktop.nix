@@ -47,15 +47,27 @@
   #      would do for the target lifecycle, without actually wrapping
   #      niri in a user-systemd service. niri.nix starts the bridge
   #      via spawn-at-startup at compositor launch.
-  xdg.portal.config.niri = {
-    default = [
-      "gnome"
-      "gtk"
-    ];
-    "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
-    "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
-    "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
-    "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+  xdg.portal.config = {
+    niri = {
+      default = [
+        "gnome"
+        "gtk"
+      ];
+      "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
+      "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
+      "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
+      "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+    };
+    hyprland = {
+      default = [
+        "hyprland"
+        "gtk"
+      ];
+      "org.freedesktop.impl.portal.ScreenCast" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.Screenshot" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.GlobalShortcuts" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+    };
   };
 
   # The document portal owns a FUSE mount used by apps across logins and

@@ -72,6 +72,19 @@ class HeadLayoutTests(unittest.TestCase):
             {"Virtual-3": 0, "Virtual-1": 1354, "Virtual-2": 4042},
         )
 
+    def test_hyprland_positions_follow_live_monitor_sizes_and_transforms(self):
+        monitors = [
+            {"name": "Virtual-3", "width": 6016, "height": 3384, "scale": 1.5, "transform": 1},
+            {"name": "Virtual-1", "width": 2057, "height": 1290, "scale": 1.5, "transform": 0},
+            {"name": "Virtual-2", "width": 3384, "height": 6016, "scale": 1.5, "transform": 0},
+        ]
+        # Virtual-3 rotated 90deg -> 3384 / 1.5 = 2256
+        # Virtual-1 -> 2057 / 1.5 = 1371.333... -> std::round = 1371 (no 1px gap)
+        self.assertEqual(
+            layout_module.hyprland_desired_positions(("Virtual-3", "Virtual-2"), monitors),
+            {"Virtual-3": 0, "Virtual-1": 2256, "Virtual-2": 3627},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

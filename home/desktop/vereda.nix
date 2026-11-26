@@ -31,18 +31,30 @@ in
       xdg = {
         portal = {
           extraPortals = [ cfg.package ];
-          config.niri = {
-            default = [
-              "gnome"
-              "gtk"
-            ];
-            "org.freedesktop.impl.portal.FileChooser" = [ "vereda" ];
-            "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
-            "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
-            "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
-            "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+          config = {
+            niri = {
+              default = [
+                "gnome"
+                "gtk"
+              ];
+              "org.freedesktop.impl.portal.FileChooser" = [ "vereda" ];
+              "org.freedesktop.impl.portal.RemoteDesktop" = [ "gnome" ];
+              "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
+              "org.freedesktop.impl.portal.Screenshot" = [ "gnome" ];
+              "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+            };
+            hyprland = {
+              default = [
+                "hyprland"
+                "gtk"
+              ];
+              "org.freedesktop.impl.portal.FileChooser" = [ "vereda" ];
+              "org.freedesktop.impl.portal.ScreenCast" = [ "hyprland" ];
+              "org.freedesktop.impl.portal.Screenshot" = [ "hyprland" ];
+              "org.freedesktop.impl.portal.GlobalShortcuts" = [ "hyprland" ];
+              "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+            };
           };
-
         };
         configFile = {
           "systemd/user/xdg-desktop-portal-vereda.service".source =

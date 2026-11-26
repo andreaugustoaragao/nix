@@ -1,4 +1,4 @@
-"""Place Niri's virtual outputs using the layout reported by Parallels Tools."""
+"""Place Niri or Hyprland virtual outputs using the Parallels host display layout."""
 
 import argparse
 import json
@@ -68,6 +68,7 @@ def desired_positions(layout, outputs):
         for name in (left, "Virtual-1", right)
     ):
         return None
+
     def occupied_width(name):
         output = outputs[name]
         mode = output["modes"][output["current_mode"]]
@@ -80,7 +81,30 @@ def desired_positions(layout, outputs):
     return {left: 0, "Virtual-1": left_width, right: left_width + center_width}
 
 
-def apply_layout(layout, niri_bin, dry_run=False):
+def hyprland_desired_positions(layout, monitors):
+    by_name = {monitor.get("name"): monitor for monitor in monitors if monitor.get("name")}
+    left, right = layout
+    if any(
+        name not in by_name
+        or not by_name[name].get("width")
+        or not by_name[name].get("scale")
+        for name in (left, "Virtual-1", right)
+    ):
+        return None
+
+    def occupied_width(name):
+        monitor = by_name[name]
+        transform = monitor.get("transform", 0)
+        pixel_width = monitor["height"] if transform % 2 == 1 else monitor["width"]
+        # Hyprland 0.55.4 computes logical m_size via std::round(xfmd / scale).
+        return math.floor(pixel_width / monitor["scale"] + 0.5)
+
+    left_width = occupied_width(left)
+    center_width = occupied_width("Virtual-1")
+    return {left: 0, "Virtual-1": left_width, right: left_width + center_width}
+
+
+def apply_niri_layout(layout, niri_bin, dry_run=False):
     try:
         result = subprocess.run(
             [niri_bin, "msg", "--json", "outputs"],
@@ -116,6 +140,64 @@ def apply_layout(layout, niri_bin, dry_run=False):
         return False
 
 
+def apply_hyprland_layout(layout, hyprctl_bin, dry_run=False):
+    try:
+        result = subprocess.run(
+            [hyprctl_bin, "-j", "monitors"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        monitors = json.loads(result.stdout)
+        positions = hyprland_desired_positions(layout, monitors)
+        if positions is None:
+            return False
+        if dry_run:
+            print(f"Parallels layout: {positions}", flush=True)
+            return True
+        by_name = {monitor["name"]: monitor for monitor in monitors if monitor.get("name")}
+        if all(
+            by_name[name].get("x") == x and by_name[name].get("y") == 0
+            for name, x in positions.items()
+        ):
+            return True
+        for name, x in positions.items():
+            monitor = by_name[name]
+            scale = monitor["scale"]
+            transform = monitor.get("transform", 0)
+            rule = f"{name},preferred,{x}x0,{scale:g}"
+            if transform:
+                rule = f"{rule},transform,{transform}"
+            subprocess.run(
+                [hyprctl_bin, "keyword", "monitor", rule],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        print(f"Applied Parallels layout: {positions}", flush=True)
+        return True
+    except (json.JSONDecodeError, OSError, subprocess.SubprocessError) as error:
+        print(f"Could not apply Parallels layout: {error}", file=sys.stderr, flush=True)
+        return False
+
+
+def apply_layout(layout, niri_bin, dry_run=False, hyprctl_bin=None):
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return apply_hyprland_layout(
+            layout, hyprctl_bin or os.environ.get("HYPRCTL_BIN", "hyprctl"), dry_run
+        )
+    if os.environ.get("NIRI_SOCKET"):
+        return apply_niri_layout(layout, niri_bin, dry_run)
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+    if "hyprland" in desktop:
+        return apply_hyprland_layout(
+            layout, hyprctl_bin or os.environ.get("HYPRCTL_BIN", "hyprctl"), dry_run
+        )
+    return apply_niri_layout(layout, niri_bin, dry_run)
+
+
 def enqueue_lines(stream, events):
     for line in stream:
         if "new heads config" in line or "Dynamic Resolution:  head " in line:
@@ -131,9 +213,10 @@ def main():
     options = args.parse_args()
 
     niri_bin = os.environ.get("NIRI_BIN", "niri")
+    hyprctl_bin = os.environ.get("HYPRCTL_BIN", "hyprctl")
     if options.once:
         layout = read_layout(options.log).latest
-        return 0 if layout and apply_layout(layout, niri_bin, options.dry_run) else 1
+        return 0 if layout and apply_layout(layout, niri_bin, options.dry_run, hyprctl_bin) else 1
 
     events = queue.Queue()
     tail = subprocess.Popen(
@@ -148,18 +231,18 @@ def main():
 
     layout = read_layout(options.log)
     if layout.latest:
-        apply_layout(layout.latest, niri_bin)
+        apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
     while True:
         try:
             line = events.get(timeout=5)
         except queue.Empty:
             if layout.latest:
-                apply_layout(layout.latest, niri_bin)
+                apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
             continue
         if line is None:
             return 1
         if layout.feed(line):
-            apply_layout(layout.latest, niri_bin)
+            apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
 
 
 if __name__ == "__main__":
