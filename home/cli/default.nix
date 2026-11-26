@@ -320,7 +320,11 @@ in
         # when connecting to local VM/LAN IPs.
         openssh
       ]
-    );
+    )
+    ++ lib.optionals (hostName == "workstation") [
+      unstable-pkgs.antigravity-cli
+      unstable-pkgs.antigravity-acp
+    ];
 
   xdg.configFile."cliamp/config.toml" = lib.mkIf (isLinux && !isBuildWorker && !isCloudAgent) {
     text = ''
