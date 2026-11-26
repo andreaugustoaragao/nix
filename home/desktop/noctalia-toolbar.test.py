@@ -211,8 +211,8 @@ let
     cpu = cfg.widget.cpu;
     cpuTemp = cfg.widget.cpu-temp;
     gpuTemp = cfg.widget.gpu-temp;
-    ram = cfg.widget.ram.type;
-    disk = cfg.widget.disk.type;
+    ram = cfg.widget.ram;
+    disk = cfg.widget.disk;
     download = cfg.widget.download;
     upload = cfg.widget.upload;
     network = cfg.widget.network;
@@ -223,7 +223,7 @@ let
     plugins = cfg.plugins.enabled;
     bluetooth = cfg.widget.bluetooth;
     privacy = cfg.widget.privacy;
-    launcher = cfg.shell.panel.launcher_placement;
+    panel = cfg.shell.panel;
     notification = cfg.notification.position;
   };
 in {
@@ -326,8 +326,10 @@ in {
                     "label_min_width": 30,
                 },
             )
-            self.assertEqual(output["ram"], "aragao/dms-toolbar:ram")
-            self.assertEqual(output["disk"], "aragao/dms-toolbar:disk")
+            self.assertEqual(output["ram"]["type"], "aragao/dms-toolbar:ram")
+            self.assertEqual(output["ram"]["actions"]["left"], "panel-toggle control-center system")
+            self.assertEqual(output["disk"]["type"], "aragao/dms-toolbar:disk")
+            self.assertEqual(output["disk"]["actions"]["left"], "panel-toggle control-center system")
             self.assertEqual(output["download"]["visualization"], "none")
             self.assertEqual(output["download"]["stat"], "net_rx")
             self.assertEqual(output["upload"]["visualization"], "none")
@@ -340,7 +342,10 @@ in {
             self.assertEqual(output["plugins"], ["aragao/dms-toolbar", "aragao/nix-rebuild", "aragao/herdr"])
             self.assertEqual(output["bluetooth"], {"hide_when_adapter_off": True})
             self.assertEqual(output["privacy"], {"hide_inactive": True})
-            self.assertEqual(output["launcher"], "floating")
+            self.assertEqual(output["panel"]["launcher_placement"], "floating")
+            self.assertEqual(output["panel"]["control_center_placement"], "floating")
+            self.assertEqual(output["panel"]["control_center_position"], "auto")
+            self.assertTrue(output["panel"]["open_near_click_control_center"])
             self.assertEqual(output["notification"], "top_center")
 
     def test_bar_font_is_noto_sans_medium(self):

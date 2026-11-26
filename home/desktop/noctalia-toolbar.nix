@@ -66,14 +66,27 @@ in
       };
     };
   };
+  # bar.main uses background_opacity = 0.0 around the centered console pill,
+  # and attached panels inherit the host bar's background_opacity (making
+  # their outer surface transparent) and anchor to the invisible full-width
+  # bar edge. Keep bar panels floating (solid surface from transparency_mode)
+  # at position = "auto" with open_near_click so clicking a widget opens
+  # beneath it and keyboard shortcuts open centered under the bar.
   shell.panel = {
     launcher_placement = "floating";
     launcher_position = "center";
-    clipboard_placement = "attached";
-    clipboard_position = "top_right";
-    control_center_position = "top_right";
-    wallpaper_position = "top_left";
-    session_position = "top_right";
+    clipboard_placement = "floating";
+    clipboard_position = "auto";
+    open_near_click_clipboard = true;
+    control_center_placement = "floating";
+    control_center_position = "auto";
+    open_near_click_control_center = true;
+    wallpaper_placement = "floating";
+    wallpaper_position = "auto";
+    open_near_click_wallpaper = true;
+    session_placement = "floating";
+    session_position = "auto";
+    open_near_click_session = true;
   };
   notification.position = "top_center";
   widget = {
@@ -128,9 +141,11 @@ in
     };
     ram = band // {
       type = "aragao/dms-toolbar:ram";
+      actions.left = "panel-toggle control-center system";
     };
     disk = band // {
       type = "aragao/dms-toolbar:disk";
+      actions.left = "panel-toggle control-center system";
     };
     volume = band;
     battery = band;
