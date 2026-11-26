@@ -89,11 +89,6 @@
       flake = false;
     };
 
-    vereda-src = {
-      url = "git+ssh://git@github-work/andrearagao/vereda.git?rev=5a8f4a46765525d2142f7e81b3b35a9d6ca88e04";
-      flake = false;
-    };
-
   };
 
   outputs =
@@ -461,10 +456,7 @@
           pdfcraft = pkgs.callPackage ./pkgs/pdfcraft.nix { };
           grok-bot = pkgs.callPackage ./pkgs/grok-bot.nix { };
           folio = pkgs.callPackage ./pkgs/folio.nix { };
-          vereda = pkgs.callPackage ./pkgs/vereda.nix {
-            veredaSource = inputs.vereda-src;
-            zig = inputs.nixpkgs-unstable.legacyPackages.${system}.zig_0_17;
-          };
+          vereda = pkgs.callPackage ./pkgs/vereda.nix { };
           vitals = pkgs.callPackage ./pkgs/vitals.nix { };
           fulcrum-vault-v2 = pkgs.callPackage ./pkgs/vault-v2.nix {
             src = inputs.fulcrum-src;

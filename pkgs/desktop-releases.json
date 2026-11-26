@@ -8,11 +8,11 @@
     }
   },
   "vereda": {
-    "version": "0.1.1",
-    "sourceRevision": "584198f79509074c5ed8d2a382f124574ad218da",
+    "version": "0.1.2",
+    "sourceRevision": "5a8f4a46765525d2142f7e81b3b35a9d6ca88e04",
     "hashes": {
-      "aarch64-linux": "sha256-bpi8Df2cjbUkYpjc6wfkmauoAxfIx12gVmbLl8rBOnk=",
-      "x86_64-linux": "sha256-5xu9ORTCT79EK0jEkyioro8vymNLda/yCvmCwb+GyMo="
+      "aarch64-linux": "sha256-fXS7h9rYBuh+krNkcHOpQBDgYOBQye8TLufuXL4R29w=",
+      "x86_64-linux": "sha256-tRKv7El3B2kXXm1f7o5RDXxCmUudG/hiCg+uFrimmYk="
     }
   },
   "vitals": {

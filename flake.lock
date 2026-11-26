@@ -443,8 +443,7 @@
         "nixpkgs-unstable": "nixpkgs-unstable",
         "rust-overlay": "rust-overlay",
         "sops-nix": "sops-nix",
-        "ttfx-src": "ttfx-src",
-        "vereda-src": "vereda-src"
+        "ttfx-src": "ttfx-src"
       }
     },
     "rust-overlay": {
@@ -502,23 +501,6 @@
         "repo": "ttfx",
         "rev": "921bd551c308c235e01c5867f0199efe0691c271",
         "type": "github"
-      }
-    },
-    "vereda-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1795656311,
-        "narHash": "sha256-PUHGri3fC4NKNsF8X2dhr34Pw7TmSp1rrvceAXv3Ccg=",
-        "ref": "refs/heads/main",
-        "rev": "5a8f4a46765525d2142f7e81b3b35a9d6ca88e04",
-        "revCount": 18,
-        "type": "git",
-        "url": "ssh://git@github-work/andrearagao/vereda.git"
-      },
-      "original": {
-        "rev": "5a8f4a46765525d2142f7e81b3b35a9d6ca88e04",
-        "type": "git",
-        "url": "ssh://git@github-work/andrearagao/vereda.git"
       }
     }
   },
