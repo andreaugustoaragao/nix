@@ -8,8 +8,13 @@
   config = lib.mkIf (hostName == "prl-dev-vm") {
     # This VM runs development checks and Kubernetes alongside video calls.
     # Keeping temporary build output on disk prevents /tmp from consuming RAM.
-    boot.tmp.useTmpfs = lib.mkForce false;
-
+    # Disable NixOS's boot-only `D! /tmp` rule (cleanOnBoot) so systemd's built-in
+    # `/etc/tmpfiles.d/tmp.conf` (`q /tmp 1777 root root 10d`) runs unshadowed via
+    # `systemd-tmpfiles-clean.timer` instead of accumulating until a 22 s boot unlink.
+    boot.tmp = {
+      useTmpfs = lib.mkForce false;
+      cleanOnBoot = lib.mkForce false;
+    };
     # Compress cold anonymous pages in RAM before overflowing to the Btrfs
     # swapfile, avoiding virtual-disk I/O stalls during burst allocations.
     zramSwap = {

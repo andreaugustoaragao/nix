@@ -28,6 +28,7 @@
     "workstation"
     "prl-dev-vm"
   ]) [ ./workstation-build-client.nix ]
+  ++ lib.optionals (hostName == "prl-dev-vm") [ ./prl-linux-builder.nix ]
   ++ lib.optionals (!personalOnly) [
     ./auto-upgrade.nix
     ./matrix-alert.nix

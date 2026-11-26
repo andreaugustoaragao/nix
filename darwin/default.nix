@@ -8,6 +8,7 @@
 {
   imports = [
     ./nix.nix
+    ./linux-builder.nix
     ./users.nix
     ./packages.nix
     ./homebrew.nix

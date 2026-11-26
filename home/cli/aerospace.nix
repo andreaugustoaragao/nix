@@ -36,6 +36,11 @@ let
 in
 {
   xdg.configFile."aerospace/aerospace.toml".text = appearance.render ''
+    # Config schema v2 — explicit persistent-workspaces replaces v1's implicit
+    # inference from workspace keybindings and eliminates the reload warning.
+    config-version = 2
+    persistent-workspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+
     # Start AeroSpace at login. brew installs a launchd agent; this
     # toggle makes it active on first activation.
     start-at-login = true
@@ -73,8 +78,8 @@ in
     # --- Launching apps (parity with niri Mod+Return / Mod+Shift+* /
     #     Mod+Space) ---
     alt-enter        = "exec-and-forget /Applications/Ghostty.app/Contents/MacOS/ghostty"
-    alt-space        = "exec-and-forget open -a Tinycast"
-    alt-d            = "exec-and-forget open -a Tinycast"
+    alt-space        = "exec-and-forget open -b com.abueammar.tinycast 'tinycast://search'"
+    alt-d            = "exec-and-forget open -b com.abueammar.tinycast 'tinycast://search'"
 
     # Bitwarden — niri's Mod+Backslash equivalent (see
     # home/desktop/niri.nix). The brew cask installs Bitwarden.app
