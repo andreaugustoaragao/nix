@@ -29,6 +29,18 @@ in
           skin: ${skinName}
     '';
 
+    "k9s/aliases.yaml".text = ''
+      aliases:
+        dp: deployments
+        sec: v1/secrets
+        jo: jobs
+        cr: clusterroles
+        crb: clusterrolebindings
+        ro: roles
+        rb: rolebindings
+        np: networkpolicies
+    '';
+
     # Catppuccin Mocha skin. Static — doesn't follow system mode.
     "k9s/skins/${skinName}.yaml".text = appearance.render ''
       k9s:

@@ -322,6 +322,18 @@ in
       ]
     );
 
+  xdg.configFile."cliamp/config.toml" = lib.mkIf (isLinux && !isBuildWorker && !isCloudAgent) {
+    text = ''
+      eq_preset = "Custom"
+
+      eq = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      theme = ""
+
+      [ytmusic]
+      enabled = true
+    '';
+  };
+
   programs.bat = {
     enable = true;
     config.theme = if appearance.isGruvbox then "gruvbox-dark" else "Catppuccin Mocha";

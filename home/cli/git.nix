@@ -144,6 +144,10 @@ in
           path = workConfigPath;
         }
       ];
+
+      ignores = [
+        "**/.claude/settings.local.json"
+      ];
     };
   };
 

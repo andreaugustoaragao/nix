@@ -161,6 +161,10 @@ let
     ];
     startup.checkUpdate = false;
     startup.quiet = true;
+    dev.autoqaConsent = "granted";
+    edit.mode = "hashline";
+    bash.enabled = true;
+    memory.backend = "off";
     astGrep.enabled = true;
     github.enabled = true;
     lsp.diagnosticsOnEdit = true;

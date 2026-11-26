@@ -322,6 +322,9 @@ in
       # machine. Bump if you hit them in practice.
       MemoryHigh = "3G";
       MemoryMax = "5G";
+      CPUQuota = lib.mkIf (hostName == "prl-dev-vm") "200%";
+      CPUWeight = lib.mkIf (hostName == "prl-dev-vm") 20;
+      IOWeight = lib.mkIf (hostName == "prl-dev-vm") 20;
     };
 
     Install = {

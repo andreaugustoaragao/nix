@@ -61,6 +61,8 @@ let
       };
       "@CONFIG@/herdr-app/settings.json" =
         (json {
+          zoom = 1.1;
+          sounds.enabled = true;
           font = "CaskaydiaMono Nerd Font";
           font_size = 14.5;
           font_ligatures = true;

@@ -129,7 +129,6 @@ in
         gitui # Terminal UI for Git
         lazygit # Another terminal UI for Git
         git-filter-repo # Rewrite/filter git history
-        gh # GitHub CLI
         docker-compose # Container orchestration
         # nerdctl is Linux-only (talks to containerd via runc); see the
         # `linuxOnly` block below where we re-add it via lib.optionals.
@@ -272,6 +271,18 @@ in
     # Git configuration (already configured in git.nix if exists)
 
     # Development shells
+    gh = {
+      enable = true;
+      gitCredentialHelper.enable = false;
+      settings = {
+        git_protocol = "https";
+        prompt = "enabled";
+        aliases = {
+          co = "pr checkout";
+        };
+      };
+    };
+
     direnv = {
       enable = true;
       enableZshIntegration = false;
