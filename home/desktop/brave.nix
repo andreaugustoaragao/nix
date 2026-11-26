@@ -145,27 +145,14 @@ let
     "--ignore-gpu-blocklist"
   ];
 
-  # nixpkgs restructured the brave recipe: make-brave.nix is now a
-  # curried function (callPackage's makeOverridable wrapper is consumed
-  # by the first argument set), so `pkgs.brave` is a plain derivation
-  # with no `.override`. home-manager's chromium module calls
-  # `cfg.package.override { commandLineArgs = ...; }` whenever
-  # `commandLineArgs != []`, which fails with "attribute 'override'
-  # missing". Bake the switches in here instead, appending to the same
-  # gappsWrapperArgs the recipe uses (so our flags land after the
-  # wrapper's own --enable-features/--disable-features and win the
-  # last-value-wins switch map), and leave programs.brave.commandLineArgs
-  # empty so home-manager passes the package through untouched.
-  # Linux-only module — the Darwin brave build wraps with makeWrapper
-  # and has no gappsWrapperArgs, but home/desktop is never imported
-  # on mac-work.
-  bravePackage = (pkgs.callPackage ../../pkgs/brave.nix { }).overrideAttrs (old: {
-    preFixup = old.preFixup + ''
-      gappsWrapperArgs+=(
-        --add-flags ${lib.escapeShellArg (builtins.concatStringsSep " " commandLineArgs)}
-      )
-    '';
-  });
+  # Bake the consolidated switches into pkgs.brave via its native
+  # commandLineArgs override (which lands after the wrapper's own
+  # --enable-features/--disable-features in make-brave.nix so our flags win
+  # Chromium's last-value-wins switch map). Leave programs.brave.commandLineArgs
+  # empty so home-manager does not pass a list into make-brave's string arg.
+  bravePackage = pkgs.brave.override {
+    commandLineArgs = builtins.concatStringsSep " " commandLineArgs;
+  };
 in
 {
   home.activation.trackerBrowserTrust = lib.mkIf (hostName == "prl-dev-vm") (
@@ -179,7 +166,7 @@ in
     ''
   );
 
-  # Brave Browser configuration using the pinned upstream release
+  # Brave Browser configuration
   programs.brave = {
     enable = true;
     package = (pkgs.callPackage ../../pkgs/browser-system-theme.nix { }) {

@@ -2,9 +2,7 @@
   description = "NixOS + nix-darwin configuration for a handful of personal hosts ";
 
   inputs = {
-    # This nixos-26.05 revision has a cached Darwin mcp-nixos closure.
-    # Newer revisions build Thrift 0.24 locally, whose tests fail on macOS.
-    nixpkgs.url = "github:NixOS/nixpkgs/b25309931cfda5f0b8805f462a29897eeae50168";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     # Pin ttfx to the upstream revision used by the screensaver.
     ttfx-src = {
       url = "github:omacom/ttfx/921bd551c308c235e01c5867f0199efe0691c271";

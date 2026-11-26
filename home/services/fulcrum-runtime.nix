@@ -150,7 +150,7 @@ let
     for (const name of ['npm', 'npx']) {
       assert(!fs.lstatSync(path.join(packageRoot, 'bin', name + '-cli.js')).isSymbolicLink(), 'npm source must contain real launcher files');
     }
-    assert.equal(process.versions.node, '22.23.3');
+    assert.equal(process.versions.node, '${npmNode.version}');
     assert.equal(metadata('.').version, '10.9.9');
     assert.equal(metadata('node_modules/minimatch').version, '9.0.9');
     const brace = metadata('node_modules/brace-expansion');
