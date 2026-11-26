@@ -492,16 +492,13 @@ fn json_exposes_middle_exceptions_shapes_and_exact_pointer_filters() {
 #[test]
 fn explicit_stream_has_native_arguments_and_immediate_first_byte() {
     let _serial = CLI_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    use std::{
-        io::Read,
-        time::{Duration, Instant},
-    };
+    use std::{io::Read, sync::mpsc, time::Duration};
     let tmp = tempfile::tempdir().unwrap();
-    // Install a fake git without launching it, then put --stream before it.
+    // Print native args, then block on stdin before emitting stderr and exiting.
     let fake = fake_tool(
         tmp.path(),
         "git",
-        "printf 'ARG:%s\n' \"$@\"; sleep 1; printf 'done\n' >&2",
+        "printf 'ARG:%s\n' \"$@\"; IFS= read -r _ || true; printf 'done\n' >&2",
     );
     let path = fake
         .get_envs()
@@ -510,27 +507,40 @@ fn explicit_stream_has_native_arguments_and_immediate_first_byte() {
         .1
         .unwrap()
         .to_os_string();
-    let start = Instant::now();
     let mut child = pi(tmp.path())
+        .stdin(Stdio::piped())
         .env("PATH", path)
         .args(["--stream", "git", "log"])
         .spawn()
         .unwrap();
-    let mut first = [0; 1];
-    child
-        .stdout
-        .as_mut()
-        .unwrap()
-        .read_exact(&mut first)
-        .unwrap();
-    assert!(
-        start.elapsed() < Duration::from_millis(800),
-        "stream buffered until completion"
-    );
-    assert_eq!(&first, b"A");
-    let rest = child.wait_with_output().unwrap();
-    assert_eq!(rest.stdout, b"RG:log\n");
-    assert_eq!(rest.stderr, b"done\n");
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let mut first = [0; 1];
+        stdout.read_exact(&mut first).unwrap();
+        let _ = tx.send(first[0]);
+        stdout.read_to_end(&mut buf).unwrap();
+        buf
+    });
+    let first_byte = match rx.recv_timeout(Duration::from_secs(10)) {
+        Ok(byte) => byte,
+        Err(err) => {
+            drop(stdin);
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("stream buffered until completion or timed out: {err}");
+        }
+    };
+    assert_eq!(first_byte, b'A');
+    stdin.write_all(b"\n").unwrap();
+    drop(stdin);
+    let rest_stdout = reader.join().unwrap();
+    let status_and_err = child.wait_with_output().unwrap();
+    assert!(status_and_err.status.success());
+    assert_eq!(rest_stdout, b"RG:log\n");
+    assert_eq!(status_and_err.stderr, b"done\n");
     assert!(
         !pi(tmp.path())
             .args(["--stream", "read", "git"])
