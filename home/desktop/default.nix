@@ -135,7 +135,18 @@
       (pkgs.callPackage ../../pkgs/grok-bot.nix { })
     ]
     ++ lib.optionals (hostName == "workstation") [
-      unstable-pkgs.antigravity-ide-fhs
-      unstable-pkgs.antigravity-hub
+      (unstable-pkgs.antigravity-ide.override {
+        commandLineArgs = "--password-store=gnome-libsecret";
+      }).fhs
+      (pkgs.symlinkJoin {
+        name = "antigravity-hub-${unstable-pkgs.antigravity-hub.version}";
+        paths = [ unstable-pkgs.antigravity-hub ];
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        postBuild = ''
+          rm "$out/bin/antigravity"
+          makeWrapper "${unstable-pkgs.antigravity-hub}/bin/antigravity" "$out/bin/antigravity" \
+            --add-flags "--password-store=gnome-libsecret"
+        '';
+      })
     ];
 }
