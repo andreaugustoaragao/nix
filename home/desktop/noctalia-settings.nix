@@ -24,6 +24,12 @@ lib.recursiveUpdate
       niri_overview_type_to_launch_enabled = true;
       niri_overview_close_on_launch_enabled = true;
       readline_shortcuts = true;
+      launcher = {
+        layout = "simple";
+        categories = false;
+        compact = true;
+        show_app_origin_indicator = false;
+      };
       window_switcher = {
         mru = true;
       };
