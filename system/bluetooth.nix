@@ -7,6 +7,16 @@
   ...
 }:
 
+let
+  # BlueZ 5.86 never resets hog->report_map_id after a failed or cancelled
+  # Report Map read, permanently blocking uHID creation on reconnects until
+  # bluetoothd restarts.
+  bluezPatched = pkgs.bluez.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [
+      ../pkgs/patches/bluez-hog-reset-report-map-id.patch
+    ];
+  });
+in
 {
   config = lib.mkIf bluetooth {
     hardware = {
@@ -14,8 +24,8 @@
       bluetooth = {
         enable = true;
         powerOnBoot = true;
+        package = bluezPatched;
       };
-
       # MT7925 combo chip: firmware is already provided by linux-firmware
       # (via hardware.enableRedistributableFirmware in hardware-configuration.nix).
       # broadcom-bt-firmware is kept here for other hosts (hp-laptop) that may
@@ -79,7 +89,14 @@
           set -u
           LOG() { echo "bt-mt7925-rebind: $*" >&2; }
 
-          hci_addr() { cat /sys/class/bluetooth/hci0/address 2>/dev/null || true; }
+          hci_addr() {
+            ${bluezPatched}/bin/btmgmt info 2>/dev/null | \
+              ${pkgs.gawk}/bin/awk '
+                /^hci0:[[:space:]]+Primary controller/ { in_hci0 = 1; next }
+                /^hci[0-9]+:/ { in_hci0 = 0 }
+                in_hci0 && $1 == "addr" { print $2; exit }
+              ' || true
+          }
           is_healthy() {
             local a
             a=$(hci_addr)
@@ -97,11 +114,16 @@
             return 1
           }
 
+          if is_healthy; then
+            LOG "hci0 healthy ($(hci_addr)) at startup, nothing to do"
+            exit 0
+          fi
+
           # Give mt7925e time to finish PCIe firmware load before deciding.
           sleep 5
 
           if is_healthy; then
-            LOG "hci0 healthy ($(hci_addr)) at startup, nothing to do"
+            LOG "hci0 healthy ($(hci_addr)) after startup settle, nothing to do"
             exit 0
           fi
 
@@ -181,7 +203,6 @@
 
     # Add Bluetooth packages for GUI management
     environment.systemPackages = with pkgs; [
-      bluez
       bluez-tools
       blueman
     ];

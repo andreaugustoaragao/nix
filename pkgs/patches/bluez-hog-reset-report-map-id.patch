@@ -1,0 +1,32 @@
+Reset hog->report_map_id after the report map read completes or is cancelled.
+
+In BlueZ 5.86, read_report_map() sets hog->report_map_id and returns early
+whenever hog->report_map_id is nonzero. Neither report_map_read_cb() nor
+bt_hog_detach() clears it, so a single transient ATT read failure (or
+disconnect while the read is in flight) leaves the HoG instance unable to
+re-read the Report Map or create its uHID input device on any subsequent
+reconnect until bluetoothd is restarted.
+
+Keep hog->report_map_id nonzero across remove_gatt_req() in
+report_map_read_cb() because remove_gatt_req() invokes read_report_map() when
+a successful request drains hog->gatt_op; clear it immediately afterward and
+after bt_hog_detach() cancels pending GATT requests.
+
+--- a/profiles/input/hog-lib.c
++++ b/profiles/input/hog-lib.c
+@@ -1037,6 +1037,7 @@ static void report_map_read_cb(guint8 status, const guint8 *pdu, guint16 plen,
+ 	ssize_t vlen;
+ 
+ 	remove_gatt_req(req, status);
++	hog->report_map_id = 0;
+ 
+ 	if (status != 0) {
+ 		error("Report Map read failed: %s", att_ecode2str(status));
+@@ -1793,6 +1794,7 @@ void bt_hog_detach(struct bt_hog *hog, bool force)
+ 		bt_dis_detach(hog->dis);
+ 
+ 	queue_remove_all(hog->gatt_op, cancel_gatt_req, hog, destroy_gatt_req);
++	hog->report_map_id = 0;
+ 	g_attrib_unref(hog->attrib);
+ 	hog->attrib = NULL;
+ 
