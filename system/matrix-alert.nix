@@ -11,7 +11,7 @@ let
   #   - Goes through https://matrix.faragao.net (Cloudflare → maui's
   #     nginx → continuwuity) since the homeserver isn't local here.
   #     Internal LAN clients still resolve the same name to maui's
-  #     192.168.40.3 via maui's unbound, so this works on/off-LAN.
+  #     192.168.40.3 via OPNsense's unbound, so this works on/off-LAN.
   #   - Credentials come from sops via systemd LoadCredential, not
   #     from bare files under /data/services/matrix/.
   matrixAlert = pkgs.writeShellScript "matrix-alert" ''

@@ -54,7 +54,6 @@
                 Address = "192.168.10.75/24";
                 Gateway = "192.168.10.1";
                 DNS = [
-                  "192.168.40.3"
                   "192.168.100.2"
                 ];
                 IPv6AcceptRA = true;
@@ -64,9 +63,9 @@
                 Address = "192.168.40.10/24";
                 Gateway = "192.168.40.1";
                 DNS = [
-                  "192.168.40.3"
+                  "192.168.100.2"
+                  "9.9.9.9"
                   "1.1.1.1"
-                  "8.8.8.8"
                 ];
                 IPv6AcceptRA = true;
               }
@@ -135,7 +134,7 @@
       IPv6AcceptRA = true;
     };
     # On workstation only: don't accept DHCP/RA-supplied DNS on wifi.
-    # resolved's Global DNS (192.168.40.3) plus the ethernet per-link list
+    # resolved's Global DNS (192.168.100.2) plus the ethernet per-link list
     # already covers DNS, and adding the wifi router's resolver pushes the
     # unioned nameserver count past 3, triggering kubelet's
     # DNSConfigForming warning on every K3s pod sync (resolv.conf hard
@@ -162,16 +161,16 @@
   # interfaces (enp11s0 down, enp5s0f0 carrying the actual route),
   # resolved sometimes lists the DNS on the wrong link, falls through
   # to the global fallback list (Quad9/Cloudflare/Google), and queries
-  # never hit 192.168.40.3. Setting Global DNS on resolved sidesteps
-  # link-routing entirely — every lookup goes through 192.168.40.3
+  # never hit 192.168.100.2. Setting Global DNS on resolved sidesteps
+  # link-routing entirely — every lookup goes through 192.168.100.2
   # first regardless of which link won the network match.
   services.resolved = {
     enable = true;
     settings.Resolve = lib.mkMerge [
       (lib.mkIf (hostName == "prl-dev-vm" || hostName == "workstation") { LLMNR = "no"; })
       (lib.mkIf (hostName == "workstation") {
-        DNS = "192.168.40.3";
-        FallbackDNS = "1.1.1.1";
+        DNS = "192.168.100.2";
+        FallbackDNS = "9.9.9.9 1.1.1.1";
         Domains = "faragao.net";
         MulticastDNS = "no";
       })

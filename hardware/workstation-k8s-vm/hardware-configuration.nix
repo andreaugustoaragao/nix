@@ -38,7 +38,7 @@
   my.kubernetes.network = {
     gateway = "172.30.75.1";
     prefixLength = 30;
-    nameservers = [ "192.168.40.3" ];
+    nameservers = [ "192.168.100.2" ];
     clientNetworks = [
       "172.30.75.1/32"
       "192.168.10.0/24"
