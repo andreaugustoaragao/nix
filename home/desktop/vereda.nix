@@ -3,6 +3,7 @@
   lib,
   pkgs,
   hostName,
+  inputs,
   ...
 }:
 let
@@ -18,7 +19,10 @@ in
     enable = lib.mkEnableOption "Vereda as the desktop file manager";
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../pkgs/vereda.nix { };
+      default = pkgs.callPackage ../../pkgs/vereda.nix {
+        veredaSource = inputs.vereda-src;
+        zig = inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.zig_0_17;
+      };
       description = "Vereda native Linux file manager.";
     };
   };
