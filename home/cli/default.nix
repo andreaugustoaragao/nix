@@ -176,7 +176,6 @@ in
       aria2
       ddgr # DuckDuckGo search from the terminal
       rsync
-      openssh
       mosh
       tmux
       htop
@@ -316,6 +315,10 @@ in
         bitwarden-cli
         # Snacks.image Mermaid renderer (`mmdc`, pulls Chromium).
         mermaid-cli
+        # macOS ships Apple-signed OpenSSH in /usr/bin/ssh; an unsigned Nix
+        # ssh binary gets blocked by macOS Local Network Privacy (EHOSTUNREACH)
+        # when connecting to local VM/LAN IPs.
+        openssh
       ]
     );
 
