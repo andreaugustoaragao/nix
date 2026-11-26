@@ -132,5 +132,6 @@
     ++ lib.optionals (hostName == "prl-dev-vm") [
       swayimg
       file-roller
+      (pkgs.callPackage ../../pkgs/grok-bot.nix { })
     ];
 }

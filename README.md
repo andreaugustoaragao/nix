@@ -75,6 +75,7 @@ Notes
 
 ## Desktop Notes
 - Hyprland and Niri can be selected via sessions (UWSM).
+- Grok Bot on `prl-dev-vm` is installed through Home Manager. `pkgs/grok-bot.nix` pins the upstream Linux release for both supported architectures.
 - Waybar uses a Kanagawa-inspired theme.
 - Niri keybind highlights:
   - Mod+Home / Mod+End jump to first/last column
