@@ -143,6 +143,7 @@ in
     Unit = {
       Description = "Preset GPG passphrases from SOPS secrets";
       After = [
+        "gpg-agent.socket"
         "gpg-agent.service"
         "sops-nix.service"
       ];
@@ -150,7 +151,6 @@ in
     };
     Service = {
       Type = "oneshot";
-      ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
       ExecStart = "${pkgs.writeShellScript "gpg-preset-keys" ''
         export PATH="${
           lib.makeBinPath [
@@ -160,6 +160,12 @@ in
           ]
         }:$PATH"
         LIBEXEC="${pkgs.gnupg}/libexec"
+
+        # Wait briefly for gpg-agent's socket instead of an unconditional sleep.
+        for _ in $(seq 1 20); do
+          gpg-connect-agent /bye >/dev/null 2>&1 && break
+          sleep 0.1
+        done
 
         preset_key() {
           local email="$1" passphrase_file="$2"

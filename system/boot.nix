@@ -64,12 +64,7 @@
       })
     ];
 
-    # Stock linuxPackages_latest across all hosts. Workstation previously ran
-    # the CachyOS-tuned -lto kernel for BORE/Clang+ThinLTO/perf patches, but
-    # both cachyos-latest-lto and cachyos-lts-lto wedge MT7925 Bluetooth — the
-    # btmtk WMT firmware handshake times out on probe and on rebind. Stock
-    # mainline has the working driver. Revisit cachy once the regression is
-    # resolved upstream.
+    # Stock mainline kernel across all hosts.
     kernelPackages = pkgs.linuxPackages_latest;
 
     plymouth.enable = false;
@@ -92,18 +87,5 @@
       useTmpfs = true;
       cleanOnBoot = true;
     };
-  };
-
-  # Register xddxdd's overlay (exposes pkgs.cachyosKernels.*) and
-  # Lantian's attic cache. The cache holds the cachyos build
-  # dependencies (LLVM, patched source, ~50 MiB of toolchain) but not
-  # the final kernel — that compiles locally on first rebuild.
-  nixpkgs.overlays = lib.mkIf isWorkstation [
-    inputs.cachyos-kernel.overlays.default
-  ];
-
-  nix.settings = lib.mkIf isWorkstation {
-    substituters = [ "https://cache.lantian.pub/lantian" ];
-    trusted-public-keys = [ "lantian:WVGO7vsRMSEN+h7Lp7kv6SAmrkEXgUGbbXm7jMDjBuQ=" ];
   };
 }

@@ -1,19 +1,32 @@
-_:
-
 {
-  # Replace `cd` with zoxide across all shells. The Home Manager
-  # module emits the init line into each shell's interactive config,
-  # so no per-shell shell-out from fish.nix is needed.
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+
+let
+  zoxideZshInit = pkgs.runCommand "zoxide-init.zsh" { } ''
+    ${pkgs.zoxide}/bin/zoxide init zsh --cmd cd > "$out"
+  '';
+in
+{
+  # Replace `cd` with zoxide across all shells. Zsh sources a build-time
+  # static init script to avoid forking `zoxide init` on every shell launch.
   programs.zoxide = {
     enable = true;
     enableBashIntegration = true;
     enableFishIntegration = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
     options = [ "--cmd cd" ];
   };
 
-  # HM emits the zoxide init near the top of ~/.zshrc, which trips the
-  # doctor warning about late init. zoxide still works; the message
-  # just clutters agent shell-output capture.
+  programs.zsh.initContent = lib.mkIf config.programs.zsh.enable (
+    lib.mkAfter ''
+      source ${zoxideZshInit}
+    ''
+  );
+
+  # Keep zoxide's doctor quiet if downstream tooling wraps `cd` later.
   home.sessionVariables._ZO_DOCTOR = "0";
 }

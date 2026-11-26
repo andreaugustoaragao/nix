@@ -44,6 +44,9 @@ in
       eval "$(/opt/homebrew/bin/brew shellenv zsh)"
     '';
     enableCompletion = true;
+    # Keep compaudit active (-i ignores insecure dirs without prompting;
+    # avoid -C which bypasses the security audit altogether).
+    completionInit = "autoload -Uz compinit && compinit -i";
     autosuggestion.enable = true;
     syntaxHighlighting = {
       enable = true;
@@ -137,22 +140,6 @@ in
 
     };
 
-    oh-my-zsh = {
-      enable = true;
-      plugins = [
-        "git"
-        "sudo"
-        "docker"
-        "kubectl"
-      ];
-      # Starship renders the prompt; skipping robbyrussell shaves startup overhead.
-      theme = "";
-      extraConfig = ''
-        DISABLE_AUTO_UPDATE=true
-        DISABLE_MAGIC_FUNCTIONS=true
-      '';
-    };
-
     initContent = ''
       # Some persisted shells can inherit tracing flags from prior sessions.
       # Clear them during init so command execution does not echo aliases/functions.
@@ -164,15 +151,29 @@ in
       # /run/secrets/anthropic_api_key exists.
       ${lib.optionalString (!personalOnly) ''
         if [[ -z "''${LITELLM_API_KEY:-}" && -r /run/secrets/litellm_api_key ]]; then
-          export LITELLM_API_KEY="$(cat /run/secrets/litellm_api_key)"
+          export LITELLM_API_KEY="$(</run/secrets/litellm_api_key)"
         fi
       ''}
       if [[ -z "''${ANTHROPIC_API_KEY:-}" && -r /run/secrets/anthropic_api_key ]]; then
-        anthropic_key_raw="$(cat /run/secrets/anthropic_api_key)"
+        anthropic_key_raw="$(</run/secrets/anthropic_api_key)"
         export ANTHROPIC_API_KEY="''${anthropic_key_raw#ANTHROPIC_API_KEY=}"
         unset anthropic_key_raw
       fi
 
+      # Double-ESC toggles `sudo ` at the start of the current command line
+      # (replaces oh-my-zsh's sudo plugin without OMZ's startup overhead).
+      _sudo_command_line() {
+        [[ -z $BUFFER ]] && LBUFFER="$(fc -ln -1)"
+        if [[ $BUFFER == sudo\ * ]]; then
+          LBUFFER="''${LBUFFER#sudo }"
+        else
+          LBUFFER="sudo $LBUFFER"
+        fi
+      }
+      zle -N _sudo_command_line
+      bindkey -M emacs '\e\e' _sudo_command_line
+      bindkey -M vicmd '\e\e' _sudo_command_line
+      bindkey -M viins '\e\e' _sudo_command_line
       # Edit a sops file. On macOS the personal age key sits at the
       # default ~/.config/sops/age/keys.txt (see darwin/sops.nix) so
       # plain sops works. On NixOS the decryption key is the host

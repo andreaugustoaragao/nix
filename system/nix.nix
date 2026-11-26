@@ -41,6 +41,10 @@
 
       # Hardlink-dedup identical files in /nix/store (complements btrfs zstd).
       auto-optimise-store = true;
+
+      # Auto-GC during builds if free space dips below min-free, freeing up to max-free.
+      min-free = lib.mkDefault (20 * 1024 * 1024 * 1024);
+      max-free = lib.mkDefault (50 * 1024 * 1024 * 1024);
     };
 
     optimise = {

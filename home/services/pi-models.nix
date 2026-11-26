@@ -49,7 +49,6 @@ let
                 (import ./local-llm.nix {
                   inherit config lib pkgs;
                   inherit (profile) isWorkstation isDarwinHost;
-                  llama-pkgs = { };
                 }).services.piModels.providers.llama-cpp
             )
           )

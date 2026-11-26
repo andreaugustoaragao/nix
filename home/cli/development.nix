@@ -25,6 +25,10 @@ let
     exec ${pkgs.nixfmt}/bin/nixfmt "$@"
   '';
 
+  direnvZshInit = pkgs.runCommand "direnv-init.zsh" { } ''
+    ${pkgs.direnv}/bin/direnv hook zsh > "$out"
+  '';
+
 in
 
 {
@@ -270,11 +274,18 @@ in
     # Development shells
     direnv = {
       enable = true;
+      enableZshIntegration = false;
       nix-direnv.enable = true;
       config = {
         warn_timeout = "1h";
       };
     };
+
+    zsh.initContent = lib.mkIf config.programs.zsh.enable (
+      lib.mkAfter ''
+        source ${direnvZshInit}
+      ''
+    );
   };
 
   # XDG configuration for development tools
