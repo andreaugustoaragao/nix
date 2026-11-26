@@ -2,6 +2,7 @@
   lib,
   displays,
   personalOnly,
+  showTemperatures ? false,
 }:
 let
   dmsSession = builtins.fromJSON (builtins.readFile ./dms-session.json);
@@ -27,6 +28,12 @@ in
           "privacy"
           "tray"
           "cpu"
+        ]
+        ++ lib.optionals showTemperatures [
+          "cpu-temp"
+          "gpu-temp"
+        ]
+        ++ [
           "ram"
           "disk"
           "download"
@@ -105,6 +112,19 @@ in
       stat = "cpu_usage";
       visualization = "none";
       label_min_width = 28;
+    };
+    cpu-temp = band // {
+      type = "sysmon";
+      stat = "cpu_temp";
+      visualization = "none";
+      label_min_width = 30;
+    };
+    gpu-temp = band // {
+      type = "sysmon";
+      stat = "gpu_temp";
+      glyph = "gpu-usage";
+      visualization = "none";
+      label_min_width = 30;
     };
     ram = band // {
       type = "aragao/dms-toolbar:ram";

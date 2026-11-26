@@ -6,6 +6,7 @@
   wallpapers,
   personalOnly,
   appearance,
+  isVm ? false,
   useDms ? false,
   useNoctalia ? false,
   lockScreen ? false,
@@ -28,6 +29,7 @@ let
         ;
       inherit (config.my) displays;
       preview = true;
+      showTemperatures = !isVm;
     }
   );
   previewNiriConfig = pkgs.writeText "noctalia-preview.kdl" ''

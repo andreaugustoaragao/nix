@@ -8,14 +8,14 @@
   appearance ? null,
   homeDirectory ? null,
   preview ? false,
+  showTemperatures ? false,
 }:
 let
   barScale = 0.825;
   portraitBarScale = barScale * 1.1;
 in
-lib.recursiveUpdate (lib.recursiveUpdate
-  (builtins.fromTOML (builtins.readFile ./noctalia-personal.toml))
-  {
+lib.recursiveUpdate
+  (lib.recursiveUpdate (builtins.fromTOML (builtins.readFile ./noctalia-personal.toml)) {
     shell = {
       font_family = "Noto Sans";
       # The compositor's existing auth agent owns the graphical logind session.
@@ -99,5 +99,14 @@ lib.recursiveUpdate (lib.recursiveUpdate
     hooks = lib.optionalAttrs (!preview) {
       theme_mode_changed = "${lib.getExe pkgs.darkman} set \"$NOCTALIA_THEME_MODE\"";
     };
-  }
-) (import ./noctalia-toolbar.nix { inherit lib displays personalOnly; })
+  })
+  (
+    import ./noctalia-toolbar.nix {
+      inherit
+        lib
+        displays
+        personalOnly
+        showTemperatures
+        ;
+    }
+  )

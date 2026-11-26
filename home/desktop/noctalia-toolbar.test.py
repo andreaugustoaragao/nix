@@ -192,11 +192,12 @@ end
 let
   lib = {
     optional = cond: elem: if cond then [ elem ] else [ ];
+    optionals = cond: list: if cond then list else [ ];
     splitString = sep: s: builtins.throw "splitString should stay lazy";
   };
-  load = personalOnly:
+  load = personalOnly: showTemperatures:
     import __TOOLBAR__ {
-      inherit lib personalOnly;
+      inherit lib personalOnly showTemperatures;
       displays = { dp2 = "DP-2"; };
     };
   lists = cfg: {
@@ -208,6 +209,8 @@ let
     third = cfg.bar.main.monitor.third;
     bands = builtins.mapAttrs (_: widget: widget.capsule_band or null) cfg.widget;
     cpu = cfg.widget.cpu;
+    cpuTemp = cfg.widget.cpu-temp;
+    gpuTemp = cfg.widget.gpu-temp;
     ram = cfg.widget.ram.type;
     disk = cfg.widget.disk.type;
     download = cfg.widget.download;
@@ -224,8 +227,9 @@ let
     notification = cfg.notification.position;
   };
 in {
-  shared = lists (load false);
-  personal = lists (load true);
+  shared = lists (load false false);
+  workstation = lists (load false true);
+  personal = lists (load true false);
 }
 '''.replace("__TOOLBAR__", json.dumps(str(toolbar)))
         result = subprocess.run(
@@ -267,12 +271,18 @@ in {
             "session",
         ]
         shared = rendered["shared"]
+        workstation = rendered["workstation"]
         personal = rendered["personal"]
+        workstation_primary = primary[:6] + ["cpu-temp", "gpu-temp"] + primary[6:]
         self.assertEqual(shared["groups"][0]["members"], primary)
+        self.assertEqual(workstation["groups"][0]["members"], workstation_primary)
         self.assertEqual(personal["groups"][0]["members"], [item for item in primary if item != "recorder"])
-        for output in (shared, personal):
+        for output in (shared, workstation, personal):
             painted = {name for name, fill in output["bands"].items() if fill is not None}
-            self.assertEqual(painted, {"cpu", "ram", "disk", "download", "upload", "volume", "battery", "control-center"})
+            self.assertEqual(
+                painted,
+                {"cpu", "cpu-temp", "gpu-temp", "ram", "disk", "download", "upload", "volume", "battery", "control-center"},
+            )
             self.assertEqual({output["bands"][name] for name in painted}, {"surface_container_high"})
             self.assertEqual(output["start"], [])
             self.assertEqual(output["end"], [])
@@ -293,6 +303,27 @@ in {
                     "stat": "cpu_usage",
                     "visualization": "none",
                     "label_min_width": 28,
+                },
+            )
+            self.assertEqual(
+                output["cpuTemp"],
+                {
+                    "type": "sysmon",
+                    "capsule_band": "surface_container_high",
+                    "stat": "cpu_temp",
+                    "visualization": "none",
+                    "label_min_width": 30,
+                },
+            )
+            self.assertEqual(
+                output["gpuTemp"],
+                {
+                    "type": "sysmon",
+                    "capsule_band": "surface_container_high",
+                    "stat": "gpu_temp",
+                    "glyph": "gpu-usage",
+                    "visualization": "none",
+                    "label_min_width": 30,
                 },
             )
             self.assertEqual(output["ram"], "aragao/dms-toolbar:ram")
