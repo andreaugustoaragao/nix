@@ -53,7 +53,7 @@ export default class PersonalStatus extends View {
     const now = Date.now();
     // If personal-costs panel is open and updating, don't duplicate its work.
     if (summary && now - (summary.updatedAt ?? 0) < 7000) return;
-    if (!window().active && summary) return;
+    if (!window()?.active && summary) return;
     if (now - this.lastPoll < 6000) return;
     this.busy = true;
     this.lastPoll = now;

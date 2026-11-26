@@ -103,7 +103,7 @@ export default class PersonalCosts extends View {
     const turnChanged = turnSig !== this.lastTurnSig;
     if (turnChanged) this.lastTurnSig = turnSig;
 
-    if (!window().active && !turnChanged) return;
+    if (!window()?.active && !turnChanged) return;
 
     const now = Date.now();
     const anyWorking = space && activeAgents.some((a) => a.space === space.id && a.status === "working");

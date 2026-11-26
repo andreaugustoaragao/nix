@@ -99,7 +99,7 @@ export default class PersonalSpaces extends View {
       if (ready && this.ready[m.name] === false) for (const k of keys) if (JSON.parse(k)[0] === m.name) due.add(k);
       this.ready[m.name] = ready;
     }
-    if (window().active) {
+    if (window()?.active) {
       for (const k of keys) {
         const asks = this.git[k] || this.unsure.has(k);
         if (asks && !this.folded.has(JSON.parse(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);

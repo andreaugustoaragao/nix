@@ -54,6 +54,12 @@
         $DRY_RUN_CMD mkdir -p "${config.home.homeDirectory}/projects/personal"
         echo "Created project directories"
       '';
+
+      createScreenshotDir = lib.mkIf isDarwinHost (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run mkdir -p ${lib.escapeShellArg "${config.home.homeDirectory}/Pictures/screenshots"}
+        ''
+      );
       # Prevent Home Manager backup collisions (e.g., .gtkrc-2.0.hm-backup2)
       cleanupHmBackups = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Remove stale Home Manager backup files that can block activation

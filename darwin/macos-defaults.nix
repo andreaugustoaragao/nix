@@ -1,4 +1,4 @@
-_:
+{ homePrefix, owner, ... }:
 
 # Opinionated macOS system defaults. Each `system.defaults.*` option
 # maps to a `defaults write` invocation that nix-darwin runs on every
@@ -96,11 +96,10 @@ _:
     };
 
     # --- Screenshots -------------------------------------------------
-    # Default location is ~/Desktop, which clutters fast. Point at a
-    # dedicated dir and disable the floating thumbnail (annoying when
-    # capturing in rapid succession).
+    # Match the VM's Pictures/screenshots location using macOS casing.
+    # Home Manager creates the directory so captures never fall back to Desktop.
     screencapture = {
-      location = "~/screenshots";
+      location = "${homePrefix}/${owner.name}/Pictures/screenshots";
       type = "png";
       show-thumbnail = false;
       disable-shadow = true; # cleaner output for documentation

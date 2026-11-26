@@ -130,7 +130,9 @@ homebrewCasks = [
     # Already in service: terminals, launcher, WM, browsers, focused-window outliner.
     "ghostty",
     "kitty",
+    "herdr-app",
     "raycast",
+    "tinycast",
     "aerospace",
     "brave-browser",
     # Editors mirroring the Linux home/desktop/{vscode,zed}.nix set.

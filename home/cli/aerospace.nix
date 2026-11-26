@@ -73,8 +73,8 @@ in
     # --- Launching apps (parity with niri Mod+Return / Mod+Shift+* /
     #     Mod+Space) ---
     alt-enter        = "exec-and-forget /Applications/Ghostty.app/Contents/MacOS/ghostty"
-    alt-space        = "exec-and-forget open -a Raycast"
-    alt-d            = "exec-and-forget open -a Raycast"
+    alt-space        = "exec-and-forget open -a Tinycast"
+    alt-d            = "exec-and-forget open -a Tinycast"
 
     # Bitwarden — niri's Mod+Backslash equivalent (see
     # home/desktop/niri.nix). The brew cask installs Bitwarden.app
