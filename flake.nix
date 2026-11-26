@@ -479,21 +479,7 @@
             ];
             PI_EXTENSION_NODE_MODULES = "${(pkgs.callPackage ./pkgs/agent-binaries { }).pi}/lib/node_modules";
           };
-          rust-worker = pkgs.mkShell {
-            packages = [
-              (pkgs.callPackage ./pkgs/rust-toolchain.nix { })
-              pkgs.pkg-config
-              pkgs.cmake
-              pkgs.gnumake
-              pkgs.sccache
-            ];
-            buildInputs = [
-              pkgs.openssl
-              pkgs.zlib
-            ];
-            RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
-            CARGO_INCREMENTAL = "0";
-          };
+          rust-worker = pkgs.callPackage ./pkgs/rust-worker-shell.nix { };
         }
       );
 

@@ -1,6 +1,5 @@
 {
   config,
-  inputs,
   lib,
   pkgs,
   owner,
@@ -20,6 +19,67 @@ let
     "prl-dev-vm"
     "workstation"
   ];
+  # Minimal self-contained flake for `/etc/workstation-worker/source#rust-worker`
+  # so unrelated edits to the repository do not invalidate the 25 GiB worker image.
+  rootLock = builtins.fromJSON (builtins.readFile ../../flake.lock);
+  nixpkgsNode = rootLock.nodes.root.inputs.nixpkgs;
+  rustOverlayNode = rootLock.nodes.root.inputs.rust-overlay;
+  nixpkgsOrig = rootLock.nodes.${nixpkgsNode}.original;
+  nixpkgsRef = nixpkgsOrig.rev or nixpkgsOrig.ref;
+  workerFlakeNix = ''
+    {
+      description = "Pinned Rust worker development shell";
+      inputs = {
+        nixpkgs.url = "github:${nixpkgsOrig.owner}/${nixpkgsOrig.repo}/${nixpkgsRef}";
+        rust-overlay = {
+          url = "github:oxalica/rust-overlay";
+          inputs.nixpkgs.follows = "nixpkgs";
+        };
+      };
+      outputs =
+        { nixpkgs, rust-overlay, ... }:
+        let
+          systems = [
+            "x86_64-linux"
+            "aarch64-linux"
+          ];
+        in
+        {
+          devShells = nixpkgs.lib.genAttrs systems (
+            system:
+            let
+              pkgs = import nixpkgs {
+                inherit system;
+                overlays = [ rust-overlay.overlays.default ];
+              };
+            in
+            {
+              rust-worker = pkgs.callPackage ./pkgs/rust-worker-shell.nix { };
+            }
+          );
+        };
+    }
+  '';
+  workerFlakeLock = builtins.toJSON {
+    nodes = {
+      root.inputs = {
+        nixpkgs = nixpkgsNode;
+        rust-overlay = rustOverlayNode;
+      };
+      ${nixpkgsNode} = rootLock.nodes.${nixpkgsNode};
+      ${rustOverlayNode} = rootLock.nodes.${rustOverlayNode};
+    };
+    root = "root";
+    inherit (rootLock) version;
+  };
+  workerSource = pkgs.runCommandLocal "workstation-worker-source" { } ''
+    mkdir -p "$out/pkgs"
+    cp ${pkgs.writeText "flake.nix" workerFlakeNix} "$out/flake.nix"
+    cp ${pkgs.writeText "flake.lock" workerFlakeLock} "$out/flake.lock"
+    cp ${pkgs.writeText "rust-toolchain.toml" (builtins.readFile ../../rust-toolchain.toml)} "$out/rust-toolchain.toml"
+    cp ${pkgs.writeText "rust-toolchain.nix" (builtins.readFile ../../pkgs/rust-toolchain.nix)} "$out/pkgs/rust-toolchain.nix"
+    cp ${pkgs.writeText "rust-worker-shell.nix" (builtins.readFile ../../pkgs/rust-worker-shell.nix)} "$out/pkgs/rust-worker-shell.nix"
+  '';
 in
 {
   imports = [ ./identity.nix ];
@@ -178,7 +238,7 @@ in
     pkgs.sccache
     pkgs.curl
   ];
-  environment.etc."workstation-worker/source".source = inputs.self.outPath;
+  environment.etc."workstation-worker/source".source = workerSource;
   security.pki.certificateFiles = [
     ../../certs/internal-root-2.pem
     ../../certs/internal-root-1.pem
