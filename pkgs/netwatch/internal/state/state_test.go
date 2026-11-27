@@ -113,3 +113,87 @@ func TestSyntheticLifecycleAndCleanup(t *testing.T) {
 		t.Fatalf("CleanupSynthetic() removed=%d err=%v", removed, err)
 	}
 }
+
+func TestEventFindingsBaselineAndManualResolve(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	st, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() err: %v", err)
+	}
+	t0 := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+
+	// First AuditOK snapshot initializes BaselineExposure automatically.
+	snap1 := &model.OPNsenseSnapshot{
+		Host:           "chief-tui-opn",
+		ProductVersion: "26.7.10",
+		AuditOK:        true,
+		Exposure: model.ExposureSummary{
+			WANInterface: "igc1",
+			WANPassRules: []string{"pass-b", "pass-a"},
+			WANRDRRules:  []string{"rdr-1"},
+		},
+	}
+	if err := st.RecordSnapshot(snap1, nil, t0); err != nil {
+		t.Fatal(err)
+	}
+	// Second snapshot changes exposure; BaselineExposure must stay pinned until AcceptBaseline.
+	snap2 := *snap1
+	snap2.Exposure = model.ExposureSummary{
+		WANInterface: "igc1",
+		WANPassRules: []string{"pass-a", "pass-b", "pass-new"},
+		WANRDRRules:  []string{"rdr-1"},
+	}
+	if err := st.RecordSnapshot(&snap2, nil, t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(st.SnapshotCopy().BaselineExposure.WANPassRules); got != 2 {
+		t.Fatalf("expected baseline pinned at 2 pass rules, got %d", got)
+	}
+
+	// Event finding stays open across CleanRecheck Reconcile calls and deduplicates repeats.
+	ev := model.Finding{
+		ID:       "sec:opnsense:admin-ssh:root:192.168.30.5",
+		Category: model.CategorySecurityEvent,
+		Severity: model.SeverityUrgent,
+		Device:   "chief-tui-opn",
+		Title:    "Unexpected SSH login",
+	}
+	tf, sendUrgent, err := st.RecordEventFinding(ev, t0, DefaultUrgentReminder)
+	if err != nil || !sendUrgent || tf.Status != model.StatusOpen {
+		t.Fatalf("expected first event finding to send urgent, got send=%v err=%v", sendUrgent, err)
+	}
+	_ = st.MarkSent([]string{ev.ID}, t0)
+
+	_, sendDup, err := st.RecordEventFinding(ev, t0.Add(5*time.Minute), DefaultUrgentReminder)
+	if err != nil || sendDup {
+		t.Fatalf("expected duplicate event suppressed, got sendDup=%v err=%v", sendDup, err)
+	}
+
+	res, err := st.Reconcile(nil, true, t0.Add(10*time.Minute), DefaultUrgentReminder)
+	if err != nil || len(res.ResolvedToSend) != 0 {
+		t.Fatalf("Reconcile must NOT auto-resolve CategorySecurityEvent findings, got %d resolved", len(res.ResolvedToSend))
+	}
+	if st.SnapshotCopy().Findings[ev.ID].Status != model.StatusOpen {
+		t.Fatalf("expected event finding to stay open")
+	}
+
+	if err := st.Ack(ev.ID, "investigated", t0.Add(11*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	_, sendAfterAck, err := st.RecordEventFinding(ev, t0.Add(30*time.Hour), DefaultUrgentReminder)
+	if err != nil || sendAfterAck {
+		t.Fatalf("acked event finding must suppress reminder")
+	}
+
+	resolved, err := st.ResolveFinding(ev.ID, t0.Add(12*time.Minute))
+	if err != nil || resolved.Status != model.StatusResolved {
+		t.Fatalf("ResolveFinding failed: %+v err=%v", resolved, err)
+	}
+
+	if err := st.AcceptBaseline(t0.Add(15 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(st.SnapshotCopy().BaselineExposure.WANPassRules); got != 3 {
+		t.Fatalf("expected AcceptBaseline to promote 3 rules, got %d", got)
+	}
+}

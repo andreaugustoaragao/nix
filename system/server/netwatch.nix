@@ -34,10 +34,43 @@ in
       description = "TCP listen port for firewall push ingestion.";
     };
 
+    syslogPort = lib.mkOption {
+      type = lib.types.port;
+      default = 5514;
+      description = "Private TCP listen port for OPNsense RFC 5424 remote syslog forwarding.";
+    };
+
+    syslogStaleAfter = lib.mkOption {
+      type = lib.types.str;
+      default = "15m";
+      description = "Duration after which silence on remote syslog raises a distinct telemetry fault.";
+    };
+
+    allowedAdminUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "andre" ];
+      description = "OPNsense admin usernames considered normal.";
+    };
+
+    allowedAdminSources = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "192.168.10.75/32"
+        "192.168.50.0/24"
+      ];
+      description = "Source CIDRs permitted for expected OPNsense admin logins.";
+    };
+
+    wanInterface = lib.mkOption {
+      type = lib.types.str;
+      default = "igc1";
+      description = "OPNsense physical WAN interface name.";
+    };
+
     allowedIngestCIDRs = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "192.168.100.2/32" ];
-      description = "Source CIDRs permitted to reach netwatch ingest port via nixos-fw.";
+      description = "Source CIDRs permitted to reach netwatch ingest and syslog ports via nixos-fw.";
     };
 
     dailyHour = lib.mkOption {
@@ -88,6 +121,12 @@ in
 
       environment = {
         NETWATCH_LISTEN_ADDR = "${cfg.listenAddress}:${toString cfg.port}";
+        NETWATCH_SYSLOG_ADDR = "${cfg.listenAddress}:${toString cfg.syslogPort}";
+        NETWATCH_SYSLOG_STALE_AFTER = cfg.syslogStaleAfter;
+        NETWATCH_SYSLOG_ALLOWED_IPS = "192.168.100.2,127.0.0.1,::1";
+        NETWATCH_ADMIN_USERS = lib.concatStringsSep "," cfg.allowedAdminUsers;
+        NETWATCH_ADMIN_SOURCES = lib.concatStringsSep "," cfg.allowedAdminSources;
+        NETWATCH_WAN_IFACE = cfg.wanInterface;
         NETWATCH_STATE_FILE = "/var/lib/netwatch/state.json";
         NETWATCH_DAILY_HOUR = toString cfg.dailyHour;
         NETWATCH_DIGEST_WEEKDAY = cfg.digestWeekday;
@@ -122,13 +161,14 @@ in
       };
     };
 
-    networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (
-      cidr: "iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept"
-    ) cfg.allowedIngestCIDRs;
+    networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (cidr: ''
+      iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept
+      iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept
+    '') cfg.allowedIngestCIDRs;
 
-    networking.firewall.extraStopCommands = lib.concatMapStringsSep "\n" (
-      cidr:
-      "iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept 2>/dev/null || true"
-    ) cfg.allowedIngestCIDRs;
+    networking.firewall.extraStopCommands = lib.concatMapStringsSep "\n" (cidr: ''
+      iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept 2>/dev/null || true
+      iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept 2>/dev/null || true
+    '') cfg.allowedIngestCIDRs;
   };
 }

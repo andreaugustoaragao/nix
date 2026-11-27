@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -21,8 +22,23 @@ type IngestHandler func(ctx context.Context, snap *model.OPNsenseSnapshot) (find
 // StatusProvider supplies safe, secret-free runtime health for /healthz.
 type StatusProvider func() map[string]any
 
+// AdminHandlers exposes loopback-only state operations so CLI tools avoid racy file writes while serve runs.
+type AdminHandlers struct {
+	Status           func(ctx context.Context) (any, error)
+	Ack              func(ctx context.Context, id, note string) error
+	Resolve          func(ctx context.Context, id string) (any, error)
+	AcceptBaseline   func(ctx context.Context) error
+	Maintenance      func(ctx context.Context, minutes int, note string) (any, error)
+	CleanupSynthetic func(ctx context.Context) (int, error)
+}
+
 // NewMux constructs the HTTP handler for firewall snapshot ingestion and local health checks.
 func NewMux(ingestToken string, onIngest IngestHandler, statusFn StatusProvider) http.Handler {
+	return NewMuxWithAdmin(ingestToken, onIngest, statusFn, nil)
+}
+
+// NewMuxWithAdmin constructs the HTTP handler plus optional loopback-restricted /admin endpoints.
+func NewMuxWithAdmin(ingestToken string, onIngest IngestHandler, statusFn StatusProvider, admin *AdminHandlers) http.Handler {
 	mux := http.NewServeMux()
 	expected := []byte(strings.TrimSpace(ingestToken))
 
@@ -94,7 +110,148 @@ func NewMux(ingestToken string, onIngest IngestHandler, statusFn StatusProvider)
 		})
 	})
 
+	if admin != nil {
+		mountAdminRoutes(mux, expected, admin)
+	}
+
 	return mux
+}
+
+func mountAdminRoutes(mux *http.ServeMux, expected []byte, admin *AdminHandlers) {
+	wrap := func(method string, h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != method {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if !isLoopbackRemote(r.RemoteAddr) {
+				http.Error(w, "forbidden: loopback only", http.StatusForbidden)
+				return
+			}
+			if len(expected) == 0 || !validBearer(r.Header.Get("Authorization"), expected) {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			h(w, r)
+		}
+	}
+
+	mux.HandleFunc("/admin/status", wrap(http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		if admin.Status == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		res, err := admin.Status(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	}))
+
+	mux.HandleFunc("/admin/ack", wrap(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if admin.Ack == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		var req struct {
+			ID   string `json:"id"`
+			Note string `json:"note"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.ID) == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		if err := admin.Ack(r.Context(), strings.TrimSpace(req.ID), req.Note); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": req.ID})
+	}))
+
+	mux.HandleFunc("/admin/resolve", wrap(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if admin.Resolve == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.ID) == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		res, err := admin.Resolve(r.Context(), strings.TrimSpace(req.ID))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "finding": res})
+	}))
+
+	mux.HandleFunc("/admin/accept-baseline", wrap(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if admin.AcceptBaseline == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		if err := admin.AcceptBaseline(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}))
+
+	mux.HandleFunc("/admin/maintenance", wrap(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if admin.Maintenance == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		var req struct {
+			Minutes int    `json:"minutes"`
+			Note    string `json:"note"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		res, err := admin.Maintenance(r.Context(), req.Minutes, req.Note)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	}))
+
+	mux.HandleFunc("/admin/cleanup-synthetic", wrap(http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if admin.CleanupSynthetic == nil {
+			http.Error(w, "not implemented", http.StatusNotImplemented)
+			return
+		}
+		n, err := admin.CleanupSynthetic(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "removed": n})
+	}))
+}
+
+func isLoopbackRemote(remoteAddr string) bool {
+	host := strings.TrimSpace(remoteAddr)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func validBearer(header string, expected []byte) bool {

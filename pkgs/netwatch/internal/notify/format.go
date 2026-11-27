@@ -124,9 +124,11 @@ func FormatWeeklyDigest(st model.State, digestItems []model.TrackedFinding, synt
 		}
 	}
 
-	b.WriteString("\nKnown Monitoring Scope (TRK-30 baseline):\n")
-	b.WriteString("  - Covered: OPNsense edition/build/plugins, pkg audit VuXML, CISA KEV, Core/Plugins GHSA, Forum RSS, external Healthchecks.io heartbeat.\n")
-	b.WriteString("  - Planned next: TRK-31 firewall/admin event & IDS notifications; Wave 10 fleet health/backups/logs.\n")
+	b.WriteString("\nKnown Monitoring Scope & Visibility Limits (TRK-30 + TRK-31):\n")
+	b.WriteString("  - Audit/advisories: OPNsense edition/build/plugins, pkg audit VuXML, CISA KEV, Core/Plugins GHSA, Forum RSS, Healthchecks.io heartbeat.\n")
+	b.WriteString("  - Live North-South telemetry (chief-tui-opn): WAN igc1 (post-NAT) & LAN ix0 (pre-NAT) filterlog/admin/config/Suricata IDS leads via private TCP :5514.\n")
+	b.WriteString("  - Visibility gap (East-West): inter-VLAN traffic routed/switched locally on Brocade tamatoa (192.168.0.0/16 -> 192.168.100.1) bypasses chief-tui-opn unless it hits WAN/OPNsense or Wave 10 host logging.\n")
+	writeSyslogDigestSection(&b, st)
 	return subject, b.String()
 }
 
@@ -191,6 +193,12 @@ func writeFreshnessHeader(b *strings.Builder, st model.State) {
 	} else {
 		b.WriteString("  - Last good Healthchecks ping: NEVER\n")
 	}
+	if !st.Syslog.LastReceived.IsZero() {
+		b.WriteString(fmt.Sprintf("  - Last firewall syslog event:   %s (total=%d)\n",
+			st.Syslog.LastReceived.UTC().Format(time.RFC3339), st.Syslog.TotalReceived))
+	} else {
+		b.WriteString("  - Last firewall syslog event:   NEVER\n")
+	}
 	keys := make([]string, 0, len(st.FeedStatus))
 	for k := range st.FeedStatus {
 		keys = append(keys, k)
@@ -207,5 +215,39 @@ func writeFreshnessHeader(b *strings.Builder, st model.State) {
 			errNote = fmt.Sprintf(" [ERR: %s]", fs.LastError)
 		}
 		b.WriteString(fmt.Sprintf("  - Feed %-24s last_ok=%s (%d items)%s\n", fs.Name+":", lastOK, fs.ItemCount, errNote))
+	}
+}
+
+func writeSyslogDigestSection(b *strings.Builder, st model.State) {
+	b.WriteString("\nFirewall Telemetry & Aggregated Routine Scans (TRK-31):\n")
+	b.WriteString(fmt.Sprintf("  - Total syslog events:       %d\n", st.Syslog.TotalReceived))
+	b.WriteString(fmt.Sprintf("  - Routine WAN blocks (in):   %d (aggregated)\n", st.Syslog.WANBlockedIn))
+	b.WriteString(fmt.Sprintf("  - Internal outbound blocks:  %d\n", st.Syslog.InternalOutboundBlocked))
+	b.WriteString(fmt.Sprintf("  - Expected admin logins:     %d\n", st.Syslog.ExpectedAdminLogins))
+	b.WriteString(fmt.Sprintf("  - IDS alerts (urgent/digest): %d / %d\n", st.Syslog.IDSAlertsUrgent, st.Syslog.IDSAlertsDigest))
+	if len(st.Syslog.TopBlockedPorts) > 0 {
+		type portCnt struct {
+			port string
+			cnt  int64
+		}
+		top := make([]portCnt, 0, len(st.Syslog.TopBlockedPorts))
+		for p, c := range st.Syslog.TopBlockedPorts {
+			top = append(top, portCnt{port: p, cnt: c})
+		}
+		sort.Slice(top, func(i, j int) bool {
+			if top[i].cnt != top[j].cnt {
+				return top[i].cnt > top[j].cnt
+			}
+			return top[i].port < top[j].port
+		})
+		limit := len(top)
+		if limit > 5 {
+			limit = 5
+		}
+		parts := make([]string, 0, limit)
+		for i := 0; i < limit; i++ {
+			parts = append(parts, fmt.Sprintf("%s=%d", top[i].port, top[i].cnt))
+		}
+		b.WriteString(fmt.Sprintf("  - Top blocked WAN ports:     %s\n", strings.Join(parts, ", ")))
 	}
 }

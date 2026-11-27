@@ -163,6 +163,128 @@ func Evaluate(snap *model.OPNsenseSnapshot, bundle *feeds.FeedBundle, feedStatus
 	}
 }
 
+// EvaluateTelemetryAndExposure checks live syslog telemetry freshness and firewall WAN exposure drift.
+func EvaluateTelemetryAndExposure(st model.State, now time.Time, syslogEnabled bool, syslogStaleAfter time.Duration, startedAt time.Time) []model.Finding {
+	var out []model.Finding
+	device := "chief-tui-opn"
+	if st.LatestSnapshot != nil && strings.TrimSpace(st.LatestSnapshot.Host) != "" {
+		device = st.LatestSnapshot.Host
+	}
+
+	if syslogEnabled && syslogStaleAfter > 0 {
+		stale := false
+		lastGood := "never"
+		if st.Syslog.LastReceived.IsZero() {
+			if !startedAt.IsZero() && now.Sub(startedAt) > syslogStaleAfter {
+				stale = true
+			}
+		} else {
+			lastGood = st.Syslog.LastReceived.UTC().Format(time.RFC3339)
+			if now.Sub(st.Syslog.LastReceived) > syslogStaleAfter {
+				stale = true
+			}
+		}
+		if stale {
+			out = append(out, model.Finding{
+				ID:                "monitor:opnsense:syslog-silent",
+				Category:          "stale_monitor",
+				Severity:          model.SeverityUrgent,
+				Device:            device,
+				Title:             fmt.Sprintf("OPNsense firewall syslog telemetry is silent (last=%s)", lastGood),
+				Summary:           fmt.Sprintf("No RFC 5424 syslog event received from %s within %s (last_received=%s). Distinct from daily opn-audit-export.", device, syslogStaleAfter, lastGood),
+				RunningVersion:    "syslog-tcp:5514",
+				FixedVersion:      "Verify OPNsense System -> Settings -> Logging -> Remote targets & syslog-ng on chief-tui-opn",
+				Exposure:          summarizeExposure(st.LatestSnapshot),
+				RebootExpected:    "no",
+				RecommendedTiming: "Investigate telemetry interruption promptly",
+				Sources:           []string{"syslog-tcp"},
+				FirstSeen:         now,
+				LastSeen:          now,
+			})
+		}
+	}
+
+	maintenanceActive := st.MaintenanceUntil != nil && now.Before(*st.MaintenanceUntil)
+	if !maintenanceActive && st.LatestSnapshot != nil && st.BaselineExposure != nil {
+		if diffDesc, changed := diffExposure(*st.BaselineExposure, st.LatestSnapshot.Exposure); changed {
+			out = append(out, model.Finding{
+				ID:                "sec:opnsense:exposure-drift",
+				Category:          model.CategoryExposureDrift,
+				Severity:          model.SeverityUrgent,
+				Device:            device,
+				Title:             "Unplanned OPNsense WAN exposure drift detected",
+				Summary:           fmt.Sprintf("WAN pass/NAT exposure differs from approved baseline outside maintenance window: %s", diffDesc),
+				RunningVersion:    fmt.Sprintf("opnsense %s", st.LatestSnapshot.ProductVersion),
+				FixedVersion:      "Inspect OPNsense WAN rules/NAT; if intentional run sudo netwatch-ctl accept-baseline",
+				Exposure:          summarizeExposure(st.LatestSnapshot),
+				RebootExpected:    "no",
+				RecommendedTiming: "Immediate check unless planned ingress change",
+				Sources:           []string{"opn-audit-export"},
+				FirstSeen:         now,
+				LastSeen:          now,
+			})
+		}
+	}
+
+	return out
+}
+
+func diffExposure(baseline, current model.ExposureSummary) (string, bool) {
+	bPass := append([]string(nil), baseline.WANPassRules...)
+	cPass := append([]string(nil), current.WANPassRules...)
+	bRDR := append([]string(nil), baseline.WANRDRRules...)
+	cRDR := append([]string(nil), current.WANRDRRules...)
+	sort.Strings(bPass)
+	sort.Strings(cPass)
+	sort.Strings(bRDR)
+	sort.Strings(cRDR)
+
+	if strings.Join(bPass, "\n") == strings.Join(cPass, "\n") &&
+		strings.Join(bRDR, "\n") == strings.Join(cRDR, "\n") {
+		return "", false
+	}
+
+	addedPass, removedPass := diffLists(bPass, cPass)
+	addedRDR, removedRDR := diffLists(bRDR, cRDR)
+	var parts []string
+	if len(addedPass) > 0 {
+		parts = append(parts, "added pass rules: "+strings.Join(addedPass, "; "))
+	}
+	if len(removedPass) > 0 {
+		parts = append(parts, "removed pass rules: "+strings.Join(removedPass, "; "))
+	}
+	if len(addedRDR) > 0 {
+		parts = append(parts, "added NAT rdr: "+strings.Join(addedRDR, "; "))
+	}
+	if len(removedRDR) > 0 {
+		parts = append(parts, "removed NAT rdr: "+strings.Join(removedRDR, "; "))
+	}
+	if len(parts) == 0 {
+		return "exposure list mismatch", true
+	}
+	return strings.Join(parts, " | "), true
+}
+
+func diffLists(oldList, newList []string) (added, removed []string) {
+	oldSet := make(map[string]struct{}, len(oldList))
+	for _, x := range oldList {
+		oldSet[x] = struct{}{}
+	}
+	newSet := make(map[string]struct{}, len(newList))
+	for _, x := range newList {
+		newSet[x] = struct{}{}
+		if _, ok := oldSet[x]; !ok {
+			added = append(added, x)
+		}
+	}
+	for _, x := range oldList {
+		if _, ok := newSet[x]; !ok {
+			removed = append(removed, x)
+		}
+	}
+	return added, removed
+}
+
 func evalCoreGHSAs(snap *model.OPNsenseSnapshot, bundle *feeds.FeedBundle, device string, now time.Time) []model.Finding {
 	var out []model.Finding
 	exposure := summarizeExposure(snap)

@@ -10,6 +10,9 @@ const (
 	StatusOpen     = "open"
 	StatusAcked    = "acked"
 	StatusResolved = "resolved"
+
+	CategorySecurityEvent = "security_event"
+	CategoryExposureDrift = "exposure_drift"
 )
 
 // OPNsenseSnapshot is the read-only inventory, audit, and exposure payload pushed by the firewall.
@@ -145,10 +148,27 @@ type FeedStatus struct {
 	ItemCount   int       `json:"item_count"`
 }
 
+// SyslogStats aggregates private firewall/IDS syslog activity without storing PII or raw log storms.
+type SyslogStats struct {
+	LastReceived            time.Time        `json:"last_received,omitempty"`
+	TotalReceived           int64            `json:"total_received"`
+	WANBlockedIn            int64            `json:"wan_blocked_in"`
+	InternalOutboundBlocked int64            `json:"internal_outbound_blocked"`
+	ExpectedAdminLogins     int64            `json:"expected_admin_logins"`
+	IDSAlertsUrgent         int64            `json:"ids_alerts_urgent"`
+	IDSAlertsDigest         int64            `json:"ids_alerts_digest"`
+	TopBlockedPorts         map[string]int64 `json:"top_blocked_ports,omitempty"`
+	LastReset               time.Time        `json:"last_reset,omitempty"`
+}
+
 // State is the atomic JSON state persisted by netwatch.
 type State struct {
 	LastUpdated      time.Time                  `json:"last_updated"`
 	LatestSnapshot   *OPNsenseSnapshot          `json:"latest_snapshot,omitempty"`
+	BaselineExposure *ExposureSummary           `json:"baseline_exposure,omitempty"`
+	Syslog           SyslogStats                `json:"syslog"`
+	MaintenanceUntil *time.Time                 `json:"maintenance_until,omitempty"`
+	MaintenanceNote  string                     `json:"maintenance_note,omitempty"`
 	FeedStatus       map[string]FeedStatus      `json:"feed_status"`
 	Findings         map[string]*TrackedFinding `json:"findings"`
 	LastDailySent    time.Time                  `json:"last_daily_sent,omitempty"`

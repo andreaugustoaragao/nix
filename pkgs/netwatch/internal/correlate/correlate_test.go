@@ -218,3 +218,41 @@ func TestEvaluateKEVEscaltionCoreGHSAAndStaleSnapshot(t *testing.T) {
 		t.Fatalf("expected core GHSA match on 26.7.9, got %+v", f)
 	}
 }
+
+func TestEvaluateTelemetryAndExposure(t *testing.T) {
+	now := time.Date(2026, 11, 27, 20, 0, 0, 0, time.UTC)
+	snap := baseSnapshot(now)
+
+	// 1. Silent syslog -> monitor:opnsense:syslog-silent (distinct from stale-audit)
+	st := model.State{
+		LatestSnapshot: snap,
+		BaselineExposure: &model.ExposureSummary{
+			WANInterface: snap.Exposure.WANInterface,
+			WANPassRules: append([]string(nil), snap.Exposure.WANPassRules...),
+			WANRDRRules:  append([]string(nil), snap.Exposure.WANRDRRules...),
+		},
+		Syslog: model.SyslogStats{
+			LastReceived: now.Add(-20 * time.Minute),
+		},
+	}
+	findings := EvaluateTelemetryAndExposure(st, now, true, 15*time.Minute, now.Add(-1*time.Hour))
+	if len(findings) != 1 || findings[0].ID != "monitor:opnsense:syslog-silent" {
+		t.Fatalf("expected monitor:opnsense:syslog-silent, got %+v", findings)
+	}
+
+	// 2. Resumed syslog + drifted WAN RDR rule -> sec:opnsense:exposure-drift
+	st.Syslog.LastReceived = now.Add(-1 * time.Minute)
+	st.LatestSnapshot.Exposure.WANRDRRules = append(st.LatestSnapshot.Exposure.WANRDRRules, "rdr on igc1 proto tcp port 2222 -> 192.168.10.50")
+	findings = EvaluateTelemetryAndExposure(st, now, true, 15*time.Minute, now.Add(-1*time.Hour))
+	if len(findings) != 1 || findings[0].ID != "sec:opnsense:exposure-drift" {
+		t.Fatalf("expected sec:opnsense:exposure-drift, got %+v", findings)
+	}
+
+	// 3. Maintenance window active suppresses exposure-drift
+	until := now.Add(30 * time.Minute)
+	st.MaintenanceUntil = &until
+	findings = EvaluateTelemetryAndExposure(st, now, true, 15*time.Minute, now.Add(-1*time.Hour))
+	if len(findings) != 0 {
+		t.Fatalf("expected maintenance window to suppress exposure-drift, got %+v", findings)
+	}
+}

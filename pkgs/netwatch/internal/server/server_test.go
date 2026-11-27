@@ -74,3 +74,73 @@ func TestIngestAuthValidationAndHealthz(t *testing.T) {
 		t.Fatalf("expected 413 on oversized body, got %d", rec.Code)
 	}
 }
+
+func TestAdminRoutesLoopbackAndBearerEnforcement(t *testing.T) {
+	var ackedID string
+	h := NewMuxWithAdmin("admin-tok", nil, nil, &AdminHandlers{
+		Status: func(_ context.Context) (any, error) {
+			return map[string]any{"ok": true, "count": 2}, nil
+		},
+		Ack: func(_ context.Context, id, note string) error {
+			ackedID = id + ":" + note
+			return nil
+		},
+		Resolve: func(_ context.Context, id string) (any, error) {
+			return map[string]any{"id": id, "status": "resolved"}, nil
+		},
+		AcceptBaseline: func(_ context.Context) error {
+			return nil
+		},
+		Maintenance: func(_ context.Context, minutes int, note string) (any, error) {
+			return map[string]any{"minutes": minutes, "note": note}, nil
+		},
+		CleanupSynthetic: func(_ context.Context) (int, error) {
+			return 3, nil
+		},
+	})
+
+	// Non-loopback client with valid token must be rejected with 403 Forbidden.
+	req := httptest.NewRequest(http.MethodGet, "/admin/status", nil)
+	req.RemoteAddr = "192.168.100.2:55555"
+	req.Header.Set("Authorization", "Bearer admin-tok")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-loopback /admin/status, got %d", rec.Code)
+	}
+
+	// Loopback client without valid token -> 401
+	req = httptest.NewRequest(http.MethodGet, "/admin/status", nil)
+	req.RemoteAddr = "127.0.0.1:41234"
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauth loopback /admin/status, got %d", rec.Code)
+	}
+
+	// Loopback + valid token succeeds across admin routes
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/admin/status", ""},
+		{http.MethodPost, "/admin/ack", `{"id":"sec:1","note":"ok"}`},
+		{http.MethodPost, "/admin/resolve", `{"id":"sec:1"}`},
+		{http.MethodPost, "/admin/accept-baseline", ""},
+		{http.MethodPost, "/admin/maintenance", `{"minutes":30,"note":"patch"}`},
+		{http.MethodPost, "/admin/cleanup-synthetic", ""},
+	} {
+		req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.RemoteAddr = "127.0.0.1:41234"
+		req.Header.Set("Authorization", "Bearer admin-tok")
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s %s returned %d: %s", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+	if ackedID != "sec:1:ok" {
+		t.Fatalf("expected ack handler invoked, got %q", ackedID)
+	}
+}

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -24,6 +27,7 @@ import (
 	"faragao.net/netwatch/internal/notify"
 	"faragao.net/netwatch/internal/server"
 	"faragao.net/netwatch/internal/state"
+	"faragao.net/netwatch/internal/syslog"
 )
 
 func main() {
@@ -45,6 +49,14 @@ func main() {
 		err = cmdStatus(args)
 	case "ack":
 		err = cmdAck(args)
+	case "resolve":
+		err = cmdResolve(args)
+	case "accept-baseline":
+		err = cmdAcceptBaseline(args)
+	case "maintenance":
+		err = cmdMaintenance(args)
+	case "replay":
+		err = cmdReplay(args)
 	case "synthetic":
 		err = cmdSynthetic(args)
 	case "heartbeat":
@@ -70,12 +82,16 @@ Usage:
   netwatch <command> [flags]
 
 Commands:
-  serve       Run HTTP ingest server + periodic feed/email/heartbeat scheduler
-  evaluate    Evaluate stored firewall snapshot + live feeds once
-  status      Print current inventory, feed freshness, and tracked findings
-  ack         Acknowledge an active finding (suppresses reminders until clean recheck)
-  synthetic   Run labeled synthetic test scenarios (--kind urgent|unaffected|duplicate|stale|resolve|digest)
-  heartbeat   Send a one-shot ping (or --fail) to Healthchecks.io`)
+  serve             Run HTTP ingest server, private TCP syslog receiver, and scheduler
+  evaluate          Evaluate stored firewall snapshot + live feeds once
+  status            Print current inventory, syslog telemetry, feed freshness, and findings
+  ack               Acknowledge an active finding (suppresses reminders without closing)
+  resolve           Manually resolve an open/acked security event finding
+  accept-baseline   Promote current snapshot WAN exposure to the approved baseline
+  maintenance       Set or clear a temporary maintenance window (--minutes N [--note ...])
+  replay            Send labeled syslog/telemetry fixtures (--kind urgent|deny|duplicate|ids|syslog-silent)
+  synthetic         Run labeled advisory drills (--kind urgent|unaffected|duplicate|stale|resolve|digest)
+  heartbeat         Send a one-shot ping (or --fail) to Healthchecks.io`)
 }
 
 type engine struct {
@@ -137,6 +153,8 @@ func (e *engine) evaluateAndNotify(ctx context.Context, snap *model.OPNsenseSnap
 	}
 
 	ev := correlate.Evaluate(stCopy.LatestSnapshot, bundle, stCopy.FeedStatus, now, e.cfg.StaleAfter)
+	extra := correlate.EvaluateTelemetryAndExposure(stCopy, now, strings.TrimSpace(e.cfg.SyslogAddr) != "", e.cfg.SyslogStaleAfter, e.startedAt)
+	ev.Findings = append(ev.Findings, extra...)
 	rec, err := e.store.Reconcile(ev.Findings, ev.CleanRecheck, now, e.cfg.UrgentReminder)
 	if err != nil {
 		return ev, rec, 0, err
@@ -254,7 +272,90 @@ func cmdServe(args []string) error {
 		}
 	}
 
-	mux := server.NewMux(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
+	det := syslog.NewDetector(syslog.Policy{
+		AllowedAdminUsers:      cfg.AdminUsers,
+		AllowedAdminCIDRs:      cfg.AdminSourceCIDRs,
+		WANInterface:           cfg.WANInterface,
+		AllowedWANInboundPorts: cfg.AllowedWANInboundPorts,
+	})
+
+	if strings.TrimSpace(cfg.SyslogAddr) != "" {
+		rec, err := syslog.Listen(cfg.SyslogAddr, cfg.AllowedSyslogIPs, func(msg syslog.Message) {
+			now := msg.ReceivedAt
+			if now.IsZero() {
+				now = time.Now().UTC()
+			}
+			finding, delta := det.Process(msg, st.IsMaintenanceActive(now))
+			if !msg.Synthetic {
+				if err := st.RecordSyslogStats(now, delta.WANBlockedIn, delta.InternalOutboundBlocked, delta.ExpectedAdminLogins, delta.IDSAlertsUrgent, delta.IDSAlertsDigest, delta.BlockedPort, 30*time.Second); err != nil {
+					log.Printf("warn saving syslog stats: %v", err)
+				}
+			}
+			if finding == nil {
+				return
+			}
+			tf, shouldSend, err := st.RecordEventFinding(*finding, now, cfg.UrgentReminder)
+			if err != nil {
+				log.Printf("error recording syslog finding (%s): %v", finding.ID, err)
+				return
+			}
+			if !shouldSend {
+				return
+			}
+			subj, body := notify.FormatUrgent(tf, now)
+			sendCtx, sendCancel := context.WithTimeout(ctx, 20*time.Second)
+			defer sendCancel()
+			if err := notify.Send(sendCtx, cfg.SMTP, subj, body); err != nil {
+				log.Printf("error sending syslog urgent email (%s): %v", tf.ID, err)
+				return
+			}
+			_ = st.MarkSent([]string{tf.ID}, now)
+			log.Printf("sent urgent syslog email for %s (synthetic=%v)", tf.ID, tf.Synthetic)
+		})
+		if err != nil {
+			return fmt.Errorf("listen syslog %s: %w", cfg.SyslogAddr, err)
+		}
+		go func() {
+			log.Printf("netwatch syslog listening on %s", rec.Addr())
+			if err := rec.Serve(ctx); err != nil {
+				log.Printf("syslog receiver exited: %v", err)
+			}
+		}()
+	}
+
+	adminHandlers := &server.AdminHandlers{
+		Status: func(_ context.Context) (any, error) {
+			return st.SnapshotCopy(), nil
+		},
+		Ack: func(_ context.Context, id, note string) error {
+			return st.Ack(id, note, time.Now().UTC())
+		},
+		Resolve: func(_ context.Context, id string) (any, error) {
+			return st.ResolveFinding(id, time.Now().UTC())
+		},
+		AcceptBaseline: func(_ context.Context) error {
+			return st.AcceptBaseline(time.Now().UTC())
+		},
+		Maintenance: func(_ context.Context, minutes int, note string) (any, error) {
+			now := time.Now().UTC()
+			if minutes <= 0 {
+				if err := st.SetMaintenance(nil, "", now); err != nil {
+					return nil, err
+				}
+				return map[string]any{"ok": true, "maintenance_active": false}, nil
+			}
+			until := now.Add(time.Duration(minutes) * time.Minute)
+			if err := st.SetMaintenance(&until, note, now); err != nil {
+				return nil, err
+			}
+			return map[string]any{"ok": true, "maintenance_active": true, "maintenance_until": until.Format(time.RFC3339), "note": note}, nil
+		},
+		CleanupSynthetic: func(_ context.Context) (int, error) {
+			return st.CleanupSynthetic(time.Now().UTC())
+		},
+	}
+
+	mux := server.NewMuxWithAdmin(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
 		ev, _, sent, err := eng.evaluateAndNotify(c, snap, true)
 		if err != nil {
 			return 0, 0, err
@@ -263,15 +364,20 @@ func cmdServe(args []string) error {
 	}, func() map[string]any {
 		cp := st.SnapshotCopy()
 		out := map[string]any{
-			"service":       "netwatch",
-			"open_findings": countOpen(cp.Findings),
+			"service":            "netwatch",
+			"open_findings":      countOpen(cp.Findings),
+			"syslog_events":      cp.Syslog.TotalReceived,
+			"maintenance_active": st.IsMaintenanceActive(time.Now().UTC()),
 		}
 		if cp.LatestSnapshot != nil {
 			out["last_snapshot"] = cp.LatestSnapshot.CollectedAt.UTC().Format(time.RFC3339)
 			out["opnsense_version"] = cp.LatestSnapshot.ProductVersion
 		}
+		if !cp.Syslog.LastReceived.IsZero() {
+			out["last_syslog"] = cp.Syslog.LastReceived.UTC().Format(time.RFC3339)
+		}
 		return out
-	})
+	}, adminHandlers)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -342,6 +448,9 @@ func cmdServe(args []string) error {
 
 	select {
 	case <-ctx.Done():
+		if err := st.Save(); err != nil {
+			log.Printf("warn saving state on shutdown: %v", err)
+		}
 		shCtx, shCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shCancel()
 		return srv.Shutdown(shCtx)
@@ -394,11 +503,17 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		return err
 	}
-	st, err := state.Load(cfg.StateFile)
-	if err != nil {
+	var cp model.State
+	if used, err := tryAdminRequest(cfg, http.MethodGet, "/admin/status", nil, &cp); err != nil {
 		return err
+	} else if !used {
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
+		cp = st.SnapshotCopy()
 	}
-	cp := st.SnapshotCopy()
+
 	if cp.LatestSnapshot != nil {
 		s := cp.LatestSnapshot
 		fmt.Printf("Snapshot: %s | OPNsense %s (%s) | FreeBSD %s | collected=%s | audit_ok=%v | pkgs=%d\n",
@@ -408,6 +523,16 @@ func cmdStatus(args []string) error {
 	}
 	if !cp.LastHeartbeatOK.IsZero() {
 		fmt.Printf("Heartbeat: last_ok=%s err=%q\n", cp.LastHeartbeatOK.UTC().Format(time.RFC3339), cp.LastHeartbeatErr)
+	}
+	if !cp.Syslog.LastReceived.IsZero() {
+		fmt.Printf("Syslog: last=%s total=%d wan_blocks=%d out_blocks=%d admin_ok=%d ids_urgent=%d ids_digest=%d\n",
+			cp.Syslog.LastReceived.UTC().Format(time.RFC3339), cp.Syslog.TotalReceived, cp.Syslog.WANBlockedIn,
+			cp.Syslog.InternalOutboundBlocked, cp.Syslog.ExpectedAdminLogins, cp.Syslog.IDSAlertsUrgent, cp.Syslog.IDSAlertsDigest)
+	} else {
+		fmt.Println("Syslog: none")
+	}
+	if cp.MaintenanceUntil != nil && time.Now().UTC().Before(*cp.MaintenanceUntil) {
+		fmt.Printf("Maintenance: ACTIVE until %s (%s)\n", cp.MaintenanceUntil.UTC().Format(time.RFC3339), cp.MaintenanceNote)
 	}
 	var ids []string
 	for id := range cp.Findings {
@@ -437,15 +562,252 @@ func cmdAck(args []string) error {
 	if err != nil {
 		return err
 	}
-	st, err := state.Load(cfg.StateFile)
+	used, err := tryAdminRequest(cfg, http.MethodPost, "/admin/ack", map[string]string{
+		"id":   strings.TrimSpace(*id),
+		"note": *note,
+	}, nil)
 	if err != nil {
 		return err
 	}
-	if err := st.Ack(strings.TrimSpace(*id), *note, time.Now().UTC()); err != nil {
+	if !used {
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
+		if err := st.Ack(strings.TrimSpace(*id), *note, time.Now().UTC()); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("acknowledged %s (remains open until clean recheck/resolve closes it)\n", *id)
+	return nil
+}
+
+func cmdResolve(args []string) error {
+	fs := flag.NewFlagSet("resolve", flag.ExitOnError)
+	envFile := fs.String("env-file", "", "Optional environment file path")
+	id := fs.String("id", "", "Finding ID to resolve")
+	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	fmt.Printf("acknowledged %s (remains open until clean recheck resolves it)\n", *id)
+	if strings.TrimSpace(*id) == "" {
+		return errors.New("--id is required")
+	}
+	cfg, err := config.Load(*envFile)
+	if err != nil {
+		return err
+	}
+	used, err := tryAdminRequest(cfg, http.MethodPost, "/admin/resolve", map[string]string{
+		"id": strings.TrimSpace(*id),
+	}, nil)
+	if err != nil {
+		return err
+	}
+	if !used {
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
+		if _, err := st.ResolveFinding(strings.TrimSpace(*id), time.Now().UTC()); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("resolved %s\n", *id)
 	return nil
+}
+
+func cmdAcceptBaseline(args []string) error {
+	fs := flag.NewFlagSet("accept-baseline", flag.ExitOnError)
+	envFile := fs.String("env-file", "", "Optional environment file path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*envFile)
+	if err != nil {
+		return err
+	}
+	used, err := tryAdminRequest(cfg, http.MethodPost, "/admin/accept-baseline", nil, nil)
+	if err != nil {
+		return err
+	}
+	if !used {
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
+		if err := st.AcceptBaseline(time.Now().UTC()); err != nil {
+			return err
+		}
+	}
+	fmt.Println("promoted current WAN exposure to approved baseline")
+	return nil
+}
+
+func cmdMaintenance(args []string) error {
+	fs := flag.NewFlagSet("maintenance", flag.ExitOnError)
+	envFile := fs.String("env-file", "", "Optional environment file path")
+	minutes := fs.Int("minutes", 60, "Duration in minutes (<=0 clears window)")
+	note := fs.String("note", "planned maintenance", "Maintenance reason note")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*envFile)
+	if err != nil {
+		return err
+	}
+	used, err := tryAdminRequest(cfg, http.MethodPost, "/admin/maintenance", map[string]any{
+		"minutes": *minutes,
+		"note":    *note,
+	}, nil)
+	if err != nil {
+		return err
+	}
+	if !used {
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		if *minutes <= 0 {
+			if err := st.SetMaintenance(nil, "", now); err != nil {
+				return err
+			}
+		} else {
+			until := now.Add(time.Duration(*minutes) * time.Minute)
+			if err := st.SetMaintenance(&until, *note, now); err != nil {
+				return err
+			}
+		}
+	}
+	if *minutes <= 0 {
+		fmt.Println("cleared maintenance window")
+	} else {
+		fmt.Printf("enabled maintenance window for %d minutes (%s)\n", *minutes, *note)
+	}
+	return nil
+}
+
+func cmdReplay(args []string) error {
+	fs := flag.NewFlagSet("replay", flag.ExitOnError)
+	envFile := fs.String("env-file", "", "Optional environment file path")
+	addr := fs.String("addr", "", "Syslog TCP target (default 127.0.0.1:<syslog port>)")
+	kind := fs.String("kind", "urgent", "Fixture kind: urgent|deny|duplicate|ids|syslog-silent")
+	send := fs.Bool("send", false, "Send labeled [SYNTHETIC TEST] email directly when kind=syslog-silent")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*envFile)
+	if err != nil {
+		return err
+	}
+	target := strings.TrimSpace(*addr)
+	if target == "" {
+		port := "5514"
+		if _, p, err := net.SplitHostPort(cfg.SyslogAddr); err == nil && p != "" {
+			port = p
+		}
+		target = "127.0.0.1:" + port
+	}
+
+	now := time.Now().UTC()
+	ts := now.Format(time.RFC3339)
+	switch *kind {
+	case "urgent", "duplicate":
+		line := fmt.Sprintf(`<38>1 %s chief-tui-opn.faragao.net sshd 99999 - [SYNTHETIC TEST] Accepted publickey for root from 192.168.30.99 port 51234 ssh2 [SYNTHETIC TEST] token=secret123`, ts)
+		if err := syslog.SendFixture(target, line); err != nil {
+			return err
+		}
+		fmt.Printf("replayed syslog %s fixture to %s\n", *kind, target)
+	case "deny":
+		line := fmt.Sprintf(`<134>1 %s chief-tui-opn.faragao.net filterlog 99999 - [SYNTHETIC TEST] 5,,,syn0001,igc1,match,block,in,4,0x0,,248,1,0,none,6,tcp,44,198.51.100.77,174.16.196.251,51919,56332,0,S,1,,65535,,mss`, ts)
+		if err := syslog.SendFixture(target, line); err != nil {
+			return err
+		}
+		fmt.Printf("replayed routine deny syslog fixture to %s (no urgent email expected)\n", target)
+	case "ids":
+		line := fmt.Sprintf(`<134>1 %s chief-tui-opn.faragao.net suricata 99999 - [SYNTHETIC TEST] [1:2010935:4] [SYNTHETIC TEST] ET MALWARE Suspect C2 Beacon [Classification: A Network Trojan was detected] [Priority: 1] {TCP} 192.168.30.50:49152 -> 203.0.113.10:8080`, ts)
+		if err := syslog.SendFixture(target, line); err != nil {
+			return err
+		}
+		fmt.Printf("replayed Suricata P1 IDS lead fixture to %s\n", target)
+	case "syslog-silent":
+		tf := model.TrackedFinding{
+			Finding: model.Finding{
+				ID:                "synthetic:syslog-silent",
+				Category:          "stale_monitor",
+				Severity:          model.SeverityUrgent,
+				Device:            "chief-tui-opn.faragao.net",
+				Title:             "SYNTHETIC OPNsense Firewall Syslog Telemetry Silence Drill",
+				Summary:           fmt.Sprintf("Simulated >%s gap on private TCP :5514 syslog telemetry (distinct from daily opn-audit-export).", cfg.SyslogStaleAfter),
+				RunningVersion:    "syslog-tcp:5514",
+				FixedVersion:      "Verify OPNsense System -> Settings -> Logging -> Remote targets",
+				Exposure:          "Live syslog blind spot",
+				RebootExpected:    "no",
+				RecommendedTiming: "SYNTHETIC DRILL — verify distinct fault format & delivery",
+				Sources:           []string{"syslog-tcp"},
+				Synthetic:         true,
+			},
+			Status: model.StatusOpen,
+		}
+		subj, body := notify.FormatUrgent(tf, now)
+		if *send {
+			if err := notify.Send(context.Background(), cfg.SMTP, subj, body); err != nil {
+				return err
+			}
+			fmt.Println("SYNTHETIC SYSLOG SILENCE EMAIL SENT")
+		} else {
+			fmt.Printf("Subject: %s\n\n%s\n", subj, body)
+		}
+	default:
+		return fmt.Errorf("unknown replay kind %q", *kind)
+	}
+	return nil
+}
+
+func loopbackAdminAddr(listenAddr string) string {
+	_, port, err := net.SplitHostPort(strings.TrimSpace(listenAddr))
+	if err != nil || port == "" {
+		port = "9400"
+	}
+	return "127.0.0.1:" + port
+}
+
+func tryAdminRequest(cfg config.Config, method, path string, reqBody any, out any) (bool, error) {
+	if strings.TrimSpace(cfg.IngestToken) == "" {
+		return false, nil
+	}
+	var bodyReader io.Reader
+	if reqBody != nil {
+		raw, err := json.Marshal(reqBody)
+		if err != nil {
+			return false, err
+		}
+		bodyReader = bytes.NewReader(raw)
+	}
+	url := "http://" + loopbackAdminAddr(cfg.ListenAddr) + path
+	req, err := http.NewRequestWithContext(context.Background(), method, url, bodyReader)
+	if err != nil {
+		return false, nil
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(cfg.IngestToken))
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, nil // serve daemon not reachable locally; fall back to file store
+	}
+	defer resp.Body.Close()
+	rawResp, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return true, fmt.Errorf("admin %s returned HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(rawResp)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(rawResp, out); err != nil {
+			return true, fmt.Errorf("decode %s response: %w", path, err)
+		}
+	}
+	return true, nil
 }
 
 func cmdSynthetic(args []string) error {
@@ -461,19 +823,33 @@ func cmdSynthetic(args []string) error {
 	if err != nil {
 		return err
 	}
-	st, err := state.Load(cfg.StateFile)
-	if err != nil {
-		return err
-	}
 	now := time.Now().UTC()
 
 	if *cleanup {
+		var res struct {
+			Removed int `json:"removed"`
+		}
+		if used, err := tryAdminRequest(cfg, http.MethodPost, "/admin/cleanup-synthetic", nil, &res); err != nil {
+			return err
+		} else if used {
+			fmt.Printf("cleaned up %d synthetic finding(s)\n", res.Removed)
+			return nil
+		}
+		st, err := state.Load(cfg.StateFile)
+		if err != nil {
+			return err
+		}
 		n, err := st.CleanupSynthetic(now)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("cleaned up %d synthetic finding(s)\n", n)
 		return nil
+	}
+
+	st, err := state.Load(cfg.StateFile)
+	if err != nil {
+		return err
 	}
 
 	var subj, body string

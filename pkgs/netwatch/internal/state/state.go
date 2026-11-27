@@ -18,9 +18,10 @@ const DefaultUrgentReminder = 24 * time.Hour
 
 // Store provides atomic JSON persistence and concurrency-safe finding lifecycle operations.
 type Store struct {
-	mu   sync.Mutex
-	path string
-	data model.State
+	mu              sync.Mutex
+	path            string
+	data            model.State
+	lastSyslogFlush time.Time
 }
 
 // ReconcileResult partitions evaluated findings into email delivery buckets without prematurely
@@ -58,12 +59,18 @@ func Load(path string) (*Store, error) {
 	if st.Findings == nil {
 		st.Findings = make(map[string]*model.TrackedFinding)
 	}
+	if st.Syslog.TopBlockedPorts == nil {
+		st.Syslog.TopBlockedPorts = make(map[string]int64)
+	}
 	s.data = st
 	return s, nil
 }
 
 func emptyState() model.State {
 	return model.State{
+		Syslog: model.SyslogStats{
+			TopBlockedPorts: make(map[string]int64),
+		},
 		FeedStatus: make(map[string]model.FeedStatus),
 		Findings:   make(map[string]*model.TrackedFinding),
 	}
@@ -133,6 +140,9 @@ func (s *Store) SnapshotCopy() model.State {
 	if cp.Findings == nil {
 		cp.Findings = make(map[string]*model.TrackedFinding)
 	}
+	if cp.Syslog.TopBlockedPorts == nil {
+		cp.Syslog.TopBlockedPorts = make(map[string]int64)
+	}
 	return cp
 }
 
@@ -143,12 +153,162 @@ func (s *Store) RecordSnapshot(snap *model.OPNsenseSnapshot, feeds map[string]mo
 	if snap != nil {
 		cp := *snap
 		s.data.LatestSnapshot = &cp
+		if s.data.BaselineExposure == nil && snap.AuditOK {
+			s.data.BaselineExposure = cloneSortedExposure(snap.Exposure)
+		}
 	}
 	if feeds != nil {
 		s.data.FeedStatus = feeds
 	}
 	s.data.LastUpdated = now
 	return s.saveLocked()
+}
+
+// AcceptBaseline promotes the latest snapshot's WAN pass/NAT exposure to the approved baseline.
+func (s *Store) AcceptBaseline(now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.LatestSnapshot == nil {
+		return errors.New("cannot accept baseline before an OPNsense snapshot is stored")
+	}
+	s.data.BaselineExposure = cloneSortedExposure(s.data.LatestSnapshot.Exposure)
+	s.data.LastUpdated = now
+	return s.saveLocked()
+}
+
+// SetMaintenance enables or clears a declared maintenance window suppressing unplanned change alerts.
+func (s *Store) SetMaintenance(until *time.Time, note string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if until == nil {
+		s.data.MaintenanceUntil = nil
+		s.data.MaintenanceNote = ""
+	} else {
+		u := until.UTC()
+		s.data.MaintenanceUntil = &u
+		s.data.MaintenanceNote = strings.TrimSpace(note)
+	}
+	s.data.LastUpdated = now
+	return s.saveLocked()
+}
+
+// IsMaintenanceActive reports whether a declared maintenance window covers now.
+func (s *Store) IsMaintenanceActive(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.MaintenanceUntil != nil && now.Before(*s.data.MaintenanceUntil)
+}
+
+// RecordSyslogStats updates syslog freshness and digest counters, throttling disk writes to flushInterval.
+func (s *Store) RecordSyslogStats(now time.Time, wanBlockedIn, internalOutBlocked, expectedAdmin, idsUrgent, idsDigest int64, blockedPort string, flushInterval time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Syslog.TopBlockedPorts == nil {
+		s.data.Syslog.TopBlockedPorts = make(map[string]int64)
+	}
+	if s.data.Syslog.LastReset.IsZero() {
+		s.data.Syslog.LastReset = now
+	}
+	s.data.Syslog.LastReceived = now
+	s.data.Syslog.TotalReceived++
+	s.data.Syslog.WANBlockedIn += wanBlockedIn
+	s.data.Syslog.InternalOutboundBlocked += internalOutBlocked
+	s.data.Syslog.ExpectedAdminLogins += expectedAdmin
+	s.data.Syslog.IDSAlertsUrgent += idsUrgent
+	s.data.Syslog.IDSAlertsDigest += idsDigest
+	if bp := strings.TrimSpace(blockedPort); bp != "" {
+		s.data.Syslog.TopBlockedPorts[bp]++
+		pruneTopPorts(s.data.Syslog.TopBlockedPorts, 64)
+	}
+	if flushInterval <= 0 || s.lastSyslogFlush.IsZero() || now.Sub(s.lastSyslogFlush) >= flushInterval {
+		s.lastSyslogFlush = now
+		s.data.LastUpdated = now
+		return s.saveLocked()
+	}
+	return nil
+}
+
+// RecordEventFinding persists an event-driven finding (real or synthetic), applies deduplication/reminder
+// rules, and returns whether an immediate urgent email should be sent.
+func (s *Store) RecordEventFinding(f model.Finding, now time.Time, urgentReminder time.Duration) (model.TrackedFinding, bool, error) {
+	if urgentReminder <= 0 {
+		urgentReminder = DefaultUrgentReminder
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if f.FirstSeen.IsZero() {
+		f.FirstSeen = now
+	}
+	f.LastSeen = now
+
+	tf, exists := s.data.Findings[f.ID]
+	if !exists || tf.Status == model.StatusResolved {
+		tf = &model.TrackedFinding{
+			Finding:      f,
+			Status:       model.StatusOpen,
+			LastSeverity: f.Severity,
+		}
+		tf.FirstSeen = now
+		tf.LastSeen = now
+		s.data.Findings[f.ID] = tf
+	} else {
+		prevFirst := tf.FirstSeen
+		prevNotifiedCount := tf.NotifiedCount
+		prevLastNotified := tf.LastNotified
+		prevAckAt := tf.AcknowledgedAt
+		prevAckNote := tf.AckNote
+		prevStatus := tf.Status
+		prevLastSev := tf.LastSeverity
+
+		tf.Finding = f
+		tf.FirstSeen = prevFirst
+		tf.LastSeen = now
+		tf.NotifiedCount = prevNotifiedCount
+		tf.LastNotified = prevLastNotified
+		tf.AcknowledgedAt = prevAckAt
+		tf.AckNote = prevAckNote
+		tf.Status = prevStatus
+		tf.LastSeverity = prevLastSev
+	}
+
+	shouldSend := false
+	if f.Severity == model.SeverityUrgent && tf.Status != model.StatusAcked {
+		escalated := tf.LastSeverity != model.SeverityUrgent && tf.NotifiedCount > 0
+		neverSent := tf.NotifiedCount == 0
+		reminderDue := tf.Status == model.StatusOpen && !tf.LastNotified.IsZero() && now.Sub(tf.LastNotified) >= urgentReminder
+		shouldSend = neverSent || escalated || reminderDue
+	}
+
+	s.data.LastUpdated = now
+	if err := s.saveLocked(); err != nil {
+		return model.TrackedFinding{}, false, err
+	}
+	return *tf, shouldSend, nil
+}
+
+// ResolveFinding marks any active tracked finding resolved (used for manual/event closures).
+func (s *Store) ResolveFinding(id string, now time.Time) (*model.TrackedFinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tf, ok := s.data.Findings[id]
+	if !ok {
+		return nil, fmt.Errorf("finding %q not found", id)
+	}
+	if tf.Status == model.StatusResolved {
+		cp := *tf
+		return &cp, nil
+	}
+	t := now
+	tf.Status = model.StatusResolved
+	tf.ResolvedAt = &t
+	tf.LastSeen = now
+	s.data.LastUpdated = now
+	if err := s.saveLocked(); err != nil {
+		return nil, err
+	}
+	cp := *tf
+	return &cp, nil
 }
 
 // RecordFeedStatuses persists refreshed external feed statuses.
@@ -256,30 +416,37 @@ func (s *Store) Reconcile(findings []model.Finding, cleanRecheck bool, now time.
 		}
 	}
 
-	if cleanRecheck {
-		var ids []string
-		for id := range s.data.Findings {
-			ids = append(ids, id)
+	var ids []string
+	for id := range s.data.Findings {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		tf := s.data.Findings[id]
+		if tf.Synthetic {
+			continue
 		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			tf := s.data.Findings[id]
-			if tf.Synthetic {
-				continue
+		if tf.Category == model.CategorySecurityEvent {
+			if tf.Status == model.StatusOpen && tf.Severity == model.SeverityDaily {
+				res.DailyCandidates = append(res.DailyCandidates, *tf)
 			}
-			if tf.Status != model.StatusOpen && tf.Status != model.StatusAcked {
-				continue
-			}
-			if _, stillActive := active[id]; stillActive {
-				continue
-			}
-			t := now
-			tf.Status = model.StatusResolved
-			tf.ResolvedAt = &t
-			tf.LastSeen = now
-			if tf.NotifiedCount > 0 {
-				res.ResolvedToSend = append(res.ResolvedToSend, *tf)
-			}
+			continue
+		}
+		if !cleanRecheck {
+			continue
+		}
+		if tf.Status != model.StatusOpen && tf.Status != model.StatusAcked {
+			continue
+		}
+		if _, stillActive := active[id]; stillActive {
+			continue
+		}
+		t := now
+		tf.Status = model.StatusResolved
+		tf.ResolvedAt = &t
+		tf.LastSeen = now
+		if tf.NotifiedCount > 0 {
+			res.ResolvedToSend = append(res.ResolvedToSend, *tf)
 		}
 	}
 
@@ -401,4 +568,39 @@ func (s *Store) DeleteSynthetic(id string, now time.Time) error {
 		return s.saveLocked()
 	}
 	return nil
+}
+
+func cloneSortedExposure(ex model.ExposureSummary) *model.ExposureSummary {
+	pass := append([]string(nil), ex.WANPassRules...)
+	rdr := append([]string(nil), ex.WANRDRRules...)
+	sort.Strings(pass)
+	sort.Strings(rdr)
+	return &model.ExposureSummary{
+		WANInterface: ex.WANInterface,
+		WANPassRules: pass,
+		WANRDRRules:  rdr,
+	}
+}
+
+func pruneTopPorts(ports map[string]int64, maxKeys int) {
+	if len(ports) <= maxKeys {
+		return
+	}
+	type kv struct {
+		k string
+		v int64
+	}
+	items := make([]kv, 0, len(ports))
+	for k, v := range ports {
+		items = append(items, kv{k: k, v: v})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].v != items[j].v {
+			return items[i].v > items[j].v
+		}
+		return items[i].k < items[j].k
+	})
+	for i := maxKeys; i < len(items); i++ {
+		delete(ports, items[i].k)
+	}
 }

@@ -14,18 +14,25 @@ import (
 
 // Config holds non-secret runtime settings and secrets loaded from env / systemd credentials.
 type Config struct {
-	ListenAddr        string
-	StateFile         string
-	IngestToken       string
-	HeartbeatURL      string
-	HeartbeatInterval time.Duration
-	FeedInterval      time.Duration
-	StaleAfter        time.Duration
-	UrgentReminder    time.Duration
-	DailyHour         int
-	DigestWeekday     time.Weekday
-	DigestHour        int
-	SMTP              notify.Config
+	ListenAddr             string
+	StateFile              string
+	IngestToken            string
+	SyslogAddr             string
+	SyslogStaleAfter       time.Duration
+	AllowedSyslogIPs       []string
+	AdminUsers             []string
+	AdminSourceCIDRs       []string
+	WANInterface           string
+	AllowedWANInboundPorts []int
+	HeartbeatURL           string
+	HeartbeatInterval      time.Duration
+	FeedInterval           time.Duration
+	StaleAfter             time.Duration
+	UrgentReminder         time.Duration
+	DailyHour              int
+	DigestWeekday          time.Weekday
+	DigestHour             int
+	SMTP                   notify.Config
 }
 
 // Load reads settings from envFile (or $CREDENTIALS_DIRECTORY/netwatch_env if present),
@@ -82,6 +89,14 @@ func Load(envFile string) (Config, error) {
 	if err != nil || urgentRem <= 0 {
 		return Config{}, fmt.Errorf("invalid NETWATCH_URGENT_REMINDER: %v", err)
 	}
+	syslogStale, err := time.ParseDuration(get("NETWATCH_SYSLOG_STALE_AFTER", "15m"))
+	if err != nil || syslogStale <= 0 {
+		return Config{}, fmt.Errorf("invalid NETWATCH_SYSLOG_STALE_AFTER: %v", err)
+	}
+	allowedWANPorts, err := parsePortList(get("NETWATCH_ALLOWED_WAN_PORTS", "443"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid NETWATCH_ALLOWED_WAN_PORTS: %w", err)
+	}
 
 	dailyHour, err := strconv.Atoi(get("NETWATCH_DAILY_HOUR", "8"))
 	if err != nil || dailyHour < 0 || dailyHour > 23 {
@@ -100,26 +115,27 @@ func Load(envFile string) (Config, error) {
 		return Config{}, fmt.Errorf("invalid NETWATCH_SMTP_PORT")
 	}
 
-	var recipients []string
-	for _, r := range strings.Split(get("NETWATCH_MAIL_TO", ""), ",") {
-		r = strings.TrimSpace(r)
-		if r != "" {
-			recipients = append(recipients, r)
-		}
-	}
+	recipients := splitCSV(get("NETWATCH_MAIL_TO", ""))
 
 	return Config{
-		ListenAddr:        get("NETWATCH_LISTEN_ADDR", "0.0.0.0:9400"),
-		StateFile:         get("NETWATCH_STATE_FILE", "/var/lib/netwatch/state.json"),
-		IngestToken:       get("NETWATCH_INGEST_TOKEN", ""),
-		HeartbeatURL:      get("NETWATCH_HEARTBEAT_URL", ""),
-		HeartbeatInterval: hbInt,
-		FeedInterval:      feedInt,
-		StaleAfter:        staleAfter,
-		UrgentReminder:    urgentRem,
-		DailyHour:         dailyHour,
-		DigestWeekday:     weekday,
-		DigestHour:        digestHour,
+		ListenAddr:             get("NETWATCH_LISTEN_ADDR", "0.0.0.0:9400"),
+		StateFile:              get("NETWATCH_STATE_FILE", "/var/lib/netwatch/state.json"),
+		IngestToken:            get("NETWATCH_INGEST_TOKEN", ""),
+		SyslogAddr:             get("NETWATCH_SYSLOG_ADDR", ""),
+		SyslogStaleAfter:       syslogStale,
+		AllowedSyslogIPs:       splitCSV(get("NETWATCH_SYSLOG_ALLOWED_IPS", "192.168.100.2,127.0.0.1,::1")),
+		AdminUsers:             splitCSV(get("NETWATCH_ADMIN_USERS", "andre")),
+		AdminSourceCIDRs:       splitCSV(get("NETWATCH_ADMIN_SOURCES", "192.168.10.75/32,192.168.50.0/24")),
+		WANInterface:           get("NETWATCH_WAN_IFACE", "igc1"),
+		AllowedWANInboundPorts: allowedWANPorts,
+		HeartbeatURL:           get("NETWATCH_HEARTBEAT_URL", ""),
+		HeartbeatInterval:      hbInt,
+		FeedInterval:           feedInt,
+		StaleAfter:             staleAfter,
+		UrgentReminder:         urgentRem,
+		DailyHour:              dailyHour,
+		DigestWeekday:          weekday,
+		DigestHour:             digestHour,
 		SMTP: notify.Config{
 			Host:     get("NETWATCH_SMTP_HOST", "smtp.mx.cloudflare.net"),
 			Port:     smtpPort,
@@ -130,6 +146,30 @@ func Load(envFile string) (Config, error) {
 			To:       recipients,
 		},
 	}, nil
+}
+
+func splitCSV(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		p := strings.TrimSpace(part)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func parsePortList(raw string) ([]int, error) {
+	parts := splitCSV(raw)
+	out := make([]int, 0, len(parts))
+	for _, part := range parts {
+		p, err := strconv.Atoi(part)
+		if err != nil || p <= 0 || p > 65535 {
+			return nil, fmt.Errorf("invalid port %q", part)
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 
 // ParseEnvFile parses KEY=VALUE environment files without executing shell code.

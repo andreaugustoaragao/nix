@@ -39,4 +39,26 @@ NETWATCH_DIGEST_WEEKDAY=Monday
 	if cfg.DigestWeekday != time.Monday {
 		t.Fatalf("expected Monday digest weekday, got %v", cfg.DigestWeekday)
 	}
+	if cfg.SyslogAddr != "" || cfg.SyslogStaleAfter != 15*time.Minute || cfg.WANInterface != "igc1" {
+		t.Fatalf("unexpected syslog defaults: addr=%q stale=%v wan=%q", cfg.SyslogAddr, cfg.SyslogStaleAfter, cfg.WANInterface)
+	}
+	if len(cfg.AllowedWANInboundPorts) != 1 || cfg.AllowedWANInboundPorts[0] != 443 {
+		t.Fatalf("unexpected default allowed WAN ports: %v", cfg.AllowedWANInboundPorts)
+	}
+
+	t.Setenv("NETWATCH_SYSLOG_ADDR", "0.0.0.0:5514")
+	t.Setenv("NETWATCH_SYSLOG_STALE_AFTER", "20m")
+	t.Setenv("NETWATCH_ADMIN_USERS", "andre,ops")
+	t.Setenv("NETWATCH_ADMIN_SOURCES", "192.168.10.75/32")
+	t.Setenv("NETWATCH_ALLOWED_WAN_PORTS", "443,8443")
+	cfg2, err := Load(envPath)
+	if err != nil {
+		t.Fatalf("Load() override err: %v", err)
+	}
+	if cfg2.SyslogAddr != "0.0.0.0:5514" || cfg2.SyslogStaleAfter != 20*time.Minute {
+		t.Fatalf("expected syslog env overrides, got addr=%q stale=%v", cfg2.SyslogAddr, cfg2.SyslogStaleAfter)
+	}
+	if len(cfg2.AdminUsers) != 2 || len(cfg2.AllowedWANInboundPorts) != 2 || cfg2.AllowedWANInboundPorts[1] != 8443 {
+		t.Fatalf("unexpected CSV overrides: users=%v ports=%v", cfg2.AdminUsers, cfg2.AllowedWANInboundPorts)
+	}
 }
