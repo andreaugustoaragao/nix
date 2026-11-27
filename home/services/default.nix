@@ -46,6 +46,7 @@
   ]
   ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "workstation") [
     ./cursor-bridge.nix
+    ./voxtype.nix
   ]
   ++ lib.optionals (!personalOnly && hostName == "prl-dev-vm") [
     ./vault-v2-prl-dev-vm.nix

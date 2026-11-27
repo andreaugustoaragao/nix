@@ -23,6 +23,8 @@ let
     else
       "(?i)^thunar$";
   hasVitals = hostName == "prl-dev-vm" || hostName == "workstation";
+  hasVoxtype = hostName == "prl-dev-vm" || hostName == "workstation";
+  voxtypeBin = lib.getExe (if hostName == "workstation" then pkgs.voxtype-vulkan else pkgs.voxtype);
   noctalia = lib.getExe unstable-pkgs.noctalia;
   # Canonical dp1 (landscape) / dp2 (portrait) slot metadata — typed
   # my.displays.* options declared in ./display-options.nix, values
@@ -733,6 +735,9 @@ in
           Mod+Shift+I { spawn "${noctalia}" "msg" "caffeine-toggle"; }
           Mod+Alt+N { spawn "${noctalia}" "msg" "nightlight-toggle"; }
           Mod+N { spawn "${if personalOnly then "codium" else "notes"}"; }
+        ''}
+        ${lib.optionalString hasVoxtype ''
+          Mod+Alt+D { spawn "${voxtypeBin}" "record" "toggle"; }
         ''}
 
         // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl
