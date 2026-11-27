@@ -13,6 +13,7 @@
     ./packages.nix
     ./homebrew.nix
     ./macos-defaults.nix
+    ./sketchybar.nix
     ./power.nix
     ./caffeinate.nix
     ./sops.nix

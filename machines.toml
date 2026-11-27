@@ -160,8 +160,6 @@ homebrewCasks = [
     # Extra browsers used on Linux; Brave + Chromium already covered above.
     "firefox",
     "google-chrome",
-    # macOS-only quality-of-life — fill roles the Linux waybar/desktop config covers natively.
-    "stats", # menu-bar CPU/RAM/network/temperature widget; waybar analog
 ]
 homebrewBrews = [
     "FelixKratz/formulae/borders", # JankyBorders — focused-window outline daemon

@@ -87,6 +87,9 @@ in
     # binary itself is installed via the homebrew cask in
     # darwin/homebrew.nix; this module only owns ~/.config/aerospace.
     ./aerospace.nix
+    # SketchyBar status bar config (workspaces, front app, clock, battery,
+    # CPU/RAM/network) paired with `services.sketchybar` in darwin/sketchybar.nix.
+    ./sketchybar.nix
     # Ghostty config — same font/theme/opacity as the Linux side. The
     # module is platform-aware and skips the nixpkgs ghostty install on
     # Darwin (where the homebrew cask provides it).

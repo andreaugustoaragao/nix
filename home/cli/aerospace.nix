@@ -61,13 +61,24 @@ in
       'exec-and-forget /opt/homebrew/bin/borders active_color=0xffb4befe inactive_color=0xff45475a width=4.0 style=round hidpi=on'
     ]
 
+    # Push workspace switches straight into SketchyBar so workspace pills stay
+    # event-driven. Uses the immutable system profile path because AeroSpace runs
+    # under launchd with a minimal PATH.
+    exec-on-workspace-change = [
+      '/bin/bash', '-c',
+      '/run/current-system/sw/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE || true'
+    ]
+
     # Smart gaps roughly approximating niri's column spacing.
     [gaps]
     inner.horizontal = 16
     inner.vertical   = 16
     outer.left       = 8
     outer.bottom     = 8
-    outer.top        = 8
+    # On the notched Built-in Retina Display, macOS already reserves 38pt above
+    # visibleFrame and SketchyBar lives inside that notch band; external displays
+    # need 40pt (34pt bar + 6pt margin) so tiled windows sit cleanly below it.
+    outer.top        = [{ monitor."built-in" = 8 }, 40]
     outer.right      = 8
 
     # Niri-style: new windows become a new column to the right of focus.
