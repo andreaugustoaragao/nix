@@ -401,6 +401,7 @@
           omp = pkgs.callPackage ./pkgs/omp.nix { };
           herdr = pkgs.callPackage ./pkgs/herdr.nix { };
           herdr-core = pkgs.callPackage ./pkgs/herdr-core.nix { };
+          netwatch = pkgs.callPackage ./pkgs/netwatch.nix { };
           uml-viewer = umlViewer;
         }
         // nixpkgs.lib.optionalAttrs (system != "x86_64-darwin") {

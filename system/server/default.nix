@@ -6,6 +6,7 @@
   # jwt_private_key and ACME can't issue without a real Cloudflare
   # token. Re-enable each module once its secret values are real.
   imports = [
+    ./netwatch.nix
     # ./acme.nix
     # ./caddy.nix
     # ./lldap.nix
