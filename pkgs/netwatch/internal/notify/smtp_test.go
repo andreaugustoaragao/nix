@@ -100,6 +100,9 @@ func TestSMTPSendPlainAndFormatRedaction(t *testing.T) {
 	if !strings.Contains(subj, "[SYNTHETIC TEST]") || !strings.Contains(body, "SYNTHETIC TEST MESSAGE") {
 		t.Fatalf("expected synthetic banner in subject/body")
 	}
+	if !strings.Contains(body, "sudo netwatch-ctl ack") {
+		t.Fatalf("expected netwatch-ctl ack hint in urgent email body, got:\n%s", body)
+	}
 
 	cfg := Config{
 		Host:     host,

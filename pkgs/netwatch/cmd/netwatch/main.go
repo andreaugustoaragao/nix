@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -237,12 +238,6 @@ func cmdServe(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Warm advisory feeds on startup.
-	eng.refreshFeeds(ctx)
-	if st.SnapshotCopy().LatestSnapshot != nil {
-		_, _, _, _ = eng.evaluateAndNotify(ctx, nil, true)
-	}
-
 	// Send initial Healthchecks.io heartbeat if configured.
 	sendHB := func() {
 		if strings.TrimSpace(cfg.HeartbeatURL) == "" {
@@ -258,7 +253,6 @@ func cmdServe(args []string) error {
 			_ = st.RecordHeartbeat(true, "", time.Now().UTC())
 		}
 	}
-	sendHB()
 
 	mux := server.NewMux(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
 		ev, _, sent, err := eng.evaluateAndNotify(c, snap, true)
@@ -285,7 +279,28 @@ func cmdServe(args []string) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	ln, err := net.Listen("tcp", cfg.ListenAddr)
+	if err != nil {
+		return err
+	}
+
+	errCh := make(chan error, 1)
 	go func() {
+		log.Printf("netwatch listening on %s (state=%s)", cfg.ListenAddr, cfg.StateFile)
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+
+	go func() {
+		// Warm advisory feeds on startup after listener is ready.
+		eng.refreshFeeds(ctx)
+		if st.SnapshotCopy().LatestSnapshot != nil {
+			_, _, _, _ = eng.evaluateAndNotify(ctx, nil, true)
+		}
+		sendHB()
+
 		hbTicker := time.NewTicker(cfg.HeartbeatInterval)
 		feedTicker := time.NewTicker(cfg.FeedInterval)
 		schedTicker := time.NewTicker(1 * time.Minute)
@@ -323,15 +338,6 @@ func cmdServe(args []string) error {
 				}
 			}
 		}
-	}()
-
-	errCh := make(chan error, 1)
-	go func() {
-		log.Printf("netwatch listening on %s (state=%s)", cfg.ListenAddr, cfg.StateFile)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
 	}()
 
 	select {
@@ -512,15 +518,26 @@ func cmdSynthetic(args []string) error {
 		}
 		bundle := &feeds.FeedBundle{
 			KEVByCVE: map[string]feeds.KEVEntry{},
-			CoreGHSAs: []feeds.GHSAAdvisory{{
-				GHSAID:   "GHSA-89wp-xvvm-9pp4",
-				Severity: "high",
-				Summary:  "Affected only <= 26.7.9 and 26.10.0p1",
-				Vulnerabilities: []feeds.GHSAVulnerability{{
-					VulnerableVersionRange: "<= 26.7.9, 26.10.0p1",
-					PatchedVersions:        "26.7.10",
-				}},
-			}},
+			CoreGHSAs: []feeds.GHSAAdvisory{
+				{
+					GHSAID:   "GHSA-89wp-xvvm-9pp4",
+					Severity: "high",
+					Summary:  "Affected only <= 26.7.9 and 26.10.0p1",
+					Vulnerabilities: []feeds.GHSAVulnerability{{
+						VulnerableVersionRange: "<= 26.7.9, 26.10.0p1",
+						PatchedVersions:        "26.7.10",
+					}},
+				},
+				{
+					GHSAID:   "GHSA-75fw-j788-j4hj",
+					Severity: "medium",
+					Summary:  "Affected >= 26.7.1, patched in 26.7.2",
+					Vulnerabilities: []feeds.GHSAVulnerability{{
+						VulnerableVersionRange: ">= 26.7.1",
+						PatchedVersions:        "26.7.2",
+					}},
+				},
+			},
 			PluginGHSAs: []feeds.GHSAAdvisory{{
 				GHSAID:   "GHSA-uninstalled-plugin",
 				Severity: "critical",

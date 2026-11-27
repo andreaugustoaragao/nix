@@ -135,3 +135,165 @@ func TestMatchesRange(t *testing.T) {
 		t.Fatalf("expected plugin 4.10 to match <= 4.10.1")
 	}
 }
+
+func TestMatchesVulnerability(t *testing.T) {
+	coreTests := []struct {
+		name        string
+		running     string
+		series      string
+		edition     string
+		rangeExpr   string
+		patchedExpr string
+		want        bool
+	}{
+		{
+			name:        "GHSA-75fw-j788-j4hj open lower bound closed by patched 26.7.2 on 26.7.10",
+			running:     "26.7.10",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.7.1",
+			patchedExpr: "26.7.2",
+			want:        false,
+		},
+		{
+			name:        "GHSA-75fw-j788-j4hj on patched 26.7.2",
+			running:     "26.7.2",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.7.1",
+			patchedExpr: "26.7.2",
+			want:        false,
+		},
+		{
+			name:        "GHSA-75fw-j788-j4hj on vulnerable 26.7.1",
+			running:     "26.7.1",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.7.1",
+			patchedExpr: "26.7.2",
+			want:        true,
+		},
+		{
+			name:        "GHSA-75fw-j788-j4hj below lower bound 26.7.0",
+			running:     "26.7.0",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.7.1",
+			patchedExpr: "26.7.2",
+			want:        false,
+		},
+		{
+			name:        "old series open lower bound >= 26.1.5 patched 26.1.6 excludes 26.7.10",
+			running:     "26.7.10",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.1.5",
+			patchedExpr: "26.1.6",
+			want:        false,
+		},
+		{
+			name:        "old series open lower bound >= 26.1.5 patched 26.1.6 matches 26.1.5",
+			running:     "26.1.5",
+			series:      "26.1",
+			edition:     "community",
+			rangeExpr:   ">= 26.1.5",
+			patchedExpr: "26.1.6",
+			want:        true,
+		},
+		{
+			name:        "unpatched zero-day >= 26.7.1 matches 26.7.10",
+			running:     "26.7.10",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   ">= 26.7.1",
+			patchedExpr: "",
+			want:        true,
+		},
+		{
+			name:        "multi-branch <= 26.7.7, <= 26.1.10 patched 26.7.8, 26.1.11 matches 26.7.5",
+			running:     "26.7.5",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   "<= 26.7.7, <= 26.1.10",
+			patchedExpr: "26.7.8, 26.1.11",
+			want:        true,
+		},
+		{
+			name:        "multi-branch <= 26.7.7, <= 26.1.10 patched 26.7.8, 26.1.11 excludes 26.7.8",
+			running:     "26.7.8",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   "<= 26.7.7, <= 26.1.10",
+			patchedExpr: "26.7.8, 26.1.11",
+			want:        false,
+		},
+		{
+			name:        "GHSA-9h93-hhcx-957c OPNsense 26.7.1_1 matches 26.7.1_1",
+			running:     "26.7.1_1",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   "OPNsense 26.7.1_1",
+			patchedExpr: "",
+			want:        true,
+		},
+		{
+			name:        "GHSA-9h93-hhcx-957c OPNsense 26.7.1_1 excludes 26.7.10",
+			running:     "26.7.10",
+			series:      "26.7",
+			edition:     "community",
+			rangeExpr:   "OPNsense 26.7.1_1",
+			patchedExpr: "",
+			want:        false,
+		},
+	}
+
+	for _, tc := range coreTests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := MatchesVulnerability(tc.running, tc.series, tc.edition, tc.rangeExpr, tc.patchedExpr)
+			if got != tc.want {
+				t.Fatalf("MatchesVulnerability(%q, %q, %q, %q, %q) = %v, want %v",
+					tc.running, tc.series, tc.edition, tc.rangeExpr, tc.patchedExpr, got, tc.want)
+			}
+		})
+	}
+
+	pluginTests := []struct {
+		name        string
+		running     string
+		rangeExpr   string
+		patchedExpr string
+		want        bool
+	}{
+		{
+			name:        "plugin 1.34 with >= 1.30 patched 1.33",
+			running:     "1.34",
+			rangeExpr:   ">= 1.30",
+			patchedExpr: "1.33",
+			want:        false,
+		},
+		{
+			name:        "plugin 1.34 with >= 1.30 patched 1.35",
+			running:     "1.34",
+			rangeExpr:   ">= 1.30",
+			patchedExpr: "1.35",
+			want:        true,
+		},
+		{
+			name:        "plugin 1.34 unpatched >= 1.30",
+			running:     "1.34",
+			rangeExpr:   ">= 1.30",
+			patchedExpr: "",
+			want:        true,
+		},
+	}
+
+	for _, tc := range pluginTests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := MatchesPackageVulnerability(tc.running, tc.rangeExpr, tc.patchedExpr)
+			if got != tc.want {
+				t.Fatalf("MatchesPackageVulnerability(%q, %q, %q) = %v, want %v",
+					tc.running, tc.rangeExpr, tc.patchedExpr, got, tc.want)
+			}
+		})
+	}
+}

@@ -1,4 +1,4 @@
-{ ... }:
+{ lib, hostName, ... }:
 
 {
   # Auth stack temporarily skipped — sops secrets in secrets.yaml are
@@ -12,4 +12,6 @@
     # ./lldap.nix
     # ./authelia.nix
   ];
+
+  services.faragao-netwatch.enable = lib.mkIf (hostName == "tala") true;
 }

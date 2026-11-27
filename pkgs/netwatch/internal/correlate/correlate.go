@@ -175,7 +175,7 @@ func evalCoreGHSAs(snap *model.OPNsenseSnapshot, bundle *feeds.FeedBundle, devic
 		matched := false
 		fixedSet := make(map[string]struct{})
 		for _, v := range adv.Vulnerabilities {
-			if version.MatchesRange(snap.ProductVersion, series, snap.Edition, v.VulnerableVersionRange) {
+			if version.MatchesVulnerability(snap.ProductVersion, series, snap.Edition, v.VulnerableVersionRange, v.PatchedVersions) {
 				matched = true
 				if strings.TrimSpace(v.PatchedVersions) != "" {
 					fixedSet[strings.TrimSpace(v.PatchedVersions)] = struct{}{}
@@ -243,7 +243,7 @@ func evalPluginGHSAs(snap *model.OPNsenseSnapshot, bundle *feeds.FeedBundle, dev
 			if !ok {
 				continue // strictly filter out uninstalled plugins
 			}
-			if v.VulnerableVersionRange != "" && !version.MatchesPackageRange(curVer, v.VulnerableVersionRange) {
+			if v.VulnerableVersionRange != "" && !version.MatchesPackageVulnerability(curVer, v.VulnerableVersionRange, v.PatchedVersions) {
 				continue
 			}
 			matchedPkg = pkgName

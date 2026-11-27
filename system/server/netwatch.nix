@@ -8,6 +8,15 @@
 let
   cfg = config.services.faragao-netwatch;
   netwatchPkg = pkgs.callPackage ../../pkgs/netwatch.nix { };
+  netwatchCtl = pkgs.writeShellScriptBin "netwatch-ctl" ''
+    exec /run/current-system/sw/bin/systemd-run --wait --pipe --collect -q \
+      -p User=netwatch \
+      -p Group=netwatch \
+      -p StateDirectory=netwatch \
+      -p LoadCredential="netwatch_env:${config.sops.secrets."netwatch_env".path}" \
+      -E NETWATCH_STATE_FILE=/var/lib/netwatch/state.json \
+      ${lib.getExe netwatchPkg} "$@"
+  '';
 in
 {
   options.services.faragao-netwatch = {
@@ -51,7 +60,10 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ netwatchPkg ];
+    environment.systemPackages = [
+      netwatchPkg
+      netwatchCtl
+    ];
 
     sops.secrets."netwatch_env" = {
       sopsFile = ../../secrets/tala.yaml;

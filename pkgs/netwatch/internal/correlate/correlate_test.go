@@ -82,6 +82,17 @@ func TestEvaluateLiveOPNsenseAndFiltersUnsupportedMatches(t *testing.T) {
 					PatchedVersions:        "26.7.10, 26.10.0p2",
 				}},
 			},
+			{
+				GHSAID:   "GHSA-75fw-j788-j4hj",
+				Severity: "medium",
+				Summary:  "Stored XSS via Unsafe Attribute Construction and info Field HTML Insertion",
+				HTMLURL:  "https://github.com/opnsense/core/security/advisories/GHSA-75fw-j788-j4hj",
+				Vulnerabilities: []feeds.GHSAVulnerability{{
+					Package:                feeds.GHSAPackage{Name: "opnsense/core "},
+					VulnerableVersionRange: ">= 26.7.1",
+					PatchedVersions:        "26.7.2",
+				}},
+			},
 		},
 		PluginGHSAs: []feeds.GHSAAdvisory{
 			{
@@ -132,6 +143,9 @@ func TestEvaluateLiveOPNsenseAndFiltersUnsupportedMatches(t *testing.T) {
 
 	if _, ok := foundIDs["ghsa:core:GHSA-89wp-xvvm-9pp4"]; ok {
 		t.Fatalf("did not expect GHSA-89wp-xvvm-9pp4 to match patched 26.7.10")
+	}
+	if _, ok := foundIDs["ghsa:core:GHSA-75fw-j788-j4hj"]; ok {
+		t.Fatalf("did not expect GHSA-75fw-j788-j4hj (>= 26.7.1 patched in 26.7.2) to match 26.7.10")
 	}
 	if _, ok := foundIDs["ghsa:plugin:GHSA-uninstalled-caddy:os-caddy"]; ok {
 		t.Fatalf("did not expect uninstalled os-caddy advisory to match")

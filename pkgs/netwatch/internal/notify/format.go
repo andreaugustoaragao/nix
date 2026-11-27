@@ -26,7 +26,7 @@ func FormatUrgent(f model.TrackedFinding, now time.Time) (string, string) {
 	}
 	writeFindingDetails(&b, f)
 	b.WriteString(fmt.Sprintf("\nAlert generated: %s\n", now.UTC().Format(time.RFC3339)))
-	b.WriteString(fmt.Sprintf("Acknowledge reminder without closing:\n  sudo netwatch ack --id %q --note \"scheduled maintenance\"\n", f.ID))
+	b.WriteString(fmt.Sprintf("Acknowledge reminder without closing:\n  sudo netwatch-ctl ack --id %q --note \"scheduled maintenance\"\n", f.ID))
 	b.WriteString("\nClosure happens automatically only after a clean audit recheck confirms the issue is absent.\n")
 	return subject, b.String()
 }

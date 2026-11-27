@@ -56,7 +56,11 @@ type parsedOPN struct {
 
 func parseOPNsense(raw string) (parsedOPN, bool) {
 	s := strings.TrimSpace(NormalizeDashes(raw))
-	s = strings.TrimPrefix(strings.ToLower(s), "v")
+	s = strings.ToLower(s)
+	if strings.HasPrefix(s, "opnsense") {
+		s = strings.TrimSpace(strings.TrimPrefix(s, "opnsense"))
+	}
+	s = strings.TrimPrefix(s, "v")
 	if s == "" {
 		return parsedOPN{}, false
 	}
@@ -136,6 +140,24 @@ func parseOPNsense(raw string) (parsedOPN, bool) {
 	return p, true
 }
 
+func compareParsed(a, b parsedOPN) int {
+	for _, pair := range [][2]int{
+		{a.major, b.major},
+		{a.minor, b.minor},
+		{a.patch, b.patch},
+		{a.preRank, b.preRank},
+		{a.portRev, b.portRev},
+	} {
+		if pair[0] < pair[1] {
+			return -1
+		}
+		if pair[0] > pair[1] {
+			return 1
+		}
+	}
+	return 0
+}
+
 // CompareOPNsense compares two OPNsense version strings (-1 if a<b, 0 if a==b, +1 if a>b).
 func CompareOPNsense(a, b string) (int, error) {
 	pa, okA := parseOPNsense(a)
@@ -146,21 +168,7 @@ func CompareOPNsense(a, b string) (int, error) {
 	if !okB {
 		return 0, fmt.Errorf("invalid OPNsense version %q", b)
 	}
-	for _, pair := range [][2]int{
-		{pa.major, pb.major},
-		{pa.minor, pb.minor},
-		{pa.patch, pb.patch},
-		{pa.preRank, pb.preRank},
-		{pa.portRev, pb.portRev},
-	} {
-		if pair[0] < pair[1] {
-			return -1, nil
-		}
-		if pair[0] > pair[1] {
-			return 1, nil
-		}
-	}
-	return 0, nil
+	return compareParsed(pa, pb), nil
 }
 
 // SeriesOf extracts "major.minor" from an OPNsense version string.
@@ -224,23 +232,7 @@ func parseClause(raw string) (clause, bool) {
 }
 
 func evalClause(running parsedOPN, c clause) bool {
-	cmp := 0
-	for _, pair := range [][2]int{
-		{running.major, c.p.major},
-		{running.minor, c.p.minor},
-		{running.patch, c.p.patch},
-		{running.preRank, c.p.preRank},
-		{running.portRev, c.p.portRev},
-	} {
-		if pair[0] < pair[1] {
-			cmp = -1
-			break
-		}
-		if pair[0] > pair[1] {
-			cmp = 1
-			break
-		}
-	}
+	cmp := compareParsed(running, c.p)
 	switch c.op {
 	case "<=":
 		return cmp <= 0
@@ -257,20 +249,89 @@ func evalClause(running parsedOPN, c clause) bool {
 	}
 }
 
+func parsePatchedVersions(patchedExpr string) []parsedOPN {
+	if strings.TrimSpace(patchedExpr) == "" {
+		return nil
+	}
+	parts := strings.Split(patchedExpr, ",")
+	var out []parsedOPN
+	for _, part := range parts {
+		s := strings.TrimSpace(NormalizeDashes(part))
+		for _, prefix := range []string{">=", ">", "="} {
+			if strings.HasPrefix(s, prefix) {
+				s = strings.TrimSpace(strings.TrimPrefix(s, prefix))
+				break
+			}
+		}
+		if p, ok := parseOPNsense(s); ok {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func isPatchedBy(rp parsedOPN, edition, runSeries string, patched []parsedOPN, filterSeries bool) bool {
+	for _, p := range patched {
+		if filterSeries {
+			pSeries := fmt.Sprintf("%d.%d", p.major, p.minor)
+			if matchesEdition(p, edition, runSeries) && pSeries == runSeries && compareParsed(rp, p) >= 0 {
+				return true
+			}
+		} else {
+			if (len(patched) == 1 || (p.major == rp.major && p.minor == rp.minor)) && compareParsed(rp, p) >= 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func impliedUpperFromPatched(lower parsedOPN, edition, runSeries string, patched []parsedOPN, filterSeries bool) (parsedOPN, bool) {
+	lowerSeries := fmt.Sprintf("%d.%d", lower.major, lower.minor)
+	var best parsedOPN
+	found := false
+	for _, p := range patched {
+		if compareParsed(p, lower) <= 0 {
+			continue
+		}
+		if filterSeries {
+			pSeries := fmt.Sprintf("%d.%d", p.major, p.minor)
+			if !matchesEdition(p, edition, runSeries) || pSeries != lowerSeries {
+				continue
+			}
+		}
+		if !found || compareParsed(p, best) < 0 {
+			best = p
+			found = true
+		}
+	}
+	return best, found
+}
+
+// MatchesVulnerability evaluates OPNsense GHSA vulnerable_version_range alongside patched_versions.
+func MatchesVulnerability(running, series, edition, rangeExpr, patchedExpr string) bool {
+	return matchesRange(running, series, edition, rangeExpr, patchedExpr, true)
+}
+
+// MatchesPackageVulnerability evaluates plugin GHSA vulnerable_version_range alongside patched_versions.
+func MatchesPackageVulnerability(running, rangeExpr, patchedExpr string) bool {
+	return matchesRange(running, "", "", rangeExpr, patchedExpr, false)
+}
+
 // MatchesRange evaluates OPNsense GHSA vulnerable_version_range strings against a running version.
 // It distinguishes interval pairs (e.g. ">= 26.7, <= 26.7.9") from cross-series branch lists
 // (e.g. "<= 26.7.9, 26.10.0p1") and ignores clauses belonging to a different edition track.
 func MatchesRange(running, series, edition, rangeExpr string) bool {
-	return matchesRange(running, series, edition, rangeExpr, true)
+	return matchesRange(running, series, edition, rangeExpr, "", true)
 }
 
 // MatchesPackageRange evaluates version ranges for OPNsense plugins without applying
 // YY.04/YY.10 community-vs-business release series filtering.
 func MatchesPackageRange(running, rangeExpr string) bool {
-	return matchesRange(running, "", "", rangeExpr, false)
+	return matchesRange(running, "", "", rangeExpr, "", false)
 }
 
-func matchesRange(running, series, edition, rangeExpr string, filterSeries bool) bool {
+func matchesRange(running, series, edition, rangeExpr, patchedExpr string, filterSeries bool) bool {
 	rp, ok := parseOPNsense(running)
 	if !ok {
 		return false
@@ -280,6 +341,11 @@ func matchesRange(running, series, edition, rangeExpr string, filterSeries bool)
 		runSeries = fmt.Sprintf("%d.%d", rp.major, rp.minor)
 	}
 	if strings.TrimSpace(rangeExpr) == "" {
+		return false
+	}
+
+	patched := parsePatchedVersions(patchedExpr)
+	if isPatchedBy(rp, edition, runSeries, patched, filterSeries) {
 		return false
 	}
 
@@ -305,6 +371,15 @@ func matchesRange(running, series, edition, rangeExpr string, filterSeries bool)
 					return true
 				}
 				i += 2
+				continue
+			}
+		}
+		if c.op == ">" || c.op == ">=" {
+			if upperP, hasUpper := impliedUpperFromPatched(c.p, edition, runSeries, patched, filterSeries); hasUpper {
+				if (!filterSeries || matchesEdition(c.p, edition, runSeries)) && evalClause(rp, c) && compareParsed(rp, upperP) < 0 {
+					return true
+				}
+				i++
 				continue
 			}
 		}
