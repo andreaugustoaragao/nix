@@ -133,6 +133,94 @@ class NiriDropdownTests(unittest.TestCase):
         )
         self.assertEqual(actions, [{"Action": {"Spawn": {"command": ["vereda"]}}}])
 
+    def test_moves_scratch_past_numbered_workspaces_when_idx_collides(self):
+        workspaces = [
+            {"id": 21, "idx": 1, "name": "scratch", "output": "DP-1", "is_active": False, "is_focused": False},
+            {"id": 1, "idx": 2, "name": "1", "output": "DP-1", "is_active": True, "is_focused": True},
+        ]
+        windows = [
+            {
+                "id": 99,
+                "app_id": "bitwarden",
+                "title": "Bitwarden",
+                "workspace_id": 1,
+                "is_focused": True,
+                "is_floating": True,
+            }
+        ]
+        actions = MOD.plan_actions(
+            windows=windows,
+            workspaces=workspaces,
+            app_id_pattern="(?i)^bitwarden$",
+            title_pattern=None,
+            command=["bitwarden"],
+            scratch_workspace="scratch",
+            width_pct=65.0,
+            height_pct=65.0,
+        )
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "Action": {
+                        "MoveWindowToWorkspace": {
+                            "window_id": 99,
+                            "reference": {"Name": "scratch"},
+                            "focus": False,
+                        }
+                    }
+                },
+                {
+                    "Action": {
+                        "MoveWorkspaceToIndex": {
+                            "index": 3,
+                            "reference": {"Name": "scratch"},
+                        }
+                    }
+                },
+            ],
+        )
+
+    def test_hides_from_scratch_when_focused_on_scratch_at_idx_1(self):
+        workspaces = [
+            {"id": 21, "idx": 1, "name": "scratch", "output": "DP-1", "is_active": True, "is_focused": True},
+            {"id": 1, "idx": 2, "name": "1", "output": "DP-1", "is_active": False, "is_focused": False},
+        ]
+        windows = [
+            {
+                "id": 99,
+                "app_id": "bitwarden",
+                "title": "Bitwarden",
+                "workspace_id": 21,
+                "is_focused": True,
+                "is_floating": True,
+            }
+        ]
+        actions = MOD.plan_actions(
+            windows=windows,
+            workspaces=workspaces,
+            app_id_pattern="(?i)^bitwarden$",
+            title_pattern=None,
+            command=["bitwarden"],
+            scratch_workspace="scratch",
+            width_pct=65.0,
+            height_pct=65.0,
+        )
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "Action": {
+                        "MoveWorkspaceToIndex": {
+                            "index": 3,
+                            "reference": {"Name": "scratch"},
+                        }
+                    }
+                },
+                {"Action": {"FocusWorkspace": {"reference": {"Index": 1}}}},
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

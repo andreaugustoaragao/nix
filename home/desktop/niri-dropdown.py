@@ -69,6 +69,38 @@ def select_window(windows: list[dict], focused_ws_id: int | None) -> dict | None
     return max(windows, key=sort_key)
 
 
+_NUMBERED_WS_RE = re.compile(r"^[pv]?[1-9][0-9]*$")
+
+
+def scratch_order_action(workspaces: list[dict], scratch_workspace: str) -> dict | None:
+    scratch_ws = next((w for w in workspaces if w.get("name") == scratch_workspace), None)
+    if scratch_ws is None:
+        return None
+    output = scratch_ws.get("output")
+    scratch_idx = scratch_ws.get("idx")
+    if not output or not isinstance(scratch_idx, int):
+        return None
+    max_numbered_idx = max(
+        (
+            w.get("idx", 0)
+            for w in workspaces
+            if w.get("output") == output
+            and isinstance(w.get("idx"), int)
+            and _NUMBERED_WS_RE.match(w.get("name") or "")
+        ),
+        default=0,
+    )
+    if max_numbered_idx > 0 and scratch_idx <= max_numbered_idx:
+        return {
+            "Action": {
+                "MoveWorkspaceToIndex": {
+                    "index": max_numbered_idx + 1,
+                    "reference": {"Name": scratch_workspace},
+                }
+            }
+        }
+    return None
+
 def plan_actions(
     *,
     windows: list[dict],
@@ -97,8 +129,16 @@ def plan_actions(
     wid = target["id"]
     on_focused_ws = focused_ws_id is not None and target.get("workspace_id") == focused_ws_id
 
+    repair = scratch_order_action(workspaces, scratch_workspace)
+
     if target.get("is_focused") and on_focused_ws:
-        return [
+        if focused_ws and focused_ws.get("name") == scratch_workspace:
+            actions: list[dict] = []
+            if repair is not None:
+                actions.append(repair)
+            actions.append({"Action": {"FocusWorkspace": {"reference": {"Index": 1}}}})
+            return actions
+        actions = [
             {
                 "Action": {
                     "MoveWindowToWorkspace": {
@@ -109,8 +149,13 @@ def plan_actions(
                 }
             }
         ]
+        if repair is not None:
+            actions.append(repair)
+        return actions
 
     actions: list[dict] = []
+    if repair is not None:
+        actions.append(repair)
     if focused_ws_id is not None and not on_focused_ws:
         actions.append(
             {

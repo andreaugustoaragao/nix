@@ -108,6 +108,33 @@ let
       exec python3 ${./niri-dropdown.py} "$@"
     '';
   };
+  niriWorkspace = pkgs.writeShellApplication {
+    name = "niri-workspace";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${./niri-workspace.py} "$@"
+    '';
+  };
+
+  workspaceSlotBinds =
+    if isWorkstation || isVm then
+      lib.concatMapStringsSep "\n" (n: ''
+        Mod+${toString n} { spawn "${niriWorkspace}/bin/niri-workspace" "focus" "${toString n}"; }
+      '') (lib.range 1 9)
+    else
+      lib.concatMapStringsSep "\n" (n: ''
+        Mod+${toString n} { focus-workspace ${toString n}; }
+      '') (lib.range 1 9);
+
+  workspaceMoveSlotBinds =
+    if isWorkstation || isVm then
+      lib.concatMapStringsSep "\n" (n: ''
+        Mod+Shift+${toString n} { spawn "${niriWorkspace}/bin/niri-workspace" "move" "${toString n}"; }
+      '') (lib.range 1 9)
+    else
+      lib.concatMapStringsSep "\n" (n: ''
+        Mod+Shift+${toString n} { move-column-to-workspace ${toString n}; }
+      '') (lib.range 1 9);
 
   # Per-output workspaces. Only the workstation has a fixed dual-monitor
   # layout (landscape dp1 + portrait dp2) worth pinning workspaces to, so it
@@ -142,6 +169,17 @@ let
       ''
     else
       "";
+  scratchWorkspaceBlock =
+    if isWorkstation || isVm then
+      ''
+        workspace "scratch" {
+            open-on-output "${displays.dp1}"
+        }
+      ''
+    else
+      ''
+        workspace "scratch"
+      '';
 
   animationsBlock =
     if isVm then
@@ -183,13 +221,14 @@ in
     pkgs.hyprpolkitagent
     quakeTerminal
     niriDropdown
+    niriWorkspace
   ];
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = appearance.render ''
     ${workspaceBlock}
+    ${scratchWorkspaceBlock}
     ${browserWorkspaces}
-    workspace "scratch"
 
     // Monitor/Output configuration. Virtual-* scaling accounts for both
     // the hypervisor's Retina rendering and the desired on-screen size;
@@ -611,31 +650,12 @@ in
         Mod+Ctrl+Shift+Down  { move-column-to-monitor-down; }
 
         // Workspace switching (using number keys)
-        Mod+1 { focus-workspace 1; }
-        Mod+2 { focus-workspace 2; }
-        Mod+3 { focus-workspace 3; }
-        Mod+4 { focus-workspace 4; }
-        Mod+5 { focus-workspace 5; }
-        Mod+6 { focus-workspace 6; }
-        Mod+7 { focus-workspace 7; }
-        Mod+8 { focus-workspace 8; }
-        Mod+9 { focus-workspace 9; }
+        ${workspaceSlotBinds}
         Mod+0 { focus-workspace 10; }
 
         // Move window to workspace
-
-
-        Mod+Shift+1 { move-column-to-workspace 1; }
-        Mod+Shift+2 { move-column-to-workspace 2; }
-        Mod+Shift+3 { move-column-to-workspace 3; }
-        Mod+Shift+4 { move-column-to-workspace 4; }
-        Mod+Shift+5 { move-column-to-workspace 5; }
-        Mod+Shift+6 { move-column-to-workspace 6; }
-        Mod+Shift+7 { move-column-to-workspace 7; }
-        Mod+Shift+8 { move-column-to-workspace 8; }
-        Mod+Shift+9 { move-column-to-workspace 9; }
+        ${workspaceMoveSlotBinds}
         Mod+Shift+0 { move-column-to-workspace 10; }
-
         // Tab between workspaces  
         Mod+Tab { focus-workspace-down; }
         Mod+Shift+Tab { focus-workspace-up; }
