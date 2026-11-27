@@ -48,6 +48,40 @@
           '';
         };
       };
+      "wifi.faragao.net" = {
+        forceSSL = true;
+        useACMEHost = "faragao.net";
+        locations."/" = {
+          proxyPass = "https://192.168.100.53";
+          proxyWebsockets = true;
+          recommendedProxySettings = true;
+          extraConfig = ''
+            proxy_ssl_verify off;
+            proxy_buffering off;
+            proxy_read_timeout 300s;
+            allow 127.0.0.1;
+            allow 192.168.10.0/24;
+            allow 192.168.50.0/24;
+            deny all;
+          '';
+        };
+      };
+      "printer.faragao.net" = {
+        forceSSL = true;
+        useACMEHost = "faragao.net";
+        locations."/" = {
+          proxyPass = "https://192.168.20.71";
+          recommendedProxySettings = true;
+          extraConfig = ''
+            proxy_ssl_verify off;
+            allow 127.0.0.1;
+            allow 192.168.10.0/24;
+            allow 192.168.20.0/24;
+            allow 192.168.50.0/24;
+            deny all;
+          '';
+        };
+      };
     };
   };
 
