@@ -19,6 +19,7 @@ Defined in `machines.toml` and wired via `flake.nix`:
 | `workstation` | x86_64-linux | Primary desktop, k3s, LLM serving |
 | `hp-laptop` | x86_64-linux | Portable laptop, WiFi |
 | `tala` | x86_64-linux | Headless server (LLDAP, Authelia, Caddy, ACME) |
+| `maui` | x86_64-linux | Home infrastructure server (Vaultwarden, Matrix, Grafana, Prometheus, Nginx, Time Machine SMB) — see [`docs/maui.md`](docs/maui.md) |
 | `prl-dev-vm` | aarch64-linux | Parallels Desktop dev VM (mac-work) |
 | `vmw-dev-vm` | aarch64-linux | VMware Fusion dev VM (mac-work) |
 | `mac-work` | aarch64-darwin | nix-darwin on the work MacBook |
@@ -51,6 +52,7 @@ Prereqs: NixOS with flakes enabled (or nix-darwin for `mac-work`).
 sudo nixos-rebuild switch --flake .#workstation
 sudo nixos-rebuild switch --flake .#hp-laptop
 sudo nixos-rebuild switch --flake .#tala
+sudo nixos-rebuild switch --flake .#maui
 sudo nixos-rebuild switch --flake .#prl-dev-vm
 sudo nixos-rebuild switch --flake .#vmw-dev-vm
 

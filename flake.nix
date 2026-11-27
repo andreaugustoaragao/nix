@@ -144,6 +144,7 @@
           "server"
           "kubernetes"
           "gcp-agent"
+          "maui"
         ];
         hostAddress = host.address or null;
         kubernetesVmAddress = metadata.machines.prl-k8s-vm.address;
@@ -259,14 +260,19 @@
       # NixOS configurations for Linux machines
       nixosConfigurations = builtins.mapAttrs (
         machineName: host:
-        nixpkgs.lib.nixosSystem {
+        (if host.profile == "maui" then inputs.nixpkgs-unstable else nixpkgs).lib.nixosSystem {
           specialArgs = setSpecialArgs host;
           modules = [
             { nixpkgs.hostPlatform = host.platform; }
             (./hardware + "/${machineName}" + /hardware-configuration.nix)
           ]
           ++ (
-            if host.profile == "kubernetes" then
+            if host.profile == "maui" then
+              [
+                ./system/maui
+                sops-nix.nixosModules.sops
+              ]
+            else if host.profile == "kubernetes" then
               [ ./system/kubernetes ]
             else if host.profile == "worker" then
               [

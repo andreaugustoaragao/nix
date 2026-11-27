@@ -104,7 +104,7 @@ If any of these tools aren't available in the environment, note it but don't ski
 
 ## Multi-Machine Awareness
 
-This flake manages 6 hosts via `machines.toml` (5 NixOS + 1 nix-darwin):
+This flake manages multiple hosts via `machines.toml` (primary NixOS/nix-darwin targets below, plus dedicated VM/k8s/worker profiles in `machines.toml`):
 
 | Machine | Platform | Profile |
 |---------|----------|---------|
@@ -113,6 +113,7 @@ This flake manages 6 hosts via `machines.toml` (5 NixOS + 1 nix-darwin):
 | prl-dev-vm | aarch64-linux | vm |
 | vmw-dev-vm | aarch64-linux | vm |
 | tala | x86_64-linux | server |
+| maui | x86_64-linux | maui |
 | mac-work | aarch64-darwin | darwin |
 
 - Use `lib.optionals` with `pkgs.stdenv.hostPlatform.system` or the profile booleans (`isWorkstation`, `isLaptop`, `isVm`, `isServer`, `isDarwinHost`) for platform/profile-conditional packages.

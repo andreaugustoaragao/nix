@@ -100,6 +100,12 @@ lockScreen = false
 autoLogin = false
 useDms = false
 
+[machines.maui]
+hostName = "maui"
+platform = "x86_64-linux"
+profile = "maui"
+stateVersion = "24.05"
+
 # Work-issued MacBook (Apple Silicon). Built with nix-darwin instead of
 # NixOS — see darwinConfigurations in flake.nix. "profile = darwin" is
 # a sentinel: system/ modules are not imported, so the legacy
