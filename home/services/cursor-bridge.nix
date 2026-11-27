@@ -1269,9 +1269,9 @@ lib.mkIf (role != null) {
       ExecStart = [
         (
           if role == "listen" then
-            "${lib.getExe bridge} --listen --quic-addr 0.0.0.0:${toString bridgePort} --lan-local 127.0.0.1:${toString bridgeLanPort} --lan-peer ${loopback} --cert %d/cert --key %d/key --niri-bin ${lib.getExe unstable-pkgs.niri} --busctl-bin ${pkgs.systemd}/bin/busctl --enter-output ${config.my.displays.dp2} --serial-floor-file %t/cursor-bridge/bridge-serial --seat-state-file %t/cursor-bridge/native-seat"
+            "${lib.getExe bridge} --listen --quic-addr 0.0.0.0:${toString bridgePort} --lan-local 127.0.0.1:${toString bridgeLanPort} --lan-peer ${loopback} --cert %d/cert --key %d/key --niri-bin ${lib.getExe unstable-pkgs.niri} --busctl-bin ${pkgs.systemd}/bin/busctl --enter-output ${config.my.displays.dp2} --serial-floor-file %t/cursor-bridge/bridge-serial --seat-state-file %t/cursor-bridge/native-seat --clipboard"
           else
-            "${lib.getExe bridge} --dial --quic-addr 192.168.10.75:${toString bridgePort} --lan-local 127.0.0.1:${toString bridgeLanPort} --lan-peer ${loopback} --cert %d/cert --key %d/key --serial-floor-file %t/cursor-bridge/bridge-serial --seat-state-file %t/cursor-bridge/native-seat"
+            "${lib.getExe bridge} --dial --quic-addr 192.168.10.75:${toString bridgePort} --lan-local 127.0.0.1:${toString bridgeLanPort} --lan-peer ${loopback} --cert %d/cert --key %d/key --serial-floor-file %t/cursor-bridge/bridge-serial --seat-state-file %t/cursor-bridge/native-seat --clipboard"
         )
       ];
       LoadCredential = [

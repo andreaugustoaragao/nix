@@ -10,6 +10,9 @@
 //! 500ms replacement/shutdown deadlines, and a single sequential RecoveryDriver
 //! with V8-1 establishment-before-issuance over `bridge-serial` / `native-seat`.
 
+mod clipboard;
+
+use clipboard::{ClipboardHub, spawn_clipboard_session};
 use quinn::{
     ClientConfig, Connection, Endpoint, EndpointConfig, IdleTimeout, ServerConfig, TokioRuntime,
     TransportConfig, VarInt,
@@ -83,6 +86,7 @@ struct Args {
     niri_socket: Option<PathBuf>,
     serial_floor_file: PathBuf,
     seat_state_file: PathBuf,
+    clipboard: bool,
     #[cfg(test)]
     test_placement_hold: Option<Arc<Mutex<Option<(oneshot::Sender<()>, std::sync::mpsc::Receiver<()>)>>>>,
 }
@@ -1485,6 +1489,7 @@ async fn send_quic_frame(
     payload: &[u8],
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut stream = connection.open_uni().await?;
+    let _ = stream.set_priority(10);
     let mut framed = Vec::with_capacity(1 + payload.len());
     framed.push(payload.len() as u8);
     framed.extend_from_slice(payload);
@@ -1517,6 +1522,7 @@ async fn wait_for_healthy_before_input(
 struct SpliceHandles {
     inbound: Option<tokio::task::JoinHandle<()>>,
     outbound: Option<tokio::task::JoinHandle<()>>,
+    clipboard: Option<tokio::task::JoinHandle<()>>,
     placement_slot: Arc<tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
     conn: Connection,
     cancel_tx: watch::Sender<bool>,
@@ -1551,7 +1557,16 @@ async fn await_optional_pair(
     a: &mut Option<tokio::task::JoinHandle<()>>,
     b: &mut Option<tokio::task::JoinHandle<()>>,
 ) {
-    while a.is_some() || b.is_some() {
+    let mut none = None;
+    await_optional_triple(a, b, &mut none).await;
+}
+
+async fn await_optional_triple(
+    a: &mut Option<tokio::task::JoinHandle<()>>,
+    b: &mut Option<tokio::task::JoinHandle<()>>,
+    c: &mut Option<tokio::task::JoinHandle<()>>,
+) {
+    while a.is_some() || b.is_some() || c.is_some() {
         tokio::select! {
             res = async {
                 if let Some(h) = a.as_mut() {
@@ -1572,6 +1587,16 @@ async fn await_optional_pair(
             }, if b.is_some() => {
                 let _ = res;
                 *b = None;
+            }
+            res = async {
+                if let Some(h) = c.as_mut() {
+                    h.await
+                } else {
+                    std::future::pending().await
+                }
+            }, if c.is_some() => {
+                let _ = res;
+                *c = None;
             }
         }
     }
@@ -2117,7 +2142,11 @@ async fn drain_session_for_decision(
         let coop_deadline = std::cmp::min(decision_deadline, Instant::now() + COOPERATIVE_JOIN_BUDGET);
         let coop_res = tokio::time::timeout_at(
             coop_deadline,
-            await_optional_pair(&mut handles.inbound, &mut handles.outbound),
+            await_optional_triple(
+                &mut handles.inbound,
+                &mut handles.outbound,
+                &mut handles.clipboard,
+            ),
         )
         .await;
 
@@ -2128,10 +2157,17 @@ async fn drain_session_for_decision(
             if let Some(h) = &handles.outbound {
                 h.abort();
             }
+            if let Some(h) = &handles.clipboard {
+                h.abort();
+            }
             let abort_deadline = std::cmp::min(decision_deadline, Instant::now() + ABORT_DRAIN_BUDGET);
             let abort_res = tokio::time::timeout_at(
                 abort_deadline,
-                await_optional_pair(&mut handles.inbound, &mut handles.outbound),
+                await_optional_triple(
+                    &mut handles.inbound,
+                    &mut handles.outbound,
+                    &mut handles.clipboard,
+                ),
             )
             .await;
             if abort_res.is_err() {
@@ -2279,9 +2315,14 @@ async fn serve_with_shutdown(
         args.lan_peer,
         active_slot.clone(),
         demux_target.clone(),
-        bg_shutdown_rx,
+        bg_shutdown_rx.clone(),
     ));
-
+    let (clip_hub, mut clip_handle) = if args.clipboard {
+        let (hub, h) = ClipboardHub::spawn(bg_shutdown_rx);
+        (Some(hub), Some(h))
+    } else {
+        (None, None)
+    };
     let niri_cfg = match (
         args.role,
         &args.niri_bin,
@@ -2401,12 +2442,16 @@ async fn serve_with_shutdown(
                         completed_epoch_rx.clone(),
                         rx,
                         demux_target.clone(),
-                        cancel_rx,
+                        cancel_rx.clone(),
                         placement_slot.clone(),
                     );
+                    let clip_h = clip_hub
+                        .as_ref()
+                        .map(|hub| spawn_clipboard_session(new_conn.clone(), hub.clone(), cancel_rx));
                     active_handles = Some(SpliceHandles {
                         inbound: Some(in_h),
                         outbound: Some(out_h),
+                        clipboard: clip_h,
                         placement_slot,
                         conn: new_conn,
                         cancel_tx,
@@ -2505,11 +2550,17 @@ async fn serve_with_shutdown(
     let bg_res = tokio::time::timeout_at(bg_deadline, async {
         let _ = (&mut driver_handle).await;
         let _ = (&mut demux_handle).await;
+        if let Some(h) = &mut clip_handle {
+            let _ = h.await;
+        }
     })
     .await;
     if bg_res.is_err() {
         driver_handle.abort();
         demux_handle.abort();
+        if let Some(h) = &clip_handle {
+            h.abort();
+        }
     }
     endpoint.close(0u32.into(), b"shutdown");
 
@@ -2560,9 +2611,9 @@ fn client_config(cert: &Path, key: &Path) -> Result<ClientConfig, Box<dyn Error 
 fn transport() -> Arc<TransportConfig> {
     let mut transport = TransportConfig::default();
     transport.max_concurrent_uni_streams(VarInt::from_u32(32));
-    transport.stream_receive_window(VarInt::from_u32(256));
-    transport.receive_window(VarInt::from_u32(16384));
-    transport.keep_alive_interval(Some(Duration::from_secs(5)));
+    transport.max_concurrent_bidi_streams(VarInt::from_u32(16));
+    transport.stream_receive_window(VarInt::from_u32(256 * 1024));
+    transport.receive_window(VarInt::from_u32(2 * 1024 * 1024));
     transport.max_idle_timeout(Some(IdleTimeout::try_from(Duration::from_secs(20)).unwrap()));
     Arc::new(transport)
 }
@@ -2724,6 +2775,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, Box<dyn Error +
     let mut niri_socket = None;
     let mut serial_floor_file = None;
     let mut seat_state_file = None;
+    let mut clipboard = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -2750,6 +2802,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, Box<dyn Error +
             "--seat-state-file" => {
                 seat_state_file = Some(PathBuf::from(take(&mut args, "--seat-state-file")?))
             }
+            "--clipboard" => clipboard = true,
             other => return Err(format!("unknown argument {other}").into()),
         }
     }
@@ -2785,6 +2838,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Args, Box<dyn Error +
         niri_socket,
         serial_floor_file: serial_floor_file.ok_or("missing --serial-floor-file")?,
         seat_state_file: seat_state_file.ok_or("missing --seat-state-file")?,
+        clipboard,
         #[cfg(test)]
         test_placement_hold: None,
     })
@@ -3492,6 +3546,7 @@ mod tests {
         let (cancel_tx, _cancel_rx) = watch::channel(false);
         let mut partial_handles = Some(SpliceHandles {
             inbound: Some(tokio::spawn(async {})),
+            clipboard: None,
             outbound: Some(tokio::spawn(async {
                 std::future::pending::<()>().await;
             })),
@@ -4082,6 +4137,7 @@ mod tests {
         let mut handles = Some(SpliceHandles {
             inbound: Some(in_h),
             outbound: Some(out_h),
+            clipboard: None,
             placement_slot,
             conn: srv_conn,
             cancel_tx,
@@ -4218,6 +4274,7 @@ mod tests {
         let mut handles = Some(SpliceHandles {
             inbound: Some(tokio::spawn(async {})),
             outbound: Some(tokio::spawn(async {})),
+            clipboard: None,
             placement_slot: placement_slot.clone(),
             conn: srv_conn,
             cancel_tx,
@@ -4344,6 +4401,7 @@ mod tests {
         let mut handles = Some(SpliceHandles {
             inbound: Some(in_h),
             outbound: Some(tokio::spawn(async {})),
+            clipboard: None,
             placement_slot: placement_slot.clone(),
             conn: srv_conn,
             cancel_tx,
@@ -4473,6 +4531,7 @@ mod tests {
         let mut placement_only_handles = SpliceHandles {
             inbound: None,
             outbound: None,
+            clipboard: None,
             placement_slot: Arc::new(tokio::sync::Mutex::new(Some(ph_tmp))),
             conn: s_tmp,
             cancel_tx: ctx_tmp,
@@ -4522,6 +4581,7 @@ mod tests {
             niri_socket: Some(niri_sock),
             serial_floor_file: floor_file,
             seat_state_file: seat_file,
+            clipboard: false,
             test_placement_hold: Some(hold),
         };
 
