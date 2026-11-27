@@ -144,3 +144,29 @@ func TestAdminRoutesLoopbackAndBearerEnforcement(t *testing.T) {
 		t.Fatalf("expected ack handler invoked, got %q", ackedID)
 	}
 }
+
+func TestMetricsEndpoint(t *testing.T) {
+	h := NewMuxWithMetrics("tok", nil, nil, func() string {
+		return "# TYPE netwatch_up gauge\nnetwatch_up 1\nnetwatch_opnsense_webgui_cert_expiry_seconds 1803528612\n"
+	}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for GET /metrics, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Fatalf("expected text/plain Content-Type, got %q", ct)
+	}
+	if !strings.Contains(rec.Body.String(), "netwatch_up 1") || !strings.Contains(rec.Body.String(), "1803528612") {
+		t.Fatalf("unexpected metrics body: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/metrics", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 for POST /metrics, got %d", rec.Code)
+	}
+}

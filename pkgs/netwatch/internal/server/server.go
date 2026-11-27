@@ -22,6 +22,9 @@ type IngestHandler func(ctx context.Context, snap *model.OPNsenseSnapshot) (find
 // StatusProvider supplies safe, secret-free runtime health for /healthz.
 type StatusProvider func() map[string]any
 
+// MetricsProvider supplies Prometheus text-exposition metrics for GET /metrics.
+type MetricsProvider func() string
+
 // AdminHandlers exposes loopback-only state operations so CLI tools avoid racy file writes while serve runs.
 type AdminHandlers struct {
 	Status           func(ctx context.Context) (any, error)
@@ -34,11 +37,16 @@ type AdminHandlers struct {
 
 // NewMux constructs the HTTP handler for firewall snapshot ingestion and local health checks.
 func NewMux(ingestToken string, onIngest IngestHandler, statusFn StatusProvider) http.Handler {
-	return NewMuxWithAdmin(ingestToken, onIngest, statusFn, nil)
+	return NewMuxWithMetrics(ingestToken, onIngest, statusFn, nil, nil)
 }
 
 // NewMuxWithAdmin constructs the HTTP handler plus optional loopback-restricted /admin endpoints.
 func NewMuxWithAdmin(ingestToken string, onIngest IngestHandler, statusFn StatusProvider, admin *AdminHandlers) http.Handler {
+	return NewMuxWithMetrics(ingestToken, onIngest, statusFn, nil, admin)
+}
+
+// NewMuxWithMetrics constructs the HTTP handler with /healthz, /metrics, ingest, and optional /admin endpoints.
+func NewMuxWithMetrics(ingestToken string, onIngest IngestHandler, statusFn StatusProvider, metricsFn MetricsProvider, admin *AdminHandlers) http.Handler {
 	mux := http.NewServeMux()
 	expected := []byte(strings.TrimSpace(ingestToken))
 
@@ -57,6 +65,20 @@ func NewMuxWithAdmin(ingestToken string, onIngest IngestHandler, statusFn Status
 			}
 		}
 		writeJSON(w, http.StatusOK, payload)
+	})
+
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		body := "netwatch_up 1\n"
+		if metricsFn != nil {
+			body = metricsFn()
+		}
+		_, _ = w.Write([]byte(body))
 	})
 
 	mux.HandleFunc("/ingest/opnsense-audit", func(w http.ResponseWriter, r *http.Request) {

@@ -11,6 +11,8 @@ let
     config.sops.secrets.healthchecks_upgrade_url.path
     config.sops.secrets.nginx_origin_cert.path
     config.sops.secrets.nginx_origin_key.path
+    config.sops.secrets.alertmanager_env.path
+    config.sops.secrets.snmp_exporter_env.path
   ];
 
   mauiVerify = pkgs.writeShellApplication {
@@ -34,6 +36,9 @@ let
         vaultwarden
         grafana
         prometheus
+        alertmanager
+        prometheus-blackbox-exporter
+        prometheus-snmp-exporter
         samba-smbd
         nginx
         sshd
@@ -82,10 +87,12 @@ let
       curl -fsS --max-time 20 http://127.0.0.1:8000/alive >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:2342/api/health | jq -e '.database == "ok"' >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:9090/-/ready >/dev/null
+      curl -fsS --max-time 20 http://127.0.0.1:9093/-/ready >/dev/null
+      curl -fsS --max-time 20 http://127.0.0.1:9116/metrics >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:9090/api/v1/targets | jq -e '
         .status == "success" and (.data.activeTargets | length > 0)
         and all(.data.activeTargets[]; .health == "up")' >/dev/null
-      printf 'PASS Matrix, Vaultwarden, Grafana, Prometheus, and scrape targets\n'
+      printf 'PASS Matrix, Vaultwarden, Grafana, Prometheus, Alertmanager, SNMP exporter, and scrape targets\n'
 
       smb_out=$(smbclient -L 127.0.0.1 -N -g 2>/dev/null || true)
       grep -Eq '^Disk\|timemachine\|' <<<"$smb_out"

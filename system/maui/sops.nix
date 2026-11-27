@@ -75,6 +75,20 @@ _: {
         mode = "0400";
         restartUnits = [ "nginx.service" ];
       };
+
+      "alertmanager_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "alertmanager.service" ];
+      };
+
+      "snmp_exporter_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "prometheus-snmp-exporter.service" ];
+      };
     };
   };
 }

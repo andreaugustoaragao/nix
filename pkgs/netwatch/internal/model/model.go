@@ -27,11 +27,13 @@ type OPNsenseSnapshot struct {
 	ProductHash     string          `json:"product_hash"`
 	FreeBSDKernel   string          `json:"freebsd_kernel"`
 	FreeBSDUserland string          `json:"freebsd_userland"`
-	FreeBSDRunning  string          `json:"freebsd_running"`
-	PackageCount    int             `json:"package_count"`
-	AuditOK         bool            `json:"audit_ok"`
-	AuditError      string          `json:"audit_error"`
-	Plugins         []PackageInfo   `json:"plugins"`
+	FreeBSDRunning         string          `json:"freebsd_running"`
+	PackageCount           int             `json:"package_count"`
+	AuditOK                bool            `json:"audit_ok"`
+	AuditError             string          `json:"audit_error"`
+	WebGUICertNotAfterUnix int64           `json:"webgui_cert_not_after_unix,omitempty"`
+	WebGUICertSubject      string          `json:"webgui_cert_subject,omitempty"`
+	Plugins                []PackageInfo   `json:"plugins"`
 	PkgAudit        PkgAuditResult  `json:"pkg_audit"`
 	FirmwareCheck   FirmwareCheck   `json:"firmware_check"`
 	Services        []string        `json:"services"`

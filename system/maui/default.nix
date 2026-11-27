@@ -13,6 +13,7 @@
     ./certs.nix
     ./smb.nix
     ./monitoring.nix
+    ./snmp.nix
     ./vaultwarden.nix
     ./matrix.nix
     ./upgrade.nix
@@ -116,6 +117,9 @@
     shfmt
     busybox
     btrfs-progs
+    smartmontools
+    dnsutils
+    net-snmp
     eza
   ];
 

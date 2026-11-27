@@ -1,0 +1,537 @@
+{
+  "uid": "faragao-fleet",
+  "title": "faragao.net — Household & Fleet Observability",
+  "tags": ["faragao", "fleet", "wave10"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "1. Household Availability",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 101,
+      "type": "stat",
+      "title": "External Public Services (Cloudflare @1.1.1.1)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "external_probe_success",
+          "legendFormat": "{{service}} ({{host}})"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 102,
+      "type": "stat",
+      "title": "DNS Probes (Internal / Standby / Public)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=\"blackbox_dns\"}",
+          "legendFormat": "{{device}} · {{check}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "FAIL", "color": "red" }, "1": { "text": "OK", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 103,
+      "type": "stat",
+      "title": "Internal Web & Reverse-Proxied Services",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=\"blackbox_http_internal\"}",
+          "legendFormat": "{{service}} ({{device}})"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 104,
+      "type": "stat",
+      "title": "Wave 9 netwatch · Heartbeat, Audit Age & Open Findings",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "netwatch_heartbeat_ok",
+          "legendFormat": "heartbeat_ok"
+        },
+        {
+          "refId": "B",
+          "expr": "(time() - netwatch_snapshot_timestamp_seconds) / 3600",
+          "legendFormat": "opnsense_audit_age_h"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(netwatch_open_findings)",
+          "legendFormat": "open_findings"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "2. Fleet & Storage (8 Infra Sources + Conditional Workstation)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 7, "w": 24, "h": 1 }
+    },
+    {
+      "id": 201,
+      "type": "stat",
+      "title": "Infrastructure Reachability & Exporters",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"node|node_remote\"}",
+          "legendFormat": "node:{{device}} ({{role}})"
+        },
+        {
+          "refId": "B",
+          "expr": "probe_success{job=\"blackbox_icmp\"}",
+          "legendFormat": "icmp:{{device}} ({{role}})"
+        },
+        {
+          "refId": "C",
+          "expr": "fleet_expected_source{tier=\"conditional\"}",
+          "legendFormat": "conditional:{{device}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "OFF/IDLE", "color": "yellow" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 202,
+      "type": "stat",
+      "title": "TLS Certificate Days Remaining",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(acme_cert_not_after_seconds - time()) / 86400",
+          "legendFormat": "maui ACME ({{cert}})"
+        },
+        {
+          "refId": "B",
+          "expr": "(netwatch_opnsense_webgui_cert_expiry_seconds - time()) / 86400",
+          "legendFormat": "chief-tui-opn WebGUI"
+        },
+        {
+          "refId": "C",
+          "expr": "min by (service) ((external_probe_cert_expiry_seconds - time()) / 86400)",
+          "legendFormat": "external:{{service}}"
+        },
+        {
+          "refId": "D",
+          "expr": "min by (instance) ((probe_ssl_earliest_cert_expiry{job=\"blackbox_http_internal\"} - time()) / 86400)",
+          "legendFormat": "internal:{{instance}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 7 },
+              { "color": "green", "value": 21 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 203,
+      "type": "stat",
+      "title": "Filesystem Free % (maui & tala)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 14, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * node_filesystem_avail_bytes{fstype!~\"tmpfs|ramfs|squashfs|overlay|fuse.*\",mountpoint!~\"/boot.*|/run.*\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|ramfs|squashfs|overlay|fuse.*\",mountpoint!~\"/boot.*|/run.*\"}",
+          "legendFormat": "{{device}} {{mountpoint}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 10 },
+              { "color": "green", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 204,
+      "type": "stat",
+      "title": "Btrfs /data Errors & Missing Devices",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 8, "y": 14, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (exported_device) (btrfs_device_errors_total{mount=\"/data\"})",
+          "legendFormat": "errors:{{exported_device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "btrfs_device_missing{mount=\"/data\"}",
+          "legendFormat": "missing_devices"
+        },
+        {
+          "refId": "C",
+          "expr": "btrfs_filesystem_free_estimated_bytes{mount=\"/data\"} / 1099511627776",
+          "legendFormat": "free_TiB"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 205,
+      "type": "stat",
+      "title": "SMART Health & Temperatures (maui + tala)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 16, "y": 14, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "smart_device_healthy",
+          "legendFormat": "ok:{{device}} {{exported_device}} ({{model}})"
+        },
+        {
+          "refId": "B",
+          "expr": "smart_device_temperature_celsius",
+          "legendFormat": "tempC:{{device}} {{exported_device}}"
+        },
+        {
+          "refId": "C",
+          "expr": "smart_device_supported",
+          "legendFormat": "smart_supported:{{device}} {{exported_device}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 206,
+      "type": "stat",
+      "title": "teka Synology NAS (RAID, Drive, Capacity)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "synoRaidStatus{device=\"teka\"}",
+          "legendFormat": "raid:{{raidName}} (1=OK)"
+        },
+        {
+          "refId": "B",
+          "expr": "synoDiskHealthStatus{device=\"teka\"}",
+          "legendFormat": "disk:{{diskID}} ({{diskModel}}, 1=OK)"
+        },
+        {
+          "refId": "C",
+          "expr": "synoDiskTemperature{device=\"teka\"}",
+          "legendFormat": "tempC:{{diskID}}"
+        },
+        {
+          "refId": "D",
+          "expr": "100 * synoRaidFreeSizeBytes{device=\"teka\"} / synoRaidTotalSizeBytes{device=\"teka\"}",
+          "legendFormat": "free_%:{{raidName}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 207,
+      "type": "timeseries",
+      "title": "tamatoa Switch Traffic & Errors (Active Uplinks + APs)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(ifHCInOctets{device=\"tamatoa\",ifAlias=~\"wan-quantum-nid|ruckus_basement|ruckus_loft|maui-40\\\\.3|teka-synology-40\\\\.4|chief-tui-opn-lan-10g\"}[5m]) * 8",
+          "legendFormat": "in {{ifDescr}} ({{ifAlias}})"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(ifHCOutOctets{device=\"tamatoa\",ifAlias=~\"wan-quantum-nid|ruckus_basement|ruckus_loft|maui-40\\\\.3|teka-synology-40\\\\.4|chief-tui-opn-lan-10g\"}[5m]) * 8",
+          "legendFormat": "out {{ifDescr}} ({{ifAlias}})"
+        },
+        {
+          "refId": "C",
+          "expr": "ifOperStatus{device=\"tamatoa\",ifAlias!=\"\"}",
+          "legendFormat": "oper {{ifDescr}} ({{ifAlias}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps"
+        }
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "3. Monitoring & Alerting Pipeline Health",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 1 }
+    },
+    {
+      "id": 301,
+      "type": "stat",
+      "title": "Failed Systemd Units (maui + tala)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 27, "w": 6, "h": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (device) (node_systemd_unit_state{state=\"failed\",name!~\"fwupd.*|man-db.*\"})",
+          "legendFormat": "{{device}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 302,
+      "type": "stat",
+      "title": "Alertmanager Email Delivery",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 6, "y": 27, "w": 6, "h": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "alertmanager_notifications_total{integration=\"email\"}",
+          "legendFormat": "sent_total"
+        },
+        {
+          "refId": "B",
+          "expr": "alertmanager_notifications_failed_total{integration=\"email\"}",
+          "legendFormat": "failed_total"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 303,
+      "type": "stat",
+      "title": "Collector Age & Prometheus Targets Up",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 12, "y": 27, "w": 6, "h": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up == 1)",
+          "legendFormat": "targets_up"
+        },
+        {
+          "refId": "B",
+          "expr": "count(up == 0) or vector(0)",
+          "legendFormat": "targets_down"
+        },
+        {
+          "refId": "C",
+          "expr": "max(time() - storage_metrics_timestamp_seconds)",
+          "legendFormat": "storage_collector_age_s"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 304,
+      "type": "stat",
+      "title": "Prometheus TSDB Series & Disk Usage",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 18, "y": 27, "w": 6, "h": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "prometheus_tsdb_head_series",
+          "legendFormat": "head_series"
+        },
+        {
+          "refId": "B",
+          "expr": "prometheus_tsdb_storage_blocks_bytes / 1048576",
+          "legendFormat": "blocks_MiB"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    }
+  ]
+}

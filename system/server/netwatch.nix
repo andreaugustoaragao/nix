@@ -73,6 +73,12 @@ in
       description = "Source CIDRs permitted to reach netwatch ingest and syslog ports via nixos-fw.";
     };
 
+    allowedMetricsCIDRs = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "192.168.40.3/32" ];
+      description = "Source CIDRs permitted to scrape netwatch /metrics (port 9400 only; no syslog access).";
+    };
+
     dailyHour = lib.mkOption {
       type = lib.types.ints.between 0 23;
       default = 8;
@@ -161,14 +167,24 @@ in
       };
     };
 
-    networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (cidr: ''
-      iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept
-      iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept
-    '') cfg.allowedIngestCIDRs;
+    networking.firewall.extraCommands =
+      lib.concatMapStringsSep "\n" (cidr: ''
+        iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept
+        iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept
+      '') cfg.allowedIngestCIDRs
+      + "\n"
+      + lib.concatMapStringsSep "\n" (cidr: ''
+        iptables -w -A nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept
+      '') cfg.allowedMetricsCIDRs;
 
-    networking.firewall.extraStopCommands = lib.concatMapStringsSep "\n" (cidr: ''
-      iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept 2>/dev/null || true
-      iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept 2>/dev/null || true
-    '') cfg.allowedIngestCIDRs;
+    networking.firewall.extraStopCommands =
+      lib.concatMapStringsSep "\n" (cidr: ''
+        iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept 2>/dev/null || true
+        iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.syslogPort} -j nixos-fw-accept 2>/dev/null || true
+      '') cfg.allowedIngestCIDRs
+      + "\n"
+      + lib.concatMapStringsSep "\n" (cidr: ''
+        iptables -w -D nixos-fw -s ${cidr} -p tcp --dport ${toString cfg.port} -j nixos-fw-accept 2>/dev/null || true
+      '') cfg.allowedMetricsCIDRs;
   };
 }

@@ -7,6 +7,7 @@
   # token. Re-enable each module once its secret values are real.
   imports = [
     ./netwatch.nix
+    ./monitoring.nix
     # ./acme.nix
     # ./caddy.nix
     # ./lldap.nix

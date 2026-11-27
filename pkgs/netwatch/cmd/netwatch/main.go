@@ -355,7 +355,7 @@ func cmdServe(args []string) error {
 		},
 	}
 
-	mux := server.NewMuxWithAdmin(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
+	mux := server.NewMuxWithMetrics(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
 		ev, _, sent, err := eng.evaluateAndNotify(c, snap, true)
 		if err != nil {
 			return 0, 0, err
@@ -372,11 +372,16 @@ func cmdServe(args []string) error {
 		if cp.LatestSnapshot != nil {
 			out["last_snapshot"] = cp.LatestSnapshot.CollectedAt.UTC().Format(time.RFC3339)
 			out["opnsense_version"] = cp.LatestSnapshot.ProductVersion
+			if cp.LatestSnapshot.WebGUICertNotAfterUnix > 0 {
+				out["webgui_cert_not_after_unix"] = cp.LatestSnapshot.WebGUICertNotAfterUnix
+			}
 		}
 		if !cp.Syslog.LastReceived.IsZero() {
 			out["last_syslog"] = cp.Syslog.LastReceived.UTC().Format(time.RFC3339)
 		}
 		return out
+	}, func() string {
+		return formatPrometheusMetrics(st, time.Now().UTC())
 	}, adminHandlers)
 
 	srv := &http.Server{
@@ -1043,4 +1048,124 @@ func countOpen(m map[string]*model.TrackedFinding) int {
 		}
 	}
 	return n
+}
+
+func formatPrometheusMetrics(st *state.Store, now time.Time) string {
+	cp := st.SnapshotCopy()
+	maintActive := st.IsMaintenanceActive(now)
+
+	openBySev := map[string]int{
+		model.SeverityUrgent: 0,
+		model.SeverityDaily:  0,
+		model.SeverityDigest: 0,
+	}
+	byStatus := map[string]int{
+		model.StatusOpen:     0,
+		model.StatusAcked:    0,
+		model.StatusResolved: 0,
+	}
+	for _, tf := range cp.Findings {
+		if tf.Synthetic {
+			continue
+		}
+		if tf.Status == model.StatusOpen || tf.Status == model.StatusAcked {
+			openBySev[tf.Severity]++
+		}
+		if _, ok := byStatus[tf.Status]; ok {
+			byStatus[tf.Status]++
+		}
+	}
+
+	var b strings.Builder
+	writeGauge := func(name, help string, val int64) {
+		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s gauge\n%s %d\n", name, help, name, name, val)
+	}
+	writeCounter := func(name, help string, val int64) {
+		fmt.Fprintf(&b, "# HELP %s %s\n# TYPE %s counter\n%s %d\n", name, help, name, name, val)
+	}
+
+	writeGauge("netwatch_up", "Whether netwatch HTTP exporter is running.", 1)
+
+	b.WriteString("# HELP netwatch_open_findings Open or acknowledged non-synthetic findings by severity.\n# TYPE netwatch_open_findings gauge\n")
+	for _, sev := range []string{model.SeverityUrgent, model.SeverityDaily, model.SeverityDigest} {
+		fmt.Fprintf(&b, "netwatch_open_findings{severity=%q} %d\n", sev, openBySev[sev])
+	}
+
+	b.WriteString("# HELP netwatch_tracked_findings Tracked non-synthetic findings by status.\n# TYPE netwatch_tracked_findings gauge\n")
+	for _, status := range []string{model.StatusOpen, model.StatusAcked, model.StatusResolved} {
+		fmt.Fprintf(&b, "netwatch_tracked_findings{status=%q} %d\n", status, byStatus[status])
+	}
+
+	var snapTS, auditOK, pkgCount, pkgAuditCount, webguiExpiry int64
+	if cp.LatestSnapshot != nil {
+		if !cp.LatestSnapshot.CollectedAt.IsZero() {
+			snapTS = cp.LatestSnapshot.CollectedAt.Unix()
+		}
+		if cp.LatestSnapshot.AuditOK {
+			auditOK = 1
+		}
+		pkgCount = int64(cp.LatestSnapshot.PackageCount)
+		pkgAuditCount = int64(cp.LatestSnapshot.PkgAudit.PkgCount)
+		webguiExpiry = cp.LatestSnapshot.WebGUICertNotAfterUnix
+	}
+	writeGauge("netwatch_snapshot_timestamp_seconds", "Unix timestamp of the latest OPNsense audit snapshot.", snapTS)
+	writeGauge("netwatch_snapshot_audit_ok", "Whether the latest OPNsense pkg audit succeeded (1=ok, 0=failed).", auditOK)
+	writeGauge("netwatch_opnsense_package_count", "Installed FreeBSD package count reported in latest snapshot.", pkgCount)
+	writeGauge("netwatch_opnsense_pkg_audit_count", "Vulnerable package count reported by pkg audit in latest snapshot.", pkgAuditCount)
+	if webguiExpiry > 0 {
+		writeGauge("netwatch_opnsense_webgui_cert_expiry_seconds", "Unix timestamp when the OPNsense WebGUI TLS certificate expires.", webguiExpiry)
+	}
+
+	var syslogLast int64
+	if !cp.Syslog.LastReceived.IsZero() {
+		syslogLast = cp.Syslog.LastReceived.Unix()
+	}
+	writeCounter("netwatch_syslog_events_total", "Total valid firewall/IDS syslog events processed since last reset.", cp.Syslog.TotalReceived)
+	writeGauge("netwatch_syslog_last_received_seconds", "Unix timestamp of the most recent valid syslog event.", syslogLast)
+	writeCounter("netwatch_syslog_wan_blocked_total", "Total inbound WAN block syslog events observed.", cp.Syslog.WANBlockedIn)
+	writeCounter("netwatch_syslog_outbound_blocked_total", "Total internal outbound block syslog events observed.", cp.Syslog.InternalOutboundBlocked)
+	writeCounter("netwatch_syslog_ids_urgent_total", "Total priority-1 Suricata IDS syslog events observed.", cp.Syslog.IDSAlertsUrgent)
+	writeCounter("netwatch_syslog_ids_digest_total", "Total lower-priority Suricata IDS syslog events observed.", cp.Syslog.IDSAlertsDigest)
+
+	var hbOK, hbLast int64
+	if !cp.LastHeartbeatOK.IsZero() {
+		hbLast = cp.LastHeartbeatOK.Unix()
+		if cp.LastHeartbeatErr == "" {
+			hbOK = 1
+		}
+	}
+	writeGauge("netwatch_heartbeat_ok", "Whether the latest external Healthchecks.io heartbeat ping succeeded.", hbOK)
+	writeGauge("netwatch_heartbeat_last_ok_seconds", "Unix timestamp of the last successful external heartbeat ping.", hbLast)
+
+	if len(cp.FeedStatus) > 0 {
+		feedNames := make([]string, 0, len(cp.FeedStatus))
+		for k := range cp.FeedStatus {
+			feedNames = append(feedNames, k)
+		}
+		sort.Strings(feedNames)
+
+		b.WriteString("# HELP netwatch_feed_last_success_seconds Unix timestamp of last successful advisory feed fetch.\n# TYPE netwatch_feed_last_success_seconds gauge\n")
+		for _, name := range feedNames {
+			fs := cp.FeedStatus[name]
+			var ts int64
+			if !fs.LastSuccess.IsZero() {
+				ts = fs.LastSuccess.Unix()
+			}
+			fmt.Fprintf(&b, "netwatch_feed_last_success_seconds{feed=%q} %d\n", name, ts)
+		}
+
+		b.WriteString("# HELP netwatch_feed_items Number of items parsed from advisory feed.\n# TYPE netwatch_feed_items gauge\n")
+		for _, name := range feedNames {
+			fs := cp.FeedStatus[name]
+			fmt.Fprintf(&b, "netwatch_feed_items{feed=%q} %d\n", name, fs.ItemCount)
+		}
+	}
+
+	var maintVal int64
+	if maintActive {
+		maintVal = 1
+	}
+	writeGauge("netwatch_maintenance_active", "Whether temporary maintenance mode is active (1=active, 0=inactive).", maintVal)
+
+	return b.String()
 }
