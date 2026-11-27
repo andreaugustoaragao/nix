@@ -17,6 +17,12 @@
 let
   fileManager =
     if config.programs.vereda.enable then lib.getExe config.programs.vereda.package else "thunar";
+  fileManagerAppId =
+    if config.programs.vereda.enable then
+      "^io\\\\.github\\\\.andrearagao\\\\.vereda$"
+    else
+      "(?i)^thunar$";
+  hasVitals = hostName == "prl-dev-vm" || hostName == "workstation";
   noctalia = lib.getExe unstable-pkgs.noctalia;
   # Canonical dp1 (landscape) / dp2 (portrait) slot metadata — typed
   # my.displays.* options declared in ./display-options.nix, values
@@ -93,6 +99,14 @@ let
     '';
   };
 
+  niriDropdown = pkgs.writeShellApplication {
+    name = "niri-dropdown";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${./niri-dropdown.py} "$@"
+    '';
+  };
+
   # Per-output workspaces. Only the workstation has a fixed dual-monitor
   # layout (landscape dp1 + portrait dp2) worth pinning workspaces to, so it
   # gets an explicit set: Mod+1..9 land on "1".."9" while dp1 is focused and
@@ -166,12 +180,14 @@ in
   home.packages = [
     pkgs.hyprpolkitagent
     quakeTerminal
+    niriDropdown
   ];
 
   # Niri configuration with Hyprland-like keybindings
   xdg.configFile."niri/config.kdl".text = appearance.render ''
     ${workspaceBlock}
     ${browserWorkspaces}
+    workspace "scratch"
 
     // Monitor/Output configuration. Virtual-* scaling accounts for both
     // the hypervisor's Retina rendering and the desired on-screen size;
@@ -378,9 +394,28 @@ in
     }
 
     window-rule {
-        match app-id="Bitwarden"
+        match app-id="(?i)^bitwarden$"
         open-floating true
-        default-column-width { fixed 800; }
+        default-column-width { proportion 0.65; }
+        default-window-height { proportion 0.65; }
+        open-on-output "current"
+    }
+
+    ${lib.optionalString hasVitals ''
+      window-rule {
+          match title="^Vitals — System Monitor$"
+          open-floating true
+          default-column-width { proportion 0.65; }
+          default-window-height { proportion 0.65; }
+          open-on-output "current"
+      }
+    ''}
+
+    window-rule {
+        match app-id="${fileManagerAppId}"
+        open-floating true
+        default-column-width { proportion 0.65; }
+        default-window-height { proportion 0.65; }
         open-on-output "current"
     }
 
@@ -485,6 +520,9 @@ in
         // the running process.
         Mod+Return { spawn ${term.spawnArgs}; }
         F8 repeat=false hotkey-overlay-title="Toggle drop-down terminal" { spawn "${quakeTerminal}/bin/quake-terminal"; }
+        ${lib.optionalString hasVitals ''Mod+F1 repeat=false hotkey-overlay-title="Toggle Vitals" { spawn "${niriDropdown}/bin/niri-dropdown" "--title" "^Vitals — System Monitor$" "--" "vitals"; }''}
+        Mod+F2 repeat=false hotkey-overlay-title="Toggle Vereda" { spawn "${niriDropdown}/bin/niri-dropdown" "--app-id" "${fileManagerAppId}" "--" "${fileManager}"; }
+        Mod+F3 repeat=false hotkey-overlay-title="Toggle Bitwarden" { spawn "${niriDropdown}/bin/niri-dropdown" "--app-id" "(?i)^bitwarden$" "--" "bitwarden"; }
         Mod+Shift+T { spawn "${fileManager}"; }
         Mod+Shift+B { spawn "browser-default"; }
         ${lib.optionalString (!personalOnly) ''

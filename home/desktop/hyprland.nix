@@ -16,6 +16,9 @@
 let
   fileManager =
     if config.programs.vereda.enable then lib.getExe config.programs.vereda.package else "thunar";
+  fileManagerClass =
+    if config.programs.vereda.enable then "^io[.]github[.]andrearagao[.]vereda$" else "(?i)^thunar$";
+  hasVitals = hostName == "prl-dev-vm" || hostName == "workstation";
   noctalia = lib.getExe unstable-pkgs.noctalia;
   virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   # Daily-driver terminal selection (see ./default-terminal.nix). VMs
@@ -177,7 +180,24 @@ let
       startId = 11;
     });
 
-  workspaceRules = lib.optionals (hostName == "workstation") workstationWorkspaceRules;
+  dropdownWorkspaceRules = lib.optional hasVitals "special:vitals, on-created-empty:vitals" ++ [
+    "special:vereda, on-created-empty:${fileManager}"
+    "special:bitwarden, on-created-empty:bitwarden"
+  ];
+
+  workspaceRules =
+    lib.optionals (hostName == "workstation") workstationWorkspaceRules ++ dropdownWorkspaceRules;
+
+  hyprDropdown = pkgs.writeShellApplication {
+    name = "hypr-dropdown";
+    runtimeInputs = [
+      pkgs.hyprland
+      pkgs.python3
+    ];
+    text = ''
+      exec python3 ${./hypr-dropdown.py} "$@"
+    '';
+  };
 
   # Mod+1..0 should land on workspace N of the *focused* monitor, not the
   # global workspace id. DP-1 → 1..10, DP-2 → 11..20; single-output
@@ -528,10 +548,22 @@ in
             };
 
             bitwarden = {
-              "match:class" = "Bitwarden";
+              "match:class" = "(?i)^bitwarden$";
               float = true;
+              size = "monitor_w*0.65 monitor_h*0.65";
               center = true;
-              size = "1000 700";
+            };
+            vitals_dropdown = {
+              "match:title" = "^Vitals — System Monitor$";
+              float = true;
+              size = "monitor_w*0.65 monitor_h*0.65";
+              center = true;
+            };
+            vereda_dropdown = {
+              "match:class" = fileManagerClass;
+              float = true;
+              size = "monitor_w*0.65 monitor_h*0.65";
+              center = true;
             };
             hidden_parallels_clipboard = {
               "match:title" = "Parallels Shared Clipboard";
@@ -599,6 +631,10 @@ in
           "steam_main"
           "steam_friends"
           "bitwarden"
+        ]
+        ++ lib.optional hasVitals ({ name = "vitals_dropdown"; } // rules.vitals_dropdown)
+        ++ map (name: { inherit name; } // rules.${name}) [
+          "vereda_dropdown"
           "hidden_parallels_clipboard"
           "main_picker"
           "vereda_file_chooser"
@@ -621,6 +657,11 @@ in
         # Applications
         "$mainMod, Return, exec, ${term.command}"
         ", F8, exec, quake-terminal"
+      ]
+      ++ lib.optional hasVitals "$mainMod, F1, exec, ${hyprDropdown}/bin/hypr-dropdown --special vitals --title '^Vitals — System Monitor$'"
+      ++ [
+        "$mainMod, F2, exec, ${hyprDropdown}/bin/hypr-dropdown --special vereda --class '${fileManagerClass}'"
+        "$mainMod, F3, exec, ${hyprDropdown}/bin/hypr-dropdown --special bitwarden --class '(?i)^bitwarden$'"
         "$mainMod SHIFT, T, exec, ${fileManager}"
         "$mainMod SHIFT, B, exec, browser-default"
         "$mainMod, backslash, exec, bitwarden"
