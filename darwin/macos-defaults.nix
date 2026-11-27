@@ -95,6 +95,12 @@
       persistent-others = [ ];
     };
 
+    # --- Menu bar ----------------------------------------------------
+    # Auto-hide the global menu bar (Always, since
+    # AppleMenuBarVisibleInFullscreen defaults to false). Reclaim
+    # vertical screen space alongside the auto-hidden Dock.
+    NSGlobalDomain._HIHideMenuBar = true;
+
     # --- Screenshots -------------------------------------------------
     # Match the VM's Pictures/screenshots location using macOS casing.
     # Home Manager creates the directory so captures never fall back to Desktop.
