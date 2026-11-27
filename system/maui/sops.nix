@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   # SOPS secrets configuration scoped strictly to maui (*admin_key + *maui_key).
   sops = {
     defaultSopsFile = ../../secrets/maui.yaml;

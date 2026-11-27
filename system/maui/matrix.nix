@@ -70,36 +70,35 @@ in
     };
   };
 
-  systemd.services =
-    {
-      continuwuity = {
-        after = [ "data.mount" ];
-        requires = [ "data.mount" ];
-        serviceConfig = {
-          DynamicUser = lib.mkForce false;
-          User = lib.mkForce "continuwuity";
-          Group = lib.mkForce "continuwuity";
-          BindPaths = [ "/data/services/matrix:/var/lib/continuwuity" ];
-        };
+  systemd.services = {
+    continuwuity = {
+      after = [ "data.mount" ];
+      requires = [ "data.mount" ];
+      serviceConfig = {
+        DynamicUser = lib.mkForce false;
+        User = lib.mkForce "continuwuity";
+        Group = lib.mkForce "continuwuity";
+        BindPaths = [ "/data/services/matrix:/var/lib/continuwuity" ];
       };
+    };
 
-      "matrix-alert@" = {
-        description = "Post Matrix alert for %i";
-        unitConfig = {
-          ConditionPathExists = [
-            config.sops.secrets.matrix_bot_token.path
-            config.sops.secrets.matrix_alert_room_id.path
-          ];
-        };
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${matrixAlert} %i";
-        };
+    "matrix-alert@" = {
+      description = "Post Matrix alert for %i";
+      unitConfig = {
+        ConditionPathExists = [
+          config.sops.secrets.matrix_bot_token.path
+          config.sops.secrets.matrix_alert_room_id.path
+        ];
       };
-    }
-    // lib.genAttrs alertedServices (name: {
-      onFailure = [ "matrix-alert@${name}.service" ];
-    });
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${matrixAlert} %i";
+      };
+    };
+  }
+  // lib.genAttrs alertedServices (name: {
+    onFailure = [ "matrix-alert@${name}.service" ];
+  });
 
   services.nginx.virtualHosts."matrix.faragao.net" = {
     forceSSL = true;
