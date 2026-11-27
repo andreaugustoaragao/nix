@@ -1,5 +1,6 @@
 keys:
   - &admin_key age1d6fjy4k876qdnazftagucz96l8z0kctyxvq0t396swpr4c39wu8s4zcspg
+  - &workstation_key age1cw22z6uu7t425wkap97zl2q8mdj58rrhkqukc4tewuwactcqhp7sn2y5wr
   - &maui_key age1fpncscedzny685j2slhq6s3uxlpzd5rcgqy003sffmqupahmmv8qlskrlg
   - &tala_key age1duv6mr4u5vqylmasxs5cg5mcd5n29xmxklfrhcl5zp7v7ggs8syq0ef5fz
   - &mac_work_key age19t38gfv96p76sx7x56qlhclwdnejna73k6qslletrjh6j97f34zqwhd302
@@ -11,12 +12,19 @@ creation_rules:
     key_groups:
       - age:
           - *admin_key
+          - *workstation_key
           - *maui_key
   - path_regex: secrets/tala\.yaml$
     key_groups:
       - age:
           - *admin_key
+          - *workstation_key
           - *tala_key
+  - path_regex: secrets/netadmin\.yaml$
+    key_groups:
+      - age:
+          - *admin_key
+          - *workstation_key
   - path_regex: secrets/gcp/gcp-aragao-agent-wk\.yaml$
     key_groups:
       - age:
@@ -36,7 +44,7 @@ creation_rules:
           - *prl_dev_vm_key
           - age1fxy92eutwwhe96s24q6t68d9y2qevecv455gncgttdwmsjv8yyfsze57t9
           - age1dcna6k52x6tc2cryy9ancky0renwz4ke0rka3m73rr8g8jhrususrhywea
-          - age1cw22z6uu7t425wkap97zl2q8mdj58rrhkqukc4tewuwactcqhp7sn2y5wr
+          - *workstation_key
   - path_regex: secrets/.*\.yaml$
     key_groups:
       - age:
@@ -46,5 +54,5 @@ creation_rules:
           - *prl_dev_vm_key
           - age1fxy92eutwwhe96s24q6t68d9y2qevecv455gncgttdwmsjv8yyfsze57t9
           - age1dcna6k52x6tc2cryy9ancky0renwz4ke0rka3m73rr8g8jhrususrhywea
-          - age1cw22z6uu7t425wkap97zl2q8mdj58rrhkqukc4tewuwactcqhp7sn2y5wr
+          - *workstation_key
           - age124a5zdlqgqpgxqsz0k7yljzf7haavch863y63qlrx2mkqlgcn33sl4du4s

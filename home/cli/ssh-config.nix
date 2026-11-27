@@ -202,6 +202,45 @@ in
         IdentitiesOnly = true;
         ProxyCommand = "gcp-agent-wake --proxy";
       };
+
+      # Home network infrastructure (faragao.net)
+      "chief-tui-opn" = {
+        HostName = "192.168.100.2";
+        Port = 5022;
+        User = "andre";
+        IdentityFile = "~/.ssh/id_ed25519_netadmin";
+        IdentitiesOnly = true;
+      };
+
+      "chief-tui" = {
+        HostName = "192.168.100.3";
+        Port = 5022;
+        User = "andre";
+        IdentityFile = "~/.ssh/id_ed25519_netadmin";
+        IdentitiesOnly = true;
+      };
+
+      "tamatoa" = {
+        HostName = "192.168.100.1";
+        User = "tehfiti";
+        KexAlgorithms = "+diffie-hellman-group1-sha1";
+        HostKeyAlgorithms = "+ssh-rsa";
+        PubkeyAuthentication = "no";
+      };
+
+      "maui" = {
+        HostName = "192.168.40.3";
+        User = "adm";
+        IdentityFile = "~/.ssh/id_ed25519_netadmin";
+        IdentitiesOnly = true;
+      };
+
+      "tala" = {
+        HostName = "192.168.40.10";
+        User = "aragao";
+        IdentityFile = "~/.ssh/id_rsa_personal";
+        IdentitiesOnly = true;
+      };
     };
   };
 

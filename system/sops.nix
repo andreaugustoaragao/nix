@@ -296,6 +296,24 @@
         mode = "0400";
         restartUnits = [ "authelia-main.service" ];
       };
+    }
+    // lib.optionalAttrs (hostName == "workstation") {
+      # Dedicated network admin SSH key (~/.ssh/id_ed25519_netadmin) encrypted
+      # strictly to *admin_key and *workstation_key; passphrase stays with the user.
+      "ssh_key_netadmin" = {
+        sopsFile = ../secrets/netadmin.yaml;
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+        path = "/home/${owner.name}/.ssh/id_ed25519_netadmin";
+      };
+      "ssh_pubkey_netadmin" = {
+        sopsFile = ../secrets/netadmin.yaml;
+        owner = owner.name;
+        group = "users";
+        mode = "0444";
+        path = "/home/${owner.name}/.ssh/id_ed25519_netadmin.pub";
+      };
     };
   };
 
