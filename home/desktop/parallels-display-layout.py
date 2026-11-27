@@ -16,6 +16,57 @@ CONFIG = re.compile(r"Dynamic Resolution: new heads config .*heads_count=(\d+)")
 HEAD = re.compile(
     r"Dynamic Resolution:\s+head ([012])\) width=\d+, height=\d+, x=(-?\d+), y=-?\d+"
 )
+VIRTUAL1_SMALL_MAX_WIDTH = 2560
+VIRTUAL1_SMALL_SCALE = 1.25
+VIRTUAL1_LARGE_SCALE = 1.5
+
+
+def target_scale_for_width(
+    width,
+    threshold=VIRTUAL1_SMALL_MAX_WIDTH,
+    small_scale=VIRTUAL1_SMALL_SCALE,
+    large_scale=VIRTUAL1_LARGE_SCALE,
+    docked=False,
+):
+    if docked:
+        return large_scale
+    return small_scale if width <= threshold else large_scale
+
+
+def desired_scale(outputs, output_name="Virtual-1"):
+    output = outputs.get(output_name)
+    if not output or not output.get("logical"):
+        return None
+    docked = any(
+        (outputs.get(name) or {}).get("logical") for name in ("Virtual-2", "Virtual-3")
+    )
+    if docked:
+        return VIRTUAL1_LARGE_SCALE
+    current_mode = output.get("current_mode")
+    modes = output.get("modes") or []
+    if current_mode is None or not (0 <= current_mode < len(modes)):
+        return None
+    width = modes[current_mode].get("width")
+    if not width:
+        return None
+    return target_scale_for_width(width)
+
+
+def hyprland_desired_scale(monitors, output_name="Virtual-1"):
+    by_name = {monitor.get("name"): monitor for monitor in monitors if monitor.get("name")}
+    monitor = by_name.get(output_name)
+    if not monitor or not monitor.get("width"):
+        return None
+    docked = any(
+        by_name.get(name, {}).get("width") for name in ("Virtual-2", "Virtual-3")
+    )
+    if docked:
+        return VIRTUAL1_LARGE_SCALE
+    transform = monitor.get("transform", 0)
+    pixel_width = monitor["height"] if transform % 2 == 1 else monitor["width"]
+    return target_scale_for_width(pixel_width)
+
+
 
 
 class HeadLayout:
@@ -106,17 +157,39 @@ def hyprland_desired_positions(layout, monitors):
 
 def apply_niri_layout(layout, niri_bin, dry_run=False):
     try:
-        result = subprocess.run(
-            [niri_bin, "msg", "--json", "outputs"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        outputs = json.loads(result.stdout)
+        def read_outputs():
+            result = subprocess.run(
+                [niri_bin, "msg", "--json", "outputs"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return json.loads(result.stdout)
+
+        outputs = read_outputs()
+        scale_target = desired_scale(outputs)
+        if scale_target is not None:
+            current_scale = outputs["Virtual-1"]["logical"]["scale"]
+            if not math.isclose(current_scale, scale_target, abs_tol=1e-3):
+                if dry_run:
+                    print(f"Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
+                else:
+                    subprocess.run(
+                        [niri_bin, "msg", "output", "Virtual-1", "scale", f"{scale_target:g}"],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    print(f"Applied Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
+                    outputs = read_outputs()
+
+        if layout is None:
+            return True
         positions = desired_positions(layout, outputs)
         if positions is None:
-            return False
+            return True
         if dry_run:
             print(f"Parallels layout: {positions}", flush=True)
             return True
@@ -139,24 +212,53 @@ def apply_niri_layout(layout, niri_bin, dry_run=False):
         print(f"Could not apply Parallels layout: {error}", file=sys.stderr, flush=True)
         return False
 
-
 def apply_hyprland_layout(layout, hyprctl_bin, dry_run=False):
     try:
-        result = subprocess.run(
-            [hyprctl_bin, "-j", "monitors"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        monitors = json.loads(result.stdout)
+        def read_monitors():
+            result = subprocess.run(
+                [hyprctl_bin, "-j", "monitors"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return json.loads(result.stdout)
+
+        monitors = read_monitors()
+        scale_target = hyprland_desired_scale(monitors)
+        by_name = {monitor["name"]: monitor for monitor in monitors if monitor.get("name")}
+        if scale_target is not None and "Virtual-1" in by_name:
+            monitor = by_name["Virtual-1"]
+            current_scale = monitor.get("scale", scale_target)
+            if not math.isclose(current_scale, scale_target, abs_tol=1e-3):
+                x = monitor.get("x", 0)
+                y = monitor.get("y", 0)
+                transform = monitor.get("transform", 0)
+                rule = f"Virtual-1,preferred,{x}x{y},{scale_target:g}"
+                if transform:
+                    rule = f"{rule},transform,{transform}"
+                if dry_run:
+                    print(f"Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
+                else:
+                    subprocess.run(
+                        [hyprctl_bin, "keyword", "monitor", rule],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    print(f"Applied Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
+                    monitors = read_monitors()
+                    by_name = {m["name"]: m for m in monitors if m.get("name")}
+
+        if layout is None:
+            return True
         positions = hyprland_desired_positions(layout, monitors)
         if positions is None:
-            return False
+            return True
         if dry_run:
             print(f"Parallels layout: {positions}", flush=True)
             return True
-        by_name = {monitor["name"]: monitor for monitor in monitors if monitor.get("name")}
         if all(
             by_name[name].get("x") == x and by_name[name].get("y") == 0
             for name, x in positions.items()
@@ -216,7 +318,7 @@ def main():
     hyprctl_bin = os.environ.get("HYPRCTL_BIN", "hyprctl")
     if options.once:
         layout = read_layout(options.log).latest
-        return 0 if layout and apply_layout(layout, niri_bin, options.dry_run, hyprctl_bin) else 1
+        return 0 if apply_layout(layout, niri_bin, options.dry_run, hyprctl_bin) else 1
 
     events = queue.Queue()
     tail = subprocess.Popen(
@@ -230,20 +332,17 @@ def main():
     ).start()
 
     layout = read_layout(options.log)
-    if layout.latest:
-        apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
+    apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
     while True:
         try:
             line = events.get(timeout=5)
         except queue.Empty:
-            if layout.latest:
-                apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
+            apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
             continue
         if line is None:
             return 1
-        if layout.feed(line):
+        if layout.feed(line) or CONFIG.search(line):
             apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
