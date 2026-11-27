@@ -36,6 +36,9 @@
         group = "root";
         mode = "0400";
         neededForUsers = true;
+      }
+      // lib.optionalAttrs (hostName == "tala") {
+        sopsFile = ../secrets/tala.yaml;
       };
 
       "root_password" = {
@@ -43,6 +46,9 @@
         group = "root";
         mode = "0400";
         neededForUsers = true;
+      }
+      // lib.optionalAttrs (hostName == "tala") {
+        sopsFile = ../secrets/tala.yaml;
       };
 
       # SSH keys for GitHub
@@ -305,6 +311,11 @@
   # For genuine first-boot installs (host age key not yet provisioned),
   # handle bootstrap out-of-band (installer-set password, `passwd` on first
   # login, or a dedicated bootstrap flag).
+  # Declarative /etc/shadow for tala so sops-managed password rotations in
+  # secrets/tala.yaml are applied to existing accounts on switch (NixOS
+  # skips updating /etc/shadow for existing users when mutableUsers = true).
+  users.mutableUsers = lib.mkIf (hostName == "tala") false;
+
   users.users.${owner.name}.hashedPasswordFile = config.sops.secrets.user_password.path;
   users.users.root.hashedPasswordFile = config.sops.secrets.root_password.path;
 

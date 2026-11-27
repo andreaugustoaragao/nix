@@ -39,7 +39,7 @@
     enable = true;
     wheelNeedsPassword = true;
     extraConfig =
-      if hostName == "prl-dev-vm" || hostName == "workstation" || personalOnly then
+      if hostName == "prl-dev-vm" || hostName == "workstation" || hostName == "tala" || personalOnly then
         ''
           # Automatic builds run unprivileged. Activation requires sudo
           # authentication, even when the flake path is fixed.

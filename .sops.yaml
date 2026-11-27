@@ -12,6 +12,11 @@ creation_rules:
       - age:
           - *admin_key
           - *maui_key
+  - path_regex: secrets/tala\.yaml$
+    key_groups:
+      - age:
+          - *admin_key
+          - *tala_key
   - path_regex: secrets/gcp/gcp-aragao-agent-wk\.yaml$
     key_groups:
       - age:
