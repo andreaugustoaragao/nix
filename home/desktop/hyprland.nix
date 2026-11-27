@@ -667,12 +667,7 @@ in
         "$mainMod, backslash, exec, bitwarden"
         "$mainMod SHIFT, A, exec, browser-app --class=brave-grok https://grok.com"
         "$mainMod SHIFT, X, exec, browser-app --class=brave-x-twitter https://x.com"
-        (
-          if useNoctalia then
-            "$mainMod, S, exec, ${noctalia} msg window-switcher"
-          else
-            "$mainMod, S, exec, window-switcher"
-        )
+        "$mainMod, S, exec, window-switcher"
         # Launcher
         (
           if useNoctalia then

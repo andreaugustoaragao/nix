@@ -534,12 +534,7 @@ in
         Mod+Backslash { spawn "bitwarden"; }
         Mod+Shift+A { spawn "browser-app" "--class=brave-grok" "https://grok.com"; }
         Mod+Shift+X { spawn "browser-app" "--class=brave-x-twitter" "https://x.com"; }
-        ${
-          if useNoctalia then
-            ''Mod+S { spawn "${noctalia}" "msg" "window-switcher"; }''
-          else
-            ''Mod+S { spawn "window-switcher"; }''
-        }
+        Mod+S { spawn "window-switcher"; }
 
         // Menu and launcher
         ${
