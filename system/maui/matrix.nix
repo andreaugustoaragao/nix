@@ -68,17 +68,33 @@ in
       new_user_displayname_suffix = "";
       max_request_size = 20000000;
       well_known.client = "https://matrix.faragao.net";
+      oauth.oidc = {
+        discovery_url = "https://auth.faragao.net/application/o/matrix/";
+        client_id = "faragao-matrix";
+        client_secret_file = "/run/credentials/continuwuity.service/oidc_client_secret";
+        additional_scopes = [
+          "email"
+          "profile"
+        ];
+        provider_name = "faragao.net";
+        prompt_for_localpart = true;
+      };
     };
   };
 
   systemd.services = {
     continuwuity = {
-      after = [ "data.mount" ];
+      after = [
+        "data.mount"
+        "nginx.service"
+      ];
       requires = [ "data.mount" ];
+      wants = [ "nginx.service" ];
       serviceConfig = {
         DynamicUser = lib.mkForce false;
         User = lib.mkForce "continuwuity";
         Group = lib.mkForce "continuwuity";
+        LoadCredential = "oidc_client_secret:${config.sops.secrets.continuwuity_oidc_client_secret.path}";
         BindPaths = [ "/data/services/matrix:/var/lib/continuwuity" ];
       };
     };

@@ -240,6 +240,7 @@ let
 
         probe_public "vaultwarden-public" "vw.faragao.net" "/alive" ""
         probe_public "matrix-public" "matrix.faragao.net" "/_matrix/client/versions" "\"versions\""
+        probe_public "authentik-public" "auth.faragao.net" "/-/health/live/" ""
       } > "$tmp"
 
       chmod 0644 "$tmp"
@@ -1088,6 +1089,16 @@ in
               module = "http_2xx";
             };
           }
+          {
+            targets = [ "https://127.0.0.1/-/health/live/" ];
+            labels = {
+              virtual_host = "auth.faragao.net";
+              device = "tala";
+              service = "authentik";
+              role = "identity-provider";
+              module = "http_2xx";
+            };
+          }
         ];
         relabel_configs = [
           {
@@ -1319,11 +1330,32 @@ in
   services.grafana = {
     enable = true;
     settings.server.domain = "monitoring.faragao.net";
+    settings.server.root_url = "https://monitoring.faragao.net";
     settings.server.http_port = 2342;
     settings.server.http_addr = "127.0.0.1";
     settings.security.secret_key = "$__file{${config.sops.secrets.grafana_secret_key.path}}";
     settings."auth.anonymous".enabled = false;
     settings.users.allow_sign_up = false;
+    settings."auth.generic_oauth" = {
+      enabled = true;
+      name = "faragao.net SSO";
+      allow_sign_up = true;
+      auto_login = false;
+      client_id = "faragao-grafana";
+      client_secret = "$__file{${config.sops.secrets.grafana_oauth_client_secret.path}}";
+      scopes = "openid profile email";
+      auth_url = "https://auth.faragao.net/application/o/authorize/";
+      token_url = "https://auth.faragao.net/application/o/token/";
+      api_url = "https://auth.faragao.net/application/o/userinfo/";
+      signout_redirect_url = "https://auth.faragao.net/application/o/grafana/end-session/";
+      use_pkce = true;
+      login_attribute_path = "preferred_username";
+      email_attribute_path = "email";
+      name_attribute_path = "name";
+      allow_assign_grafana_admin = true;
+      role_attribute_strict = true;
+      role_attribute_path = "contains(groups[*], 'faragao-admins') && 'Admin' || contains(groups[*], 'grafana-viewers') && 'Viewer' || 'NoBasicRole'";
+    };
 
     provision = {
       enable = true;

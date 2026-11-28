@@ -31,6 +31,20 @@ _: {
         restartUnits = [ "grafana.service" ];
       };
 
+      "grafana_oauth_client_secret" = {
+        owner = "grafana";
+        group = "grafana";
+        mode = "0400";
+        restartUnits = [ "grafana.service" ];
+      };
+
+      "continuwuity_oidc_client_secret" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "continuwuity.service" ];
+      };
+
       "vaultwarden_env" = {
         owner = "root";
         group = "root";
