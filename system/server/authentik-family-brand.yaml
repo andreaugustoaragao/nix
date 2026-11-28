@@ -1,0 +1,59 @@
+version: 1
+metadata:
+  name: faragao.net family branding
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_brands.brand
+    identifiers:
+      domain: authentik-default
+    state: present
+    attrs:
+      branding_title: Fioravante & Aragao
+      branding_logo: https://auth.faragao.net/brand/wordmark.png?v=fioravante-aragao
+      branding_favicon: https://auth.faragao.net/brand/icon.png
+      branding_default_flow_background: https://auth.faragao.net/brand/wedding-birds.webp
+      branding_custom_css: |
+        :host(ak-flow-executor) .branding-logo {
+          max-height: 3.5rem;
+          border-radius: .2rem;
+        }
+        ak-flow-executor::part(main) {
+          --pf-global--primary-color--100: #205772;
+          --pf-c-button--m-primary--BackgroundColor: #205772;
+          --pf-c-button--m-primary--hover--BackgroundColor: #173f50;
+        }
+        :root[data-theme="light"] ak-flow-executor::part(main) {
+          background-color: #f8f5ed;
+          color: #173f50;
+        }
+        :host(ak-stage-identification) button[name="source-google"][part~="source-item-promoted"] {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          min-height: 40px;
+          padding-inline: 12px;
+          background: #fff;
+          color: #1f1f1f;
+          border: 1px solid #747775;
+          border-radius: 4px;
+          font: 500 14px/20px "Google Sans", Roboto, Arial, sans-serif;
+        }
+        :host(ak-stage-identification) button[name="source-google"][part~="source-item-promoted"]::before {
+          content: "";
+          flex: none;
+          width: 20px;
+          height: 20px;
+          background: url("/static/authentik/sources/family-google-g.png") center / contain no-repeat;
+        }
+        :host(ak-stage-identification) button[name="source-google"]:hover {
+          box-shadow: 0 1px 3px rgb(0 0 0 / 24%);
+        }
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authentication-flow
+    state: present
+    attrs:
+      title: Sign in
+      layout: sidebar_left

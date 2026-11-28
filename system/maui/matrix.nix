@@ -117,15 +117,9 @@ in
     onFailure = [ "matrix-alert@${name}.service" ];
   });
 
-  services.nginx.virtualHosts."matrix.faragao.net" = {
-    forceSSL = true;
-    useACMEHost = "faragao.net";
-    locations."/" = {
-      proxyPass = "http://127.0.0.1:6167";
-      recommendedProxySettings = true;
-      proxyWebsockets = true;
-      extraConfig = ''
-        client_max_body_size 20M;
+  services.nginx.virtualHosts."matrix.faragao.net" =
+    let
+      ingress = ''
         allow 127.0.0.1;
         allow 192.168.10.0/24;
         allow 192.168.20.0/24;
@@ -150,6 +144,31 @@ in
         allow 131.0.72.0/22;
         deny all;
       '';
+      familySite = builtins.path {
+        name = "faragao-family-site";
+        path = ../../assets/family-chat;
+      };
+    in
+    {
+      forceSSL = true;
+      useACMEHost = "faragao.net";
+      locations."= /" = {
+        root = familySite;
+        tryFiles = "/index.html =404";
+        extraConfig = ingress;
+      };
+      locations."^~ /brand/" = {
+        root = familySite;
+        extraConfig = ingress;
+      };
+      locations."/" = {
+        proxyPass = "http://127.0.0.1:6167";
+        recommendedProxySettings = true;
+        proxyWebsockets = true;
+        extraConfig = ''
+          client_max_body_size 20M;
+          ${ingress}
+        '';
+      };
     };
-  };
 }

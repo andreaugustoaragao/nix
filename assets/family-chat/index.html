@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f5ed">
+  <meta name="robots" content="noindex">
+  <title>Family chat · Fioravante &amp; Aragao</title>
+  <link rel="icon" href="brand/icon.png" type="image/png">
+  <style>
+    :root { color-scheme: light; --ink: #173f50; --paper: #f8f5ed; --rule: #c5c9be; --serif: "Baskervville", "Iowan Old Style", Georgia, serif; font: 100%/1.55 "Inter", system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    .page { max-width: 94rem; margin: auto; padding: 0 clamp(1.25rem, 5vw, 5.75rem); }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; min-height: 5.8rem; border-bottom: 1px solid var(--rule); }
+    .wordmark { font: 2.05rem/1.15 var(--serif); letter-spacing: -.035em; }
+    a { color: inherit; text-underline-offset: .24em; }
+    header a, footer { font-size: .89rem; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible { outline: 3px solid #2072a1; outline-offset: 5px; }
+    main { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; gap: clamp(2rem,5vw,6rem); padding: clamp(2.5rem,6vw,6.5rem) 0; }
+    h1 { margin: 0 0 1.5rem; font: 400 clamp(4.1rem,7.5vw,7.6rem)/.93 var(--serif); letter-spacing: -.075em; }
+    h1 em { font-weight: 400; color: #427183; }
+    .intro { font-size: clamp(1rem,1.4vw,1.15rem); max-width: 32ch; margin: 0 0 2rem; }
+    .button { background: var(--ink); border: 1px solid var(--ink); color: white; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; gap: 1.1rem; padding: .82rem 1.35rem; font-weight: 620; text-decoration: none; }
+    .button:hover { background: #28566a; }
+    .server { margin: 1.65rem 0 0; font-size: .86rem; }
+    .server span { display: block; color: #526162; }
+    .server code { user-select: all; font-size: 1rem; color: var(--ink); }
+    figure { margin: 0; }
+    figure img { width: 100%; height: auto; display: block; aspect-ratio: 1.27; object-fit: cover; object-position: 64% 56%; border-radius: 44% 44% .35rem .35rem; background: #b6cbd2; }
+    figcaption { padding-top: .65rem; color: #526162; font: italic 1rem/1.35 var(--serif); text-align: center; }
+    footer { border-top: 1px solid var(--rule); padding: 1.15rem 0 1.5rem; color: #526162; text-align: end; }
+    @media (max-width: 700px) {
+      header { min-height: 4.5rem; padding-block: .65rem; } .wordmark { font-size: clamp(1.25rem, 5.6vw, 1.7rem); }
+      main { grid-template-columns: 1fr; gap: 2rem; padding: 2.4rem 0 1.75rem; }
+      h1 { margin-bottom: 1rem; } .intro { margin-bottom: 1.35rem; }
+      .server { margin-top: 1rem; } figure img { aspect-ratio: 1.65; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header><span class="wordmark">Fioravante &amp; Aragao</span><a href="/_continuwuity/account/">Your account</a></header>
+    <main>
+      <section>
+        <h1>Family <em>chat.</em></h1>
+        <p class="intro">Choose this homeserver when you sign in to Element.</p>
+        <a class="button" href="https://element.io/download">Get Element <span aria-hidden="true">↗</span></a>
+        <p class="server"><span>Homeserver</span><code>matrix.faragao.net</code></p>
+      </section>
+      <figure>
+        <img src="brand/wedding-birds.webp" width="1536" height="1024" alt="Two blue songbird figurines perched together on an ivory wedding cake.">
+        <figcaption>Inspired by our cake toppers.</figcaption>
+      </figure>
+    </main>
+    <footer><a href="https://matrix.org/ecosystem/clients/">Other Matrix apps</a></footer>
+  </div>
+</body>
+</html>

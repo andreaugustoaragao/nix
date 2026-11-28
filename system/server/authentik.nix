@@ -154,6 +154,9 @@ in
         volumes = [
           "/var/lib/authentik/media:/media"
           "/var/lib/authentik/templates:/templates"
+          "${./authentik-family-flow.html}:/templates/if/flow.html:ro"
+          # Original G from Google's Sign in with Google branding guidelines.
+          "${./authentik-google-g.png}:/web/authentik/sources/family-google-g.png:ro"
         ];
         extraOptions = [
           "--network=host"
@@ -172,6 +175,7 @@ in
         volumes = [
           "/var/lib/authentik/media:/media"
           "/var/lib/authentik/certs:/certs"
+          "${./authentik-family-brand.yaml}:/blueprints/custom/faragao-family.yaml:ro"
           "/var/lib/authentik/templates:/templates"
         ];
         extraOptions = [

@@ -1,0 +1,89 @@
+{% extends "if/flow.html" %}
+
+{% block head %}
+{{ block.super }}
+{% if flow.slug == "default-authentication-flow" %}
+<script type="module" data-id="family-sign-in-locale">
+    // Authentik normally translates this server-supplied label once per
+    // challenge. Use the labels from its catalog for the languages in its picker.
+    const loginLabels = {
+        en: "Log in",
+        ar: "تسجيل الدخول",
+        bg: "Вход",
+        cs: "Přihlásit",
+        de: "Anmelden",
+        es: "Iniciar sesión",
+        fi: "Kirjaudu sisään",
+        fr: "Se connecter",
+        it: "Accedi",
+        ja: "ログイン",
+        ko: "로그인",
+        nb: "Logg inn",
+        nl: "Inloggen",
+        pl: "Zaloguj się",
+        "pt-br": "Entrar",
+        ru: "Войти",
+        tr: "Oturum aç",
+        "zh-hans": "登录",
+        "zh-hant": "登入",
+    };
+
+    // Keep Lit's comment markers and the native button, listeners and focus.
+    function setLabel(element, value) {
+        const text = Array.from(element?.childNodes ?? []).find(
+            node => node.nodeType === Node.TEXT_NODE && node.data.trim()
+        );
+        if (text && text.data.trim() !== value) text.data = value;
+    }
+
+    function updateLabels(stage) {
+        const language = stage.activeLanguageTag.toLowerCase();
+        const login = loginLabels[language] ?? loginLabels[language.split("-")[0]];
+        const root = stage.shadowRoot;
+        if (!root || !login) return;
+
+        const card = root.querySelector("ak-flow-card");
+        if (card && stage.challenge?.flowInfo?.title === "Sign in") {
+            const title = language === "en" ? "Sign in" : login;
+            card.updateComplete.then(() => {
+                if (!card.isConnected) return;
+                setLabel(card.shadowRoot?.querySelector("h1"), title);
+                document.title = title + " - " + stage.host.brandingTitle;
+            });
+        }
+
+        if (stage.localName !== "ak-stage-identification") return;
+        setLabel(root.querySelector('button[type="submit"]'), login);
+        // Authentik 2026.8's pt-BR catalog omits this promoted-source label.
+        const google = root.querySelector('button[name="source-google"]');
+        if (!google) return;
+        const nativeLabel = google.getAttribute("aria-label");
+        const portuguese = "Continuar com o Google";
+        if (language === "pt-br" || nativeLabel === portuguese) {
+            const label = language === "pt-br" ? portuguese : "Continue with Google";
+            setLabel(google, label);
+            google.setAttribute("aria-label", label);
+        }
+    }
+
+    await customElements.whenDefined("ak-flow-executor");
+    const executor = document.querySelector("ak-flow-executor");
+    await executor.updateComplete;
+    let currentStage;
+    function connectStage() {
+        const stage = executor.shadowRoot.querySelector('[part~="challenge"]');
+        if (!stage?.activeLanguageTag || stage === currentStage) return;
+        currentStage = stage;
+        stage.addController({ hostUpdated: () => updateLabels(stage) });
+        stage.requestUpdate();
+    }
+
+    // Challenges load asynchronously and can be replaced as the flow advances.
+    new MutationObserver(connectStage).observe(executor.shadowRoot, { childList: true, subtree: true });
+    connectStage();
+    window.addEventListener("lit-localize-status", event => {
+        if (event.detail.status === "ready" && currentStage?.isConnected) currentStage.requestUpdate();
+    });
+</script>
+{% endif %}
+{% endblock %}

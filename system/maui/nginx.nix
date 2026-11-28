@@ -19,16 +19,9 @@
           return = "301 https://$host$request_uri";
         };
       };
-      "auth.faragao.net" = {
-        forceSSL = true;
-        useACMEHost = "faragao.net";
-        locations."/" = {
-          proxyPass = "http://192.168.40.10:9000";
-          proxyWebsockets = true;
-          recommendedProxySettings = true;
-          extraConfig = ''
-            proxy_buffers 8 16k;
-            proxy_buffer_size 32k;
+      "auth.faragao.net" =
+        let
+          ingress = ''
             allow 127.0.0.1;
             allow 192.168.10.0/24;
             allow 192.168.20.0/24;
@@ -53,8 +46,29 @@
             allow 131.0.72.0/22;
             deny all;
           '';
+          familySite = builtins.path {
+            name = "faragao-family-site";
+            path = ../../assets/family-chat;
+          };
+        in
+        {
+          forceSSL = true;
+          useACMEHost = "faragao.net";
+          locations."^~ /brand/" = {
+            root = familySite;
+            extraConfig = ingress;
+          };
+          locations."/" = {
+            proxyPass = "http://192.168.40.10:9000";
+            proxyWebsockets = true;
+            recommendedProxySettings = true;
+            extraConfig = ''
+              proxy_buffers 8 16k;
+              proxy_buffer_size 32k;
+              ${ingress}
+            '';
+          };
         };
-      };
       "teka-web.faragao.net" = {
         forceSSL = true;
         useACMEHost = "faragao.net";
