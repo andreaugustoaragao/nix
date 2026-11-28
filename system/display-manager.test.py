@@ -43,7 +43,7 @@ class DisplayManagerSessionClassTests(unittest.TestCase):
     def test_autologin_is_initial_user_session_not_greeter(self):
         self.assertNotIn("if autoLogin then", self.source)
         initial = _block(self.source, "initial_session")
-        self.assertIn('command = "${unstable-pkgs.niri}/bin/niri --session"', initial)
+        self.assertIn("command = lib.getExe niriSession;", initial)
         self.assertIn("user = owner.name", initial)
         self.assertIn("lib.optionalAttrs autoLogin {", self.source)
         self.assertLess(
@@ -56,28 +56,40 @@ class DisplayManagerSessionClassTests(unittest.TestCase):
         self.assertIn('user = "greeter"', default)
         self.assertNotIn("owner.name", default)
         self.assertNotIn("initial_session", default)
-        # tuigreet is the !useDms fallback after the autologin user session
-        # exits while greetd is still running. Daemon exit stays stopped.
-        self.assertIn("lib.optionalAttrs (!useDms)", default)
-        self.assertIn("tuigreet", default)
-        self.assertIn("niri --session", default)
+        # desktop-greeter (tuigreet) is the !useDmsGreeter fallback after the
+        # autologin user session exits while greetd is still running.
+        self.assertIn("lib.optionalAttrs (!useDmsGreeter)", default)
+        self.assertIn('command = "/run/current-system/sw/bin/desktop-greeter";', default)
+        greeter = re.search(
+            r'desktopGreeter\s*=\s*pkgs\.writeShellScriptBin\s*"desktop-greeter"\s*\'\'(.*?)\'\';',
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(greeter, "missing desktopGreeter script")
+        self.assertIn("exec ${pkgs.tuigreet}/bin/tuigreet", greeter.group(1))
+        self.assertIn("--cmd ${lib.escapeShellArg (lib.getExe niriSession)}", greeter.group(1))
 
     def test_dms_greeter_fallback_covers_autologin(self):
         self.assertIn(
-            "imports = lib.optionals useDms [ inputs.dank-greeter.nixosModules.default ];",
+            'useDmsGreeter = useDms && hostName != "workstation";',
+            self.source,
+        )
+        self.assertIn(
+            "imports = lib.optionals useDmsGreeter [ inputs.dank-greeter.nixosModules.default ];",
             self.source,
         )
         self.assertNotIn("useDms && !autoLogin", self.source)
-        self.assertIn("lib.optionalAttrs useDms {", self.source)
+        self.assertNotIn("useDmsGreeter && !autoLogin", self.source)
+        self.assertIn("lib.optionalAttrs useDmsGreeter {", self.source)
         self.assertIn("programs.dms-greeter", self.source)
 
     def test_combination_gates_are_independent(self):
-        """autoLogin adds the user session; useDms only selects the greeter."""
+        """autoLogin adds the user session; useDmsGreeter only selects the greeter."""
         auto_login = self.source.split("lib.optionalAttrs autoLogin {", 1)[1]
         self.assertIn("initial_session = {", auto_login)
         self.assertNotIn("default_session = {", auto_login)
         use_dms_command = _block(self.source, "default_session")
-        self.assertIn("lib.optionalAttrs (!useDms)", use_dms_command)
+        self.assertIn("lib.optionalAttrs (!useDmsGreeter)", use_dms_command)
         self.assertNotIn("autoLogin", use_dms_command)
         # DMS greeter import is not disabled for autologin hosts.
         self.assertNotIn("!autoLogin", self.source)
