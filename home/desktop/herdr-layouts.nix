@@ -31,32 +31,30 @@ let
       }
     else
       null;
-  stripIntakeBadgeJq =
-    ''walk(if type == "array" then [.[] | select(.id? != "work-intake-badge")] else . end)'';
-  customRoot = pkgs.runCommand "herdr-custom" {
-    nativeBuildInputs = [ pkgs.jq ];
-  } ''
-    cp -r ${customSource} "$out"
-    chmod -R u+w "$out"
-    ${
-      lib.optionalString hasWorkIntake ''
-        mkdir -p "$out/mods/work-intake"
-        cp ${intakeMain} "$out/mods/work-intake/main.js"
-        cp -a ${workIntakePkg}/share/work-intake/mod/model.js "$out/mods/work-intake/"
-        cp -a ${workIntakePkg}/share/work-intake/mod/mod.json "$out/mods/work-intake/" 2>/dev/null || true
-        cp -a ${workIntakePkg}/share/work-intake/mod/jsconfig.json "$out/mods/work-intake/" 2>/dev/null || true
-        cp -a ${workIntakePkg}/share/work-intake/mod/gpui-kit.d.ts "$out/mods/work-intake/" 2>/dev/null || true
+  stripIntakeBadgeJq = ''walk(if type == "array" then [.[] | select(.id? != "work-intake-badge")] else . end)'';
+  customRoot =
+    pkgs.runCommand "herdr-custom"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+      }
       ''
-    }
-    ${
-      lib.optionalString (!hasWorkIntake) ''
-        for layout in main-flat main-preview; do
-          jq '${stripIntakeBadgeJq}' "$out/layouts/$layout.json" > "$out/layouts/$layout.json.tmp"
-          mv "$out/layouts/$layout.json.tmp" "$out/layouts/$layout.json"
-        done
-      ''
-    }
-  '';
+        cp -r ${customSource} "$out"
+        chmod -R u+w "$out"
+        ${lib.optionalString hasWorkIntake ''
+          mkdir -p "$out/mods/work-intake"
+          cp ${intakeMain} "$out/mods/work-intake/main.js"
+          cp -a ${workIntakePkg}/share/work-intake/mod/model.js "$out/mods/work-intake/"
+          cp -a ${workIntakePkg}/share/work-intake/mod/mod.json "$out/mods/work-intake/" 2>/dev/null || true
+          cp -a ${workIntakePkg}/share/work-intake/mod/jsconfig.json "$out/mods/work-intake/" 2>/dev/null || true
+          cp -a ${workIntakePkg}/share/work-intake/mod/gpui-kit.d.ts "$out/mods/work-intake/" 2>/dev/null || true
+        ''}
+        ${lib.optionalString (!hasWorkIntake) ''
+          for layout in main-flat main-preview; do
+            jq '${stripIntakeBadgeJq}' "$out/layouts/$layout.json" > "$out/layouts/$layout.json.tmp"
+            mv "$out/layouts/$layout.json.tmp" "$out/layouts/$layout.json"
+          done
+        ''}
+      '';
   intake =
     if hasWorkIntake then
       pkgs.writeShellApplication {
@@ -80,20 +78,22 @@ let
   ];
   # Multi-file mods import sibling modules (e.g. ./rules.js, ./reader.js); herdr-app
   # requires resolved module paths to remain inside ~/.config/herdr-app/mods/<name>.
-  syncedMods =
-    [
-      "auto-namer"
-      "personal-costs"
-      "preview"
-    ]
-    ++ lib.optionals hasWorkIntake [ "work-intake" ];
+  syncedMods = [
+    "auto-namer"
+    "personal-costs"
+    "preview"
+  ]
+  ++ lib.optionals hasWorkIntake [ "work-intake" ];
   customLayouts = [
     "main-flat"
     "main-preview"
   ];
 in
 {
-  home.packages = lib.optionals hasWorkIntake [ intake workIntakePkg ];
+  home.packages = lib.optionals hasWorkIntake [
+    intake
+    workIntakePkg
+  ];
   home.file.".local/bin/herdr-intake-dashboard" = lib.mkIf hasWorkIntake {
     source = lib.getExe intake;
     force = true;

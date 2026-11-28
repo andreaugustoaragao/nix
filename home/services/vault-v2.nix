@@ -140,37 +140,35 @@ let
     chmod 600 "$report_key_file"
     export FULCRUM_SCHEDULER_TOKEN="$(cat "$key_file")"
     export FULCRUM_WORK_INTAKE_REPORT_TOKEN="$(cat "$report_key_file")"
-    ${
-      lib.optionalString (cfg.workIntakePackage != null) ''
-        api_key_secret=${osConfig.sops.secrets.litellm_api_key.path}
-        base_url_secret=${osConfig.sops.secrets.litellm_base_url.path}
-        if [ ! -r "$api_key_secret" ]; then
-          echo "Fatal: $api_key_secret not readable" >&2
-          exit 1
-        fi
-        if [ ! -r "$base_url_secret" ]; then
-          echo "Fatal: $base_url_secret not readable" >&2
-          exit 1
-        fi
-        api_key=$(cat "$api_key_secret")
-        base_url=$(cat "$base_url_secret")
-        if [ -z "$api_key" ] || [ "$api_key" = "placeholder" ]; then
-          echo "Fatal: LiteLLM API key is empty or placeholder-valued" >&2
-          exit 1
-        fi
-        if [ -z "$base_url" ] || [ "$base_url" = "placeholder" ]; then
-          echo "Fatal: LiteLLM base URL is empty or placeholder-valued" >&2
-          exit 1
-        fi
-        export FULCRUM_SYNTHESIS_API_KEY="$api_key"
-        export FULCRUM_SYNTHESIS_BASE_URL="$base_url"
-        unset api_key base_url
-        repo_root=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/fulcrum"}
-        if [ -d "$repo_root" ]; then
-          export WORK_INTAKE_REPO_ROOT="$repo_root"
-        fi
-      ''
-    }
+    ${lib.optionalString (cfg.workIntakePackage != null) ''
+      api_key_secret=${osConfig.sops.secrets.litellm_api_key.path}
+      base_url_secret=${osConfig.sops.secrets.litellm_base_url.path}
+      if [ ! -r "$api_key_secret" ]; then
+        echo "Fatal: $api_key_secret not readable" >&2
+        exit 1
+      fi
+      if [ ! -r "$base_url_secret" ]; then
+        echo "Fatal: $base_url_secret not readable" >&2
+        exit 1
+      fi
+      api_key=$(cat "$api_key_secret")
+      base_url=$(cat "$base_url_secret")
+      if [ -z "$api_key" ] || [ "$api_key" = "placeholder" ]; then
+        echo "Fatal: LiteLLM API key is empty or placeholder-valued" >&2
+        exit 1
+      fi
+      if [ -z "$base_url" ] || [ "$base_url" = "placeholder" ]; then
+        echo "Fatal: LiteLLM base URL is empty or placeholder-valued" >&2
+        exit 1
+      fi
+      export FULCRUM_SYNTHESIS_API_KEY="$api_key"
+      export FULCRUM_SYNTHESIS_BASE_URL="$base_url"
+      unset api_key base_url
+      repo_root=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/fulcrum"}
+      if [ -d "$repo_root" ]; then
+        export WORK_INTAKE_REPO_ROOT="$repo_root"
+      fi
+    ''}
     exec ${cfg.package}/bin/ai-task-scheduler serve --config ${schedulerConfig}
   '';
 

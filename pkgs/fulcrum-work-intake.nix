@@ -1,6 +1,5 @@
 # Nix package derivation for the external Fulcrum Work Intake Go CLI (ADR-0006 / ADR-0017).
 {
-  lib,
   buildGoModule,
   src,
 }:
@@ -10,7 +9,7 @@ in
 buildGoModule {
   pname = "fulcrum-work-intake";
   version = "0.3.0";
-  src = src;
+  inherit src;
   vendorHash = null;
   modRoot = "services/work-intake";
   subPackages = [ "cmd/work-intake" ];
