@@ -14,25 +14,30 @@ import (
 	"time"
 
 	"faragao.net/netwatch/internal/model"
+	"faragao.net/netwatch/internal/version"
 )
 
 const (
-	FeedKEV           = "cisa_kev"
-	FeedCoreGHSA      = "opnsense_core_ghsa"
-	FeedPluginsGHSA   = "opnsense_plugins_ghsa"
-	FeedAnnouncements = "opnsense_forum_rss"
-	FeedNixOS2605     = "nixos_26_05_rev"
-	FeedNixOS2611     = "nixos_26_11_rev"
+	FeedKEV              = "cisa_kev"
+	FeedCoreGHSA         = "opnsense_core_ghsa"
+	FeedPluginsGHSA      = "opnsense_plugins_ghsa"
+	FeedAnnouncements    = "opnsense_forum_rss"
+	FeedNixOS2605        = "nixos_26_05_rev"
+	FeedNixOS2611        = "nixos_26_11_rev"
+	FeedAuthentikRelease = "authentik_release"
+	FeedAuthentikGHSA    = "authentik_ghsa"
 
-	DefaultKEVURL           = "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json"
-	DefaultKEVFallbackURL   = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-	DefaultCoreGHSAURL      = "https://api.github.com/repos/opnsense/core/security-advisories?per_page=30"
-	DefaultPluginsGHSAURL   = "https://api.github.com/repos/opnsense/plugins/security-advisories?per_page=30"
-	DefaultForumRSSURL      = "https://forum.opnsense.org/index.php?type=rss;action=.xml;board=11.0"
-	DefaultNixOS2605RevURL  = "https://channels.nixos.org/nixos-26.05/git-revision"
-	DefaultNixOS2611RevURL  = "https://channels.nixos.org/nixos-26.11/git-revision"
-	maxFeedResponseBytes    = 32 << 20 // 32 MiB cap
-	defaultRequestTimeout   = 25 * time.Second
+	DefaultKEVURL              = "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json"
+	DefaultKEVFallbackURL      = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+	DefaultCoreGHSAURL         = "https://api.github.com/repos/opnsense/core/security-advisories?per_page=30"
+	DefaultPluginsGHSAURL      = "https://api.github.com/repos/opnsense/plugins/security-advisories?per_page=30"
+	DefaultForumRSSURL         = "https://forum.opnsense.org/index.php?type=rss;action=.xml;board=11.0"
+	DefaultNixOS2605RevURL     = "https://channels.nixos.org/nixos-26.05/git-revision"
+	DefaultNixOS2611RevURL     = "https://channels.nixos.org/nixos-26.11/git-revision"
+	DefaultAuthentikReleaseURL = "https://api.github.com/repos/goauthentik/authentik/releases/latest"
+	DefaultAuthentikGHSAURL    = "https://api.github.com/repos/goauthentik/authentik/security-advisories?per_page=30"
+	maxFeedResponseBytes       = 32 << 20 // 32 MiB cap
+	defaultRequestTimeout      = 25 * time.Second
 )
 
 var (
@@ -100,37 +105,43 @@ type ForumItem struct {
 
 // FeedBundle contains all fetched external feed payloads plus a CVE lookup map.
 type FeedBundle struct {
-	KEVByCVE         map[string]KEVEntry
-	KEVVersion       string
-	CoreGHSAs        []GHSAAdvisory
-	PluginGHSAs      []GHSAAdvisory
-	Announcements    []ForumItem
-	NixOSChannelRevs map[string]string
+	KEVByCVE               map[string]KEVEntry
+	KEVVersion             string
+	CoreGHSAs              []GHSAAdvisory
+	PluginGHSAs            []GHSAAdvisory
+	AuthentikGHSAs         []GHSAAdvisory
+	AuthentikLatestRelease string
+	Announcements          []ForumItem
+	NixOSChannelRevs       map[string]string
 }
 
 // Fetcher retrieves advisory and release feeds with configurable endpoints for testing.
 type Fetcher struct {
-	Client          *http.Client
-	KEVURL          string
-	KEVFallbackURL  string
-	CoreGHSAURL     string
-	PluginsGHSAURL  string
-	ForumRSSURL     string
-	NixOS2605RevURL string
-	NixOS2611RevURL string
+	Client              *http.Client
+	KEVURL              string
+	KEVFallbackURL      string
+	CoreGHSAURL         string
+	PluginsGHSAURL      string
+	ForumRSSURL         string
+	NixOS2605RevURL     string
+	NixOS2611RevURL     string
+	AuthentikReleaseURL string
+	AuthentikGHSAURL    string
 }
 
 // NewFetcher constructs a Fetcher pointing at production feeds.
 func NewFetcher() *Fetcher {
 	return &Fetcher{
-		Client:          &http.Client{Timeout: defaultRequestTimeout},
-		KEVURL:          DefaultKEVURL,
-		KEVFallbackURL:  DefaultKEVFallbackURL,
-		CoreGHSAURL:     DefaultCoreGHSAURL,
-		PluginsGHSAURL:  DefaultPluginsGHSAURL,
-		ForumRSSURL:     DefaultForumRSSURL,
-		NixOS2605RevURL: DefaultNixOS2605RevURL,
-		NixOS2611RevURL: DefaultNixOS2611RevURL,
+		Client:              &http.Client{Timeout: defaultRequestTimeout},
+		KEVURL:              DefaultKEVURL,
+		KEVFallbackURL:      DefaultKEVFallbackURL,
+		CoreGHSAURL:         DefaultCoreGHSAURL,
+		PluginsGHSAURL:      DefaultPluginsGHSAURL,
+		ForumRSSURL:         DefaultForumRSSURL,
+		NixOS2605RevURL:     DefaultNixOS2605RevURL,
+		NixOS2611RevURL:     DefaultNixOS2611RevURL,
+		AuthentikReleaseURL: DefaultAuthentikReleaseURL,
+		AuthentikGHSAURL:    DefaultAuthentikGHSAURL,
 	}
 }
 
@@ -271,8 +282,54 @@ func (f *Fetcher) FetchAll(ctx context.Context, prevStatus map[string]model.Feed
 		})
 	}
 
+	if strings.TrimSpace(f.AuthentikReleaseURL) != "" {
+		runFeed(FeedAuthentikRelease, f.AuthentikReleaseURL, func() (int, error) {
+			ver, err := f.fetchLatestAuthentikRelease(ctx, f.AuthentikReleaseURL)
+			if err != nil {
+				return 0, err
+			}
+			mu.Lock()
+			bundle.AuthentikLatestRelease = ver
+			mu.Unlock()
+			return 1, nil
+		})
+	}
+
+	if strings.TrimSpace(f.AuthentikGHSAURL) != "" {
+		runFeed(FeedAuthentikGHSA, f.AuthentikGHSAURL, func() (int, error) {
+			items, err := f.fetchGHSAs(ctx, f.AuthentikGHSAURL)
+			if err != nil {
+				return 0, err
+			}
+			mu.Lock()
+			bundle.AuthentikGHSAs = items
+			mu.Unlock()
+			return len(items), nil
+		})
+	}
+
 	wg.Wait()
 	return bundle, statuses
+}
+
+func (f *Fetcher) fetchLatestAuthentikRelease(ctx context.Context, url string) (string, error) {
+	raw, err := f.get(ctx, url, "application/vnd.github+json")
+	if err != nil {
+		return "", err
+	}
+	var payload struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return "", fmt.Errorf("decode Authentik release JSON: %w", err)
+	}
+	ver := strings.TrimSpace(payload.TagName)
+	ver = strings.TrimPrefix(ver, "version/")
+	ver = strings.TrimPrefix(ver, "v")
+	if _, err := version.CompareOPNsense(ver, ver); err != nil {
+		return "", fmt.Errorf("unexpected Authentik release tag %q: %w", payload.TagName, err)
+	}
+	return ver, nil
 }
 
 func (f *Fetcher) fetchChannelRevision(ctx context.Context, url string) (string, error) {

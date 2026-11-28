@@ -65,6 +65,23 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 	mux.HandleFunc("/rev-2611", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("3068c73a96a6979ee8e72e7196577d0bd842d412\n"))
 	})
+	mux.HandleFunc("/authentik-release", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"tag_name":"version/2026.8.7"}`))
+	})
+	mux.HandleFunc("/authentik-ghsa", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{
+			"ghsa_id": "GHSA-jw8g-8f5p-9pwm",
+			"severity": "critical",
+			"summary": "Flow stages skipped on errors",
+			"html_url": "https://github.com/goauthentik/authentik/security/advisories/GHSA-jw8g-8f5p-9pwm",
+			"vulnerabilities": [
+				{"package": {"name": "authentik"}, "vulnerable_version_range": "<= 2026.5.8", "patched_versions": "2026.5.9"},
+				{"package": {"name": "authentik"}, "vulnerable_version_range": "<= 2026.8.6", "patched_versions": "2026.8.7"}
+			]
+		}]`))
+	})
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -79,13 +96,15 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 
 	now := time.Date(2026, 11, 27, 8, 0, 0, 0, time.UTC)
 	fetcher := &Fetcher{
-		Client:          srv.Client(),
-		KEVURL:          srv.URL + "/kev",
-		CoreGHSAURL:     srv.URL + "/core",
-		PluginsGHSAURL:  srv.URL + "/plugins",
-		ForumRSSURL:     srv.URL + "/rss",
-		NixOS2605RevURL: srv.URL + "/rev-2605",
-		NixOS2611RevURL: srv.URL + "/rev-2611",
+		Client:              srv.Client(),
+		KEVURL:              srv.URL + "/kev",
+		CoreGHSAURL:         srv.URL + "/core",
+		PluginsGHSAURL:      srv.URL + "/plugins",
+		ForumRSSURL:         srv.URL + "/rss",
+		NixOS2605RevURL:     srv.URL + "/rev-2605",
+		NixOS2611RevURL:     srv.URL + "/rev-2611",
+		AuthentikReleaseURL: srv.URL + "/authentik-release",
+		AuthentikGHSAURL:    srv.URL + "/authentik-ghsa",
 	}
 
 	bundle, statuses := fetcher.FetchAll(context.Background(), prev, now)
@@ -98,6 +117,15 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 	}
 	if len(bundle.PluginGHSAs) != 1 {
 		t.Fatalf("expected 1 plugin GHSA, got %d", len(bundle.PluginGHSAs))
+	}
+	if bundle.AuthentikLatestRelease != "2026.8.7" {
+		t.Fatalf("expected AuthentikLatestRelease=2026.8.7, got %q", bundle.AuthentikLatestRelease)
+	}
+	if len(bundle.AuthentikGHSAs) != 1 || bundle.AuthentikGHSAs[0].GHSAID != "GHSA-jw8g-8f5p-9pwm" {
+		t.Fatalf("unexpected AuthentikGHSAs: %+v", bundle.AuthentikGHSAs)
+	}
+	if statuses[FeedAuthentikRelease].LastError != "" || statuses[FeedAuthentikGHSA].LastError != "" {
+		t.Fatalf("unexpected Authentik feed errors: rel=%+v ghsa=%+v", statuses[FeedAuthentikRelease], statuses[FeedAuthentikGHSA])
 	}
 	if len(bundle.Announcements) != 2 {
 		t.Fatalf("expected 2 forum items, got %d", len(bundle.Announcements))

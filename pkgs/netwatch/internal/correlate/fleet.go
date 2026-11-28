@@ -12,6 +12,7 @@ import (
 
 	"faragao.net/netwatch/internal/feeds"
 	"faragao.net/netwatch/internal/model"
+	"faragao.net/netwatch/internal/version"
 )
 
 const (
@@ -219,6 +220,29 @@ func evaluateDeviceStatus(d *model.FleetDevicePosture, bundle *feeds.FeedBundle,
 		return
 	}
 
+	if strings.EqualFold(d.Vendor, "Authentik") || d.Device == "authentik" {
+		if bundle != nil && bundle.AuthentikLatestRelease != "" && d.RunningVersion != "" {
+			if cmp, err := version.CompareOPNsense(d.RunningVersion, bundle.AuthentikLatestRelease); err == nil {
+				if cmp < 0 {
+					d.UpdateStatus = "update_available"
+					d.AvailableVersion = bundle.AuthentikLatestRelease
+					return
+				}
+				d.UpdateStatus = "current"
+				d.AvailableVersion = ""
+				return
+			}
+		}
+		if reviewOverdue {
+			d.UpdateStatus = "review_due"
+		} else if d.RunningVersion == "" {
+			d.UpdateStatus = "unknown"
+		} else {
+			d.UpdateStatus = "current"
+		}
+		return
+	}
+
 	if strings.HasPrefix(d.UpdateChannel, "nixos-") {
 		buildDate, shortRev, ok := parseNixOSVersion(d.RunningVersion)
 		var chanRev string
@@ -422,6 +446,56 @@ func EvaluateFleetPosture(devices []model.FleetDevicePosture, bundle *feeds.Feed
 		}
 	}
 
+	if bundle != nil && len(bundle.AuthentikGHSAs) > 0 {
+		for _, d := range devices {
+			if !(strings.EqualFold(d.Vendor, "Authentik") || d.Device == "authentik") || strings.TrimSpace(d.RunningVersion) == "" {
+				continue
+			}
+			for _, adv := range bundle.AuthentikGHSAs {
+				matched, fixedVersions := matchesAuthentikAdvisory(d.RunningVersion, adv)
+				if !matched {
+					continue
+				}
+				cves := version.ExtractCVEs(adv.CVEID, adv.Summary, adv.Description)
+				inKEV := false
+				for _, cve := range cves {
+					if _, ok := bundle.KEVByCVE[cve]; ok {
+						inKEV = true
+						break
+					}
+				}
+				sev := model.SeverityDaily
+				timing := "Review Authentik GHSA and bump pinned image tag on tala"
+				if inKEV || strings.EqualFold(adv.Severity, "critical") {
+					sev = model.SeverityUrgent
+					timing = "URGENT — bump pinned Authentik OCI tag on tala promptly"
+				}
+				fixed := "Bump pinned Authentik OCI tag"
+				if len(fixedVersions) > 0 {
+					fixed = strings.Join(fixedVersions, ", ")
+				}
+				out = append(out, model.Finding{
+					ID:                fmt.Sprintf("fleet:ghsa:%s:%s", d.Device, adv.GHSAID),
+					Category:          "advisory",
+					Severity:          sev,
+					Device:            d.Device,
+					Title:             fmt.Sprintf("Authentik %s: %s", adv.GHSAID, adv.Summary),
+					Summary:           fmt.Sprintf("Authentik %s matches GHSA %s (%s).", d.RunningVersion, adv.GHSAID, adv.Severity),
+					RunningVersion:    d.RunningVersion,
+					FixedVersion:      fixed,
+					Exposure:          d.Role,
+					RebootExpected:    "container restart only (~15s)",
+					RecommendedTiming: timing,
+					CVEs:              cves,
+					KEV:               inKEV,
+					Sources:           compactStrings([]string{adv.HTMLURL, feeds.DefaultAuthentikGHSAURL}),
+					FirstSeen:         now,
+					LastSeen:          now,
+				})
+			}
+		}
+	}
+
 	sort.Slice(out, func(i, j int) bool {
 		if severityRank(out[i].Severity) != severityRank(out[j].Severity) {
 			return severityRank(out[i].Severity) < severityRank(out[j].Severity)
@@ -437,6 +511,9 @@ func kevMatchesDevice(d model.FleetDevicePosture, entry feeds.KEVEntry) bool {
 	cve := strings.ToUpper(strings.TrimSpace(entry.CVEID))
 
 	switch {
+	case strings.EqualFold(d.Vendor, "Authentik") || d.Device == "authentik":
+		return strings.Contains(vp, "authentik") || strings.Contains(vp, "goauthentik")
+
 	case strings.EqualFold(d.Vendor, "Synology") || d.Device == "teka":
 		if !strings.Contains(vp, "synology") || (!strings.Contains(prod, "diskstation manager") && !strings.Contains(prod, "dsm")) {
 			return false
@@ -482,6 +559,57 @@ func kevMatchesDevice(d model.FleetDevicePosture, entry feeds.KEVEntry) bool {
 	}
 
 	return false
+}
+
+func matchesAuthentikAdvisory(running string, adv feeds.GHSAAdvisory) (bool, []string) {
+	runSeries := version.SeriesOf(running)
+	var vulns []feeds.GHSAVulnerability
+	for _, v := range adv.Vulnerabilities {
+		pkg := strings.ToLower(strings.TrimSpace(v.Package.Name))
+		if pkg != "" && !strings.Contains(pkg, "authentik") {
+			continue
+		}
+		vulns = append(vulns, v)
+		if runSeries != "" {
+			for _, part := range strings.Split(v.PatchedVersions, ",") {
+				cand := strings.TrimSpace(part)
+				for _, prefix := range []string{">=", ">", "="} {
+					if strings.HasPrefix(cand, prefix) {
+						cand = strings.TrimSpace(strings.TrimPrefix(cand, prefix))
+						break
+					}
+				}
+				if cand == "" {
+					continue
+				}
+				if version.SeriesOf(cand) == runSeries {
+					if cmp, err := version.CompareOPNsense(running, cand); err == nil && cmp >= 0 {
+						return false, nil
+					}
+				}
+			}
+		}
+	}
+
+	fixedSet := make(map[string]struct{})
+	matched := false
+	for _, v := range vulns {
+		if version.MatchesPackageVulnerability(running, v.VulnerableVersionRange, v.PatchedVersions) {
+			matched = true
+			if p := strings.TrimSpace(v.PatchedVersions); p != "" {
+				fixedSet[p] = struct{}{}
+			}
+		}
+	}
+	if !matched {
+		return false, nil
+	}
+	fixed := make([]string, 0, len(fixedSet))
+	for p := range fixedSet {
+		fixed = append(fixed, p)
+	}
+	sort.Strings(fixed)
+	return true, fixed
 }
 
 func isDSM711Update7OrLater(ver string) bool {

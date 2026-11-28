@@ -141,6 +141,21 @@ let
           advisory_url = "https://www.synology.com/en-global/support/security/advisory";
           notes = "Upgraded 7.1.1-42962 Update 9 -> DSM 7.3.2-86009 Update 6 in TRK-33; live synoDSMVersion/synoUpgradeAvailable pushed from maui SNMPv3";
         }
+        {
+          device = "authentik";
+          role = "identity-provider";
+          vendor = "Authentik";
+          product = "Authentik OCI (tala)";
+          running_version = config.services.faragao-authentik.version;
+          version_source = "declared_oci_pin";
+          update_channel = "ghcr.io/goauthentik/server";
+          cadence = "pinned OCI tag + GitHub Release/GHSA/KEV";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 14;
+          advisory_url = "https://github.com/goauthentik/authentik/security/advisories";
+          notes = "Pinned ghcr.io/goauthentik/server OCI on tala; tracked against goauthentik/authentik releases, GHSAs, and CISA KEV";
+        }
       ];
     }
   );

@@ -7,6 +7,7 @@
   # token. Re-enable each module once its secret values are real.
   imports = [
     ./netwatch.nix
+    ./authentik.nix
     ./monitoring.nix
     # ./acme.nix
     # ./caddy.nix
@@ -15,4 +16,5 @@
   ];
 
   services.faragao-netwatch.enable = lib.mkIf (hostName == "tala") true;
+  services.faragao-authentik.enable = lib.mkIf (hostName == "tala") true;
 }

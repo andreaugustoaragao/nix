@@ -67,6 +67,7 @@ in
       allow_registration = false;
       new_user_displayname_suffix = "";
       max_request_size = 20000000;
+      well_known.client = "https://matrix.faragao.net";
     };
   };
 
@@ -112,6 +113,7 @@ in
         allow 127.0.0.1;
         allow 192.168.10.0/24;
         allow 192.168.20.0/24;
+        allow 192.168.40.10;
         allow 192.168.50.0/24;
         allow 192.168.60.0/24;
         # Cloudflare IPv4 ranges (https://www.cloudflare.com/ips-v4)

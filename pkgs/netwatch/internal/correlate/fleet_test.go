@@ -3,6 +3,7 @@ package correlate
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -339,6 +340,85 @@ func TestSynologySNMP2PartVersionMergeAndKEV(t *testing.T) {
 	for _, v := range []string{"DSM 7.1.1-42962 Update 6", "DSM 7.1-42962"} {
 		if isDSM711Update7OrLater(v) {
 			t.Fatalf("expected %q not to satisfy >= DSM 7.1.1 Update 7", v)
+		}
+	}
+}
+
+func TestAuthentikReleaseAndGHSAMatching(t *testing.T) {
+	now := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	bundle := &feeds.FeedBundle{
+		AuthentikLatestRelease: "2026.8.7",
+		AuthentikGHSAs: []feeds.GHSAAdvisory{
+			{
+				GHSAID:   "GHSA-jw8g-8f5p-9pwm",
+				Severity: "critical",
+				Summary:  "Flow stages skipped on errors",
+				HTMLURL:  "https://github.com/goauthentik/authentik/security/advisories/GHSA-jw8g-8f5p-9pwm",
+				Vulnerabilities: []feeds.GHSAVulnerability{
+					{
+						Package:                feeds.GHSAPackage{Name: "authentik"},
+						VulnerableVersionRange: "<= 2026.5.8",
+						PatchedVersions:        "2026.5.9",
+					},
+					{
+						Package:                feeds.GHSAPackage{Name: "authentik"},
+						VulnerableVersionRange: "<= 2026.8.6",
+						PatchedVersions:        "2026.8.7",
+					},
+				},
+			},
+		},
+	}
+
+	makeManifest := func(ver string) []model.FleetDevicePosture {
+		return []model.FleetDevicePosture{
+			{
+				Device:             "authentik",
+				Role:               "identity-provider",
+				Vendor:             "Authentik",
+				Product:            "Authentik OCI (tala)",
+				RunningVersion:     ver,
+				VersionSource:      "declared_oci_pin",
+				UpdateChannel:      "ghcr.io/goauthentik/server",
+				ReviewIntervalDays: 14,
+				LastVerifiedAt:     now.Add(-24 * time.Hour),
+			},
+		}
+	}
+
+	// Case 1: 2026.8.7 is current with 0 findings.
+	cur := MergeFleetPosture(makeManifest("2026.8.7"), model.State{}, nil, bundle, now)
+	if len(cur) != 1 || cur[0].UpdateStatus != "current" || cur[0].AvailableVersion != "" {
+		t.Fatalf("expected authentik 2026.8.7 current, got %+v", cur)
+	}
+	if fs := EvaluateFleetPosture(cur, bundle, now); len(fs) != 0 {
+		t.Fatalf("expected 0 findings for patched 2026.8.7, got %+v", fs)
+	}
+
+	// Case 2: 2026.8.6 triggers update_available AND urgent critical GHSA finding.
+	old := MergeFleetPosture(makeManifest("2026.8.6"), model.State{}, nil, bundle, now)
+	if old[0].UpdateStatus != "update_available" || old[0].AvailableVersion != "2026.8.7" {
+		t.Fatalf("expected authentik 2026.8.6 update_available=2026.8.7, got %+v", old[0])
+	}
+	oldFindings := EvaluateFleetPosture(old, bundle, now)
+	var sawUpdate, sawGHSA bool
+	for _, f := range oldFindings {
+		if f.ID == "fleet:update:authentik" && f.Severity == model.SeverityDaily {
+			sawUpdate = true
+		}
+		if f.ID == "fleet:ghsa:authentik:GHSA-jw8g-8f5p-9pwm" && f.Severity == model.SeverityUrgent {
+			sawGHSA = true
+		}
+	}
+	if !sawUpdate || !sawGHSA {
+		t.Fatalf("expected update + urgent GHSA finding for 2026.8.6, got %+v", oldFindings)
+	}
+
+	// Case 3: 2026.5.9 (patched LTS branch) must NOT false-positive against <= 2026.8.6.
+	lts := MergeFleetPosture(makeManifest("2026.5.9"), model.State{}, nil, bundle, now)
+	for _, f := range EvaluateFleetPosture(lts, bundle, now) {
+		if strings.HasPrefix(f.ID, "fleet:ghsa:authentik:") {
+			t.Fatalf("unexpected false-positive GHSA on patched LTS branch 2026.5.9: %+v", f)
 		}
 	}
 }
