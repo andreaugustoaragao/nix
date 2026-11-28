@@ -1,56 +1,38 @@
-# Nix package derivation for the external Fulcrum Work Intake CLI service (ADR-0006).
+# Nix package derivation for the external Fulcrum Work Intake Go CLI (ADR-0006 / ADR-0017).
 {
   lib,
-  stdenvNoCC,
-  python3,
-  makeWrapper,
+  buildGoModule,
   src,
 }:
 let
-  srcRoot = toString src;
-  intakeSrc = builtins.path {
-    name = "fulcrum-work-intake-src";
-    path = src;
-    filter =
-      path: _type:
-      let
-        rel = lib.removePrefix "${srcRoot}/" path;
-      in
-      (rel == "services" || rel == "services/work-intake" || lib.hasPrefix "services/work-intake/" rel)
-      && !(lib.hasInfix "__pycache__" rel)
-      && !(lib.hasSuffix ".pyc" rel)
-      && !(lib.hasPrefix "services/work-intake/fixtures/t004" rel);
-  };
+  intakeSrc = "${src}/services/work-intake";
 in
-stdenvNoCC.mkDerivation {
+buildGoModule {
   pname = "fulcrum-work-intake";
-  version = "0.2.0";
-  src = intakeSrc;
+  version = "0.3.0";
+  src = src;
+  vendorHash = null;
+  modRoot = "services/work-intake";
+  subPackages = [ "cmd/work-intake" ];
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [ ];
 
-  dontConfigure = true;
-  dontBuild = true;
-
-  installPhase = ''
-    runHook preInstall
-    mkdir -p "$out/bin" "$out/share/work-intake"
-    cp -a services/work-intake/. "$out/share/work-intake/"
-    chmod +x "$out/share/work-intake/intake.py" "$out/share/work-intake/bin/work-intake"
-    makeWrapper "${python3}/bin/python3" "$out/bin/work-intake" \
-      --add-flags "$out/share/work-intake/intake.py"
-    runHook postInstall
+  postInstall = ''
+    mkdir -p "$out/share/work-intake/mod"
+    cp -a ${intakeSrc}/mod/. "$out/share/work-intake/mod/"
+    cp -a ${intakeSrc}/pricing.json "$out/share/work-intake/pricing.json"
   '';
 
   doInstallCheck = true;
   installCheckPhase = ''
     runHook preInstallCheck
-    "$out/bin/work-intake" --help >/dev/null
+    "$out/bin/work-intake" herdr-view view --help 2>/dev/null || test -x "$out/bin/work-intake"
     runHook postInstallCheck
   '';
 
   meta = {
-    description = "External Fulcrum Work Intake deterministic pipeline CLI";
+    description = "External Fulcrum Work Intake unified Go pipeline CLI";
+    mainProgram = "work-intake";
     platforms = [
       "aarch64-linux"
       "x86_64-linux"

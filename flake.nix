@@ -1151,10 +1151,14 @@
           herdr-layout-adoption =
             pkgs.runCommand "check-herdr-layout-adoption"
               {
-                nativeBuildInputs = [ pkgs.python3 ];
+                nativeBuildInputs = [
+                  pkgs.python3
+                  self.packages.${system}.fulcrum-work-intake
+                ];
               }
               ''
-                PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/herdr-configure.test.py
+                WORK_INTAKE_BIN=${pkgs.lib.getExe' self.packages.${system}.fulcrum-work-intake "work-intake"} \
+                  PYTHONDONTWRITEBYTECODE=1 python3 ${self.outPath}/home/desktop/herdr-configure.test.py
                 touch "$out"
               '';
           agent-desktop-parity = import ./home/cli/agent-parity-check.nix {

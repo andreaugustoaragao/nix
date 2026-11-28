@@ -8,6 +8,7 @@
 #      outside the Vault Directory as an explicit rollback backup until operator removal.
 {
   config,
+  osConfig,
   lib,
   pkgs,
   ...
@@ -93,16 +94,29 @@ let
 
       [[profiles]]
       id = "work-intake"
-      description = "External Fulcrum Work Intake deterministic pipeline"
+      description = "External Fulcrum Work Intake host Intake Runner"
       runner_kind = "work_intake"
       executable = "${cfg.workIntakePackage}/bin/work-intake"
       allowed_roots = ["${cfg.notesDir}"]
       working_dir = "${cfg.notesDir}"
-      allow_network = false
+      allow_network = true
       unattended = true
-      timeout_sec = 600
+      timeout_sec = 900
       memory_max_mb = 1024
       intake_state_dir = "${cfg.stateRoot}/work-intake"
+      extra_args = ["run"]
+      fulcrum_endpoint = "unix://${cfg.runtimeDir}/fulcrum-v2/callback.sock"
+      fulcrum_token_env = "FULCRUM_WORK_INTAKE_REPORT_TOKEN"
+      env_allowlist = [
+        "PATH",
+        "HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+        "FULCRUM_SYNTHESIS_API_KEY",
+        "FULCRUM_SYNTHESIS_BASE_URL",
+        "WORK_INTAKE_REPO_ROOT",
+        "WORK_INTAKE_NIX_PIN_CMD",
+      ]
     ''}
   '';
 
@@ -114,9 +128,49 @@ let
     chmod 700 "$app_state" "$intake_state"
     key_file="$app_state/scheduler-dispatch.key"
     if [ ! -f "$key_file" ]; then
-      (umask 077 && ${pkgs.openssl}/bin/openssl rand -hex 32 > "$key_file.tmp" && mv -n "$key_file.tmp" "$key_file")
+      (umask 077 && ${pkgs.openssl}/bin/openssl rand -hex 32 > "$key_file.tmp")
+      mv -n "$key_file.tmp" "$key_file" || rm -f "$key_file.tmp"
     fi
+    chmod 600 "$key_file"
+    report_key_file="$app_state/work-intake-report.key"
+    if [ ! -f "$report_key_file" ]; then
+      (umask 077 && ${pkgs.openssl}/bin/openssl rand -hex 32 > "$report_key_file.tmp")
+      mv -n "$report_key_file.tmp" "$report_key_file" || rm -f "$report_key_file.tmp"
+    fi
+    chmod 600 "$report_key_file"
     export FULCRUM_SCHEDULER_TOKEN="$(cat "$key_file")"
+    export FULCRUM_WORK_INTAKE_REPORT_TOKEN="$(cat "$report_key_file")"
+    ${
+      lib.optionalString (cfg.workIntakePackage != null) ''
+        api_key_secret=${osConfig.sops.secrets.litellm_api_key.path}
+        base_url_secret=${osConfig.sops.secrets.litellm_base_url.path}
+        if [ ! -r "$api_key_secret" ]; then
+          echo "Fatal: $api_key_secret not readable" >&2
+          exit 1
+        fi
+        if [ ! -r "$base_url_secret" ]; then
+          echo "Fatal: $base_url_secret not readable" >&2
+          exit 1
+        fi
+        api_key=$(cat "$api_key_secret")
+        base_url=$(cat "$base_url_secret")
+        if [ -z "$api_key" ] || [ "$api_key" = "placeholder" ]; then
+          echo "Fatal: LiteLLM API key is empty or placeholder-valued" >&2
+          exit 1
+        fi
+        if [ -z "$base_url" ] || [ "$base_url" = "placeholder" ]; then
+          echo "Fatal: LiteLLM base URL is empty or placeholder-valued" >&2
+          exit 1
+        fi
+        export FULCRUM_SYNTHESIS_API_KEY="$api_key"
+        export FULCRUM_SYNTHESIS_BASE_URL="$base_url"
+        unset api_key base_url
+        repo_root=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/fulcrum"}
+        if [ -d "$repo_root" ]; then
+          export WORK_INTAKE_REPO_ROOT="$repo_root"
+        fi
+      ''
+    }
     exec ${cfg.package}/bin/ai-task-scheduler serve --config ${schedulerConfig}
   '';
 

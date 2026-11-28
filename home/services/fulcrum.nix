@@ -101,6 +101,64 @@ let
     ];
     text = builtins.readFile ./fulcrum-browser-trust.sh;
   };
+  workIntakeRepoRoot = "${config.home.homeDirectory}/projects/work/fulcrum";
+  personalNixFlake = "${config.home.homeDirectory}/projects/personal/nix";
+  workIntakeNixPin = pkgs.writeShellScript "fulcrum-work-intake-nix-pin" ''
+    set -eu
+    repo="''${1:?repo root required}"
+    if [ ! -d "$repo" ]; then
+      echo "WORK_INTAKE_REPO_ROOT is not a directory: $repo" >&2
+      exit 1
+    fi
+    flake_dir=${lib.escapeShellArg personalNixFlake}
+    if [ ! -f "$flake_dir/flake.nix" ]; then
+      echo "Nix flake missing at $flake_dir/flake.nix" >&2
+      exit 1
+    fi
+    pin_dir="''${FULCRUM_WORK_INTAKE_STATE_DIR:-${config.xdg.dataHome}/fulcrum-v2/work-intake}"
+    mkdir -p "$pin_dir/roots"
+    gc_root="$pin_dir/roots/pkg-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    canary_dir="$(mktemp -d /tmp/work-intake-canary.XXXXXX)"
+    activated=0
+    cleanup() {
+      rm -rf "$canary_dir" "$pin_dir/.active-pkg.tmp.$$"
+      if [ "$activated" -eq 0 ]; then
+        rm -f "$gc_root"
+      fi
+    }
+    trap cleanup EXIT
+    out_path="$(${pkgs.nix}/bin/nix build --out-link "$gc_root" --print-out-paths \
+      --override-input fulcrum-src "git+file://$repo" \
+      "$flake_dir#fulcrum-work-intake")"
+    case "$out_path" in
+      /nix/store/*) ;;
+      *) echo "Built artifact outside /nix/store: $out_path" >&2; exit 1 ;;
+    esac
+    if [ ! -x "$out_path/bin/work-intake" ]; then
+      echo "Built artifact missing executable work-intake: $out_path" >&2
+      exit 1
+    fi
+    # Real read-only adapter & pipeline canary executing recordings.Collect -> completeness -> normalize -> batch.
+    run_id="00000000-0000-4000-8000-000000000001"
+    rec_started="$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+    rec_dir="$canary_dir/recordings/$(date -u +%Y%m%d-%H%M%S)-canary"
+    mkdir -p "$canary_dir/vault/people" "$canary_dir/state" "$rec_dir"
+    printf '# TODO\n' > "$canary_dir/vault/TODO.md"
+    printf '# Initiatives\n' > "$canary_dir/vault/INITIATIVES.md"
+    printf '# Bookmarks\n' > "$canary_dir/vault/BOOKMARKS.md"
+    printf '{"recordingId":"canary-rec-1","revision":1,"startedAt":"%s","status":"ready","durationMs":60000,"coverage":{"complete":true,"durationMs":60000}}\n' "$rec_started" > "$rec_dir/recording.json"
+    printf 'Speaker A: Canary recording verified for promotion activation.\n' > "$rec_dir/transcript.turns.txt"
+    "$out_path/bin/work-intake" --vault-dir "$canary_dir/vault" --state-dir "$canary_dir/state" \
+      canary --chromium ${pkgs.chromium}/bin/chromium --recordings-dir "$canary_dir/recordings" \
+      --adapters "''${WORK_INTAKE_CHANGED_ADAPTERS:-all}" --run-id "$run_id" >/dev/null
+    # Atomically point active-pkg at the persistent Nix GC root (never renaming away the registered root).
+    ln -sfn "$gc_root" "$pin_dir/.active-pkg.tmp.$$"
+    mv -T "$pin_dir/.active-pkg.tmp.$$" "$pin_dir/active-pkg"
+    activated=1
+    printf '%s\n' "$out_path" > "$pin_dir/pinned-store-path.tmp"
+    mv "$pin_dir/pinned-store-path.tmp" "$pin_dir/pinned-store-path"
+    printf '%s\n' "$out_path"
+  '';
 in
 
 {
@@ -201,6 +259,9 @@ in
       ]
       ++ lib.optionals (packagedRelease != null && (vaultV2.workIntakePackage or null) != null) [
         "FULCRUM_WORK_INTAKE_CLI=${vaultV2.workIntakePackage}/bin/work-intake"
+        "FULCRUM_WORK_INTAKE_REPORT_TOKEN_FILE=${config.xdg.dataHome}/fulcrum-v2/app/work-intake-report.key"
+        "WORK_INTAKE_REPO_ROOT=${workIntakeRepoRoot}"
+        "WORK_INTAKE_NIX_PIN_CMD=${workIntakeNixPin}"
       ]
       ++ lib.optionals (packagedRelease == null && vaultV2.enable) [
         "FULCRUM_VAULT_V2_SOCKET=%t/shared-vault-v2/api.sock"

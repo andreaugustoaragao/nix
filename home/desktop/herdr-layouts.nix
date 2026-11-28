@@ -22,25 +22,53 @@ let
     name = "herdr-custom";
     path = ./herdr;
   };
-  intakeMain = pkgs.replaceVars ./herdr/mods/work-intake/main.js {
-    notesRoot = "${config.home.homeDirectory}/projects/work/notes/";
-  };
-  customRoot = pkgs.runCommand "herdr-custom" { } ''
+  workIntakePkg = config.my.vaultV2.workIntakePackage or null;
+  hasWorkIntake = workIntakePkg != null;
+  intakeMain =
+    if hasWorkIntake then
+      pkgs.replaceVars "${workIntakePkg}/share/work-intake/mod/main.js" {
+        notesRoot = "${config.home.homeDirectory}/projects/work/notes/";
+      }
+    else
+      null;
+  stripIntakeBadgeJq =
+    ''walk(if type == "array" then [.[] | select(.id? != "work-intake-badge")] else . end)'';
+  customRoot = pkgs.runCommand "herdr-custom" {
+    nativeBuildInputs = [ pkgs.jq ];
+  } ''
     cp -r ${customSource} "$out"
     chmod -R u+w "$out"
-    cp ${intakeMain} "$out/mods/work-intake/main.js"
+    ${
+      lib.optionalString hasWorkIntake ''
+        mkdir -p "$out/mods/work-intake"
+        cp ${intakeMain} "$out/mods/work-intake/main.js"
+        cp -a ${workIntakePkg}/share/work-intake/mod/model.js "$out/mods/work-intake/"
+        cp -a ${workIntakePkg}/share/work-intake/mod/mod.json "$out/mods/work-intake/" 2>/dev/null || true
+        cp -a ${workIntakePkg}/share/work-intake/mod/jsconfig.json "$out/mods/work-intake/" 2>/dev/null || true
+        cp -a ${workIntakePkg}/share/work-intake/mod/gpui-kit.d.ts "$out/mods/work-intake/" 2>/dev/null || true
+      ''
+    }
+    ${
+      lib.optionalString (!hasWorkIntake) ''
+        for layout in main-flat main-preview; do
+          jq '${stripIntakeBadgeJq}' "$out/layouts/$layout.json" > "$out/layouts/$layout.json.tmp"
+          mv "$out/layouts/$layout.json.tmp" "$out/layouts/$layout.json"
+        done
+      ''
+    }
   '';
-  intakeSource = builtins.path {
-    name = "herdr-intake-viewer";
-    path = ./herdr-intake;
-  };
-  intake = pkgs.writeShellApplication {
-    name = "herdr-intake-dashboard";
-    text = ''
-      export HERDR_INTAKE_NOTES_ROOT=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes"}
-      exec ${lib.getExe pkgs.python3} ${intakeSource}/dashboard.py "$@"
-    '';
-  };
+  intake =
+    if hasWorkIntake then
+      pkgs.writeShellApplication {
+        name = "herdr-intake-dashboard";
+        text = ''
+          export HERDR_INTAKE_NOTES_ROOT=${lib.escapeShellArg "${config.home.homeDirectory}/projects/work/notes"}
+          export HERDR_INTAKE_STATE_DIR=${lib.escapeShellArg "${config.home.homeDirectory}/.local/share/fulcrum-v2/work-intake"}
+          exec ${lib.getExe' workIntakePkg "work-intake"} herdr-view "$@"
+        '';
+      }
+    else
+      null;
   symlinkMods = [
     "personal-agents"
     "personal-chrome"
@@ -52,20 +80,21 @@ let
   ];
   # Multi-file mods import sibling modules (e.g. ./rules.js, ./reader.js); herdr-app
   # requires resolved module paths to remain inside ~/.config/herdr-app/mods/<name>.
-  syncedMods = [
-    "auto-namer"
-    "personal-costs"
-    "preview"
-    "work-intake"
-  ];
+  syncedMods =
+    [
+      "auto-namer"
+      "personal-costs"
+      "preview"
+    ]
+    ++ lib.optionals hasWorkIntake [ "work-intake" ];
   customLayouts = [
     "main-flat"
     "main-preview"
   ];
 in
 {
-  home.packages = [ intake ];
-  home.file.".local/bin/herdr-intake-dashboard" = {
+  home.packages = lib.optionals hasWorkIntake [ intake workIntakePkg ];
+  home.file.".local/bin/herdr-intake-dashboard" = lib.mkIf hasWorkIntake {
     source = lib.getExe intake;
     force = true;
   };
@@ -85,7 +114,7 @@ in
     map (name: {
       name = "herdr-app/layouts/${name}.json";
       value = {
-        source = "${customSource}/layouts/${name}.json";
+        source = "${customRoot}/layouts/${name}.json";
         force = true;
       };
     }) customLayouts

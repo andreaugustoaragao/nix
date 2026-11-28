@@ -2,11 +2,25 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+
+WORK_INTAKE = os.environ.get(
+    "WORK_INTAKE_BIN",
+    shutil.which("work-intake") or shutil.which("herdr-intake-dashboard"),
+)
+
+
+def intake_view_argv():
+    if not WORK_INTAKE:
+        return None
+    if Path(WORK_INTAKE).name == "herdr-intake-dashboard":
+        return [WORK_INTAKE, "view"]
+    return [WORK_INTAKE, "herdr-view", "view"]
 
 spec = importlib.util.spec_from_file_location("configure", Path(__file__).with_name("herdr-configure.py"))
 module = importlib.util.module_from_spec(spec)
@@ -112,7 +126,7 @@ class LayoutAdoption(unittest.TestCase):
 class PackagedDependencies(unittest.TestCase):
     def test_custom_layout_mods_are_in_the_nix_source(self):
         source = Path(__file__).parent / "herdr"
-        shipped_mods = {"changes", "workspace-status"}
+        shipped_mods = {"changes", "workspace-status", "work-intake"}
 
         def mods(node):
             if isinstance(node, dict):
@@ -130,11 +144,19 @@ class PackagedDependencies(unittest.TestCase):
                     self.assertTrue((source / "mods" / mod / "main.js").is_file(), f"{layout.name}: {mod}")
 
     def test_intake_viewer_works_without_a_notes_checkout(self):
+        if not WORK_INTAKE:
+            self.skipTest("work-intake binary not on PATH")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "not-cloned-yet"
+            state = Path(directory) / "empty-state"
             result = subprocess.run(
-                [sys.executable, str(Path(__file__).parent / "herdr-intake/dashboard.py"), "view"],
-                env=dict(os.environ, HERDR_INTAKE_NOTES_ROOT=str(root)),
+                intake_view_argv(),
+                env={
+                    **os.environ,
+                    "HERDR_INTAKE_NOTES_ROOT": str(root),
+                    "HERDR_INTAKE_STATE_DIR": str(state),
+                    "WORK_INTAKE_STATE_DIR": str(state),
+                },
                 capture_output=True,
                 text=True,
                 check=True,
@@ -142,6 +164,54 @@ class PackagedDependencies(unittest.TestCase):
             self.assertIsNone(json.loads(result.stdout)["report"])
             self.assertEqual(json.loads(result.stdout)["items"], [])
             self.assertFalse(root.exists())
+
+    def test_intake_viewer_reads_external_state_dir_without_in_vault_system(self):
+        if not WORK_INTAKE:
+            self.skipTest("work-intake binary not on PATH")
+        with tempfile.TemporaryDirectory() as directory:
+            vault = Path(directory) / "notes"
+            state = Path(directory) / "state"
+            brief = vault / "weekly/2026_11_23/briefings/2026-11-27-work-intake.md"
+            brief.parent.mkdir(parents=True, exist_ok=True)
+            brief.write_text("# Work intake\n\nCalendar: clear\n")
+            run_id = "11111111-2222-4333-8444-555555555555"
+            run_dir = state / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "manifest.json").write_text(json.dumps({
+                "run_id": run_id,
+                "status": "complete",
+                "briefed_at": "2026-11-27T12:00:00Z",
+                "briefing_path": "weekly/2026_11_23/briefings/2026-11-27-work-intake.md",
+                "source_coverage_complete": True,
+            }))
+            (state / "herdr/receipts").mkdir(parents=True, exist_ok=True)
+            receipt = {
+                "schema_version": 1,
+                "run_id": run_id,
+                "generated_at": "2026-11-27T12:00:00Z",
+                "horizon_end": "2026-11-27T14:00:00Z",
+                "display_time": "Fri 05:00 MST",
+                "coverage": "complete",
+                "briefing_path": "weekly/2026_11_23/briefings/2026-11-27-work-intake.md",
+                "briefing_markdown": "# Work intake\n\nCalendar: clear\n",
+                "source_manifest": f"_system/intake/work-intake/{run_id}/manifest.json",
+                "summary": "External state test",
+                "notify": False,
+                "attention": "routine",
+                "action_count": 0,
+            }
+            (state / "herdr/receipts" / f"{run_id}.json").write_text(json.dumps(receipt))
+            result = subprocess.run(
+                intake_view_argv(),
+                env=dict(os.environ, HERDR_INTAKE_NOTES_ROOT=str(vault), HERDR_INTAKE_STATE_DIR=str(state)),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["latest"], run_id)
+            self.assertEqual(len(payload["history"]), 1)
+            self.assertFalse((vault / "_system").exists())
 
 
 if __name__ == "__main__":
