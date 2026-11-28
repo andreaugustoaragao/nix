@@ -831,12 +831,7 @@
       # AGENTS.md quality gate. Exposed for every system in appSystems.
       formatter = forEachAppSystem (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
-      # Quality gates as derivations: `nix flake check` (and CI) builds
-      # these, so a formatting drift, statix warning, or dead binding
-      # fails the build instead of relying on manual discipline. Same
-      # three tools AGENTS.md mandates. `self.outPath` is the clean
-      # flake source (git-index snapshot, no untracked files), so local
-      # runs match what CI sees.
+      # Run these checks locally with `nix flake check`.
       checks = forEachAppSystem (
         system:
         let

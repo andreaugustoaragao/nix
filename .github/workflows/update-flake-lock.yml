@@ -1,9 +1,4 @@
-# Weekly flake.lock bump as a pull request, so CI (ci.yml) validates
-# every host still evaluates against the new pins BEFORE the lock lands
-# on main. This complements system/flake-update.nix / auto-upgrade:
-# hosts keep pulling main; main only moves when a lock bump is green.
-#
-# Merge the PR to roll the fleet forward; close it to skip a week.
+# Propose weekly flake.lock updates for local validation before merging.
 name: update-flake-lock
 
 on:
