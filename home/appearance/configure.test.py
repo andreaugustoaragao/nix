@@ -109,7 +109,7 @@ class AppearanceTests(unittest.TestCase):
         settings["paletteFiles"], settings["modeManifests"], settings["wallpaperModes"] = {}, {}, {}
         for mode in ("dark", "light"):
             settings["paletteFiles"][mode] = {}
-            for kind in ("gtk2", "gtk3", "gtk4", "qt"):
+            for kind in ("gtk2", "gtk3", "gtk4", "qt", "omareaderColors", "omareaderName"):
                 source = self.root / f"{mode}-{kind}"
                 source.write_text(mode)
                 settings["paletteFiles"][mode][kind] = str(source)
@@ -133,6 +133,8 @@ class AppearanceTests(unittest.TestCase):
                 expected = "dark" if action == "prepare" else action
                 self.assertEqual((config / "gtk-3.0/gruvbox.css").read_text(), expected)
                 self.assertEqual((config / "qt6ct/colors/gruvbox.conf").read_text(), expected)
+                self.assertEqual((state / "omareader/current/theme/colors.toml").read_text(), expected)
+                self.assertEqual((state / "omareader/current/theme.name").read_text(), expected)
                 value = tomlkit.parse((state / "noctalia/settings.toml").read_text())
                 self.assertEqual(value["theme"]["builtin"], "Gruvbox")
                 self.assertEqual(value["wallpaper"]["monitors"]["Virtual-2"]["path"], "portrait-" + expected)
@@ -164,6 +166,8 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(value["wallpaper"]["monitors"]["Virtual-2"]["path"], "portrait-light")
         self.assertEqual((config / "gtk-3.0/gruvbox.css").read_text(), "light")
         self.assertEqual((config / "qt6ct/colors/gruvbox.conf").read_text(), "light")
+        self.assertEqual((state / "omareader/current/theme/colors.toml").read_text(), "light")
+        self.assertEqual((state / "omareader/current/theme.name").read_text(), "light")
 
     @unittest.skipUnless(os.environ.get("TEST_GSETTINGS"), "real gsettings is supplied by the Nix check")
     def test_all_actions_find_pinned_schemas_without_desktop_environment(self):

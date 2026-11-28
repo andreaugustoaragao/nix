@@ -98,6 +98,11 @@ def main():
             "qt6ct/colors/gruvbox.conf": files["qt"],
         }.items():
             link(config / target, source)
+        for target, source in {
+            "omareader/current/theme/colors.toml": files["omareaderColors"],
+            "omareader/current/theme.name": files["omareaderName"],
+        }.items():
+            link(state / target, source)
         merge_manifest(settings["modeManifests"][mode])
         for version in ("qt5ct", "qt6ct"):
             path = config / version / (version + ".conf")

@@ -1,0 +1,48 @@
+From 4922a3e901c166699c4d6c3aa57667a17f4a6d20 Mon Sep 17 00:00:00 2001
+From: Aaron Nall <aaron-nall@users.noreply.github.com>
+Date: Thu, 9 Jul 2026 00:42:29 +0000
+Subject: [PATCH] drm: attach a right-sized swapchain buffer on modeset commits
+
+Backport of hyprwm/aquamarine#330 onto aquamarine 0.11.0.
+
+When Hyprland reconfigures the output swapchain for a larger mode and
+runs a TEST_ONLY or real modeset commit, the commit state still carries
+the previous front buffer. On drivers without primary-plane scaling such
+as virtio-gpu, drm_atomic_helper_check_plane_state rejects every
+resolution increase with EINVAL ("Plane must cover entire CRTC").
+
+--- a/src/backend/drm/DRM.cpp
++++ b/src/backend/drm/DRM.cpp
+@@ -2033,11 +2033,32 @@
+     else
+         data.calculateMode(connector);
+ 
++    // A modeset commit must carry a buffer sized for the new mode: the atomic path
++    // derives the plane geometry from it (and legacy SetCrtc has the same requirement),
++    // so drivers without plane scaling (e.g. virtio-gpu) reject stale-size buffers,
++    // making larger modes unreachable.
++    // If the consumer already reconfigured the swapchain to the new size, attach a fresh buffer from it.
++    bool acquiredModesetBuffer = false;
++    if (data.modeset && data.mainFB && swapchain && data.mainFB->buffer->size != MODE->pixelSize && swapchain->currentOptions().size == MODE->pixelSize) {
++        if (auto newBuf = swapchain->next(nullptr); newBuf) {
++            if (auto newFB = CDRMFB::create(newBuf, backend, nullptr); newFB && !newFB->dead) {
++                data.mainFB           = newFB;
++                acquiredModesetBuffer = true;
++            } else
++                swapchain->rollback();
++        }
++    }
++
+     if ((data.modeset && STATE.ctm != Mat3x3()) || (COMMITTED & COutputState::eOutputStateProperties::AQ_OUTPUT_STATE_CTM))
+         data.ctm = STATE.ctm;
+ 
+     bool ok = connector->commitState(data);
+ 
++    // a buffer acquired only to validate/attempt the modeset isn't consumed by the
++    // consumer: rewind the swapchain so the acquire cursor stays in sync with it.
++    if (acquiredModesetBuffer && (onlyTest || !ok))
++        swapchain->rollback();
++
+     if (!ok && !data.modeset && !connector->commitTainted) {
+         // attempt to re-modeset, however, flip a tainted flag if the modesetting fails
+         // to avoid doing this over and over.

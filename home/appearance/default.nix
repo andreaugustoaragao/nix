@@ -20,14 +20,41 @@ let
   toolkit = import ./toolkit.nix { inherit lib appearance; };
   wallpapers = pkgs.callPackage ../../pkgs/gruvbox-wallpapers.nix { };
   landscapeWallpaper = "${../../assets/wallpapers/chiryu-horse-fair.jpg}";
-  paletteFiles = lib.genAttrs [ "dark" "light" ] (mode: {
-    gtk3 = pkgs.writeText "gruvbox-gtk3-${mode}.css" toolkit.${mode}.gtk3;
-    gtk4 = pkgs.writeText "gruvbox-gtk4-${mode}.css" toolkit.${mode}.gtk4;
-    qt = pkgs.writeText "gruvbox-qt-${mode}.conf" toolkit.${mode}.qt;
-    gtk2 = pkgs.writeText "gruvbox-gtk2-${mode}.rc" ''
-      gtk-theme-name="Gruvbox-${if mode == "dark" then "Dark" else "Light"}"
-    '';
-  });
+  omareader = pkgs.callPackage ../../pkgs/omareader.nix { };
+  omareaderExtension = {
+    id = omareader.extensionId;
+    crxPath = "${omareader}/share/omareader/omareader.crx";
+    inherit (omareader) version;
+  };
+  paletteFiles = lib.genAttrs [ "dark" "light" ] (
+    mode:
+    let
+      c = appearance.${mode};
+      label = if mode == "dark" then "Gruvbox Dark" else "Gruvbox Light";
+    in
+    {
+      gtk3 = pkgs.writeText "gruvbox-gtk3-${mode}.css" toolkit.${mode}.gtk3;
+      gtk4 = pkgs.writeText "gruvbox-gtk4-${mode}.css" toolkit.${mode}.gtk4;
+      qt = pkgs.writeText "gruvbox-qt-${mode}.conf" toolkit.${mode}.qt;
+      gtk2 = pkgs.writeText "gruvbox-gtk2-${mode}.rc" ''
+        gtk-theme-name="Gruvbox-${if mode == "dark" then "Dark" else "Light"}"
+      '';
+      omareaderColors = pkgs.writeText "gruvbox-omareader-${mode}.toml" ''
+        mode = "${mode}"
+        background = "${c.base}"
+        foreground = "${c.text}"
+        selection = "${c.surface1}"
+        red = "${c.red}"
+        orange = "${c.peach}"
+        yellow = "${c.yellow}"
+        green = "${c.green}"
+        cyan = "${c.teal}"
+        blue = "${c.blue}"
+        magenta = "${c.mauve}"
+      '';
+      omareaderName = pkgs.writeText "gruvbox-omareader-${mode}.name" "${label}\n";
+    }
+  );
   json = values: {
     format = "json";
     set = values;
@@ -179,6 +206,14 @@ in
 {
   config = lib.mkIf enabled {
     home.packages = [ apply ];
+    programs.brave = {
+      extensions = [ omareaderExtension ];
+      nativeMessagingHosts = [ omareader ];
+    };
+    programs.chromium = {
+      extensions = [ omareaderExtension ];
+      nativeMessagingHosts = [ omareader ];
+    };
     home.file.".cursor/extensions/jdinhlife.gruvbox".source =
       "${pkgs.vscode-extensions.jdinhlife.gruvbox}/share/vscode/extensions/jdinhlife.gruvbox";
     xdg.configFile = lib.mkMerge (
