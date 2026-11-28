@@ -142,8 +142,8 @@ assert lib.assertMsg (lib.all (
     == "${home.my.agentHarness.piManagedExtensions}/lib/lifecycle.ts"
 ) homes) "Full Pi uses the high-thinking WebAI default and one co-located lifecycle bundle.";
 assert lib.assertMsg (
-  vmHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
-  == workstationHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
+  normalize vmHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
+  == normalize workstationHome.xdg.configFile."herdr-app/layouts/main-flat.json".source
 ) "Both desktop hosts must install the same custom Herdr layout.";
 assert lib.assertMsg (lib.all (
   home:
