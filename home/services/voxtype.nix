@@ -168,9 +168,9 @@ let
       type_delay_ms = 0;
       pre_type_delay_ms = 50;
       notification = {
-        on_recording_start = !isWorkstation;
+        on_recording_start = false;
         on_recording_stop = false;
-        on_transcription = !isWorkstation;
+        on_transcription = false;
       };
     };
   };
@@ -181,7 +181,7 @@ in
       "cylon"
       "kitt"
     ];
-    default = "cylon";
+    default = "kitt";
     description = "Visual style for the Voxtype recording indicator.";
   };
 
@@ -196,8 +196,6 @@ in
   };
 
   config = lib.mkIf enabled {
-    my.voxtype.scannerStyle = lib.mkIf isWorkstation (lib.mkDefault "kitt");
-
     home.packages = [
       voxtypePkg
       pkgs.wtype
@@ -246,7 +244,7 @@ in
       ];
     };
 
-    systemd.user.services.voxtype-recording-indicator = lib.mkIf isWorkstation {
+    systemd.user.services.voxtype-recording-indicator = {
       Unit = {
         Description = "Voxtype recording indicator";
         After = [ "voxtype.service" ];
