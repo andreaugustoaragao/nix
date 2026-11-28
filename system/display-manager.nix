@@ -172,6 +172,7 @@ in
 
   # Update PAM services for greetd
   security.pam.services.greetd.enableGnomeKeyring = true;
+  security.pam.services.noctalia = { };
 
   environment = {
     # Keep Niri in the logind scope for Polkit, with graphical-service cleanup

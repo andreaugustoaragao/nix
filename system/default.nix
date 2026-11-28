@@ -23,6 +23,7 @@
     ./workstation-security.nix
     ./workstation-kubernetes.nix
     ./workstation-worker.nix
+    ./howdy.nix
   ]
   ++ lib.optionals (builtins.elem hostName [
     "workstation"

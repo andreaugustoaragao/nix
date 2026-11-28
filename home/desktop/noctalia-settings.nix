@@ -9,6 +9,7 @@
   homeDirectory ? null,
   preview ? false,
   showTemperatures ? false,
+  allowEmptyPassword ? false,
 }:
 let
   barScale = 0.825;
@@ -96,6 +97,7 @@ lib.recursiveUpdate
     lockscreen = {
       enabled = lockScreen;
       lock_before_suspend = lockScreen;
+      allow_empty_password = allowEmptyPassword;
     };
     idle.behavior.lock = {
       enabled = lockScreen;

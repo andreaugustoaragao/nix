@@ -1,0 +1,63 @@
+--- a/src/auth/pam_helper_main.cpp
++++ b/src/auth/pam_helper_main.cpp
+@@ -11,6 +11,7 @@
+ #include <cstdint>
+ #include <cstdlib>
+ #include <cstring>
++#include <fcntl.h>
+ #include <pwd.h>
+ #include <security/pam_appl.h>
+ #include <string>
+@@ -182,22 +183,35 @@
+     return pam_helper::kExitProtocolError;
+   }
+ 
++  const int replyFd = ::fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 3);
++  if (replyFd < 0) {
++    return pam_helper::kExitProtocolError;
++  }
++  if (::dup2(STDERR_FILENO, STDOUT_FILENO) < 0) {
++    (void)::close(replyFd);
++    return pam_helper::kExitProtocolError;
++  }
++
+   std::uint8_t version = 0;
+   if (!pam_helper::readAll(STDIN_FILENO, &version, sizeof(version))) {
++    (void)::close(replyFd);
+     return pam_helper::kExitProtocolError;
+   }
+   if (version != pam_helper::kProtocolVersion) {
+-    (void)pam_helper::writeAll(STDOUT_FILENO, &pam_helper::kProtocolVersion, sizeof(pam_helper::kProtocolVersion));
++    (void)pam_helper::writeAll(replyFd, &pam_helper::kProtocolVersion, sizeof(pam_helper::kProtocolVersion));
++    (void)::close(replyFd);
+     return pam_helper::kExitProtocolError;
+   }
+ 
+   std::uint32_t len = 0;
+   if (!pam_helper::readAll(STDIN_FILENO, &len, sizeof(len)) || len > pam_helper::kMaxPasswordBytes) {
++    (void)::close(replyFd);
+     return pam_helper::kExitProtocolError;
+   }
+   std::string password(len, '\0');
+   if (len > 0 && !pam_helper::readAll(STDIN_FILENO, password.data(), len)) {
+     secureClear(password);
++    (void)::close(replyFd);
+     return pam_helper::kExitProtocolError;
+   }
+ 
+@@ -206,10 +220,12 @@
+ 
+   const auto status = static_cast<std::uint8_t>(outcome.status);
+   const auto pamRc = static_cast<std::int32_t>(outcome.pamRc);
+-  if (!pam_helper::writeAll(STDOUT_FILENO, &pam_helper::kProtocolVersion, sizeof(pam_helper::kProtocolVersion))
+-      || !pam_helper::writeAll(STDOUT_FILENO, &status, sizeof(status))
+-      || !pam_helper::writeAll(STDOUT_FILENO, &pamRc, sizeof(pamRc))) {
++  if (!pam_helper::writeAll(replyFd, &pam_helper::kProtocolVersion, sizeof(pam_helper::kProtocolVersion))
++      || !pam_helper::writeAll(replyFd, &status, sizeof(status))
++      || !pam_helper::writeAll(replyFd, &pamRc, sizeof(pamRc))) {
++    (void)::close(replyFd);
+     return pam_helper::kExitProtocolError;
+   }
++  (void)::close(replyFd);
+   return outcome.status == pam_helper::Status::Success ? pam_helper::kExitSuccess : pam_helper::kExitFailure;
+ }

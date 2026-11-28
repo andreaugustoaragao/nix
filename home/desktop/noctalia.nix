@@ -49,6 +49,7 @@ in
         inherit (config.home) homeDirectory;
         inherit (config.my) displays;
         showTemperatures = !isVm;
+        allowEmptyPassword = hostName == "workstation";
       };
     };
 
