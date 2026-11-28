@@ -8,10 +8,10 @@
 
 # Wayland voice dictation via voxtype.
 #
-# Both workstation and prl-dev-vm receive virtual Wayland input via Niri
-# (workstation receives virtual input from prl-dev-vm over cursor-bridge), so
-# evdev hotkeys are disabled (`hotkey.enabled = false`) and Niri toggles
-# recording with `Mod+Alt+D` (`voxtype record toggle`).
+# Both workstation and prl-dev-vm receive virtual Wayland input via Niri or
+# Hyprland (workstation receives virtual input from prl-dev-vm over
+# cursor-bridge), so evdev hotkeys are disabled (`hotkey.enabled = false`) and
+# the compositor toggles recording with `F9` (`voxtype record toggle`).
 #
 # Output uses `wtype` with `fallback_to_clipboard = false` and an explicit
 # `driver_order = ["wtype"]` so dictation never clobbers the clipboard synced

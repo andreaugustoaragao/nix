@@ -59,6 +59,12 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 </item>
 </channel></rss>`))
 	})
+	mux.HandleFunc("/rev-2605", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("5b31ff946309736077f0c4ee23bb85d0a0a1c181\n"))
+	})
+	mux.HandleFunc("/rev-2611", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("3068c73a96a6979ee8e72e7196577d0bd842d412\n"))
+	})
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -73,11 +79,13 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 
 	now := time.Date(2026, 11, 27, 8, 0, 0, 0, time.UTC)
 	fetcher := &Fetcher{
-		Client:         srv.Client(),
-		KEVURL:         srv.URL + "/kev",
-		CoreGHSAURL:    srv.URL + "/core",
-		PluginsGHSAURL: srv.URL + "/plugins",
-		ForumRSSURL:    srv.URL + "/rss",
+		Client:          srv.Client(),
+		KEVURL:          srv.URL + "/kev",
+		CoreGHSAURL:     srv.URL + "/core",
+		PluginsGHSAURL:  srv.URL + "/plugins",
+		ForumRSSURL:     srv.URL + "/rss",
+		NixOS2605RevURL: srv.URL + "/rev-2605",
+		NixOS2611RevURL: srv.URL + "/rev-2611",
 	}
 
 	bundle, statuses := fetcher.FetchAll(context.Background(), prev, now)
@@ -93,6 +101,13 @@ func TestFetcherIsolatesFailuresAndParsesAllFeeds(t *testing.T) {
 	}
 	if len(bundle.Announcements) != 2 {
 		t.Fatalf("expected 2 forum items, got %d", len(bundle.Announcements))
+	}
+	if bundle.NixOSChannelRevs["nixos-26.05"] != "5b31ff946309736077f0c4ee23bb85d0a0a1c181" ||
+		bundle.NixOSChannelRevs["nixos-26.11"] != "3068c73a96a6979ee8e72e7196577d0bd842d412" {
+		t.Fatalf("unexpected NixOSChannelRevs: %+v", bundle.NixOSChannelRevs)
+	}
+	if statuses[FeedNixOS2611].ItemCount != 1 || statuses[FeedNixOS2611].LastError != "" {
+		t.Fatalf("unexpected NixOS 26.11 status: %+v", statuses[FeedNixOS2611])
 	}
 	if bundle.Announcements[0].Version != "26.7.11" || bundle.Announcements[0].Business || bundle.Announcements[0].IsReply {
 		t.Fatalf("unexpected announcement[0]: %+v", bundle.Announcements[0])

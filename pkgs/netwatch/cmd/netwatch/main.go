@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sort"
 	"strings"
@@ -61,6 +62,8 @@ func main() {
 		err = cmdSynthetic(args)
 	case "heartbeat":
 		err = cmdHeartbeat(args)
+	case "alert-unit":
+		err = cmdAlertUnit(args)
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -91,12 +94,14 @@ Commands:
   maintenance       Set or clear a temporary maintenance window (--minutes N [--note ...])
   replay            Send labeled syslog/telemetry fixtures (--kind urgent|deny|duplicate|ids|syslog-silent)
   synthetic         Run labeled advisory drills (--kind urgent|unaffected|duplicate|stale|resolve|digest)
-  heartbeat         Send a one-shot ping (or --fail) to Healthchecks.io`)
+  heartbeat         Send a one-shot ping (or --fail) to Healthchecks.io
+  alert-unit        Send urgent email alert for a failed local systemd unit (independent of Matrix)`)
 }
 
 type engine struct {
 	cfg       config.Config
 	store     *state.Store
+	manifest  []model.FleetDevicePosture
 	fetcher   *feeds.Fetcher
 	bundle    *feeds.FeedBundle
 	bundleMu  sync.RWMutex
@@ -105,12 +110,21 @@ type engine struct {
 }
 
 func newEngine(cfg config.Config, st *state.Store) *engine {
+	manifest, err := correlate.LoadFleetManifest(cfg.FleetManifestFile)
+	if err != nil {
+		log.Printf("warn loading fleet manifest %s: %v", cfg.FleetManifestFile, err)
+	}
 	return &engine{
 		cfg:       cfg,
 		store:     st,
+		manifest:  manifest,
 		fetcher:   feeds.NewFetcher(),
 		startedAt: time.Now().UTC(),
 	}
+}
+
+func (e *engine) currentFleet(stCopy model.State, now time.Time) []model.FleetDevicePosture {
+	return correlate.MergeFleetPosture(e.manifest, stCopy, collectLocalNixOSPosture(now), e.getBundle(), now)
 }
 
 func (e *engine) refreshFeeds(ctx context.Context) map[string]model.FeedStatus {
@@ -152,9 +166,12 @@ func (e *engine) evaluateAndNotify(ctx context.Context, snap *model.OPNsenseSnap
 		stCopy = e.store.SnapshotCopy()
 	}
 
+	fleet := e.currentFleet(stCopy, now)
 	ev := correlate.Evaluate(stCopy.LatestSnapshot, bundle, stCopy.FeedStatus, now, e.cfg.StaleAfter)
 	extra := correlate.EvaluateTelemetryAndExposure(stCopy, now, strings.TrimSpace(e.cfg.SyslogAddr) != "", e.cfg.SyslogStaleAfter, e.startedAt)
+	fleetFindings := correlate.EvaluateFleetPosture(fleet, bundle, now)
 	ev.Findings = append(ev.Findings, extra...)
+	ev.Findings = append(ev.Findings, fleetFindings...)
 	rec, err := e.store.Reconcile(ev.Findings, ev.CleanRecheck, now, e.cfg.UrgentReminder)
 	if err != nil {
 		return ev, rec, 0, err
@@ -217,7 +234,8 @@ func (e *engine) maybeSendScheduledEmails(ctx context.Context, rec state.Reconci
 
 	digestDue := forceDigest || (now.Weekday() == e.cfg.DigestWeekday && now.Hour() >= e.cfg.DigestHour && now.Sub(stCopy.LastDigestSent) > 6*24*time.Hour)
 	if digestDue {
-		subj, body := notify.FormatWeeklyDigest(stCopy, rec.DigestCandidates, false, now)
+		fleet := e.currentFleet(stCopy, now.UTC())
+		subj, body := notify.FormatWeeklyDigest(stCopy, fleet, rec.DigestCandidates, false, now)
 		if dryRun {
 			fmt.Printf("=== DRY RUN DIGEST ===\nSubject: %s\n\n%s\n", subj, body)
 		} else {
@@ -355,34 +373,52 @@ func cmdServe(args []string) error {
 		},
 	}
 
-	mux := server.NewMuxWithMetrics(cfg.IngestToken, func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
-		ev, _, sent, err := eng.evaluateAndNotify(c, snap, true)
-		if err != nil {
-			return 0, 0, err
-		}
-		return len(ev.Findings), sent, nil
-	}, func() map[string]any {
-		cp := st.SnapshotCopy()
-		out := map[string]any{
-			"service":            "netwatch",
-			"open_findings":      countOpen(cp.Findings),
-			"syslog_events":      cp.Syslog.TotalReceived,
-			"maintenance_active": st.IsMaintenanceActive(time.Now().UTC()),
-		}
-		if cp.LatestSnapshot != nil {
-			out["last_snapshot"] = cp.LatestSnapshot.CollectedAt.UTC().Format(time.RFC3339)
-			out["opnsense_version"] = cp.LatestSnapshot.ProductVersion
-			if cp.LatestSnapshot.WebGUICertNotAfterUnix > 0 {
-				out["webgui_cert_not_after_unix"] = cp.LatestSnapshot.WebGUICertNotAfterUnix
+	mux := server.NewMuxFull(server.MuxOptions{
+		IngestToken: cfg.IngestToken,
+		FleetToken:  cfg.FleetToken,
+		OnIngest: func(c context.Context, snap *model.OPNsenseSnapshot) (int, int, error) {
+			ev, _, sent, err := eng.evaluateAndNotify(c, snap, true)
+			if err != nil {
+				return 0, 0, err
 			}
-		}
-		if !cp.Syslog.LastReceived.IsZero() {
-			out["last_syslog"] = cp.Syslog.LastReceived.UTC().Format(time.RFC3339)
-		}
-		return out
-	}, func() string {
-		return formatPrometheusMetrics(st, time.Now().UTC())
-	}, adminHandlers)
+			return len(ev.Findings), sent, nil
+		},
+		OnFleetIngest: func(c context.Context, payload *model.FleetIngestPayload) (int, error) {
+			now := time.Now().UTC()
+			if err := st.RecordFleetDevices(payload.Devices, now); err != nil {
+				return 0, err
+			}
+			_, _, _, _ = eng.evaluateAndNotify(c, nil, true)
+			return len(payload.Devices), nil
+		},
+		StatusFn: func() map[string]any {
+			cp := st.SnapshotCopy()
+			out := map[string]any{
+				"service":            "netwatch",
+				"open_findings":      countOpen(cp.Findings),
+				"syslog_events":      cp.Syslog.TotalReceived,
+				"fleet_devices":      len(eng.currentFleet(cp, time.Now().UTC())),
+				"maintenance_active": st.IsMaintenanceActive(time.Now().UTC()),
+			}
+			if cp.LatestSnapshot != nil {
+				out["last_snapshot"] = cp.LatestSnapshot.CollectedAt.UTC().Format(time.RFC3339)
+				out["opnsense_version"] = cp.LatestSnapshot.ProductVersion
+				if cp.LatestSnapshot.WebGUICertNotAfterUnix > 0 {
+					out["webgui_cert_not_after_unix"] = cp.LatestSnapshot.WebGUICertNotAfterUnix
+				}
+			}
+			if !cp.Syslog.LastReceived.IsZero() {
+				out["last_syslog"] = cp.Syslog.LastReceived.UTC().Format(time.RFC3339)
+			}
+			return out
+		},
+		MetricsFn: func() string {
+			now := time.Now().UTC()
+			cp := st.SnapshotCopy()
+			return formatPrometheusMetrics(cp, eng.currentFleet(cp, now), st.IsMaintenanceActive(now))
+		},
+		Admin: adminHandlers,
+	})
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -538,6 +574,13 @@ func cmdStatus(args []string) error {
 	}
 	if cp.MaintenanceUntil != nil && time.Now().UTC().Before(*cp.MaintenanceUntil) {
 		fmt.Printf("Maintenance: ACTIVE until %s (%s)\n", cp.MaintenanceUntil.UTC().Format(time.RFC3339), cp.MaintenanceNote)
+	}
+	manifest, _ := correlate.LoadFleetManifest(cfg.FleetManifestFile)
+	now := time.Now().UTC()
+	fleet := correlate.MergeFleetPosture(manifest, cp, collectLocalNixOSPosture(now), nil, now)
+	fmt.Printf("Fleet Update Posture (%d devices):\n", len(fleet))
+	for _, d := range fleet {
+		fmt.Printf("  - %-18s | %-16s | %-28s | %s\n", d.Device, d.UpdateStatus, d.RunningVersion, d.VersionSource)
 	}
 	var ids []string
 	for id := range cp.Findings {
@@ -995,7 +1038,10 @@ func cmdSynthetic(args []string) error {
 			}
 		}
 	case "digest":
-		subj, body = notify.FormatWeeklyDigest(st.SnapshotCopy(), nil, true, now)
+		manifest, _ := correlate.LoadFleetManifest(cfg.FleetManifestFile)
+		cp := st.SnapshotCopy()
+		fleet := correlate.MergeFleetPosture(manifest, cp, collectLocalNixOSPosture(now), nil, now)
+		subj, body = notify.FormatWeeklyDigest(cp, fleet, nil, true, now)
 		if *send {
 			if err := notify.Send(context.Background(), cfg.SMTP, subj, body); err != nil {
 				return err
@@ -1031,6 +1077,117 @@ func cmdHeartbeat(args []string) error {
 	return nil
 }
 
+func cmdAlertUnit(args []string) error {
+	fs := flag.NewFlagSet("alert-unit", flag.ExitOnError)
+	envFile := fs.String("env-file", "", "Optional environment file path")
+	unit := fs.String("unit", "", "Failed systemd unit name (required)")
+	synthetic := fs.Bool("synthetic", false, "Send as labeled [SYNTHETIC TEST] drill")
+	dryRun := fs.Bool("dry-run", false, "Print formatted alert without sending email")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	unitName := strings.TrimSpace(*unit)
+	if unitName == "" {
+		return errors.New("--unit is required")
+	}
+	cfg, err := config.Load(*envFile)
+	if err != nil {
+		return err
+	}
+	host, _ := os.Hostname()
+	if strings.TrimSpace(host) == "" {
+		host = "tala"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	result := "unknown"
+	exitCode := "unknown"
+	if out, err := exec.CommandContext(ctx, "systemctl", "show", unitName, "-p", "Result", "-p", "ExecMainStatus", "--value").CombinedOutput(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(lines) >= 1 && strings.TrimSpace(lines[0]) != "" {
+			result = strings.TrimSpace(lines[0])
+		}
+		if len(lines) >= 2 && strings.TrimSpace(lines[1]) != "" {
+			exitCode = strings.TrimSpace(lines[1])
+		}
+	}
+
+	var journalLines []string
+	if jOut, err := exec.CommandContext(ctx, "journalctl", "-u", unitName, "-n", "25", "--no-pager", "-o", "short-iso").CombinedOutput(); err == nil {
+		for _, ln := range strings.Split(strings.TrimRight(string(jOut), "\n"), "\n") {
+			if strings.TrimSpace(ln) == "" {
+				continue
+			}
+			journalLines = append(journalLines, syslog.RedactEvidence(ln))
+		}
+	}
+
+	now := time.Now().UTC()
+	subj, body := notify.FormatUnitAlert(host, unitName, result, exitCode, strings.Join(journalLines, "\n"), *synthetic, now)
+	if *dryRun {
+		fmt.Printf("Subject: %s\n\n%s\n", subj, body)
+		return nil
+	}
+	if err := cfg.SMTP.Validate(); err != nil {
+		return fmt.Errorf("invalid SMTP config: %w", err)
+	}
+	if err := notify.Send(ctx, cfg.SMTP, subj, body); err != nil {
+		return err
+	}
+	fmt.Printf("sent direct email alert for failed unit %s (%s)\n", unitName, host)
+	return nil
+}
+
+func collectLocalNixOSPosture(now time.Time) *model.FleetDevicePosture {
+	rawOS, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return nil
+	}
+	var buildID string
+	for _, line := range strings.Split(string(rawOS), "\n") {
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(k) == "BUILD_ID" {
+			buildID = strings.Trim(strings.TrimSpace(v), `"`)
+		}
+	}
+	if buildID == "" {
+		return nil
+	}
+
+	kernel := ""
+	if kRaw, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
+		kernel = strings.TrimSpace(string(kRaw))
+	}
+
+	upResult, upRun := "", ""
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if out, err := exec.CommandContext(ctx, "systemctl", "show", "nixos-upgrade.service", "-p", "Result", "-p", "ActiveExitTimestamp", "--value").Output(); err == nil {
+		lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+		if len(lines) >= 1 {
+			upResult = strings.TrimSpace(lines[0])
+		}
+		if len(lines) >= 2 {
+			upRun = strings.TrimSpace(lines[1])
+		}
+	}
+
+	return &model.FleetDevicePosture{
+		Device:            "tala",
+		RunningVersion:    buildID,
+		KernelVersion:     kernel,
+		VersionSource:     "live_local_nixos",
+		LastCheckedAt:     now,
+		UpgradeLastResult: upResult,
+		UpgradeLastRun:    upRun,
+	}
+}
+
 func sameLocalDate(a, b time.Time) bool {
 	if a.IsZero() {
 		return false
@@ -1050,9 +1207,7 @@ func countOpen(m map[string]*model.TrackedFinding) int {
 	return n
 }
 
-func formatPrometheusMetrics(st *state.Store, now time.Time) string {
-	cp := st.SnapshotCopy()
-	maintActive := st.IsMaintenanceActive(now)
+func formatPrometheusMetrics(cp model.State, fleet []model.FleetDevicePosture, maintActive bool) string {
 
 	openBySev := map[string]int{
 		model.SeverityUrgent: 0,
@@ -1166,6 +1321,22 @@ func formatPrometheusMetrics(st *state.Store, now time.Time) string {
 		maintVal = 1
 	}
 	writeGauge("netwatch_maintenance_active", "Whether temporary maintenance mode is active (1=active, 0=inactive).", maintVal)
+
+	if len(fleet) > 0 {
+		b.WriteString("# HELP netwatch_fleet_device_info Tracked fleet device version and update posture.\n# TYPE netwatch_fleet_device_info gauge\n")
+		for _, d := range fleet {
+			fmt.Fprintf(&b, "netwatch_fleet_device_info{device=%q,role=%q,running_version=%q,update_channel=%q,update_status=%q} 1\n",
+				d.Device, d.Role, d.RunningVersion, d.UpdateChannel, d.UpdateStatus)
+		}
+		b.WriteString("# HELP netwatch_fleet_device_last_checked_seconds Unix timestamp when device version posture was last checked.\n# TYPE netwatch_fleet_device_last_checked_seconds gauge\n")
+		for _, d := range fleet {
+			var ts int64
+			if !d.LastCheckedAt.IsZero() {
+				ts = d.LastCheckedAt.Unix()
+			}
+			fmt.Fprintf(&b, "netwatch_fleet_device_last_checked_seconds{device=%q} %d\n", d.Device, ts)
+		}
+	}
 
 	return b.String()
 }

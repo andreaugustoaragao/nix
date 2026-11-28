@@ -170,3 +170,47 @@ func TestMetricsEndpoint(t *testing.T) {
 		t.Fatalf("expected 405 for POST /metrics, got %d", rec.Code)
 	}
 }
+
+func TestFleetIngestTokenSeparation(t *testing.T) {
+	var seenReporter string
+	var seenDevices int
+	h := NewMuxFull(MuxOptions{
+		IngestToken: "opn-token-only",
+		FleetToken:  "maui-fleet-token",
+		OnFleetIngest: func(_ context.Context, p *model.FleetIngestPayload) (int, error) {
+			seenReporter = p.Reporter
+			seenDevices = len(p.Devices)
+			return len(p.Devices), nil
+		},
+	})
+
+	validFleet := `{"reporter":"maui","devices":[{"device":"tamatoa","running_version":"08.0.30uT313","version_source":"live_snmp"}]}`
+
+	// OPNsense ingestToken must NOT be accepted on /ingest/fleet-versions.
+	req := httptest.NewRequest(http.MethodPost, "/ingest/fleet-versions", strings.NewReader(validFleet))
+	req.Header.Set("Authorization", "Bearer opn-token-only")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when using OPNsense token on fleet endpoint, got %d", rec.Code)
+	}
+
+	// FleetToken must NOT be accepted on /ingest/opnsense-audit.
+	req = httptest.NewRequest(http.MethodPost, "/ingest/opnsense-audit", strings.NewReader(`{"host":"chief-tui-opn","product_version":"26.7.10"}`))
+	req.Header.Set("Authorization", "Bearer maui-fleet-token")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when using fleet token on opnsense endpoint, got %d", rec.Code)
+	}
+
+	// Valid fleetToken succeeds.
+	req = httptest.NewRequest(http.MethodPost, "/ingest/fleet-versions", strings.NewReader(validFleet))
+	req.Header.Set("Authorization", "Bearer maui-fleet-token")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || seenReporter != "maui" || seenDevices != 1 {
+		t.Fatalf("expected 200 & seenDevices=1, got %d reporter=%q devices=%d body=%s",
+			rec.Code, seenReporter, seenDevices, rec.Body.String())
+	}
+}

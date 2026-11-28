@@ -33,12 +33,12 @@
     # is missing.
   ]
   ++ lib.optionals (!personalOnly && !isServer) [ ./litellm.nix ]
-  ++ lib.optionals (!isDarwinHost) [
+  ++ lib.optionals (!isDarwinHost && !isServer) [
     ./darkman.nix
     ./vault-v2.nix
   ]
-  ++ lib.optionals (!personalOnly && !isDarwinHost) [ ./notes-sync.nix ]
   ++ lib.optionals (!personalOnly && !isDarwinHost && !isServer) [
+    ./notes-sync.nix
     ./fulcrum.nix
   ]
   ++ lib.optionals (hostName == "prl-dev-vm") [

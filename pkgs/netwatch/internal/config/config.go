@@ -17,6 +17,8 @@ type Config struct {
 	ListenAddr             string
 	StateFile              string
 	IngestToken            string
+	FleetToken             string
+	FleetManifestFile      string
 	SyslogAddr             string
 	SyslogStaleAfter       time.Duration
 	AllowedSyslogIPs       []string
@@ -121,6 +123,8 @@ func Load(envFile string) (Config, error) {
 		ListenAddr:             get("NETWATCH_LISTEN_ADDR", "0.0.0.0:9400"),
 		StateFile:              get("NETWATCH_STATE_FILE", "/var/lib/netwatch/state.json"),
 		IngestToken:            get("NETWATCH_INGEST_TOKEN", ""),
+		FleetToken:             get("NETWATCH_FLEET_TOKEN", ""),
+		FleetManifestFile:      get("NETWATCH_FLEET_FILE", "/etc/netwatch/fleet-posture.json"),
 		SyslogAddr:             get("NETWATCH_SYSLOG_ADDR", ""),
 		SyslogStaleAfter:       syslogStale,
 		AllowedSyslogIPs:       splitCSV(get("NETWATCH_SYSLOG_ALLOWED_IPS", "192.168.100.2,127.0.0.1,::1")),

@@ -19,6 +19,8 @@ let
   fileManagerClass =
     if config.programs.vereda.enable then "^io[.]github[.]andrearagao[.]vereda$" else "(?i)^thunar$";
   hasVitals = hostName == "prl-dev-vm" || hostName == "workstation";
+  hasVoxtype = hostName == "prl-dev-vm" || hostName == "workstation";
+  voxtypeBin = lib.getExe (if hostName == "workstation" then pkgs.voxtype-vulkan else pkgs.voxtype);
   noctalia = lib.getExe unstable-pkgs.noctalia;
   virtualOutputScale = if hostName == "prl-dev-vm" then "1.5" else "2.0";
   # Daily-driver terminal selection (see ./default-terminal.nix). VMs
@@ -802,7 +804,8 @@ in
         "$mainMod SHIFT, N, exec, notes"
       ]
       ++ lockBind
-      ++ shellSurfaceBinds;
+      ++ shellSurfaceBinds
+      ++ lib.optional hasVoxtype ", F9, exec, ${voxtypeBin} record toggle";
 
       # Media keys: SwayOSD by default, direct wpctl/brightnessctl when
       # DMS owns the OSD (DMS shows its own via pipewire monitoring).

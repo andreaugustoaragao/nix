@@ -165,16 +165,49 @@ type SyslogStats struct {
 
 // State is the atomic JSON state persisted by netwatch.
 type State struct {
-	LastUpdated      time.Time                  `json:"last_updated"`
-	LatestSnapshot   *OPNsenseSnapshot          `json:"latest_snapshot,omitempty"`
-	BaselineExposure *ExposureSummary           `json:"baseline_exposure,omitempty"`
-	Syslog           SyslogStats                `json:"syslog"`
-	MaintenanceUntil *time.Time                 `json:"maintenance_until,omitempty"`
-	MaintenanceNote  string                     `json:"maintenance_note,omitempty"`
-	FeedStatus       map[string]FeedStatus      `json:"feed_status"`
-	Findings         map[string]*TrackedFinding `json:"findings"`
-	LastDailySent    time.Time                  `json:"last_daily_sent,omitempty"`
-	LastDigestSent   time.Time                  `json:"last_digest_sent,omitempty"`
-	LastHeartbeatOK  time.Time                  `json:"last_heartbeat_ok,omitempty"`
-	LastHeartbeatErr string                     `json:"last_heartbeat_err,omitempty"`
+	LastUpdated      time.Time                     `json:"last_updated"`
+	LatestSnapshot   *OPNsenseSnapshot             `json:"latest_snapshot,omitempty"`
+	BaselineExposure *ExposureSummary              `json:"baseline_exposure,omitempty"`
+	FleetDevices     map[string]FleetDevicePosture `json:"fleet_devices,omitempty"`
+	Syslog           SyslogStats                   `json:"syslog"`
+	MaintenanceUntil *time.Time                    `json:"maintenance_until,omitempty"`
+	MaintenanceNote  string                        `json:"maintenance_note,omitempty"`
+	FeedStatus       map[string]FeedStatus         `json:"feed_status"`
+	Findings         map[string]*TrackedFinding    `json:"findings"`
+	LastDailySent    time.Time                     `json:"last_daily_sent,omitempty"`
+	LastDigestSent   time.Time                     `json:"last_digest_sent,omitempty"`
+	LastHeartbeatOK  time.Time                     `json:"last_heartbeat_ok,omitempty"`
+	LastHeartbeatErr string                        `json:"last_heartbeat_err,omitempty"`
+}
+
+// FleetDevicePosture captures observed or inventoried software/firmware version and update status for one fleet device.
+type FleetDevicePosture struct {
+	Device               string    `json:"device"`
+	Role                 string    `json:"role"`
+	Vendor               string    `json:"vendor"`
+	Product              string    `json:"product"`
+	RunningVersion       string    `json:"running_version"`
+	KernelVersion        string    `json:"kernel_version,omitempty"`
+	VersionSource        string    `json:"version_source"` // live_opnsense | live_local_nixos | live_prometheus_node | live_snmp | verified_inventory
+	UpdateChannel        string    `json:"update_channel,omitempty"`
+	Cadence              string    `json:"cadence,omitempty"`
+	AutoUpdate           bool      `json:"auto_update"`
+	LastCheckedAt        time.Time `json:"last_checked_at,omitempty"`
+	LastVerifiedAt       time.Time `json:"last_verified_at,omitempty"`
+	ReviewIntervalDays   int       `json:"review_interval_days,omitempty"`
+	UpdateStatus         string    `json:"update_status"` // current | update_available | stale | eol_mitigated | review_due | unknown
+	AvailableVersion     string    `json:"available_version,omitempty"`
+	SNMPUpgradeAvailable int       `json:"snmp_upgrade_available,omitempty"` // 0=unset, 1=available, 2=unavailable
+	EOLStatus            string    `json:"eol_status,omitempty"`
+	AdvisoryURL          string    `json:"advisory_url,omitempty"`
+	Notes                string    `json:"notes,omitempty"`
+	UpgradeLastResult    string    `json:"upgrade_last_result,omitempty"`
+	UpgradeLastRun       string    `json:"upgrade_last_run,omitempty"`
+}
+
+// FleetIngestPayload is pushed by maui's fleet reporter to POST /ingest/fleet-versions.
+type FleetIngestPayload struct {
+	Reporter    string               `json:"reporter"`
+	CollectedAt time.Time            `json:"collected_at"`
+	Devices     []FleetDevicePosture `json:"devices"`
 }

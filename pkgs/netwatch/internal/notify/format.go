@@ -52,9 +52,10 @@ func FormatDailyAction(findings []model.TrackedFinding, st model.State, now time
 	return subject, b.String()
 }
 
-// FormatWeeklyDigest formats a concise weekly operational digest with freshness, open findings, and routine updates.
-func FormatWeeklyDigest(st model.State, digestItems []model.TrackedFinding, synthetic bool, now time.Time) (string, string) {
-	subject := fmt.Sprintf("[faragao-netwatch] Weekly Firewall Security & Update Digest (%s)", now.UTC().Format("2006-01-02"))
+// FormatWeeklyDigest formats a concise weekly operational digest across the full fleet with freshness,
+// version/update posture, open findings, and routine updates.
+func FormatWeeklyDigest(st model.State, fleet []model.FleetDevicePosture, digestItems []model.TrackedFinding, synthetic bool, now time.Time) (string, string) {
+	subject := fmt.Sprintf("[faragao-netwatch] Weekly Fleet Security, Firmware & Update Digest (%s)", now.UTC().Format("2006-01-02"))
 	if synthetic {
 		subject = "[SYNTHETIC TEST] " + subject
 	}
@@ -63,22 +64,22 @@ func FormatWeeklyDigest(st model.State, digestItems []model.TrackedFinding, synt
 	if synthetic {
 		b.WriteString("*** SYNTHETIC TEST DIGEST — VERIFYING DELIVERY PIPELINE ***\n\n")
 	}
-	b.WriteString("faragao.net Weekly Firewall Security & Update Digest\n")
-	b.WriteString(strings.Repeat("=", 52) + "\n\n")
+	b.WriteString("faragao.net Weekly Fleet Security, Firmware & Update Digest\n")
+	b.WriteString(strings.Repeat("=", 59) + "\n\n")
 
 	if st.LatestSnapshot != nil {
 		s := st.LatestSnapshot
-		b.WriteString(fmt.Sprintf("Device:          %s\n", s.Host))
-		b.WriteString(fmt.Sprintf("OPNsense:        %s (%s, series %s)\n", s.ProductVersion, s.Edition, s.ProductSeries))
+		b.WriteString(fmt.Sprintf("OPNsense Detail: %s | %s (%s, series %s)\n", s.Host, s.ProductVersion, s.Edition, s.ProductSeries))
 		b.WriteString(fmt.Sprintf("FreeBSD:         kernel %s / userland %s\n", s.FreeBSDKernel, s.FreeBSDUserland))
 		b.WriteString(fmt.Sprintf("Packages:        %d installed (%d plugins)\n", s.PackageCount, len(s.Plugins)))
 		b.WriteString(fmt.Sprintf("WAN Exposure:    %s (%d pass rules, %d NAT rdr)\n",
 			s.Exposure.WANInterface, len(s.Exposure.WANPassRules), len(s.Exposure.WANRDRRules)))
 		b.WriteString("\n")
 	} else {
-		b.WriteString("Device:          chief-tui-opn (NO SNAPSHOT RECEIVED YET)\n\n")
+		b.WriteString("OPNsense Detail: chief-tui-opn (NO SNAPSHOT RECEIVED YET)\n\n")
 	}
 
+	writeFleetDigestSection(&b, fleet)
 	writeFreshnessHeader(&b, st)
 
 	var openUrgent, openDaily, acked []model.TrackedFinding
@@ -250,4 +251,78 @@ func writeSyslogDigestSection(b *strings.Builder, st model.State) {
 		}
 		b.WriteString(fmt.Sprintf("  - Top blocked WAN ports:     %s\n", strings.Join(parts, ", ")))
 	}
+}
+
+func writeFleetDigestSection(b *strings.Builder, fleet []model.FleetDevicePosture) {
+	b.WriteString(fmt.Sprintf("Fleet Software & Firmware Update Posture (%d devices):\n", len(fleet)))
+	if len(fleet) == 0 {
+		b.WriteString("  - No fleet inventory or telemetry recorded yet.\n\n")
+		return
+	}
+	for _, d := range fleet {
+		ver := d.RunningVersion
+		if ver == "" {
+			ver = "unknown"
+		}
+		if d.KernelVersion != "" {
+			ver = fmt.Sprintf("%s (kernel %s)", ver, d.KernelVersion)
+		}
+		checked := "never"
+		if !d.LastCheckedAt.IsZero() {
+			checked = d.LastCheckedAt.UTC().Format(time.RFC3339)
+		} else if !d.LastVerifiedAt.IsZero() {
+			checked = "verified:" + d.LastVerifiedAt.Format("2006-01-02")
+		}
+		channel := d.UpdateChannel
+		if channel == "" {
+			channel = "manual"
+		}
+		status := d.UpdateStatus
+		if status == "" {
+			status = "unknown"
+		}
+		extra := ""
+		if d.AvailableVersion != "" {
+			extra += " | avail=" + d.AvailableVersion
+		}
+		if d.UpgradeLastResult != "" {
+			extra += fmt.Sprintf(" | last_upgrade=%s (%s)", d.UpgradeLastResult, d.UpgradeLastRun)
+		}
+		if d.ReviewIntervalDays > 0 && !d.LastVerifiedAt.IsZero() {
+			nextRev := d.LastVerifiedAt.Add(time.Duration(d.ReviewIntervalDays) * 24 * time.Hour).Format("2006-01-02")
+			extra += " | next_review=" + nextRev
+		}
+		if d.EOLStatus != "" {
+			extra += " | eol=" + d.EOLStatus
+		}
+		if d.Notes != "" {
+			extra += " | note=" + d.Notes
+		}
+		b.WriteString(fmt.Sprintf("  - %-18s [%-14s] status=%-16s | ver=%s | src=%s | checked=%s | chan=%s (auto=%v, cadence=%s)%s\n",
+			d.Device, d.Role, status, ver, d.VersionSource, checked, channel, d.AutoUpdate, d.Cadence, extra))
+	}
+	b.WriteString("\n")
+}
+
+// FormatUnitAlert formats an urgent systemd unit failure notice sent directly via SMTP (independent of Matrix/maui).
+func FormatUnitAlert(host, unit, result, exitCode, journalTail string, synthetic bool, now time.Time) (string, string) {
+	subject := fmt.Sprintf("[faragao-netwatch] URGENT: Systemd unit failed: %s (%s)", unit, host)
+	if synthetic {
+		subject = "[SYNTHETIC TEST] " + subject
+	}
+	var b strings.Builder
+	if synthetic {
+		b.WriteString("*** SYNTHETIC TEST MESSAGE — SAFE TO IGNORE AS PRODUCTION INCIDENT ***\n\n")
+	}
+	b.WriteString(fmt.Sprintf("Host:        %s\n", host))
+	b.WriteString(fmt.Sprintf("Unit:        %s\n", unit))
+	b.WriteString(fmt.Sprintf("Result:      %s\n", result))
+	b.WriteString(fmt.Sprintf("Exit Code:   %s\n", exitCode))
+	b.WriteString(fmt.Sprintf("Generated:   %s\n\n", now.UTC().Format(time.RFC3339)))
+	if strings.TrimSpace(journalTail) != "" {
+		b.WriteString("Recent redacted journal lines:\n")
+		b.WriteString(strings.TrimRight(journalTail, "\n") + "\n\n")
+	}
+	b.WriteString(fmt.Sprintf("Inspect logs directly on %s:\n  journalctl -u %s -n 50 --no-pager\n", host, unit))
+	return subject, b.String()
 }

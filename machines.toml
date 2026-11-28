@@ -94,7 +94,6 @@ hostName = "tala"
 platform = "x86_64-linux"
 profile = "server"
 stateVersion = "25.05"
-wirelessInterface = "wlp0s12f0"
 bluetooth = false
 lockScreen = false
 autoLogin = false

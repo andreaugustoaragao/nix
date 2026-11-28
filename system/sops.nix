@@ -14,8 +14,8 @@
 
   # sops-nix configuration
   sops = {
-    # Default sops file location
-    defaultSopsFile = ../secrets/secrets.yaml;
+    # Scope tala strictly to secrets/tala.yaml so it never accesses shared work/personal secrets.
+    defaultSopsFile = if hostName == "tala" then ../secrets/tala.yaml else ../secrets/secrets.yaml;
 
     # Validate sops files at build time
     validateSopsFiles = true; # Set to true once you have secrets file
@@ -51,6 +51,28 @@
         sopsFile = ../secrets/tala.yaml;
       };
 
+      # Matrix bot credentials — used by system/matrix-alert.nix and
+      # system/auto-upgrade.nix to post failure alerts and upgrade
+      # diffs to the alert room on matrix.faragao.net (homeserver
+      # runs on maui). Loaded into units via systemd LoadCredential.
+      "matrix/bot_token" = {
+        owner = owner.name;
+        group = "users";
+        mode = "0400";
+      }
+      // lib.optionalAttrs (hostName == "tala") {
+        sopsFile = ../secrets/tala.yaml;
+      };
+      "matrix/alert_room_id" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      }
+      // lib.optionalAttrs (hostName == "tala") {
+        sopsFile = ../secrets/tala.yaml;
+      };
+    }
+    // lib.optionalAttrs (hostName != "tala") {
       # SSH keys for GitHub
       "ssh_key_github_work" = {
         owner = owner.name;
@@ -126,27 +148,6 @@
         group = "root";
         mode = "0600";
         path = "/run/secrets/wifi_env";
-      };
-
-      # Matrix bot credentials — used by system/matrix-alert.nix and
-      # system/auto-upgrade.nix to post failure alerts and upgrade
-      # diffs to the alert room on matrix.faragao.net (homeserver
-      # runs on maui). Loaded into units via systemd LoadCredential.
-      #
-      # bot_token is also consumed by the user-mode Fulcrum service
-      # (home/services/fulcrum.nix) via MATRIX_ACCESS_TOKEN_FILE, so
-      # we make it readable by the owner user. The systemd alert paths
-      # work the same way — LoadCredential copies into the unit's private
-      # credentials directory regardless of source file ownership.
-      "matrix/bot_token" = {
-        owner = owner.name;
-        group = "users";
-        mode = "0400";
-      };
-      "matrix/alert_room_id" = {
-        owner = "root";
-        group = "root";
-        mode = "0400";
       };
     }
     // lib.optionalAttrs (!isServer) {
@@ -238,7 +239,7 @@
             mode = "0400";
           };
         }
-    // lib.optionalAttrs isServer {
+    // lib.optionalAttrs (isServer && hostName != "tala") {
       # ACME — Cloudflare API token for DNS-01 challenge.
       # File contents: CLOUDFLARE_DNS_API_TOKEN=<token>
       "cloudflare_dns_token" = {

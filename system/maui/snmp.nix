@@ -33,6 +33,7 @@
       modules = {
         brocade_if_mib = {
           walk = [
+            "1.3.6.1.2.1.1.1"
             "1.3.6.1.2.1.1.3"
             "1.3.6.1.2.1.2.2.1.2"
             "1.3.6.1.2.1.2.2.1.7"
@@ -89,6 +90,12 @@
               };
             in
             [
+              {
+                name = "sysDescr";
+                oid = "1.3.6.1.2.1.1.1";
+                type = "DisplayString";
+                help = "SNMPv2-MIB system description / firmware string";
+              }
               {
                 name = "sysUpTime";
                 oid = "1.3.6.1.2.1.1.3";
@@ -210,6 +217,18 @@
                 oid = "1.3.6.1.4.1.6574.1.4.2";
                 type = "gauge";
                 help = "Synology CPU fan status (1=Normal, 2=Failed)";
+              }
+              {
+                name = "synoModelName";
+                oid = "1.3.6.1.4.1.6574.1.5.1";
+                type = "DisplayString";
+                help = "Synology NAS model name";
+              }
+              {
+                name = "synoDSMVersion";
+                oid = "1.3.6.1.4.1.6574.1.5.3";
+                type = "DisplayString";
+                help = "Synology DSM running version";
               }
               {
                 name = "synoUpgradeAvailable";

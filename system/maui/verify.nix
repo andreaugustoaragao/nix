@@ -13,6 +13,7 @@ let
     config.sops.secrets.nginx_origin_key.path
     config.sops.secrets.alertmanager_env.path
     config.sops.secrets.snmp_exporter_env.path
+    config.sops.secrets.fleet_reporter_env.path
   ];
 
   mauiVerify = pkgs.writeShellApplication {

@@ -21,19 +21,24 @@ const (
 	FeedCoreGHSA      = "opnsense_core_ghsa"
 	FeedPluginsGHSA   = "opnsense_plugins_ghsa"
 	FeedAnnouncements = "opnsense_forum_rss"
+	FeedNixOS2605     = "nixos_26_05_rev"
+	FeedNixOS2611     = "nixos_26_11_rev"
 
-	DefaultKEVURL          = "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json"
-	DefaultKEVFallbackURL  = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-	DefaultCoreGHSAURL     = "https://api.github.com/repos/opnsense/core/security-advisories?per_page=30"
-	DefaultPluginsGHSAURL  = "https://api.github.com/repos/opnsense/plugins/security-advisories?per_page=30"
-	DefaultForumRSSURL     = "https://forum.opnsense.org/index.php?type=rss;action=.xml;board=11.0"
-	maxFeedResponseBytes   = 32 << 20 // 32 MiB cap
-	defaultRequestTimeout  = 25 * time.Second
+	DefaultKEVURL           = "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json"
+	DefaultKEVFallbackURL   = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+	DefaultCoreGHSAURL      = "https://api.github.com/repos/opnsense/core/security-advisories?per_page=30"
+	DefaultPluginsGHSAURL   = "https://api.github.com/repos/opnsense/plugins/security-advisories?per_page=30"
+	DefaultForumRSSURL      = "https://forum.opnsense.org/index.php?type=rss;action=.xml;board=11.0"
+	DefaultNixOS2605RevURL  = "https://channels.nixos.org/nixos-26.05/git-revision"
+	DefaultNixOS2611RevURL  = "https://channels.nixos.org/nixos-26.11/git-revision"
+	maxFeedResponseBytes    = 32 << 20 // 32 MiB cap
+	defaultRequestTimeout   = 25 * time.Second
 )
 
 var (
 	verInTitleRe = regexp.MustCompile(`(?i)\bOPNsense\s+([0-9]+\.[0-9]+(?:\.[0-9]+(?:p[0-9]+)?|\.[abrc0-9]+)?)\b`)
 	htmlTagRe    = regexp.MustCompile(`<[^>]+>`)
+	hexRevRe     = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
 )
 
 // KEVEntry mirrors one entry in the CISA KEV catalog.
@@ -95,32 +100,37 @@ type ForumItem struct {
 
 // FeedBundle contains all fetched external feed payloads plus a CVE lookup map.
 type FeedBundle struct {
-	KEVByCVE      map[string]KEVEntry
-	KEVVersion    string
-	CoreGHSAs     []GHSAAdvisory
-	PluginGHSAs   []GHSAAdvisory
-	Announcements []ForumItem
+	KEVByCVE         map[string]KEVEntry
+	KEVVersion       string
+	CoreGHSAs        []GHSAAdvisory
+	PluginGHSAs      []GHSAAdvisory
+	Announcements    []ForumItem
+	NixOSChannelRevs map[string]string
 }
 
 // Fetcher retrieves advisory and release feeds with configurable endpoints for testing.
 type Fetcher struct {
-	Client         *http.Client
-	KEVURL         string
-	KEVFallbackURL string
-	CoreGHSAURL    string
-	PluginsGHSAURL string
-	ForumRSSURL    string
+	Client          *http.Client
+	KEVURL          string
+	KEVFallbackURL  string
+	CoreGHSAURL     string
+	PluginsGHSAURL  string
+	ForumRSSURL     string
+	NixOS2605RevURL string
+	NixOS2611RevURL string
 }
 
 // NewFetcher constructs a Fetcher pointing at production feeds.
 func NewFetcher() *Fetcher {
 	return &Fetcher{
-		Client:         &http.Client{Timeout: defaultRequestTimeout},
-		KEVURL:         DefaultKEVURL,
-		KEVFallbackURL: DefaultKEVFallbackURL,
-		CoreGHSAURL:    DefaultCoreGHSAURL,
-		PluginsGHSAURL: DefaultPluginsGHSAURL,
-		ForumRSSURL:    DefaultForumRSSURL,
+		Client:          &http.Client{Timeout: defaultRequestTimeout},
+		KEVURL:          DefaultKEVURL,
+		KEVFallbackURL:  DefaultKEVFallbackURL,
+		CoreGHSAURL:     DefaultCoreGHSAURL,
+		PluginsGHSAURL:  DefaultPluginsGHSAURL,
+		ForumRSSURL:     DefaultForumRSSURL,
+		NixOS2605RevURL: DefaultNixOS2605RevURL,
+		NixOS2611RevURL: DefaultNixOS2611RevURL,
 	}
 }
 
@@ -141,9 +151,10 @@ func (f *Fetcher) FetchAll(ctx context.Context, prevStatus map[string]model.Feed
 		f.Client = &http.Client{Timeout: defaultRequestTimeout}
 	}
 	bundle := &FeedBundle{
-		KEVByCVE: make(map[string]KEVEntry),
+		KEVByCVE:         make(map[string]KEVEntry),
+		NixOSChannelRevs: make(map[string]string),
 	}
-	statuses := make(map[string]model.FeedStatus, 4)
+	statuses := make(map[string]model.FeedStatus, 6)
 	for k, v := range prevStatus {
 		statuses[k] = v
 	}
@@ -236,8 +247,51 @@ func (f *Fetcher) FetchAll(ctx context.Context, prevStatus map[string]model.Feed
 		return len(items), nil
 	})
 
+	for _, ch := range []struct {
+		feedName string
+		channel  string
+		url      string
+	}{
+		{FeedNixOS2605, "nixos-26.05", f.NixOS2605RevURL},
+		{FeedNixOS2611, "nixos-26.11", f.NixOS2611RevURL},
+	} {
+		if strings.TrimSpace(ch.url) == "" {
+			continue
+		}
+		feedName, channel, url := ch.feedName, ch.channel, ch.url
+		runFeed(feedName, url, func() (int, error) {
+			rev, err := f.fetchChannelRevision(ctx, url)
+			if err != nil {
+				return 0, err
+			}
+			mu.Lock()
+			bundle.NixOSChannelRevs[channel] = rev
+			mu.Unlock()
+			return 1, nil
+		})
+	}
+
 	wg.Wait()
 	return bundle, statuses
+}
+
+func (f *Fetcher) fetchChannelRevision(ctx context.Context, url string) (string, error) {
+	raw, err := f.get(ctx, url, "text/plain")
+	if err != nil {
+		return "", err
+	}
+	rev := strings.ToLower(strings.TrimSpace(string(raw)))
+	if !hexRevRe.MatchString(rev) {
+		return "", fmt.Errorf("unexpected NixOS revision format %q", truncateRev(rev))
+	}
+	return rev, nil
+}
+
+func truncateRev(s string) string {
+	if len(s) <= 48 {
+		return s
+	}
+	return s[:48] + "..."
 }
 
 func (f *Fetcher) fetchGHSAs(ctx context.Context, url string) ([]GHSAAdvisory, error) {

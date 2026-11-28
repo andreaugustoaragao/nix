@@ -75,7 +75,7 @@ in
   };
 
   system.autoUpgrade = {
-    enable = false;
+    enable = true;
     flake = "github:andreaugustoaragao/nix/main#maui";
     flags = [
       "--refresh"

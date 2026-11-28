@@ -21,6 +21,8 @@
     # (niri, zellij, pipewire). See `unstable-pkgs` consumers across
     # system/ and home/.
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Pinned nixos-26.11 stable input exclusively for maui (DEF-04 resolved).
+    nixpkgs-maui.url = "github:NixOS/nixpkgs/nixos-26.11";
     # Pinned to nixos-25.05 solely to keep xdg-desktop-portal-gnome at
     # version 48.x. GNOME 49 added a hard requirement on
     # org.gnome.Mutter.ServiceChannel that the niri 26.04 in nixpkgs
@@ -32,6 +34,11 @@
 
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    rex = {
+      url = "https://pkgs.superlogical.com/rex/nix/preview.tar.gz";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -260,7 +267,7 @@
       # NixOS configurations for Linux machines
       nixosConfigurations = builtins.mapAttrs (
         machineName: host:
-        (if host.profile == "maui" then inputs.nixpkgs-unstable else nixpkgs).lib.nixosSystem {
+        (if host.profile == "maui" then inputs.nixpkgs-maui else nixpkgs).lib.nixosSystem {
           specialArgs = setSpecialArgs host;
           modules = [
             { nixpkgs.hostPlatform = host.platform; }
@@ -328,6 +335,13 @@
                 home-manager.nixosModules.home-manager
                 (setHomeManagerTemplate host)
               ]
+              ++ nixpkgs.lib.optional (machineName == "workstation") {
+                home-manager.users.${metadata.user.name} = {
+                  imports = [ inputs.rex.homeManagerModules.default ];
+                  programs.rex.enable = true;
+                  services.rex.enable = true;
+                };
+              }
           );
         }
       ) linuxMachines;

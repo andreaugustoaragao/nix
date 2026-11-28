@@ -248,6 +248,99 @@ let
     '';
   };
 
+  mauiFleetVersions = pkgs.writeShellApplication {
+    name = "maui-fleet-versions";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      gawk
+      jq
+      systemd
+    ];
+    text = ''
+      set -euo pipefail
+
+      token="$(awk -F= '/^NETWATCH_FLEET_TOKEN=/{print $2; exit}' "$CREDENTIALS_DIRECTORY/fleet_env" | tr -d "\r\n\"' ")"
+      if [[ -z "$token" ]]; then
+        echo "missing NETWATCH_FLEET_TOKEN in fleet_env credential" >&2
+        exit 1
+      fi
+
+      prom_query() {
+        curl -fsSG --max-time 10 --data-urlencode "query=$1" "http://127.0.0.1:9090/api/v1/query" 2>/dev/null || echo '{}'
+      }
+
+      now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      maui_ver="$(awk -F= '/^BUILD_ID=/{gsub(/"/, "", $2); print $2; exit}' /etc/os-release 2>/dev/null || true)"
+      if [[ -z "$maui_ver" ]]; then
+        maui_ver="$(prom_query 'node_os_info{device="maui"}' | jq -r '.data.result[0].metric.build_id // empty')"
+      fi
+      maui_kern="$(uname -r 2>/dev/null || true)"
+      if [[ -z "$maui_kern" ]]; then
+        maui_kern="$(prom_query 'node_uname_info{device="maui"}' | jq -r '.data.result[0].metric.release // empty')"
+      fi
+      upgrade_show="$(systemctl show nixos-upgrade.service -p Result -p ActiveExitTimestamp --value 2>/dev/null || true)"
+      maui_up_res="$(printf '%s\n' "$upgrade_show" | sed -n '1p')"
+      maui_up_run="$(printf '%s\n' "$upgrade_show" | sed -n '2p')"
+
+      tamatoa_descr="$(prom_query 'sysDescr{device="tamatoa"}' | jq -r '.data.result[0].metric.sysDescr // empty')"
+      teka_ver="$(prom_query 'synoDSMVersion{device="teka"}' | jq -r '.data.result[0].metric.synoDSMVersion // empty')"
+      teka_model="$(prom_query 'synoModelName{device="teka"}' | jq -r '.data.result[0].metric.synoModelName // empty')"
+      teka_upg="$(prom_query 'synoUpgradeAvailable{device="teka"}' | jq -r '.data.result[0].value[1] // "0"' | awk '{printf "%d", $1}')"
+
+      payload="$(jq -n \
+        --arg now "$now" \
+        --arg maui_ver "$maui_ver" \
+        --arg maui_kern "$maui_kern" \
+        --arg maui_up_res "$maui_up_res" \
+        --arg maui_up_run "$maui_up_run" \
+        --arg tamatoa_descr "$tamatoa_descr" \
+        --arg teka_ver "$teka_ver" \
+        --arg teka_model "$teka_model" \
+        --argjson teka_upg "$teka_upg" '
+        [
+          (if $maui_ver != "" then {
+            device: "maui",
+            running_version: $maui_ver,
+            kernel_version: $maui_kern,
+            version_source: "live_prometheus_node",
+            last_checked_at: $now,
+            upgrade_last_result: $maui_up_res,
+            upgrade_last_run: $maui_up_run
+          } else empty end),
+          (if $tamatoa_descr != "" then {
+            device: "tamatoa",
+            running_version: (
+              try ($tamatoa_descr | capture("Version (?<v>[^, ]+)").v)
+              catch $tamatoa_descr
+            ),
+            version_source: "live_snmp",
+            last_checked_at: $now
+          } else empty end),
+          (if ($teka_ver != "" or $teka_upg > 0) then {
+            device: "teka",
+            product: $teka_model,
+            running_version: $teka_ver,
+            version_source: "live_snmp",
+            snmp_upgrade_available: $teka_upg,
+            last_checked_at: $now
+          } else empty end)
+        ] | { reporter: "maui", collected_at: $now, devices: . }')"
+
+      count="$(printf '%s' "$payload" | jq '.devices | length')"
+      if [[ "$count" -eq 0 ]]; then
+        echo "no fleet version metrics available yet from Prometheus" >&2
+        exit 0
+      fi
+
+      curl -fsS --retry 2 --max-time 15 -X POST \
+        "http://192.168.40.10:9400/ingest/fleet-versions" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json" \
+        -d "$payload" >/dev/null
+    '';
+  };
+
   blackboxConfigFile = yaml.generate "blackbox.yml" {
     modules = {
       icmp_ipv4 = {
@@ -604,6 +697,7 @@ in
     port = 9100;
     enabledCollectors = [
       "logind"
+      "os"
       "systemd"
       "processes"
       "textfile"
@@ -659,6 +753,32 @@ in
       OnBootSec = "30s";
       OnUnitActiveSec = "60s";
       AccuracySec = "10s";
+    };
+  };
+
+  systemd.services.maui-fleet-versions = {
+    description = "Push live Prometheus/SNMP fleet version posture from maui to tala netwatch";
+    after = [
+      "prometheus.service"
+      "network-online.target"
+    ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root";
+      LoadCredential = "fleet_env:${config.sops.secrets.fleet_reporter_env.path}";
+      ExecStart = "${mauiFleetVersions}/bin/maui-fleet-versions";
+    };
+  };
+
+  systemd.timers.maui-fleet-versions = {
+    description = "Periodic fleet version posture report from maui to tala netwatch";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "6h";
+      RandomizedDelaySec = "5m";
+      Persistent = true;
     };
   };
 

@@ -56,6 +56,9 @@ func Load(path string) (*Store, error) {
 	if st.FeedStatus == nil {
 		st.FeedStatus = make(map[string]model.FeedStatus)
 	}
+	if st.FleetDevices == nil {
+		st.FleetDevices = make(map[string]model.FleetDevicePosture)
+	}
 	if st.Findings == nil {
 		st.Findings = make(map[string]*model.TrackedFinding)
 	}
@@ -68,6 +71,7 @@ func Load(path string) (*Store, error) {
 
 func emptyState() model.State {
 	return model.State{
+		FleetDevices: make(map[string]model.FleetDevicePosture),
 		Syslog: model.SyslogStats{
 			TopBlockedPorts: make(map[string]int64),
 		},
@@ -137,6 +141,9 @@ func (s *Store) SnapshotCopy() model.State {
 	if cp.FeedStatus == nil {
 		cp.FeedStatus = make(map[string]model.FeedStatus)
 	}
+	if cp.FleetDevices == nil {
+		cp.FleetDevices = make(map[string]model.FleetDevicePosture)
+	}
 	if cp.Findings == nil {
 		cp.Findings = make(map[string]*model.TrackedFinding)
 	}
@@ -144,6 +151,67 @@ func (s *Store) SnapshotCopy() model.State {
 		cp.Syslog.TopBlockedPorts = make(map[string]int64)
 	}
 	return cp
+}
+
+// RecordFleetDevices merges live fleet version reports pushed by maui without overwriting empty static fields.
+func (s *Store) RecordFleetDevices(devices []model.FleetDevicePosture, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.FleetDevices == nil {
+		s.data.FleetDevices = make(map[string]model.FleetDevicePosture)
+	}
+	for _, incoming := range devices {
+		id := strings.TrimSpace(incoming.Device)
+		if id == "" {
+			continue
+		}
+		cur := s.data.FleetDevices[id]
+		cur.Device = id
+		if incoming.Role != "" {
+			cur.Role = incoming.Role
+		}
+		if incoming.Vendor != "" {
+			cur.Vendor = incoming.Vendor
+		}
+		if incoming.Product != "" {
+			cur.Product = incoming.Product
+		}
+		if incoming.RunningVersion != "" {
+			cur.RunningVersion = incoming.RunningVersion
+		}
+		if incoming.KernelVersion != "" {
+			cur.KernelVersion = incoming.KernelVersion
+		}
+		if incoming.VersionSource != "" {
+			cur.VersionSource = incoming.VersionSource
+		}
+		if incoming.UpdateChannel != "" {
+			cur.UpdateChannel = incoming.UpdateChannel
+		}
+		if incoming.Cadence != "" {
+			cur.Cadence = incoming.Cadence
+		}
+		if incoming.AvailableVersion != "" {
+			cur.AvailableVersion = incoming.AvailableVersion
+		}
+		if incoming.SNMPUpgradeAvailable != 0 {
+			cur.SNMPUpgradeAvailable = incoming.SNMPUpgradeAvailable
+		}
+		if incoming.UpgradeLastResult != "" {
+			cur.UpgradeLastResult = incoming.UpgradeLastResult
+		}
+		if incoming.UpgradeLastRun != "" {
+			cur.UpgradeLastRun = incoming.UpgradeLastRun
+		}
+		if !incoming.LastCheckedAt.IsZero() {
+			cur.LastCheckedAt = incoming.LastCheckedAt
+		} else {
+			cur.LastCheckedAt = now
+		}
+		s.data.FleetDevices[id] = cur
+	}
+	s.data.LastUpdated = now
+	return s.saveLocked()
 }
 
 // RecordSnapshot persists the latest firewall snapshot and optional updated feed statuses.

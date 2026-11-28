@@ -14,10 +14,16 @@ import (
 	"faragao.net/netwatch/internal/model"
 )
 
-const maxIngestBytes = 4 << 20 // 4 MiB
+const (
+	maxIngestBytes      = 4 << 20 // 4 MiB
+	maxFleetIngestBytes = 1 << 20 // 1 MiB
+)
 
 // IngestHandler processes a validated OPNsense snapshot pushed from the firewall.
 type IngestHandler func(ctx context.Context, snap *model.OPNsenseSnapshot) (findingsCount int, urgentSent int, err error)
+
+// FleetIngestHandler processes a validated fleet version posture batch pushed from maui.
+type FleetIngestHandler func(ctx context.Context, payload *model.FleetIngestPayload) (count int, err error)
 
 // StatusProvider supplies safe, secret-free runtime health for /healthz.
 type StatusProvider func() map[string]any
@@ -35,20 +41,57 @@ type AdminHandlers struct {
 	CleanupSynthetic func(ctx context.Context) (int, error)
 }
 
+// MuxOptions configures all endpoints served by netwatch with separate OPNsense and fleet tokens.
+type MuxOptions struct {
+	IngestToken   string
+	FleetToken    string
+	OnIngest      IngestHandler
+	OnFleetIngest FleetIngestHandler
+	StatusFn      StatusProvider
+	MetricsFn     MetricsProvider
+	Admin         *AdminHandlers
+}
+
 // NewMux constructs the HTTP handler for firewall snapshot ingestion and local health checks.
 func NewMux(ingestToken string, onIngest IngestHandler, statusFn StatusProvider) http.Handler {
-	return NewMuxWithMetrics(ingestToken, onIngest, statusFn, nil, nil)
+	return NewMuxFull(MuxOptions{
+		IngestToken: ingestToken,
+		OnIngest:    onIngest,
+		StatusFn:    statusFn,
+	})
 }
 
 // NewMuxWithAdmin constructs the HTTP handler plus optional loopback-restricted /admin endpoints.
 func NewMuxWithAdmin(ingestToken string, onIngest IngestHandler, statusFn StatusProvider, admin *AdminHandlers) http.Handler {
-	return NewMuxWithMetrics(ingestToken, onIngest, statusFn, nil, admin)
+	return NewMuxFull(MuxOptions{
+		IngestToken: ingestToken,
+		OnIngest:    onIngest,
+		StatusFn:    statusFn,
+		Admin:       admin,
+	})
 }
 
 // NewMuxWithMetrics constructs the HTTP handler with /healthz, /metrics, ingest, and optional /admin endpoints.
 func NewMuxWithMetrics(ingestToken string, onIngest IngestHandler, statusFn StatusProvider, metricsFn MetricsProvider, admin *AdminHandlers) http.Handler {
+	return NewMuxFull(MuxOptions{
+		IngestToken: ingestToken,
+		OnIngest:    onIngest,
+		StatusFn:    statusFn,
+		MetricsFn:   metricsFn,
+		Admin:       admin,
+	})
+}
+
+// NewMuxFull constructs the HTTP handler with separate firewall and fleet-reporter ingest endpoints.
+func NewMuxFull(opts MuxOptions) http.Handler {
 	mux := http.NewServeMux()
-	expected := []byte(strings.TrimSpace(ingestToken))
+	expected := []byte(strings.TrimSpace(opts.IngestToken))
+	expectedFleet := []byte(strings.TrimSpace(opts.FleetToken))
+	statusFn := opts.StatusFn
+	metricsFn := opts.MetricsFn
+	onIngest := opts.OnIngest
+	onFleetIngest := opts.OnFleetIngest
+	admin := opts.Admin
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -129,6 +172,61 @@ func NewMuxWithMetrics(ingestToken string, onIngest IngestHandler, statusFn Stat
 			"version":        snap.ProductVersion,
 			"findings_count": findingsCount,
 			"urgent_sent":    urgentSent,
+		})
+	})
+
+	mux.HandleFunc("/ingest/fleet-versions", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if len(expectedFleet) == 0 || !validBearer(r.Header.Get("Authorization"), expectedFleet) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxFleetIngestBytes)
+		defer r.Body.Close()
+
+		dec := json.NewDecoder(r.Body)
+		var payload model.FleetIngestPayload
+		if err := dec.Decode(&payload); err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		if len(payload.Devices) == 0 {
+			http.Error(w, "missing required devices list", http.StatusBadRequest)
+			return
+		}
+		for _, d := range payload.Devices {
+			if strings.TrimSpace(d.Device) == "" {
+				http.Error(w, "device entry missing device name", http.StatusBadRequest)
+				return
+			}
+		}
+		if payload.CollectedAt.IsZero() {
+			payload.CollectedAt = time.Now().UTC()
+		}
+
+		count := len(payload.Devices)
+		if onFleetIngest != nil {
+			var err error
+			count, err = onFleetIngest(r.Context(), &payload)
+			if err != nil {
+				http.Error(w, "internal processing error", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":       true,
+			"reporter": payload.Reporter,
+			"devices":  count,
 		})
 	})
 

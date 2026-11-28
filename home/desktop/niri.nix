@@ -752,7 +752,7 @@ in
           Mod+N { spawn "${if personalOnly then "codium" else "notes"}"; }
         ''}
         ${lib.optionalString hasVoxtype ''
-          Mod+Alt+D { spawn "${voxtypeBin}" "record" "toggle"; }
+          F9 repeat=false hotkey-overlay-title="Toggle voice dictation" { spawn "${voxtypeBin}" "record" "toggle"; }
         ''}
 
         // Media keys — SwayOSD when in waybar/eww mode, wpctl/brightnessctl

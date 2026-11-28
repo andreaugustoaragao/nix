@@ -89,6 +89,12 @@ _: {
         mode = "0400";
         restartUnits = [ "prometheus-snmp-exporter.service" ];
       };
+
+      "fleet_reporter_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
     };
   };
 }

@@ -8,6 +8,142 @@
 let
   cfg = config.services.faragao-netwatch;
   netwatchPkg = pkgs.callPackage ../../pkgs/netwatch.nix { };
+  fleetPostureFile = pkgs.writeText "fleet-posture.json" (
+    builtins.toJSON {
+      devices = [
+        {
+          device = "chief-tui-opn";
+          role = "primary-firewall";
+          vendor = "OPNsense";
+          product = "OPNsense Community Edition";
+          update_channel = "26.7";
+          cadence = "manual / daily audit";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 14;
+          advisory_url = "https://forum.opnsense.org/index.php?board=11.0";
+          notes = "Live inventory via opn-audit-export + pkg audit + KEV + Core/Plugins GHSA";
+        }
+        {
+          device = "maui";
+          role = "services-hub";
+          vendor = "NixOS";
+          product = "NixOS 26.11 (Zokor) + Grafana 13.3.1 / Vaultwarden / Continuwuity";
+          running_version = "26.11.20261127.3068c73";
+          version_source = "verified_inventory";
+          update_channel = "nixos-26.11";
+          cadence = "Sun 03:00 switch (no auto-reboot)";
+          auto_update = true;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          notes = "DEF-04 resolved on nixos-26.11; overridden live by maui-fleet-versions";
+        }
+        {
+          device = "tala";
+          role = "security-host";
+          vendor = "NixOS";
+          product = "NixOS 26.05 (Yarara)";
+          update_channel = "nixos-26.05";
+          cadence = "Sun 03:00 switch (no auto-reboot)";
+          auto_update = true;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          notes = "Live version read from local /etc/os-release + nixos-upgrade.service";
+        }
+        {
+          device = "workstation";
+          role = "admin-workstation";
+          vendor = "NixOS";
+          product = "NixOS 26.05 (Yarara)";
+          running_version = "26.05.20261122.0dc498b";
+          kernel_version = "7.2.9";
+          version_source = "verified_inventory";
+          update_channel = "nixos-26.05";
+          cadence = "manual interactive rebuild";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          notes = "Intentionally excluded from auto-upgrade and unscraped across Work/Servers boundary";
+        }
+        {
+          device = "chief-tui";
+          role = "cold-standby";
+          vendor = "Ubiquiti";
+          product = "EdgeRouter 6P (EdgeOS)";
+          running_version = "EdgeOS v3.0.1 (5862409.250924.1408)";
+          version_source = "verified_inventory";
+          update_channel = "v3.x";
+          cadence = "manual / KEV + 30d review";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          advisory_url = "https://community.ui.com/releases";
+          notes = "Standby WAN offline; matched against CISA KEV EdgeOS/EdgeRouter feeds";
+        }
+        {
+          device = "tamatoa";
+          role = "core-switch";
+          vendor = "Brocade";
+          product = "ICX6450-48 (FastIron Router)";
+          running_version = "08.0.30uT313";
+          version_source = "verified_inventory";
+          update_channel = "08.0.30u";
+          cadence = "EoL mitigated / KEV + 90d review";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 90;
+          eol_status = "EoL mitigated by mgmt_access + ACL 91 + SSH-only";
+          advisory_url = "https://support.ruckuswireless.com/security";
+          notes = "Live sysDescr pushed via maui SNMPv3; compensating VLAN/ACL isolation in place";
+        }
+        {
+          device = "ruckus-basement";
+          role = "ap-member";
+          vendor = "Ruckus";
+          product = "Unleashed R550";
+          running_version = "200.19.7.112.291";
+          version_source = "verified_inventory";
+          update_channel = "200.19";
+          cadence = "manual / KEV + 30d review";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          advisory_url = "https://support.ruckuswireless.com/security";
+          notes = "SNMPv3 off (owner-accepted RO-without-RW limitation); monitored via Blackbox + tamatoa 1/1/13";
+        }
+        {
+          device = "ruckus-secondfloor";
+          role = "ap-master";
+          vendor = "Ruckus";
+          product = "Unleashed R550";
+          running_version = "200.19.7.112.291";
+          version_source = "verified_inventory";
+          update_channel = "200.19";
+          cadence = "manual / KEV + 30d review";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 30;
+          advisory_url = "https://support.ruckuswireless.com/security";
+          notes = "SNMPv3 off (owner-accepted RO-without-RW limitation); monitored via HTTPS/Blackbox + tamatoa 1/1/14";
+        }
+        {
+          device = "teka";
+          role = "nas";
+          vendor = "Synology";
+          product = "DS218+";
+          running_version = "DSM 7.3.2-86009 Update 6";
+          version_source = "verified_inventory";
+          update_channel = "DSM 7.3 LTS";
+          cadence = "manual / KEV + 14d review";
+          auto_update = false;
+          last_verified_at = "2026-11-27T00:00:00Z";
+          review_interval_days = 14;
+          advisory_url = "https://www.synology.com/en-global/support/security/advisory";
+          notes = "Upgraded 7.1.1-42962 Update 9 -> DSM 7.3.2-86009 Update 6 in TRK-33; live synoDSMVersion/synoUpgradeAvailable pushed from maui SNMPv3";
+        }
+      ];
+    }
+  );
   netwatchCtl = pkgs.writeShellScriptBin "netwatch-ctl" ''
     exec /run/current-system/sw/bin/systemd-run --wait --pipe --collect -q \
       -p User=netwatch \
@@ -15,6 +151,7 @@ let
       -p StateDirectory=netwatch \
       -p LoadCredential="netwatch_env:${config.sops.secrets."netwatch_env".path}" \
       -E NETWATCH_STATE_FILE=/var/lib/netwatch/state.json \
+      -E NETWATCH_FLEET_FILE=${fleetPostureFile} \
       ${lib.getExe netwatchPkg} "$@"
   '';
 in
@@ -134,6 +271,7 @@ in
         NETWATCH_ADMIN_SOURCES = lib.concatStringsSep "," cfg.allowedAdminSources;
         NETWATCH_WAN_IFACE = cfg.wanInterface;
         NETWATCH_STATE_FILE = "/var/lib/netwatch/state.json";
+        NETWATCH_FLEET_FILE = "${fleetPostureFile}";
         NETWATCH_DAILY_HOUR = toString cfg.dailyHour;
         NETWATCH_DIGEST_WEEKDAY = cfg.digestWeekday;
         NETWATCH_DIGEST_HOUR = toString cfg.digestHour;
@@ -165,6 +303,22 @@ in
         LockPersonality = true;
         MemoryDenyWriteExecute = true;
       };
+    };
+
+    systemd.services."netwatch-unit-alert@" = {
+      description = "Send direct SMTP alert when systemd unit %i fails on tala";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "netwatch";
+        Group = "netwatch";
+        SupplementaryGroups = [ "systemd-journal" ];
+        LoadCredential = "netwatch_env:${config.sops.secrets."netwatch_env".path}";
+        ExecStart = "${lib.getExe netwatchPkg} alert-unit --unit %i";
+      };
+    };
+
+    systemd.services.nixos-upgrade = lib.mkIf config.system.autoUpgrade.enable {
+      onFailure = lib.mkAfter [ "netwatch-unit-alert@nixos-upgrade.service" ];
     };
 
     networking.firewall.extraCommands =

@@ -134,3 +134,50 @@ func TestSMTPSendPlainAndFormatRedaction(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatWeeklyDigestAndUnitAlert(t *testing.T) {
+	now := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	fleet := []model.FleetDevicePosture{
+		{
+			Device:             "maui",
+			Role:               "services-hub",
+			RunningVersion:     "26.11.20261127.3068c73",
+			KernelVersion:      "6.18.65",
+			VersionSource:      "live_prometheus_node",
+			UpdateChannel:      "nixos-26.11",
+			AutoUpdate:         true,
+			Cadence:            "Sun 03:00",
+			LastCheckedAt:      now,
+			LastVerifiedAt:     now,
+			ReviewIntervalDays: 30,
+			UpdateStatus:       "current",
+		},
+		{
+			Device:        "tamatoa",
+			Role:          "core-switch",
+			RunningVersion: "08.0.30uT313",
+			VersionSource: "live_snmp",
+			UpdateChannel: "eol",
+			Cadence:       "annual/KEV",
+			EOLStatus:     "EoL",
+			UpdateStatus:  "eol_mitigated",
+		},
+	}
+	subj, body := FormatWeeklyDigest(model.State{}, fleet, nil, false, now)
+	if !strings.Contains(subj, "Weekly Fleet Security, Firmware & Update Digest") {
+		t.Fatalf("unexpected digest subject: %s", subj)
+	}
+	for _, want := range []string{"maui", "26.11.20261127.3068c73", "kernel 6.18.65", "tamatoa", "eol_mitigated"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("digest body missing %q:\n%s", want, body)
+		}
+	}
+
+	uSubj, uBody := FormatUnitAlert("tala", "nixos-upgrade.service", "exit-code", "4", "Nov 27 failed", true, now)
+	if !strings.Contains(uSubj, "[SYNTHETIC TEST]") || !strings.Contains(uSubj, "nixos-upgrade.service (tala)") {
+		t.Fatalf("unexpected unit alert subject: %s", uSubj)
+	}
+	if !strings.Contains(uBody, "Result:      exit-code") || !strings.Contains(uBody, "Nov 27 failed") {
+		t.Fatalf("unexpected unit alert body:\n%s", uBody)
+	}
+}
