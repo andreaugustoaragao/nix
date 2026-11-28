@@ -26,7 +26,6 @@ in
           "workspaces"
           "notifications"
           "privacy"
-          "tray"
           "cpu"
         ]
         ++ lib.optionals showTemperatures [
@@ -46,6 +45,7 @@ in
           "volume"
           "battery"
           "control-center"
+          "tray"
           "clock"
           "session"
         ];

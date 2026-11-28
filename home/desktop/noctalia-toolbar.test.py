@@ -255,7 +255,6 @@ in {
             "workspaces",
             "notifications",
             "privacy",
-            "tray",
             "cpu",
             "ram",
             "disk",
@@ -267,13 +266,15 @@ in {
             "volume",
             "battery",
             "control-center",
+            "tray",
             "clock",
             "session",
         ]
         shared = rendered["shared"]
         workstation = rendered["workstation"]
         personal = rendered["personal"]
-        workstation_primary = primary[:6] + ["cpu-temp", "gpu-temp"] + primary[6:]
+        after_cpu = primary.index("cpu") + 1
+        workstation_primary = primary[:after_cpu] + ["cpu-temp", "gpu-temp"] + primary[after_cpu:]
         self.assertEqual(shared["groups"][0]["members"], primary)
         self.assertEqual(workstation["groups"][0]["members"], workstation_primary)
         self.assertEqual(personal["groups"][0]["members"], [item for item in primary if item != "recorder"])
@@ -451,7 +452,6 @@ in {
             "workspaces",
             "notifications",
             "privacy",
-            "tray",
             "cpu",
             "ram",
             "disk",
@@ -463,6 +463,7 @@ in {
             "volume",
             "battery",
             "control-center",
+            "tray",
             "clock",
             "session",
         ]
