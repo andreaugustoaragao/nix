@@ -14,6 +14,8 @@ let
     config.sops.secrets.alertmanager_env.path
     config.sops.secrets.snmp_exporter_env.path
     config.sops.secrets.fleet_reporter_env.path
+    config.sops.secrets.loki_push_env.path
+    config.sops.secrets.loki_query_env.path
   ];
 
   mauiVerify = pkgs.writeShellApplication {
@@ -44,6 +46,7 @@ let
         nginx
         sshd
         prometheus-node-exporter
+        alloy
       )
 
       for name in "''${services[@]}"; do
@@ -90,6 +93,7 @@ let
       curl -fsS --max-time 20 http://127.0.0.1:9090/-/ready >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:9093/-/ready >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:9116/metrics >/dev/null
+      curl -fsS --max-time 20 http://127.0.0.1:12345/-/ready >/dev/null
       curl -fsS --max-time 20 http://127.0.0.1:9090/api/v1/targets | jq -e '
         .status == "success" and (.data.activeTargets | length > 0)
         and all(.data.activeTargets[]; .health == "up")' >/dev/null

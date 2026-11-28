@@ -8,6 +8,9 @@
   imports = [
     ./netwatch.nix
     ./authentik.nix
+    ./immich.nix
+    ./immich-oidc.nix
+    ./logging.nix
     ./monitoring.nix
     # ./acme.nix
     # ./caddy.nix
@@ -17,4 +20,5 @@
 
   services.faragao-netwatch.enable = lib.mkIf (hostName == "tala") true;
   services.faragao-authentik.enable = lib.mkIf (hostName == "tala") true;
+  services.faragao-logging.enable = lib.mkIf (hostName == "tala") true;
 }

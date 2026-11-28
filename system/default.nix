@@ -57,10 +57,12 @@
     ./loki.nix
     ./grafana.nix
   ]
-  ++ lib.optionals (!personalOnly && hostName != "workstation" && hostName != "prl-dev-vm") [
-    ./caddy.nix
-  ]
-  ++ lib.optionals (!personalOnly && hostName != "workstation") [
+  ++
+    lib.optionals (!personalOnly && !isServer && hostName != "workstation" && hostName != "prl-dev-vm")
+      [
+        ./caddy.nix
+      ]
+  ++ lib.optionals (!personalOnly && !isServer && hostName != "workstation") [
     # Workstation runs chroma as a sidecar of the upstream fulcrum
     # docker-compose.yml; every other host that runs fulcrum from
     # source needs us to bring up chroma declaratively.

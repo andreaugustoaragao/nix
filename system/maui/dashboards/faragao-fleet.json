@@ -4,7 +4,7 @@
   "tags": ["faragao", "fleet", "wave10"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-6h",
@@ -531,6 +531,134 @@
         "colorMode": "value",
         "graphMode": "none",
         "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "4. Centralized Log Retention & Coverage (Loki on tala)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 1 }
+    },
+    {
+      "id": 401,
+      "type": "stat",
+      "title": "Log Coverage (24h Lines by Device)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 33, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "loki_device_logs_24h",
+          "legendFormat": "{{exported_device}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "links": [
+            {
+              "title": "Open filtered logs in Explore",
+              "url": "/explore?left=%7B%22datasource%22%3A%22faragao-loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bdevice%3D%5C%22${__field.labels.exported_device}%5C%22%7D%22%7D%5D%7D"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 402,
+      "type": "stat",
+      "title": "Loki Canary Age, Gateway & Storage",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 12, "y": 33, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "loki_canary_age_seconds",
+          "legendFormat": "canary_age_s:{{exported_device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "loki_query_ok",
+          "legendFormat": "gateway_query_ok"
+        },
+        {
+          "refId": "C",
+          "expr": "loki_storage_bytes / 1048576",
+          "legendFormat": "loki_disk_MiB"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 403,
+      "type": "timeseries",
+      "title": "Alloy Log Pipeline (Sent Rate & Drops)",
+      "datasource": { "type": "prometheus", "uid": "faragao-prometheus" },
+      "gridPos": { "x": 0, "y": 39, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (device, job) (rate(loki_write_sent_entries_total[5m]))",
+          "legendFormat": "sent/s:{{device}} ({{job}})"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (device, job) (increase(loki_write_dropped_entries_total[15m]))",
+          "legendFormat": "dropped_15m:{{device}} ({{job}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 404,
+      "type": "logs",
+      "title": "Recent Fleet Logs (Loki Live)",
+      "datasource": { "type": "loki", "uid": "faragao-loki" },
+      "gridPos": { "x": 12, "y": 39, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{device=~\"tala|maui|chief-tui-opn|chief-tui|tamatoa|teka|ruckus-basement|ruckus-secondfloor\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "dedupStrategy": "none",
+        "enableLogDetails": true
       }
     }
   ]

@@ -681,6 +681,66 @@ let
               description = "tamatoa interface {{ $labels.ifDescr }} sustained >0.1 errors/sec over 10m.";
             };
           }
+          {
+            alert = "LogCanaryMissing";
+            expr = "(loki_canary_age_seconds > 900) or (loki_canary_found == 0)";
+            "for" = "5m";
+            labels.severity = "critical";
+            annotations = {
+              summary = "End-to-end Loki log canary missing/stale on {{ $labels.exported_device }}";
+              description = "No verified CANARY_OK entry seen in Loki for {{ $labels.exported_device }} within 15m (or missing over 30m lookback).";
+            };
+          }
+          {
+            alert = "LokiGatewayQueryFailed";
+            expr = "loki_query_ok == 0";
+            "for" = "3m";
+            labels.severity = "critical";
+            annotations = {
+              summary = "Authenticated Loki gateway query failed from maui";
+              description = "maui-loki-canary cannot query http://192.168.40.10:3101 on tala.";
+            };
+          }
+          {
+            alert = "LokiCanaryCollectorStale";
+            expr = "(time() - loki_canary_collector_timestamp_seconds) > 300";
+            "for" = "10m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Loki canary/coverage collector stale on maui";
+              description = "maui-loki-canary.timer has not updated loki_coverage.prom within 5m.";
+            };
+          }
+          {
+            alert = "AlloyLogDrops";
+            expr = "increase(loki_write_dropped_entries_total[15m]) > 0";
+            "for" = "5m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Grafana Alloy dropping log entries on {{ $labels.device }} ({{ $labels.reason }})";
+              description = "{{ $labels.job }} on {{ $labels.device }} dropped {{ $value | printf \"%.0f\" }} log entries over the last 15m.";
+            };
+          }
+          {
+            alert = "LokiIngestErrors";
+            expr = ''rate(loki_request_duration_seconds_count{route="loki_api_v1_push",status_code=~"5.."}[5m]) > 0'';
+            "for" = "5m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Loki ingestion 5xx errors on {{ $labels.device }}";
+              description = "Loki push endpoint on tala returned 5xx responses over the last 5m.";
+            };
+          }
+          {
+            alert = "LokiDiskUsageHigh";
+            expr = ''loki_storage_bytes{device="tala"} > 21474836480'';
+            "for" = "15m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Loki /var/lib/loki disk usage exceeds 20 GiB on {{ $labels.device }}";
+              description = "Loki storage on tala is above the 20 GiB soft threshold ({{ $value | humanize1024 }}B); inspect noisy inputs or compactor retention.";
+            };
+          }
         ];
       }
     ];
@@ -787,6 +847,7 @@ in
     enable = true;
     listenAddress = "127.0.0.1";
     port = 9093;
+    extraFlags = [ "--cluster.listen-address=" ];
     environmentFile = config.sops.secrets.alertmanager_env.path;
     configuration = {
       global = {
@@ -912,6 +973,48 @@ in
             targets = [ "192.168.40.10:9400" ];
             labels = {
               device = "tala";
+              role = "server";
+            };
+          }
+        ];
+      }
+      {
+        job_name = "loki";
+        scrape_interval = "30s";
+        metrics_path = "/metrics/loki";
+        static_configs = [
+          {
+            targets = [ "192.168.40.10:3101" ];
+            labels = {
+              device = "tala";
+              role = "server";
+            };
+          }
+        ];
+      }
+      {
+        job_name = "alloy_tala";
+        scrape_interval = "30s";
+        metrics_path = "/metrics/alloy";
+        static_configs = [
+          {
+            targets = [ "192.168.40.10:3101" ];
+            labels = {
+              device = "tala";
+              role = "server";
+            };
+          }
+        ];
+      }
+      {
+        job_name = "alloy_maui";
+        scrape_interval = "30s";
+        metrics_path = "/metrics";
+        static_configs = [
+          {
+            targets = [ "127.0.0.1:12345" ];
+            labels = {
+              device = "maui";
               role = "server";
             };
           }
@@ -1368,6 +1471,21 @@ in
           url = "http://127.0.0.1:9090";
           editable = false;
         }
+        {
+          name = "Loki (faragao)";
+          uid = "faragao-loki";
+          type = "loki";
+          access = "proxy";
+          url = "http://192.168.40.10:3101";
+          editable = false;
+          jsonData = {
+            httpHeaderName1 = "Authorization";
+            maxLines = 1000;
+          };
+          secureJsonData = {
+            httpHeaderValue1 = "Bearer \${LOKI_QUERY_TOKEN}";
+          };
+        }
       ];
       dashboards.settings.providers = [
         {
@@ -1386,6 +1504,7 @@ in
   systemd.services.grafana = {
     after = [ "data.mount" ];
     requires = [ "data.mount" ];
+    serviceConfig.EnvironmentFile = config.sops.secrets.loki_query_env.path;
   };
 
   services.nginx.virtualHosts.${config.services.grafana.settings.server.domain} = {

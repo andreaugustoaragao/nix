@@ -12,6 +12,7 @@ let
     name = "tala-storage-metrics";
     runtimeInputs = with pkgs; [
       coreutils
+      gawk
       jq
       smartmontools
     ];
@@ -98,6 +99,13 @@ let
           fi
         else
           printf 'smart_device_supported{device="%s",model="%s"} 0\n' "$dev_lbl" "$model_lbl"
+        fi
+
+        if [[ -d /var/lib/loki ]]; then
+          loki_bytes="$(du -sb /var/lib/loki | awk '{print $1}')"
+          printf '# HELP loki_storage_bytes Total on-disk bytes under /var/lib/loki.\n'
+          printf '# TYPE loki_storage_bytes gauge\n'
+          printf 'loki_storage_bytes{path="/var/lib/loki"} %s\n' "$loki_bytes"
         fi
       } > "$tmp"
 

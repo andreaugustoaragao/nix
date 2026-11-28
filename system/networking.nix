@@ -167,7 +167,9 @@
   services.resolved = {
     enable = true;
     settings.Resolve = lib.mkMerge [
-      (lib.mkIf (hostName == "prl-dev-vm" || hostName == "workstation") { LLMNR = "no"; })
+      (lib.mkIf (hostName == "prl-dev-vm" || hostName == "workstation" || hostName == "tala") {
+        LLMNR = "no";
+      })
       (lib.mkIf (hostName == "workstation") {
         DNS = "192.168.100.2";
         FallbackDNS = "9.9.9.9 1.1.1.1";
@@ -226,11 +228,12 @@
   '';
 
   networking.hosts."127.0.0.1" =
-    lib.optionals (!personalOnly && hostName != "workstation" && hostName != "prl-dev-vm") [
-      "grafana.local"
-      "loki.local"
-      "prometheus.local"
-    ]
+    lib.optionals (!personalOnly && !isServer && hostName != "workstation" && hostName != "prl-dev-vm")
+      [
+        "grafana.local"
+        "loki.local"
+        "prometheus.local"
+      ]
     ++ lib.optionals (hostName == "prl-dev-vm" || hostName == "vmw-dev-vm") [
       "fulcrum.local"
     ]
@@ -272,9 +275,11 @@
     # Allowed TCP ports
     allowedTCPPorts =
       lib.optionals (!personalOnly && hostName != "prl-dev-vm") [ 22 ] # SSH
-      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [
-        6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
-      ]
+      ++
+        lib.optionals (!personalOnly && !isServer && hostName != "prl-dev-vm" && hostName != "workstation")
+          [
+            6443 # K3s API server (required for pod-to-API-server traffic after kube-proxy DNAT)
+          ]
       ++ lib.optionals (hostName == "vmw-dev-vm") [
         80 # K3s ingress (istio-ingress via klipper-lb) — infinity.local
         443
@@ -284,11 +289,6 @@
         # Parallels/VMware host (mac-work) can reach it at
         # https://<hostname>.local:3100.
         3100
-      ]
-      ++ lib.optionals isServer [
-        80 # Caddy (ACME HTTP-01 fallback / redirect to 443)
-        443 # Caddy reverse proxy for auth.faragao.net + lldap.faragao.net
-        3890 # LLDAP — exposed on LAN so other hosts can bind clients
       ];
 
     # Allowed UDP ports
@@ -312,10 +312,12 @@
     # Trust local interfaces for Docker and K3s
     trustedInterfaces =
       lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [ "docker0" ]
-      ++ lib.optionals (!personalOnly && hostName != "prl-dev-vm" && hostName != "workstation") [
-        "cni0"
-        "flannel.1"
-      ];
+      ++
+        lib.optionals (!personalOnly && !isServer && hostName != "prl-dev-vm" && hostName != "workstation")
+          [
+            "cni0"
+            "flannel.1"
+          ];
 
     # Log refused packets (useful for debugging)
     logRefusedConnections = true;

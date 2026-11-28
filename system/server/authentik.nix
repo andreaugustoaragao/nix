@@ -74,6 +74,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    virtualisation.oci-containers.backend = "docker";
+
     services.postgresql = {
       enable = true;
       package = cfg.postgresPackage;

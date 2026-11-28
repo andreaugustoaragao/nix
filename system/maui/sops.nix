@@ -109,6 +109,20 @@ _: {
         group = "root";
         mode = "0400";
       };
+
+      "loki_push_env" = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "alloy.service" ];
+      };
+
+      "loki_query_env" = {
+        owner = "grafana";
+        group = "grafana";
+        mode = "0400";
+        restartUnits = [ "grafana.service" ];
+      };
     };
   };
 }

@@ -12,7 +12,9 @@
     ./nginx.nix
     ./certs.nix
     ./smb.nix
+    ./immich.nix
     ./monitoring.nix
+    ./logging.nix
     ./snmp.nix
     ./vaultwarden.nix
     ./matrix.nix
@@ -150,6 +152,7 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
+      AllowUsers = [ "adm" ];
     };
   };
 
