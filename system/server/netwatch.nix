@@ -194,6 +194,7 @@ in
       default = [
         "192.168.10.75/32"
         "192.168.50.0/24"
+        "192.168.60.0/24"
       ];
       description = "Source CIDRs permitted for expected OPNsense admin logins.";
     };
@@ -202,6 +203,15 @@ in
       type = lib.types.str;
       default = "igc1";
       description = "OPNsense physical WAN interface name.";
+    };
+
+    allowedWANPorts = lib.mkOption {
+      type = lib.types.listOf lib.types.port;
+      default = [
+        443
+        51820
+      ];
+      description = "Expected WAN inbound destination ports (excluded from unexpected WAN-pass alerts).";
     };
 
     allowedIngestCIDRs = lib.mkOption {
@@ -270,6 +280,7 @@ in
         NETWATCH_ADMIN_USERS = lib.concatStringsSep "," cfg.allowedAdminUsers;
         NETWATCH_ADMIN_SOURCES = lib.concatStringsSep "," cfg.allowedAdminSources;
         NETWATCH_WAN_IFACE = cfg.wanInterface;
+        NETWATCH_ALLOWED_WAN_PORTS = lib.concatStringsSep "," (map toString cfg.allowedWANPorts);
         NETWATCH_STATE_FILE = "/var/lib/netwatch/state.json";
         NETWATCH_FLEET_FILE = "${fleetPostureFile}";
         NETWATCH_DAILY_HOUR = toString cfg.dailyHour;

@@ -33,6 +33,7 @@
         allow 192.168.10.0/24;
         allow 192.168.20.0/24;
         allow 192.168.50.0/24;
+        allow 192.168.60.0/24;
         # Cloudflare IPv4 ranges (https://www.cloudflare.com/ips-v4)
         allow 173.245.48.0/20;
         allow 103.21.244.0/22;

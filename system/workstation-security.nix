@@ -9,6 +9,14 @@ let
   passwordRequired = command: !(builtins.isAttrs command && builtins.elem "NOPASSWD" command.options);
 in
 {
+  # Rex Mobile needs the standard SHA-256 MAC for its SSH connection.
+  services.openssh.settings.Macs = [
+    "hmac-sha2-512-etm@openssh.com"
+    "hmac-sha2-256-etm@openssh.com"
+    "umac-128-etm@openssh.com"
+    "hmac-sha2-256"
+  ];
+
   systemd = {
     sockets.docker = lib.mkIf config.virtualisation.docker.enable {
       # NixOS leaves active sockets open; tmpfiles applies permissions immediately.
