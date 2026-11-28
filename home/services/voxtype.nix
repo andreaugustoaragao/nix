@@ -39,6 +39,14 @@ let
     fi
   '';
 
+  voxtypeAutoStop = pkgs.writeShellApplication {
+    name = "voxtype-auto-stop";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec python3 ${./voxtype-auto-stop.py} --voxtype-bin ${lib.getExe voxtypePkg} "$@"
+    '';
+  };
+
   tomlFormat = pkgs.formats.toml { };
   configFile = tomlFormat.generate "voxtype-config.toml" {
     state_file = "auto";
@@ -74,10 +82,16 @@ let
           language = "en";
         };
 
+    text = {
+      smart_auto_submit = true;
+      filter_filler_words = true;
+    };
+
     output = {
       mode = "type";
       driver_order = [ "wtype" ];
       fallback_to_clipboard = false;
+      append_text = " ";
       type_delay_ms = 0;
       pre_type_delay_ms = 50;
       notification = {
@@ -116,5 +130,24 @@ lib.mkIf enabled {
       ExecStartPre = "${ensureModel}";
     };
     Install.WantedBy = [ "graphical-session.target" ];
+  };
+
+  systemd.user.services.voxtype-auto-stop = {
+    Unit = {
+      Description = "Voxtype automatic end-of-utterance stop watcher";
+      After = [ "voxtype.service" ];
+      BindsTo = [ "voxtype.service" ];
+      PartOf = [ "voxtype.service" ];
+      ConditionEnvironment = "WAYLAND_DISPLAY";
+    };
+    Service = {
+      ExecStart = lib.getExe voxtypeAutoStop;
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+    Install.WantedBy = [
+      "graphical-session.target"
+      "voxtype.service"
+    ];
   };
 }
