@@ -176,6 +176,16 @@ class RebuildTests(unittest.TestCase):
         self.active, self.git_dirty = False, False
         with patch.object(self.runner, "command", side_effect=self.fake):
             self.assertFalse(self.runner.start()["started"])
+        self.calls = []
+        with patch.object(self.runner, "command", side_effect=self.fake):
+            self.assertEqual(self.runner.start(allow_clean=True), {"started": True, "busy": True})
+        clean_args = next(args for name, args, _ in self.calls if name == "systemd_run")
+        self.assertEqual(clean_args[-2:], ("run", "--allow-clean"))
+        self.calls = []
+        with patch.object(self.runner, "command", side_effect=self.fake):
+            self.assertEqual(self.runner.run(allow_clean=True), 0)
+        self.assertIn("nix", [name for name, _, _ in self.calls])
+        self.assertEqual(self.runner.read_state()["phase"], "done")
 
     def test_concurrent_launch_lock(self):
         with (self.runner.state_dir / "launch.lock").open("a") as lock:

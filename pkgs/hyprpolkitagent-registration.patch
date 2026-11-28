@@ -23,7 +23,7 @@
      int          argc = 1;
      char*        argv = (char*)"hyprpolkitagent";
      QApplication app(argc, &argv);
-@@ -28,6 +29,52 @@
+@@ -28,6 +29,48 @@
      app.setApplicationName("Hyprland Polkit Agent");
      QGuiApplication::setQuitOnLastWindowClosed(false);
  
@@ -37,13 +37,9 @@
 +        sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
 +        if (!sessionSubject->isValid()) {
 +            // hidepid can hide /proc/1/cgroup, which libsystemd needs even
-+            // to resolve our own PID. Ask logind for this PID's session,
-+            // falling back to this user's primary display session when
-+            // launched in a systemd user service (e.g. Hyprland under uwsm).
-+            // Never trust XDG_SESSION_ID or choose another user's display.
-+            QString id = logindSessionForProcess(getpid());
-+            if (id.isEmpty())
-+                id = logindDisplaySessionForUser(getuid());
++            // to resolve our own PID. Ask logind for this PID's session;
++            // never trust XDG_SESSION_ID or choose another user's display.
++            const QString id = logindSessionForProcess(getpid());
 +            if (!id.isEmpty())
 +                sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(id);
 +        }
@@ -78,7 +74,7 @@
      return true;
 --- /dev/null
 +++ b/src/core/LogindSession.hpp
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,87 @@
 +#pragma once
 +
 +#include <QtCore/QString>
@@ -105,7 +101,11 @@
 +}
 +
 +// Resolve only the requested PID through the trusted system-bus logind.
-+// Polkit still verifies the caller's session when registering the listener.
++// Mirrors polkit_unix_session_new_for_process_sync: first look up a direct
++// session for the PID (session-N.scope), then on NoSessionForPID fall back
++// to the PID owner's Display session (UWSM / systemd user services under
++// user@UID.service) and verify Session.Id at the referenced object path.
++// Polkit still verifies the caller's session on register.
 +inline QString logindSessionForProcess(quint32 pid) {
 +    const auto bus = QDBusConnection::systemBus();
 +    auto lookup = QDBusMessage::createMethodCall(
@@ -115,50 +115,44 @@
 +        QStringLiteral("GetSessionByPID"));
 +    lookup << pid;
 +    const QDBusReply<QDBusObjectPath> session = bus.call(lookup, QDBus::Block, 5000);
-+    if (!session.isValid())
++    if (session.isValid())
++        return logindSessionIdFromPath(bus, session.value().path());
++
++    if (session.error().name() != QStringLiteral("org.freedesktop.login1.NoSessionForPID"))
 +        return {};
 +
-+    return logindSessionIdFromPath(bus, session.value().path());
-+}
-+
-+// Fallback for processes running under user@UID.service (such as UWSM):
-+// mirror Polkit's upstream sd_uid_get_display(uid) via logind's trusted
-+// GetUser(uid) -> User.Display -> Session.Id chain, never XDG_SESSION_ID.
-+inline QString logindDisplaySessionForUser(quint32 uid) {
-+    const auto bus = QDBusConnection::systemBus();
-+    auto lookup = QDBusMessage::createMethodCall(
++    auto userLookup = QDBusMessage::createMethodCall(
 +        QStringLiteral("org.freedesktop.login1"),
 +        QStringLiteral("/org/freedesktop/login1"),
 +        QStringLiteral("org.freedesktop.login1.Manager"),
-+        QStringLiteral("GetUser"));
-+    lookup << uid;
-+    const QDBusReply<QDBusObjectPath> user = bus.call(lookup, QDBus::Block, 5000);
++        QStringLiteral("GetUserByPID"));
++    userLookup << pid;
++    const QDBusReply<QDBusObjectPath> user = bus.call(userLookup, QDBus::Block, 5000);
 +    if (!user.isValid() || user.value().path().isEmpty() || user.value().path() == QStringLiteral("/"))
 +        return {};
 +
-+    auto properties = QDBusMessage::createMethodCall(
++    auto displayProp = QDBusMessage::createMethodCall(
 +        QStringLiteral("org.freedesktop.login1"), user.value().path(),
 +        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
-+    properties << QStringLiteral("org.freedesktop.login1.User") << QStringLiteral("Display");
-+    const QDBusReply<QDBusVariant> display = bus.call(properties, QDBus::Block, 5000);
++    displayProp << QStringLiteral("org.freedesktop.login1.User") << QStringLiteral("Display");
++    const QDBusReply<QDBusVariant> display = bus.call(displayProp, QDBus::Block, 5000);
 +    if (!display.isValid())
 +        return {};
 +
-+    const QVariant displayVariant = display.value().variant();
-+    if (displayVariant.metaType().id() != qMetaTypeId<QDBusArgument>())
++    const QVariant value = display.value().variant();
++    if (value.metaType().id() != qMetaTypeId<QDBusArgument>())
 +        return {};
 +
-+    const auto arg = displayVariant.value<QDBusArgument>();
++    const auto arg = value.value<QDBusArgument>();
 +    if (arg.currentType() != QDBusArgument::StructureType ||
 +        arg.currentSignature() != QStringLiteral("(so)"))
 +        return {};
 +
-+    QString displayId;
++    QString         displayId;
 +    QDBusObjectPath sessionPath;
 +    arg.beginStructure();
 +    arg >> displayId >> sessionPath;
 +    arg.endStructure();
-+
 +    if (displayId.isEmpty())
 +        return {};
 +

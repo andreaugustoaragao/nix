@@ -86,8 +86,24 @@ let
         text = text.replace('Skill tool with "teach"', 'Skill tool with "pocock-teach"')
         text = text.replace("Skill tool with `teach`", "Skill tool with `pocock-teach`")
         skill_md.write_text(text, encoding="utf-8")
-    PY
 
+    # Supplement /retro with mandatory non-deterministic -> deterministic conversion analysis.
+    retro_md = root / "retro" / "SKILL.md"
+    retro_text = retro_md.read_text(encoding="utf-8")
+    anchor = "- **Information access**:"
+    determinism_bullet = (
+        "- **Non-deterministic to deterministic conversion** _(required every retro)_: "
+        "audit every non-deterministic step, manual multi-command ritual, or recurring agent "
+        "judgement call from the session and convert each viable one into a deterministic "
+        "lint rule, static validator, or helper script. Prefer mechanical enforcement "
+        "(ESLint/Clippy/schema/config validator or a one-command script) over prose rules "
+        "whenever the invariant can be checked or executed deterministically.\n"
+    )
+    if anchor not in retro_text:
+        raise SystemExit(f"Expected anchor {anchor!r} in {retro_md}")
+    retro_text = retro_text.replace(anchor, determinism_bullet + anchor, 1)
+    retro_md.write_text(retro_text, encoding="utf-8")
+    PY
     # Enforce explicit-only invocation across every Pocock skill for OMP, Cursor, and Codex.
     ${lib.getExe python} ${./make-explicit-skill.py} "$out"/*
 

@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 
@@ -16,6 +17,12 @@ CONFIG = re.compile(r"Dynamic Resolution: new heads config .*heads_count=(\d+)")
 HEAD = re.compile(
     r"Dynamic Resolution:\s+head ([012])\) width=\d+, height=\d+, x=(-?\d+), y=-?\d+"
 )
+DRM_MODE = re.compile(r"^(\d+)x(\d+)$")
+AVAILABLE_MODE = re.compile(r"^(\d+)x(\d+)@(\d+(?:\.\d+)?)Hz$")
+DRM_ROOT = Path("/sys/class/drm")
+DRM_EVENT = object()
+MODE_SETTLE_ATTEMPTS = 6
+MODE_SETTLE_INTERVAL = 0.15
 VIRTUAL1_SMALL_MAX_WIDTH = 2560
 VIRTUAL1_SMALL_SCALE = 1.25
 VIRTUAL1_LARGE_SCALE = 1.5
@@ -52,7 +59,62 @@ def desired_scale(outputs, output_name="Virtual-1"):
     return target_scale_for_width(width)
 
 
-def hyprland_desired_scale(monitors, output_name="Virtual-1"):
+def read_drm_preferred_modes(drm_root=DRM_ROOT):
+    modes = {}
+    if drm_root is None:
+        return modes
+    try:
+        connectors = sorted(drm_root.glob("card*-Virtual-*"))
+    except OSError:
+        return modes
+    for connector in connectors:
+        try:
+            if (connector / "status").read_text().strip() != "connected":
+                continue
+            lines = (connector / "modes").read_text().splitlines()
+        except OSError:
+            continue
+        first_mode = next((line.strip() for line in lines if line.strip()), "")
+        match = DRM_MODE.match(first_mode)
+        if not match or "-" not in connector.name:
+            continue
+        output_name = connector.name.split("-", 1)[1]
+        modes[output_name] = (int(match.group(1)), int(match.group(2)))
+    return modes
+
+
+def hyprland_mode_spec(monitor, target_size=None):
+    if target_size is None:
+        width = monitor.get("width")
+        height = monitor.get("height")
+        if not width or not height:
+            return "preferred"
+        target_size = (width, height)
+
+    width, height = target_size
+    matches = []
+    for entry in monitor.get("availableModes") or []:
+        match = AVAILABLE_MODE.match(entry)
+        if not match:
+            continue
+        if int(match.group(1)) == width and int(match.group(2)) == height:
+            matches.append((float(match.group(3)), match.group(3)))
+
+    if matches:
+        under_60 = [item for item in matches if item[0] <= 60.05]
+        chosen = max(under_60, key=lambda item: item[0]) if under_60 else min(matches, key=lambda item: item[0])
+        return f"{width}x{height}@{chosen[1]}"
+
+    if (
+        monitor.get("width") == width
+        and monitor.get("height") == height
+        and monitor.get("refreshRate")
+    ):
+        return f"{width}x{height}@{monitor['refreshRate']:.2f}"
+    return f"{width}x{height}@60"
+
+
+def hyprland_desired_scale(monitors, output_name="Virtual-1", drm_modes=None):
     by_name = {monitor.get("name"): monitor for monitor in monitors if monitor.get("name")}
     monitor = by_name.get(output_name)
     if not monitor or not monitor.get("width"):
@@ -63,9 +125,12 @@ def hyprland_desired_scale(monitors, output_name="Virtual-1"):
     if docked:
         return VIRTUAL1_LARGE_SCALE
     transform = monitor.get("transform", 0)
-    pixel_width = monitor["height"] if transform % 2 == 1 else monitor["width"]
+    if drm_modes and output_name in drm_modes:
+        width, height = drm_modes[output_name]
+    else:
+        width, height = monitor["width"], monitor["height"]
+    pixel_width = height if transform % 2 == 1 else width
     return target_scale_for_width(pixel_width)
-
 
 
 
@@ -212,7 +277,23 @@ def apply_niri_layout(layout, niri_bin, dry_run=False):
         print(f"Could not apply Parallels layout: {error}", file=sys.stderr, flush=True)
         return False
 
-def apply_hyprland_layout(layout, hyprctl_bin, dry_run=False):
+def is_hyprland_session():
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return True
+    if os.environ.get("NIRI_SOCKET"):
+        return False
+    return "hyprland" in os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+
+
+def apply_hyprland_layout(
+    layout,
+    hyprctl_bin,
+    dry_run=False,
+    drm_root=DRM_ROOT,
+    rejected_modes=None,
+    settle_attempts=MODE_SETTLE_ATTEMPTS,
+    settle_interval=MODE_SETTLE_INTERVAL,
+):
     try:
         def read_monitors():
             result = subprocess.run(
@@ -225,50 +306,113 @@ def apply_hyprland_layout(layout, hyprctl_bin, dry_run=False):
             return json.loads(result.stdout)
 
         monitors = read_monitors()
-        scale_target = hyprland_desired_scale(monitors)
-        by_name = {monitor["name"]: monitor for monitor in monitors if monitor.get("name")}
-        if scale_target is not None and "Virtual-1" in by_name:
-            monitor = by_name["Virtual-1"]
-            current_scale = monitor.get("scale", scale_target)
-            if not math.isclose(current_scale, scale_target, abs_tol=1e-3):
-                x = monitor.get("x", 0)
-                y = monitor.get("y", 0)
-                transform = monitor.get("transform", 0)
-                rule = f"Virtual-1,preferred,{x}x{y},{scale_target:g}"
-                if transform:
-                    rule = f"{rule},transform,{transform}"
-                if dry_run:
-                    print(f"Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
-                else:
-                    subprocess.run(
-                        [hyprctl_bin, "keyword", "monitor", rule],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                    )
-                    print(f"Applied Parallels scale: Virtual-1 -> {scale_target:g}", flush=True)
-                    monitors = read_monitors()
-                    by_name = {m["name"]: m for m in monitors if m.get("name")}
+        drm_modes = read_drm_preferred_modes(drm_root)
+        if rejected_modes is not None:
+            for name in list(rejected_modes):
+                if drm_modes.get(name) != rejected_modes[name]:
+                    del rejected_modes[name]
+        active_drm_modes = {
+            name: size
+            for name, size in drm_modes.items()
+            if rejected_modes is None or rejected_modes.get(name) != size
+        }
 
+        scale_target = hyprland_desired_scale(monitors, drm_modes=active_drm_modes)
+        by_name = {monitor["name"]: monitor for monitor in monitors if monitor.get("name")}
+        applied_modes = {}
+        changed = False
+        for monitor in monitors:
+            name = monitor.get("name")
+            if not name:
+                continue
+            target_size = active_drm_modes.get(name)
+            needs_mode = (
+                target_size is not None
+                and (monitor.get("width"), monitor.get("height")) != target_size
+            )
+            current_scale = monitor.get("scale", 1.0)
+            desired_scale_val = (
+                scale_target
+                if name == "Virtual-1" and scale_target is not None
+                else current_scale
+            )
+            needs_scale = (
+                name == "Virtual-1"
+                and scale_target is not None
+                and not math.isclose(current_scale, desired_scale_val, abs_tol=1e-3)
+            )
+            if not (needs_mode or needs_scale):
+                continue
+
+            mode = hyprland_mode_spec(monitor, target_size)
+            x = monitor.get("x", 0)
+            y = monitor.get("y", 0)
+            transform = monitor.get("transform", 0)
+            rule = f"{name},{mode},{x}x{y},{desired_scale_val:g}"
+            if transform:
+                rule = f"{rule},transform,{transform}"
+            if dry_run:
+                print(f"Parallels display: {rule}", flush=True)
+                continue
+            subprocess.run(
+                [hyprctl_bin, "keyword", "monitor", rule],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            changed = True
+            if needs_mode:
+                applied_modes[name] = target_size
+            print(f"Applied Parallels display: {rule}", flush=True)
+
+        had_rejection = False
+        if changed:
+            attempts = max(1, settle_attempts) if applied_modes else 1
+            for attempt in range(attempts):
+                if attempt > 0 and settle_interval > 0:
+                    time.sleep(settle_interval)
+                monitors = read_monitors()
+                by_name = {m["name"]: m for m in monitors if m.get("name")}
+                if all(
+                    (by_name.get(name, {}).get("width"), by_name.get(name, {}).get("height"))
+                    == target_size
+                    for name, target_size in applied_modes.items()
+                ):
+                    break
+            for name, target_size in applied_modes.items():
+                updated = by_name.get(name)
+                actual = (updated.get("width"), updated.get("height")) if updated else None
+                if actual != target_size:
+                    had_rejection = True
+                    print(
+                        f"Hyprland rejected mode {target_size[0]}x{target_size[1]} for {name} "
+                        f"(kept {actual}); waiting for DRM mode change",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    if rejected_modes is not None:
+                        rejected_modes[name] = target_size
+                        active_drm_modes.pop(name, None)
         if layout is None:
-            return True
+            return not had_rejection
         positions = hyprland_desired_positions(layout, monitors)
         if positions is None:
-            return True
+            return not had_rejection
         if dry_run:
             print(f"Parallels layout: {positions}", flush=True)
-            return True
+            return not had_rejection
         if all(
             by_name[name].get("x") == x and by_name[name].get("y") == 0
             for name, x in positions.items()
         ):
-            return True
+            return not had_rejection
         for name, x in positions.items():
             monitor = by_name[name]
+            mode = hyprland_mode_spec(monitor, active_drm_modes.get(name))
             scale = monitor["scale"]
             transform = monitor.get("transform", 0)
-            rule = f"{name},preferred,{x}x0,{scale:g}"
+            rule = f"{name},{mode},{x}x0,{scale:g}"
             if transform:
                 rule = f"{rule},transform,{transform}"
             subprocess.run(
@@ -279,23 +423,27 @@ def apply_hyprland_layout(layout, hyprctl_bin, dry_run=False):
                 timeout=5,
             )
         print(f"Applied Parallels layout: {positions}", flush=True)
-        return True
+        return not had_rejection
     except (json.JSONDecodeError, OSError, subprocess.SubprocessError) as error:
         print(f"Could not apply Parallels layout: {error}", file=sys.stderr, flush=True)
         return False
 
 
-def apply_layout(layout, niri_bin, dry_run=False, hyprctl_bin=None):
-    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+def apply_layout(
+    layout,
+    niri_bin,
+    dry_run=False,
+    hyprctl_bin=None,
+    drm_root=DRM_ROOT,
+    rejected_modes=None,
+):
+    if is_hyprland_session():
         return apply_hyprland_layout(
-            layout, hyprctl_bin or os.environ.get("HYPRCTL_BIN", "hyprctl"), dry_run
-        )
-    if os.environ.get("NIRI_SOCKET"):
-        return apply_niri_layout(layout, niri_bin, dry_run)
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
-    if "hyprland" in desktop:
-        return apply_hyprland_layout(
-            layout, hyprctl_bin or os.environ.get("HYPRCTL_BIN", "hyprctl"), dry_run
+            layout,
+            hyprctl_bin or os.environ.get("HYPRCTL_BIN", "hyprctl"),
+            dry_run,
+            drm_root=drm_root,
+            rejected_modes=rejected_modes,
         )
     return apply_niri_layout(layout, niri_bin, dry_run)
 
@@ -307,18 +455,38 @@ def enqueue_lines(stream, events):
     events.put(None)
 
 
+def enqueue_drm_events(stream, events):
+    for line in stream:
+        if "change" in line and "/drm/" in line:
+            events.put(DRM_EVENT)
+
+
 def main():
     args = argparse.ArgumentParser(description=__doc__)
     args.add_argument("--log", type=Path, default=Path("/var/log/parallels.log"))
+    args.add_argument("--drm-root", type=Path, default=DRM_ROOT)
     args.add_argument("--once", action="store_true")
     args.add_argument("--dry-run", action="store_true")
     options = args.parse_args()
 
     niri_bin = os.environ.get("NIRI_BIN", "niri")
     hyprctl_bin = os.environ.get("HYPRCTL_BIN", "hyprctl")
+    udevadm_bin = os.environ.get("UDEVADM_BIN", "udevadm")
+    rejected_modes = {}
     if options.once:
         layout = read_layout(options.log).latest
-        return 0 if apply_layout(layout, niri_bin, options.dry_run, hyprctl_bin) else 1
+        return (
+            0
+            if apply_layout(
+                layout,
+                niri_bin,
+                options.dry_run,
+                hyprctl_bin,
+                drm_root=options.drm_root,
+                rejected_modes=rejected_modes,
+            )
+            else 1
+        )
 
     events = queue.Queue()
     tail = subprocess.Popen(
@@ -331,18 +499,69 @@ def main():
         target=enqueue_lines, args=(tail.stdout, events), daemon=True
     ).start()
 
+    if is_hyprland_session():
+        try:
+            udev = subprocess.Popen(
+                [udevadm_bin, "monitor", "--udev", "--subsystem-match=drm"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+            )
+            threading.Thread(
+                target=enqueue_drm_events, args=(udev.stdout, events), daemon=True
+            ).start()
+        except OSError as error:
+            print(f"Could not watch DRM uevents: {error}", file=sys.stderr, flush=True)
+
     layout = read_layout(options.log)
-    apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
+    apply_layout(
+        layout.latest,
+        niri_bin,
+        hyprctl_bin=hyprctl_bin,
+        drm_root=options.drm_root,
+        rejected_modes=rejected_modes,
+    )
     while True:
         try:
-            line = events.get(timeout=5)
+            item = events.get(timeout=5)
         except queue.Empty:
-            apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
+            apply_layout(
+                layout.latest,
+                niri_bin,
+                hyprctl_bin=hyprctl_bin,
+                drm_root=options.drm_root,
+                rejected_modes=rejected_modes,
+            )
             continue
-        if line is None:
+        if item is None:
             return 1
-        if layout.feed(line) or CONFIG.search(line):
-            apply_layout(layout.latest, niri_bin, hyprctl_bin=hyprctl_bin)
-
+        if item is DRM_EVENT:
+            time.sleep(0.2)
+            while True:
+                try:
+                    queued = events.get_nowait()
+                except queue.Empty:
+                    break
+                if queued is None:
+                    return 1
+                if queued is not DRM_EVENT:
+                    layout.feed(queued)
+            apply_layout(
+                layout.latest,
+                niri_bin,
+                hyprctl_bin=hyprctl_bin,
+                drm_root=options.drm_root,
+                rejected_modes=rejected_modes,
+            )
+            continue
+        if layout.feed(item) or CONFIG.search(item):
+            apply_layout(
+                layout.latest,
+                niri_bin,
+                hyprctl_bin=hyprctl_bin,
+                drm_root=options.drm_root,
+                rejected_modes=rejected_modes,
+            )
 if __name__ == "__main__":
     raise SystemExit(main())

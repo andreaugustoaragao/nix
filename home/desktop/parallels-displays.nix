@@ -22,6 +22,7 @@ in
         "NIRI_BIN=${unstable-pkgs.niri}/bin/niri"
         "HYPRCTL_BIN=${pkgs.hyprland}/bin/hyprctl"
         "TAIL_BIN=${pkgs.coreutils}/bin/tail"
+        "UDEVADM_BIN=${pkgs.systemd}/bin/udevadm"
       ];
       ExecStart = "${layoutSync}/bin/prl-display-layout";
       Restart = "on-failure";

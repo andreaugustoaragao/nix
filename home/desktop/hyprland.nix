@@ -387,17 +387,15 @@ in
         inactive_timeout = 3;
         hide_on_key_press = true;
       };
-      # General settings (Omarchy + Catppuccin). Hyprland's native
-      # scrolling layout is a close match for Niri: each workspace is an
-      # unbounded tape of columns, and opening a window does not resize the
-      # existing columns.
+      # General settings (Omarchy + Catppuccin). Uses Hyprland's native
+      # dwindle (BSP tree) layout.
       general = {
         gaps_in = 5;
         gaps_out = 10; # Omarchy style smaller outer gaps
         border_size = 6;
         "col.active_border" = "rgb(cdd6f4)"; # Catppuccin Mocha text
         "col.inactive_border" = "rgba(595959aa)";
-        layout = "scrolling";
+        layout = "dwindle";
         allow_tearing = true;
         resize_on_border = false;
       };
@@ -439,10 +437,11 @@ in
         ];
       };
 
-      # Layout (Omarchy style)
+      # Layout (BSP tree)
       dwindle = {
         preserve_split = true;
-        force_split = 2; # Always split on the right
+        force_split = 2; # Always split right/down
+        smart_resizing = true;
       };
 
       master = {
@@ -693,38 +692,34 @@ in
         "$mainMod CTRL, F, fullscreen, 0"
         "$mainMod, F, fullscreen, 1"
         "$mainMod, V, togglefloating,"
-        "$mainMod SHIFT, C, layoutmsg, center"
-        # Focus (arrows + hjkl). `layoutmsg focus` follows the horizontal
-        # tape and brings the selected column into view.
-        "$mainMod, left, layoutmsg, focus l"
-        "$mainMod, right, layoutmsg, focus r"
+        "$mainMod, P, pseudo,"
+        "$mainMod, R, layoutmsg, togglesplit"
+        "$mainMod SHIFT, C, layoutmsg, swapsplit"
+        # Focus (arrows + hjkl).
+        "$mainMod, left, movefocus, l"
+        "$mainMod, right, movefocus, r"
         "$mainMod, up, movefocus, u"
         "$mainMod, down, movefocus, d"
-        "$mainMod, h, layoutmsg, focus l"
-        "$mainMod, l, layoutmsg, focus r"
+        "$mainMod, h, movefocus, l"
+        "$mainMod, l, movefocus, r"
         "$mainMod, k, movefocus, u"
         "$mainMod, j, movefocus, d"
 
-        # Niri: toggle-column-tabbed-display. Closest Hyprland concept
-        # is a group (tabbed stack of windows in one slot).
+        # Window groups (tabbed stack inside any tiled split).
         "$mainMod, c, togglegroup,"
+        "$mainMod, bracketleft, changegroupactive, b"
+        "$mainMod, bracketright, changegroupactive, f"
+        "$mainMod SHIFT, bracketleft, moveoutofgroup,"
 
-        # Niri moves whole columns left and right. The scrolling layout's
-        # `swapcol` retains that behavior instead of moving one window.
-        "$mainMod SHIFT, left, layoutmsg, swapcol l"
-        "$mainMod SHIFT, right, layoutmsg, swapcol r"
-        "$mainMod SHIFT, up, swapwindow, u"
-        "$mainMod SHIFT, down, swapwindow, d"
-        "$mainMod SHIFT, h, layoutmsg, swapcol l"
-        "$mainMod SHIFT, l, layoutmsg, swapcol r"
-        "$mainMod SHIFT, k, swapwindow, u"
-        "$mainMod SHIFT, j, swapwindow, d"
-
-        # Niri consume-or-expel-window-left/right maps directly to the
-        # scrolling layout rather than Hyprland's unrelated tab groups.
-        "$mainMod, bracketleft, layoutmsg, consume_or_expel prev"
-        "$mainMod, bracketright, layoutmsg, consume_or_expel next"
-
+        # Move windows across the BSP tree, into/out of groups, or across monitors.
+        "$mainMod SHIFT, left, movewindow, l"
+        "$mainMod SHIFT, right, movewindow, r"
+        "$mainMod SHIFT, up, movewindow, u"
+        "$mainMod SHIFT, down, movewindow, d"
+        "$mainMod SHIFT, h, movewindow, l"
+        "$mainMod SHIFT, l, movewindow, r"
+        "$mainMod SHIFT, k, movewindow, u"
+        "$mainMod SHIFT, j, movewindow, d"
         # Multi-monitor (arrows only — Mod+Ctrl+L collides with lock).
         "$mainMod CTRL, left, focusmonitor, l"
         "$mainMod CTRL, right, focusmonitor, r"
@@ -743,18 +738,9 @@ in
       ++ [
         "$mainMod, Tab, workspace, ${if hostName == "workstation" then "m+1" else "e+1"}"
         "$mainMod SHIFT, Tab, workspace, ${if hostName == "workstation" then "m-1" else "e-1"}"
-
-        # The scrolling layout has Niri's preset-width cycle natively. A
-        # 0.05 proportion step is roughly 100–150 logical pixels here.
-        "$mainMod, R, layoutmsg, colresize +conf"
-        "$mainMod, minus, layoutmsg, colresize -0.05"
-        "$mainMod, equal, layoutmsg, colresize +0.05"
-        "$mainMod SHIFT, minus, resizeactive, 0 -100"
-        "$mainMod SHIFT, equal, resizeactive, 0 100"
-
-        # Screenshots. Use Noctalia's native region/annotate/fullscreen tools
-        # when Noctalia owns the shell (matching home/desktop/niri.nix).
       ]
+      # Screenshots. Use Noctalia's native region/annotate/fullscreen tools
+      # when Noctalia owns the shell (matching home/desktop/niri.nix).
       ++ (
         if useNoctalia then
           [
@@ -806,6 +792,14 @@ in
       ++ lockBind
       ++ shellSurfaceBinds
       ++ lib.optional hasVoxtype ", F9, exec, ${voxtypeBin} record toggle";
+
+      # Repeatable resize binds for dwindle splits.
+      binde = [
+        "$mainMod, minus, resizeactive, -100 0"
+        "$mainMod, equal, resizeactive, 100 0"
+        "$mainMod SHIFT, minus, resizeactive, 0 -100"
+        "$mainMod SHIFT, equal, resizeactive, 0 100"
+      ];
 
       # Media keys: SwayOSD by default, direct wpctl/brightnessctl when
       # DMS owns the OSD (DMS shows its own via pipewire monitoring).

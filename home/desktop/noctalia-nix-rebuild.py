@@ -153,18 +153,21 @@ class Rebuilder:
             "repository": str(self.repository), "log": str(self.log_file),
         }
 
-    def start(self):
+    def start(self, allow_clean=False):
         # Serialize launches from multiple bars/clicks; systemd also enforces one unit.
         with (self.state_dir / "launch.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if self.unit_active():
                 return {"started": False, "busy": True}
-            if not self.dirty():
+            if not allow_clean and not self.dirty():
                 return {"started": False, "busy": False, "message": "Nix checkout is clean."}
+            run_args = ["--config", self.config_path, "run"]
+            if allow_clean:
+                run_args.append("--allow-clean")
             result = self.command(
                 "systemd_run", "--user", "--unit=" + UNIT, "--collect", "--quiet",
                 "--property=Type=exec", "--", sys.executable, str(Path(__file__).resolve()),
-                "--config", self.config_path, "run", capture_output=True, text=True, timeout=15,
+                *run_args, capture_output=True, text=True, timeout=15,
             )
             if result.returncode:
                 raise ValueError("Could not start the rebuild job: " + result.stderr.strip())
@@ -184,7 +187,7 @@ class Rebuilder:
         except (ValueError, KeyError, TypeError) as exc:
             raise ValueError("Build did not return exactly one system closure for this host.") from exc
 
-    def run(self):
+    def run(self, allow_clean=False):
         if os.geteuid() == 0:
             raise ValueError("Run the build as your normal user, not root.")
         with (self.state_dir / "run.lock").open("a") as lock:
@@ -192,7 +195,7 @@ class Rebuilder:
             with self.log_file.open("w") as stream:
                 log = TimestampLog(stream)
                 try:
-                    if not self.dirty():
+                    if not allow_clean and not self.dirty():
                         self.save("idle", "Nix checkout is clean; nothing was started.")
                         return 0
                     self.save("building", "Building the system as your normal user.")
@@ -258,6 +261,7 @@ def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
+    parser.add_argument("--allow-clean", action="store_true", help="Allow building and activating even when the Nix checkout is clean.")
     parser.add_argument("action", choices=("status", "start", "run", "log"))
     args = parser.parse_args()
     try:
@@ -265,9 +269,9 @@ def main():
         if args.action == "status":
             print(json.dumps(rebuilder.status()))
         elif args.action == "start":
-            print(json.dumps(rebuilder.start()))
+            print(json.dumps(rebuilder.start(allow_clean=args.allow_clean)))
         elif args.action == "run":
-            return rebuilder.run()
+            return rebuilder.run(allow_clean=args.allow_clean)
         else:
             return rebuilder.show_log()
         return 0

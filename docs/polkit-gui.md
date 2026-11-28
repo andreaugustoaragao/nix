@@ -26,6 +26,14 @@ trust `XDG_SESSION_ID`, choose an arbitrary display session, or change
 Polkit policy. Polkit still verifies the registering caller's session.
 The existing retry and successful-registration owner watch remain intact.
 
+Under Hyprland with UWSM, `hyprpolkitagent` runs inside `user@UID.service`
+rather than `session-N.scope`, so `GetSessionByPID` returns
+`org.freedesktop.login1.NoSessionForPID`. On that error only,
+`logindSessionForProcess` mirrors Polkit's own `sd_pid_get_owner_uid` +
+`sd_uid_get_display` fallback by calling `GetUserByPID(getpid())` and reading
+the `(so)` `org.freedesktop.login1.User.Display` property, failing closed on
+errors, wrong signatures, empty IDs, or the `"/"` empty path.
+
 The patched agent registered successfully when spawned through Niri in
 the existing desktop. A transient **user** service then ran
 `pkexec --disable-internal-agent /run/current-system/sw/bin/true`:

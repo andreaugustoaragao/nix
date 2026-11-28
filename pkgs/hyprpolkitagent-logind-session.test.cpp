@@ -2,12 +2,32 @@
 // No host Polkit registration, GUI, passwords, or system activation.
 #include "src/core/LogindSession.hpp"
 
+#include <QDBusMetaType>
 #include <QCoreApplication>
-#include <QDBusArgument>
 #include <QDBusVirtualObject>
 #include <QProcess>
 #include <iostream>
 #include <unistd.h>
+
+struct DisplaySession {
+    QString         id;
+    QDBusObjectPath path;
+};
+Q_DECLARE_METATYPE(DisplaySession)
+
+QDBusArgument &operator<<(QDBusArgument &arg, const DisplaySession &value) {
+    arg.beginStructure();
+    arg << value.id << value.path;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &arg, DisplaySession &value) {
+    arg.beginStructure();
+    arg >> value.id >> value.path;
+    arg.endStructure();
+    return arg;
+}
 
 class MockLogind : public QDBusVirtualObject {
 public:
@@ -16,14 +36,17 @@ public:
     QString introspect(const QString &) const override { return {}; }
 
     bool handleMessage(const QDBusMessage &message, const QDBusConnection &bus) override {
-        const auto fail = [&] {
-            return bus.send(message.createErrorReply(
-                QStringLiteral("org.freedesktop.login1.NoSessionForPID"), QStringLiteral("fixture")));
+        const auto fail = [&](const QString &name = QStringLiteral("org.freedesktop.login1.NoSessionForPID")) {
+            return bus.send(message.createErrorReply(name, QStringLiteral("fixture")));
         };
         if (message.interface() == QStringLiteral("org.freedesktop.login1.Manager") &&
             message.member() == QStringLiteral("GetSessionByPID")) {
-            if (message.signature() != QStringLiteral("u") || scenario == QStringLiteral("lookup-error"))
+            if (message.signature() != QStringLiteral("u"))
                 return fail();
+            if (scenario == QStringLiteral("lookup-error"))
+                return fail(QStringLiteral("org.freedesktop.login1.InternalError"));
+            if (scenario.startsWith(QStringLiteral("user-")))
+                return fail(QStringLiteral("org.freedesktop.login1.NoSessionForPID"));
             pid = message.arguments().at(0).toUInt();
             if (scenario == QStringLiteral("lookup-wrong-type"))
                 return bus.send(message.createReply(QList<QVariant>{QStringLiteral("not-an-object-path")}));
@@ -31,14 +54,31 @@ public:
                 QDBusObjectPath(QStringLiteral("/org/freedesktop/login1/session/test")))}));
         }
         if (message.interface() == QStringLiteral("org.freedesktop.login1.Manager") &&
-            message.member() == QStringLiteral("GetUser")) {
+            message.member() == QStringLiteral("GetUserByPID")) {
             if (message.signature() != QStringLiteral("u") || scenario == QStringLiteral("user-lookup-error"))
-                return fail();
-            uid = message.arguments().at(0).toUInt();
+                return fail(QStringLiteral("org.freedesktop.login1.NoSuchUser"));
+            pid = message.arguments().at(0).toUInt();
             if (scenario == QStringLiteral("user-lookup-wrong-type"))
                 return bus.send(message.createReply(QList<QVariant>{QStringLiteral("not-an-object-path")}));
             return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(
                 QDBusObjectPath(QStringLiteral("/org/freedesktop/login1/user/test")))}));
+        }
+        if (message.path() == QStringLiteral("/org/freedesktop/login1/session/test") &&
+            message.interface() == QStringLiteral("org.freedesktop.DBus.Properties") &&
+            message.member() == QStringLiteral("Get")) {
+            if (message.arguments() != QList<QVariant>{QStringLiteral("org.freedesktop.login1.Session"),
+                                                       QStringLiteral("Id")} ||
+                scenario == QStringLiteral("property-error") ||
+                scenario == QStringLiteral("user-display-session-property-error"))
+                return fail();
+            QVariant id = QString::number(pid);
+            if (scenario == QStringLiteral("user-display-session-id-mismatch"))
+                id = QString::number(pid + 1);
+            if (scenario == QStringLiteral("empty-id")) id = QString();
+            if (scenario == QStringLiteral("id-wrong-type")) id = quint32(123);
+            if (scenario == QStringLiteral("property-wrong-type"))
+                return bus.send(message.createReply(QList<QVariant>{id}));
+            return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(QDBusVariant(id))}));
         }
         if (message.path() == QStringLiteral("/org/freedesktop/login1/user/test") &&
             message.interface() == QStringLiteral("org.freedesktop.DBus.Properties") &&
@@ -48,46 +88,24 @@ public:
                 scenario == QStringLiteral("user-display-error"))
                 return fail();
             if (scenario == QStringLiteral("user-display-wrong-type"))
-                return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(
-                    QDBusVariant(QStringLiteral("not-a-struct")))}));
+                return bus.send(message.createReply(QList<QVariant>{
+                    QVariant::fromValue(QDBusVariant(QString::number(pid)))}));
             if (scenario == QStringLiteral("user-display-bad-sig")) {
                 QDBusArgument bad;
                 bad.beginStructure();
                 bad << quint32(1) << quint32(2);
                 bad.endStructure();
-                return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(
-                    QDBusVariant(QVariant::fromValue(bad)))}));
+                return bus.send(message.createReply(QList<QVariant>{
+                    QVariant::fromValue(QDBusVariant(QVariant::fromValue(bad)))}));
             }
-            const QString id = scenario == QStringLiteral("user-empty-display")
-                ? QString()
-                : QString::number(uid);
-            const QString sessionPath = scenario == QStringLiteral("user-empty-display")
-                ? QStringLiteral("/")
-                : QStringLiteral("/org/freedesktop/login1/session/test");
-            QDBusArgument display;
-            display.beginStructure();
-            display << id << QDBusObjectPath(sessionPath);
-            display.endStructure();
-            return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(
-                QDBusVariant(QVariant::fromValue(display)))}));
-        }
-        if (message.path() == QStringLiteral("/org/freedesktop/login1/session/test") &&
-            message.interface() == QStringLiteral("org.freedesktop.DBus.Properties") &&
-            message.member() == QStringLiteral("Get")) {
-            if (message.arguments() != QList<QVariant>{QStringLiteral("org.freedesktop.login1.Session"),
-                                                       QStringLiteral("Id")} ||
-                scenario == QStringLiteral("property-error"))
-                return fail();
-            QVariant id = uid != 0 && scenario == QStringLiteral("user-success")
-                ? QString::number(uid)
-                : QString::number(pid);
-            if (scenario == QStringLiteral("user-session-id-mismatch"))
-                id = QString::number(uid + 1);
-            if (scenario == QStringLiteral("empty-id")) id = QString();
-            if (scenario == QStringLiteral("id-wrong-type")) id = quint32(123);
-            if (scenario == QStringLiteral("property-wrong-type"))
-                return bus.send(message.createReply(QList<QVariant>{id}));
-            return bus.send(message.createReply(QList<QVariant>{QVariant::fromValue(QDBusVariant(id))}));
+            DisplaySession display{
+                scenario == QStringLiteral("user-display-empty-id") ? QString() : QString::number(pid),
+                QDBusObjectPath(scenario == QStringLiteral("user-display-root-path")
+                                    ? QStringLiteral("/")
+                                    : QStringLiteral("/org/freedesktop/login1/session/test")),
+            };
+            return bus.send(message.createReply(QList<QVariant>{
+                QVariant::fromValue(QDBusVariant(QVariant::fromValue(display)))}));
         }
         return fail();
     }
@@ -95,10 +113,11 @@ public:
 private:
     QString scenario;
     quint32 pid = 0;
-    quint32 uid = 0;
 };
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    qDBusRegisterMetaType<DisplaySession>();
     if (app.arguments().size() == 3 && app.arguments().at(1) == QStringLiteral("--serve")) {
         auto bus = QDBusConnection::systemBus();
         MockLogind mock(app.arguments().at(2));
@@ -112,16 +131,21 @@ int main(int argc, char **argv) {
 
     // A misleading environment session ID must never rescue a failed lookup.
     qputenv("XDG_SESSION_ID", "untrusted-session");
-    if (!logindSessionForProcess(getpid()).isEmpty() || !logindDisplaySessionForUser(getuid()).isEmpty()) return 2;
+    if (!logindSessionForProcess(getpid()).isEmpty()) return 2;
 
     for (const auto &scenario : {"success", "lookup-error", "lookup-wrong-type", "property-error",
-                                 "empty-id", "id-wrong-type", "property-wrong-type"}) {
+                                 "empty-id", "id-wrong-type", "property-wrong-type",
+                                 "user-display-success", "user-lookup-error", "user-lookup-wrong-type",
+                                 "user-display-error", "user-display-wrong-type", "user-display-bad-sig",
+                                 "user-display-empty-id", "user-display-root-path",
+                                 "user-display-session-property-error", "user-display-session-id-mismatch"}) {
         QProcess server;
         server.start(app.applicationFilePath(), {QStringLiteral("--serve"), QString::fromLatin1(scenario)});
         if (!server.waitForStarted() || !server.waitForReadyRead() || server.readLine() != "READY\n")
             return 3;
         const auto id = logindSessionForProcess(getpid());
-        const bool expected = QString::fromLatin1(scenario) == QStringLiteral("success");
+        const bool expected = QString::fromLatin1(scenario) == QStringLiteral("success") ||
+                              QString::fromLatin1(scenario) == QStringLiteral("user-display-success");
         // The mock returns the PID received over D-Bus as Id, proving exact PID targeting.
         const bool ok = expected ? id == QString::number(getpid()) : id.isEmpty();
         server.kill();
@@ -131,25 +155,6 @@ int main(int argc, char **argv) {
             return 4;
         }
     }
-
-    for (const auto &scenario : {"user-success", "user-lookup-error", "user-lookup-wrong-type",
-                                 "user-display-error", "user-display-wrong-type", "user-display-bad-sig",
-                                 "user-empty-display", "user-session-id-mismatch"}) {
-        QProcess server;
-        server.start(app.applicationFilePath(), {QStringLiteral("--serve"), QString::fromLatin1(scenario)});
-        if (!server.waitForStarted() || !server.waitForReadyRead() || server.readLine() != "READY\n")
-            return 3;
-        const auto id = logindDisplaySessionForUser(getuid());
-        const bool expected = QString::fromLatin1(scenario) == QStringLiteral("user-success");
-        // The mock returns the UID received over D-Bus as Display/Id, proving exact UID targeting.
-        const bool ok = expected ? id == QString::number(getuid()) : id.isEmpty();
-        server.kill();
-        server.waitForFinished();
-        if (!ok) {
-            std::cerr << "User display resolver failed scenario: " << scenario << '\n';
-            return 4;
-        }
-    }
-    std::cout << "Logind resolver passed: exact PID, missing service, errors, types, empty ID.\n";
+    std::cout << "Logind resolver passed: exact PID, user Display fallback, missing service, errors, types, empty ID.\n";
     return 0;
 }

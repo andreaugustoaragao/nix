@@ -3,6 +3,7 @@
   lib,
   unstable-pkgs,
   hostName,
+  isVm,
   ...
 }:
 
@@ -80,6 +81,16 @@
           substituteInPlace "$out/share/systemd/user/xdg-document-portal.service" \
             --replace-fail 'PartOf=graphical-session.target' ""
         '';
+      });
+    })
+  ]
+  ++ lib.optionals isVm [
+    # Backport hyprwm/aquamarine#330: attach a right-sized swapchain buffer
+    # on modeset commits so drivers without primary-plane scaling (virtio-gpu)
+    # don't reject resolution increases with EINVAL.
+    (_final: prev: {
+      aquamarine = prev.aquamarine.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ../overlays/aquamarine-modeset-buffer.patch ];
       });
     })
   ];
